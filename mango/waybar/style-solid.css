@@ -1,0 +1,296 @@
+/* =====================================================================
+   Waybar — Solid / Tiling style
+   Full-width opaque bar, flat modules, no rounded corners.
+   ===================================================================== */
+
+@import url("colors.css");
+
+* {
+    font-family: "3270 Nerd Font", monospace;
+    font-size: 14px;
+    font-weight: bold;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+}
+
+window#waybar {
+    background: @base;
+    color: @text;
+    border-bottom: 1px solid @overlay;
+}
+
+/* ── All modules — flat, no backgrounds, consistent padding ───────── */
+
+#workspaces,
+#taskbar,
+#window,
+#clock,
+#custom-layout,
+#mpris,
+#custom-notification,
+#cpu,
+#memory,
+#network,
+#custom-vpn,
+#bluetooth,
+#pulseaudio,
+#backlight,
+#battery,
+#tray,
+#custom-power,
+#custom-night-mode,
+#power-profiles-daemon {
+    background: transparent;
+    color: @text;
+    border-radius: 0;
+    margin: 0;
+    padding: 0 6px;
+}
+
+/* ── VPN ──────────────────────────────────────────────────────────── */
+
+#custom-vpn {
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+#custom-vpn.connected {
+    color: @green;
+}
+
+/* ── Workspaces ───────────────────────────────────────────────────── */
+
+#workspaces {
+    padding: 0;
+    border-right: 1px solid @overlay;
+}
+
+#workspaces button {
+    background: transparent;
+    color: @subtext;
+    border-radius: 0;
+    padding: 0 8px;
+    margin: 0;
+    min-width: 18px;
+    transition: background 0.1s, color 0.1s;
+}
+
+#workspaces button:hover {
+    background: @overlay;
+    color: @text;
+}
+
+#workspaces button.active {
+    background: @accent;
+    color: @base;
+}
+
+#workspaces button.urgent {
+    background: @red;
+    color: @base;
+}
+
+/* ── Taskbar ──────────────────────────────────────────────────────── */
+
+#taskbar {
+    padding: 0;
+}
+
+#taskbar button {
+    background: transparent;
+    color: @subtext;
+    border-radius: 0;
+    padding: 2px 6px;
+    margin: 0;
+    min-width: 20px;
+    transition: background 0.1s;
+}
+
+#taskbar button:hover,
+#taskbar button.active {
+    background: @overlay;
+    color: @text;
+}
+
+#taskbar button.minimized {
+    opacity: 0.5;
+}
+
+#taskbar button.urgent {
+    background: @red;
+    color: @base;
+}
+
+#taskbar.empty {
+    padding: 0;
+    min-width: 0;
+}
+
+/* ── Window ───────────────────────────────────────────────────────── */
+
+#window {
+    color: @subtext;
+    font-size: 11px;
+}
+
+/* ── Clock ────────────────────────────────────────────────────────── */
+
+#clock {
+    font-size: 16px;
+    color: @text;
+    padding: 0 14px;
+    border-right: 1px solid @overlay;
+}
+
+#cpu {
+    color: @subtext;
+}
+
+#cpu.warning  { color: @yellow; }
+#cpu.critical { color: @red; }
+
+#memory {
+    color: @subtext;
+}
+
+#memory.warning  { color: @yellow; }
+#memory.critical { color: @red; }
+
+#network {
+  border-left: 1px solid @overlay;
+}
+#network.disconnected { color: @red; }
+
+#tray {
+    padding: 0 8px;
+}
+
+#custom-power {
+    color: @subtext;
+    font-size: 13px;
+    min-width: 28px;
+    padding: 0 4px;
+    border-left: 1px solid @overlay;
+}
+
+#custom-power:hover {
+    color: @red;
+    background: @overlay;
+}
+
+/* ── Scratchpad indicators ────────────────────────────────────────── */
+
+#custom-scratch-spotify,
+#custom-scratch-equibop {
+    color: @subtext;
+    font-size: 13px;
+    padding: 0 8px;
+    background: transparent;
+    /*border-right: 1px solid @overlay;*/
+}
+
+#custom-scratch-spotify.active,
+#custom-scratch-equibop.active {
+    color: @accent;
+}
+
+/* ── Notifications ────────────────────────────────────────────────── */
+
+#custom-notification {
+    color: @subtext;
+    font-size: 13px;
+    min-width: 28px;
+    padding: 0 0px;
+}
+
+#custom-notification.notification { color: @yellow; }
+
+/* ── Bluetooth ────────────────────────────────────────────────────── */
+
+#bluetooth { 
+  color: @text; 
+  border-left: 1px solid @overlay;
+}
+#bluetooth.connected { color: @accent; }
+#bluetooth.off,
+#bluetooth.disabled { color: @subtext; opacity: 0.5; }
+
+/* ── Audio ────────────────────────────────────────────────────────── */
+
+#pulseaudio {
+  border-left: 1px solid @overlay;
+}
+#pulseaudio.muted { color: @subtext; }
+
+/* ── Backlight ────────────────────────────────────────────────────── */
+
+#backlight {
+   border-left: 1px solid @overlay;
+}
+
+/* ── Night mode ───────────────────────────────────────────────────── */
+
+#custom-night-mode {
+    font-size: 13px;
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+#custom-night-mode.on { color: @yellow; }
+
+/* ── Power profile ────────────────────────────────────────────────── */
+
+#power-profiles-daemon {
+    font-size: 13px;
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+#power-profiles-daemon.performance { color: @red; }
+#power-profiles-daemon.balanced    { color: @accent; }
+#power-profiles-daemon.power-saver { color: @green; }
+
+/* ── Battery ──────────────────────────────────────────────────────── */
+
+#battery {
+  border-right: 1px solid @overlay;
+  border-left: 1px solid @overlay;
+}
+
+#battery.charging,
+#battery.plugged { color: @green; }
+
+#battery.warning:not(.charging) { color: @yellow; }
+
+#battery.critical:not(.charging) {
+    color: @red;
+    animation-name: blink;
+    animation-duration: 1s;
+    animation-timing-function: steps(2);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+}
+
+@keyframes blink {
+    to { color: @subtext; }
+}
+
+/* ── Tray ─────────────────────────────────────────────────────────── */
+
+#tray > .passive        { -gtk-icon-effect: dim; }
+#tray > .needs-attention { -gtk-icon-effect: highlight; color: @yellow; }
+
+/* ── Tooltip ──────────────────────────────────────────────────────── */
+
+tooltip {
+    background: @base;
+    border: 1px solid @overlay;
+    border-radius: 0;
+    color: @text;
+}
+
+tooltip label {
+    padding: 4px 8px;
+    font-size: 11px;
+}

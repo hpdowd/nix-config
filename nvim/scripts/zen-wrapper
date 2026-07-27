@@ -1,0 +1,4 @@
+#!/bin/bash
+# --app= makes it open in a standalone window with no toolbars/tabs
+# --new-window ensures it doesn't just open a tab in an existing browser
+chromium --app=http://127.0.0.1:9999

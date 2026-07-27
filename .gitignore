@@ -1,0 +1,94 @@
+# ~/.config is 9.6 GB, almost all of it browser profiles, Electron app data,
+# game launchers and caches — plus real credentials (gh/hosts.yml,
+# cursor/auth.json, JetBrains licence keys, cookie databases).
+#
+# So this is an ALLOWLIST, not a blocklist: ignore everything at the top
+# level, then explicitly un-ignore the hand-written config worth versioning.
+# Adding a new tool? Add a `!/toolname/` line for it.
+
+/*
+
+!/.gitignore
+
+# --- The NixOS flake ---------------------------------------------------------
+!/nixos/
+
+# --- Desktop environment -----------------------------------------------------
+!/mango/
+
+# --- Editors -----------------------------------------------------------------
+!/nvim/
+!/helix/
+!/zed/
+
+# --- Terminals & shell -------------------------------------------------------
+!/kitty/
+!/foot/
+!/ghostty/
+!/zsh/
+!/fish/
+!/starship.toml
+
+# --- CLI tools ---------------------------------------------------------------
+!/yazi/
+!/bottom/
+!/htop/
+!/lazygit/
+!/glow/
+!/imv/
+!/mpv/
+!/ncspot/
+
+# --- Theming -----------------------------------------------------------------
+!/gtk-3.0/
+!/gtk-4.0/
+!/Kvantum/
+!/nwg-look/
+!/gtkrc
+!/gtkrc-2.0
+!/Trolltech.conf
+!/QtProject.conf
+
+# --- Misc --------------------------------------------------------------------
+!/corectrl/
+!/environment.d/
+!/mimeapps.list
+!/pavucontrol.ini
+!/trashrc
+!/user-dirs.dirs
+!/user-dirs.locale
+!/CLAUDE.md
+
+# =============================================================================
+# Exclusions WITHIN the allowlisted directories
+# =============================================================================
+
+# Never version credentials, even from tracked dirs.
+**/hosts.yml
+**/auth.json
+**/*token*
+**/*secret*
+**/*.key
+**/cookies*
+**/.env
+
+# Caches, history and generated state.
+/zsh/completions/
+/zsh/.zcompdump*
+**/.zsh_history
+**/*.log
+**/*.tmp
+**/cache/
+**/Cache/
+
+# Wallpapers — 4.6 MB of binaries that don't belong in a config repo.
+# Drop this line if you'd rather keep them versioned.
+/mango/wallpaper/
+
+# Runtime state written by the mode scripts, not configuration.
+/mango/state/
+/mango/config.conf
+
+# The active-theme.* files are symlinks that mode scripts rewrite at runtime.
+/kitty/active-theme.conf
+/foot/active-theme.ini

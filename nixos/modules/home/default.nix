@@ -29,7 +29,10 @@
     enable = true;
     defaultApplications =
       let
-        browser = [ "librewolf.desktop" ];
+        # Zen, not LibreWolf. `xdg-settings get default-web-browser` returns
+        # zen.desktop and librewolf isn't installed at all — the librewolf
+        # entries in your Arch mimeapps.list (and in CLAUDE.md) are stale.
+        browser = [ "zen.desktop" ];
         pdf = [ "org.pwmt.zathura.desktop" ];
         image = [ "imv.desktop" ];
         media = [ "mpv.desktop" ];

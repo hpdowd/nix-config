@@ -91,6 +91,64 @@ sudo cp -a /etc/tlp.conf /etc/keyd /etc/systemd/system-sleep ~/etc-backup/
 cd ~/.config && git init && git add -A && git commit -m "pre-nixos snapshot"
 ```
 
+### Step 0b — the backup, sized properly
+
+**`@home` is reused by the install, so this is insurance against a mistake,
+not a data migration.** The realistic threat is a mistyped
+`btrfs subvolume delete` or formatting the wrong partition — not the install
+working as designed.
+
+`/home/henry` is 236 GB, but only **~34 GB** cannot be recreated. Run:
+
+```bash
+./backup-before-migration.sh --dry-run /path/to/drive   # see what it'd take
+./backup-before-migration.sh /run/media/henry/MyDrive/backup
+```
+
+The script refuses to write to the same physical disk as `/home`, because a
+copy on `nvme0n1` dies with the original in every scenario that matters.
+
+**Backed up (~34 GB):** `Nextcloud`, `Documents`, `Pictures`, `vaults`,
+`Android`, `R`, `code`, `Projects`, `.ssh`, `.gnupg`,
+`.local/share/keyrings`, `.thunderbird`, and the browser/Obsidian profiles
+under `.config`.
+
+**Skipped (~200 GB):** Steam (30G), Trash (20G — just empty it), `winboat`
+(39G VM disk), `.cache` (26G), containers (7G), PrismLauncher (6.9G), Hytale
+flatpak (8G), `Games` (20G), `.wine` (3.6G), `nvim.bak.*` (1.3G).
+
+Source trees shrink from 9.1 GB to 448 MB once `node_modules`, `target`,
+`.venv` and friends are excluded.
+
+#### Three things this survey turned up
+
+1. **`~/Nextcloud` is not syncing.** No sync config exists and the client is
+   inactive. Those 22 GB are local-only despite the folder name — do not
+   assume the server has a copy. This is the single biggest risk in your
+   current setup, migration or not.
+2. **Four git repos have unpushed work:** `code/paraphrase-detector`
+   (6 commits ahead), `Projects/homelab` (9 dirty), `Projects/aur-malware-check`
+   (2 dirty), `Projects/Azure-in-bullet-points` (5 dirty). Push these; it's
+   faster than restoring them.
+3. **`.local/share/Trash` is 20 GB.** Empty it and reclaim the space before
+   you do anything else.
+
+#### Also take a btrfs snapshot
+
+Instant, free, and it protects against the actual failure mode (a bad
+subvolume command during Step 2). It does *not* replace the off-disk backup:
+
+```bash
+sudo btrfs subvolume snapshot -r /home /home/.snapshot-pre-nixos
+```
+
+Delete it after you're settled: `sudo btrfs subvolume delete /home/.snapshot-pre-nixos`
+
+#### Store the restic password off-machine
+
+A restic repo whose password only exists on the laptop you're reinstalling is
+not a backup. Put it in Bitwarden (which you have) or on paper.
+
 ### Step 1 — try Nix on Arch first (zero risk, do this today)
 
 ```bash

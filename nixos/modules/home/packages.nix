@@ -142,9 +142,12 @@
     gst_all_1.gst-plugins-good
 
     # --- Browsers / comms ---------------------------------------------------
-    librewolf
+    # NOTE: librewolf was dropped — it is not installed on your Arch system
+    # despite CLAUDE.md describing it as the default browser. Zen (a flake
+    # input, below) is the real default.
     firefox
     chromium
+    vivaldi
     tor-browser # torbrowser-launcher isn't packaged, but this is the browser itself
     equibop
     teams-for-linux

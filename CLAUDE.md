@@ -40,7 +40,7 @@ Default applications are set in `~/.config/mimeapps.list`. Current defaults:
 
 | Type | Application | Desktop file |
 |---|---|---|
-| Browser (HTTP/HTTPS/HTML) | LibreWolf | `librewolf.desktop` |
+| Browser (HTTP/HTTPS/HTML) | Zen Browser | `zen.desktop` |
 | PDF | Zathura | `org.pwmt.zathura.desktop` |
 | Images | imv | `imv.desktop` |
 | Video / Audio | mpv | `mpv.desktop` |
@@ -51,7 +51,7 @@ Default applications are set in `~/.config/mimeapps.list`. Current defaults:
 | `discord:` scheme | Equibop | `equibop.desktop` |
 | `obsidian:` scheme | Obsidian | `obsidian.desktop` |
 
-LibreWolf profile lives at `~/.config/librewolf/librewolf/dkir6umy.default-default/`. Browser chrome customisation: `chrome/userChrome.css` (requires `toolkit.legacyUserProfileCustomizations.stylesheets=true` in about:config); Sidebery custom CSS reference is in `chrome/sidebery.css` but must be pasted into the extension's settings (Sidebery → Styles → Custom CSS) since it doesn't read from disk.
+**LibreWolf is no longer installed** (verified 2026-07-27 — no package, no profile directory). The default browser is **Zen**, whose profile is at `~/.config/zen/` (848 MB). Stale `librewolf.desktop` entries remain in `mimeapps.list` and can be removed. The `userChrome.css` / Sidebery notes below applied to the LibreWolf profile and are kept only for reference if you set up a Firefox-family browser again: chrome customisation requires `toolkit.legacyUserProfileCustomizations.stylesheets=true` in about:config, and Sidebery's custom CSS must be pasted into the extension's settings (Sidebery → Styles → Custom CSS) since it doesn't read from disk.
 
 The `pdf` shell alias opens files via `xdg-open`, deferring to the system default.
 

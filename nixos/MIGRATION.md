@@ -397,26 +397,40 @@ and `~/.config/quickshell` dotfile symlinks. The greeter was already
 in `~/.config/mango` launches `qs` or `quickshell` directly — DMS spawned it
 internally.
 
-### Leftovers on the Arch side — NOT deleted
+### Arch side — cleaned up 2026-07-27
 
-These still exist on your running system. I've left them alone because
-`~/.config` isn't a git repo yet, so deletions there are unrecoverable:
+`~/.config` is now a git repo (commit `51c18e1` is the pre-removal baseline,
+`60b6e68` the removal), so all of this is recoverable with
+`git checkout 51c18e1 -- <path>`.
 
-| Path | What it is |
+**Deleted:** `mango/dms/`, `mango/scripts/modes/dms.sh`,
+`DankMaterialShell/`, `danksearch/`, `quickshell/noctalia-shell/`,
+`systemd/user/dms.service.d/`, and the dank/dms theme files for kitty, foot,
+gtk-3.0, gtk-4.0, equibop, zed, qt5ct and qt6ct — 10,312 lines across 24
+files.
+
+**Edited:** `desktop-mode.sh` (`MODES=("tiling" "hud")`), `gtk-apply.sh`
+(dropped its `dms` branch), and the `exec=pkill -x dms` lines in both
+`tiling/` and `hud/autostart.conf`.
+
+**Kept on purpose** — these looked like DMS leftovers but are live
+dependencies of the remaining modes:
+
+| Path | Why |
 |---|---|
-| `~/.config/DankMaterialShell/` | DMS settings, themes, plugins |
-| `~/.config/quickshell/noctalia-shell/` | dead Noctalia config |
-| `~/.config/mango/dms/` | the `dms` mode: autostart, binds, colors, layout |
-| `~/.config/mango/scripts/modes/dms.sh` | the mode-switch script |
-| `~/.config/mango/waybar/` | check for a `dms` per-mode layout |
+| `kitty/tabs.conf` | included by `kitty.conf` in *every* mode. Renamed from `dank-tabs.conf`; the include was updated to match. |
+| `yazi/flavors/noctalia.yazi` | still the active yazi theme (`yazi/theme.toml` sets `dark = "noctalia"`). |
+| `~/.local/share/color-schemes/DankMatugen.colors` | qt5ct's active `color_scheme_path`. Outside `~/.config`, so untouched — rename it yourself if the name bothers you, but update `qt5ct/qt5ct.conf` too. |
 
-`~/.config/mango/tiling/autostart.conf` also carries a defensive
-`exec=pkill -x dms` on line 2, which becomes a no-op.
+### A note on Noctalia
 
-None of this breaks anything if left in place — the flake simply won't carry
-it over, and the `dms` mode will fail to start on NixOS because the binary
-won't exist. Clean it up whenever you like; **commit `~/.config` to git
-first**.
+Considered as a DMS replacement and rejected. nixpkgs does carry it
+(`noctalia` 5.0.0-beta.5, `noctalia-shell` 4.7.7, `noctalia-greeter` 1.0.0),
+so it would have been easy to install — but `~/.config/quickshell/noctalia-shell`
+turned out to be a **stale upstream source checkout** from January, not a
+configuration, and there were no Noctalia settings anywhere on the system.
+Adopting it would have meant theming a shell from scratch, not swapping one
+in. Two modes it is.
 
 ## 6d. Original status note (superseded)
 

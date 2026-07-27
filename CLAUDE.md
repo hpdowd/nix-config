@@ -30,7 +30,7 @@ Theming is driven by **Mangowm mode scripts** (`~/.config/mango/scripts/modes/`)
 - `~/.config/foot/active-theme.ini` — symlinked by mode script, included by `foot.ini`
 - Equibop (Discord) CSS theme is also swapped via `jq` on `settings.json`
 
-Current modes: **tiling** (Gruvbox Orange), **hud**, and **dms** (Dank theme) — the last of which is on its way out along with DankMaterialShell, and is not carried into the NixOS flake. Active mode is stored in `~/.config/mango/state/current-mode`.
+Current modes: **tiling** (Gruvbox Orange) and **hud**. Active mode is stored in `~/.config/mango/state/current-mode`. (A third `dms` mode was removed in July 2026 along with DankMaterialShell.)
 
 To reload Mangowm config: `~/.config/mango/scripts/reload.sh` (re-runs the mode script, sends `mmsg reload_config`, restarts elephant).
 
@@ -69,7 +69,7 @@ The `pdf` shell alias opens files via `xdg-open`, deferring to the system defaul
 
 ## Desktop environment
 
-**Mangowm** (`~/.config/mango/`) — Wayland compositor/WM. Config is split into universal settings (shared across modes) and per-mode overrides (`tiling/`, `hud/`, `dms/`). Each mode has its own `autostart.conf` and compositor config that gets copied to `config.conf` on mode switch.
+**Mangowm** (`~/.config/mango/`) — Wayland compositor/WM. Config is split into universal settings (shared across modes) and per-mode overrides (`tiling/`, `hud/`). Each mode has its own `autostart.conf` and compositor config that gets copied to `config.conf` on mode switch.
 
 Window rule positioning: `offsetx`/`offsety` are **percentages from the usable-area centre** (range −999 to 999). `±100` = the usable screen edge (i.e. respects the Waybar reserved area). Example: `offsetx:100,offsety:-100` = top-right corner just below the Waybar.
 
@@ -82,7 +82,7 @@ Key components running under Mangowm:
 - **Elephant** — shell widget layer, menus in `mango/elephant/`
 - **swaync** — notification daemon, styled in `mango/swaync/`
 - **lxpolkit** (from `lxsession` package) — polkit authentication agent, started from `mango/universal/autostart.conf`. Note: `exec-once` only fires on initial compositor startup, not on reload — log out/in after changing autostart.
-- **DankMaterialShell** (`~/.config/DankMaterialShell/`) — **being removed.** Still present and still driving the `dms` Mangowm mode on Arch, but deliberately excluded from the NixOS flake. Its Quickshell engine (`~/.config/quickshell/`, which only holds a dead `noctalia-shell` config) goes with it. Leftovers to clean when convenient: `mango/dms/`, `mango/scripts/modes/dms.sh`, and the `exec=pkill -x dms` line in `mango/tiling/autostart.conf`
+DankMaterialShell and Quickshell were **removed in July 2026**, along with the `dms` mode and all its theme files. Two things kept their names deliberately: `kitty/tabs.conf` (renamed from `dank-tabs.conf`; included by `kitty.conf` in every mode) and `yazi/flavors/noctalia.yazi` (still the active yazi theme per `yazi/theme.toml`).
 
 Mangowm is the sole desktop environment. KDE Plasma has been removed from this system.
 

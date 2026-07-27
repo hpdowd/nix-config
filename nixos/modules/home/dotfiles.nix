@@ -29,11 +29,8 @@ in
     # walker, fsel, elephant, swaync, wlogout, rofi and all the mode scripts.
     # It is the heart of your setup and changes constantly — keep it live.
     "mango".source = link "mango";
-    # ~/.config/DankMaterialShell and ~/.config/quickshell are intentionally
-    # NOT linked — DMS is dropped in the migration, and quickshell's only
-    # remaining config (noctalia-shell) belongs to a shell that isn't
-    # installed. Both directories still exist on the Arch side; they simply
-    # won't be carried over.
+    # ~/.config/DankMaterialShell and ~/.config/quickshell are gone — DMS and
+    # the dms mode were removed on 2026-07-27 (see MIGRATION.md §6c).
 
     # --- Editors ------------------------------------------------------------
     "nvim".source = link "nvim";

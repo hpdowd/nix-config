@@ -5,7 +5,7 @@ STATE_DIR="$MANGO_DIR/state"
 STATE="$STATE_DIR/current-mode"
 WALKER_CONFIGS="$MANGO_DIR/walker/configs"
 
-MODES=("tiling" "hud" "dms")
+MODES=("tiling" "hud")
 
 current_mode() {
     [ -f "$STATE" ] && cat "$STATE" || echo "tiling"

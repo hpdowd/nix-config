@@ -9,67 +9,55 @@
 # So: GTK/Qt *global* theming is declared here, while per-app theme files stay
 # out-of-store symlinks in dotfiles.nix.
 #
-# KNOWN INTERACTION — read before your first mode switch:
+# OWNERSHIP — decided 2026-07-28, option (a): the mode scripts own the GTK
+# theme, Nix does not.
+#
 # `mango/scripts/system/gtk-apply.sh` sets org.gnome.desktop.interface
 # gtk-theme/icon-theme/cursor-theme/font-name/color-scheme via `gsettings` at
 # runtime. home-manager's `gtk` module writes those same dconf keys. Both
 # writes succeed (dconf stays writable), but home-manager reasserts its values
-# on every `nixos-rebuild switch` and at login, so a mode switch's theme change
-# will silently revert.
+# on every `nixos-rebuild switch` and at login — so with a `gtk` block declared
+# here, a mode switch's theme change silently reverts.
 #
-# Pick one owner:
-#   (a) let the script own it  — delete the `gtk` block below, keep only
-#       fonts/cursor here. Simplest, and preserves your mode-switching.
-#   (b) let Nix own it         — keep this block, strip the gsettings lines
-#       out of gtk-apply.sh, and switch themes by rebuilding.
-# (a) is recommended: your modes are the whole point of the setup.
+# The `gtk` block is therefore deliberately absent. Mode switching is the point
+# of this setup, so the script wins. What stays declared in Nix is the part the
+# scripts never touch: the theme *packages* (in modules/system/desktop.nix, so
+# the names gtk-apply.sh sets actually resolve), the Qt platform theme, and the
+# cursor.
+#
+# If you ever want Nix to own it instead — option (b) — add a `gtk` block back
+# here AND strip the gsettings lines out of gtk-apply.sh. Do not do one without
+# the other; that is the state this file used to be in.
 { config, pkgs, lib, ... }:
 
 {
-  gtk = {
-    enable = true;
-
-    theme = {
-      name = "Gruvbox-Dark";
-      package = pkgs.gruvbox-gtk-theme;
-    };
-
-    iconTheme = {
-      name = "Papirus-Dark";
-      package = pkgs.papirus-icon-theme;
-    };
-
-    font = {
-      name = "IBM Plex Sans";
-      size = 11;
-    };
-
-    gtk3.extraConfig = {
-      gtk-application-prefer-dark-theme = 1;
-    };
-    gtk4.extraConfig = {
-      gtk-application-prefer-dark-theme = 1;
-    };
-
-    # The gtk4 default changed to `null` in home-manager; this keeps the old
-    # behaviour of applying the same theme to GTK4 apps.
-    gtk4.theme = config.gtk.theme;
-  };
-
   qt = {
     enable = true;
     platformTheme.name = "qtct";
     style.name = "kvantum";
   };
 
-  # Cursor — set at the home level so it propagates to both GTK and Wayland
-  # clients (XCURSOR_THEME / XCURSOR_SIZE).
+  # Cursor — set at the home level so it propagates to Wayland clients via
+  # XCURSOR_THEME / XCURSOR_SIZE and ~/.icons/default/index.theme.
+  #
+  # This used to say Adwaita, which contradicted the repo's own config:
+  # gtk-3.0/settings.ini asks for `Capitaine Cursors (Gruvbox)` at size 24.
+  # With the `gtk` block gone (see the header), settings.ini is the source of
+  # truth for GTK apps, so declaring Adwaita here would have produced a split —
+  # Capitaine in GTK apps, Adwaita everywhere else. Matched to settings.ini.
+  #
+  # `capitaine-cursors-themed` provides the theme under exactly that name,
+  # confirmed by building it and listing share/icons.
+  #
+  # gtk.enable is off because the `gtk` module is disabled; leaving it on would
+  # be inert at best and, if the module were ever re-enabled, would collide
+  # with the out-of-store gtk-3.0 symlink from dotfiles.nix.
   home.pointerCursor = {
     enable = true; # now required explicitly
-    name = "Adwaita";
-    package = pkgs.adwaita-icon-theme;
+    name = "Capitaine Cursors (Gruvbox)";
+    package = pkgs.capitaine-cursors-themed;
     size = 24;
-    gtk.enable = true;
+    gtk.enable = false;
     x11.enable = true;
   };
 

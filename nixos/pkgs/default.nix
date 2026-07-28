@@ -24,6 +24,27 @@ final: prev: {
   });
 
   # ==========================================================================
+  # gruvbox-gtk-theme — build the variant you actually use
+  # ==========================================================================
+  # Your GTK theme is `Gruvbox-Yellow-Dark`, named in seven places:
+  # gtk-{3,4}.0/settings.ini, the two settings-tiling.ini files,
+  # xsettingsd.conf, environment.d/gtk.conf and
+  # mango/scripts/system/gtk-apply.sh line 9.
+  #
+  # The default nixpkgs build produces ONLY Gruvbox-Dark and Gruvbox-Light —
+  # verified by building it and listing share/themes. On Arch the yellow
+  # variant comes from the AUR build, which passes `-t yellow` to install.sh.
+  # Without this override every GTK app silently falls back to Adwaita,
+  # because the theme name your config asks for does not exist.
+  #
+  # The upstream derivation takes the install.sh flags as arguments, so this
+  # is a plain override rather than a fork.
+  gruvbox-gtk-theme = prev.gruvbox-gtk-theme.override {
+    colorVariants = [ "dark" ];
+    themeVariants = [ "yellow" ];
+  };
+
+  # ==========================================================================
   # Brother MFC-L3740CDW printer driver
   # ==========================================================================
   # Try driverless IPP Everywhere FIRST (see modules/system/printing.nix) —

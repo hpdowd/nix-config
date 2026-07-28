@@ -13,41 +13,77 @@ until Phase 6, which you should not reach for at least a month.
 
 ## Phase 0 — Fix the blockers
 
-Only **0.1 still needs you to do something** — cloning the repo. Everything
-else in this phase is already committed; it is listed so you can confirm it
-rather than rediscover it.
+Phase 0 is **done** — every item below is committed and the clone exists. It
+is kept here so you can confirm each one rather than rediscover it.
 
-### 0.1 — B1: clone the dotfiles checkout outside `~/.config`
+### 0.1 — B1: clone the dotfiles checkout outside `~/.config` — DONE
 
-**The flake side of this is already fixed** (commit `b1/b2`): `dotfiles.nix`
-now sets `dots` to `~/src/arch-config`. What remains is to actually put the
-clone there.
+`dotfiles.nix` sets `dots` to `~/src/arch-config`, and the clone is in place.
+It was made from the local repo rather than the remote, because the Gitea
+instance sits behind the homelab tunnel; `origin` is set to the real URL, so a
+`git pull` will work as soon as that is reachable.
 
-Clone the repo to its new home:
-
-```bash
-mkdir -p ~/src
-git clone https://git.henrydowd.dev/henry/arch-config ~/src/arch-config
-```
-
-If you clone anywhere else, update `dots` in
+If you ever re-clone somewhere else, update `dots` in
 `~/src/arch-config/nixos/modules/home/dotfiles.nix` to match.
 
-From here on, **work in `~/src/arch-config`**, not `~/.config/nixos`.
+### 0.1a — The two working trees, and keeping them in sync
+
+**This is the part that will bite you.** There are now two checkouts of the
+same repo, and which one is live depends on which OS you booted:
+
+| Booted | Live config | The other tree |
+|---|---|---|
+| Arch | `~/.config` — the real directories | `~/src/arch-config` goes stale |
+| NixOS | `~/src/arch-config` — via the `~/.config/*` symlinks | `~/.config` is bypassed |
+
+So the earlier advice to "work in `~/src/arch-config` from here on" is wrong
+for the period *before* the install: Arch reads `~/.config` directly and will
+ignore anything you change in the clone. Keep editing `~/.config` while Arch is
+your daily driver.
+
+The consequence: **`nixos-install` reads the clone, so re-sync it immediately
+before Phase 4**, or you will install a snapshot of whenever you cloned.
+
+```bash
+cd ~/.config && git add -A && git commit -m "..." && git push
+cd ~/src/arch-config && git pull
+```
+
+Once you are living in NixOS, the direction reverses — edit through the
+symlinks (which land in the clone), and `~/.config` stops mattering.
+
+One thing the clone does not carry: `.gitignore` excludes
+`/mango/wallpaper/`, so the new system starts with no wallpapers. That is a
+deliberate exclusion (4.6 MB of binaries), not an oversight — copy them across
+by hand if you want them.
 
 Note the repo layout: the clone root holds `mango/`, `nvim/` and friends, and
 the flake itself lives in `nixos/`. So `dots` is the clone root, but every
 `nix` command below points at `~/src/arch-config/nixos`.
 
-Verify the fix — the built link must point into `~/src/arch-config`:
+Verify — the built link must point into `~/src/arch-config`, at a directory
+that exists. Confirmed 2026-07-28:
 
 ```bash
 readlink "$(nix build --impure --no-link --print-out-paths --expr '
   let f = builtins.getFlake "/home/henry/src/arch-config/nixos";
   in f.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.file."/home/henry/.config/mango".source')"
 # want: /home/henry/src/arch-config/mango
-# NOT:  /home/henry/.config/mango   <- still broken
+# NOT:  /home/henry/.config/mango   <- self-referential, the B1 bug
 ```
+
+Check for the other half of the same bug — a link whose target is not in the
+clone (B3). Every name `dotfiles.nix` links must exist in the checkout; this
+must come back empty:
+
+```bash
+cd ~/src/arch-config
+grep -oP '"\K[^"]+(?=" *\. *source = link)' nixos/modules/home/dotfiles.nix |
+  while read -r p; do [ -e "$p" ] || echo "MISSING: $p"; done
+```
+
+A hit means that entry will become a dangling symlink on activation, and — with
+`backupFileExtension` set — will do so after moving your real directory aside.
 
 ### 0.1b — Why B1 fails silently rather than loudly
 

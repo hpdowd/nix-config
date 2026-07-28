@@ -95,4 +95,21 @@
 
   # protonmail-bridge — needs a keyring, hence gnome-keyring in the host config.
   services.protonmail-bridge.enable = true;
+
+  # --- User systemd units ---------------------------------------------------
+  # mango/universal/autostart.conf line 2 runs
+  #   systemctl --user start mango-session.target
+  # On Arch that unit lives in ~/.config/systemd/user/, which is neither on the
+  # dotfiles allowlist nor linked by dotfiles.nix — so without this the
+  # exec-once fails silently on every boot.
+  #
+  # Nothing currently Wants or Requires the target; it is a marker other units
+  # can hang off. Reproduced as-is from the Arch unit.
+  systemd.user.targets.mango-session = {
+    Unit = {
+      Description = "MangoWC Session Target";
+      Requires = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+  };
 }

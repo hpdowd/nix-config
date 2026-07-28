@@ -15,11 +15,11 @@ until Phase 6, which you should not reach for at least a month.
 
 These are not optional. B1 makes the first rebuild fail.
 
-### 0.1 — B1: move the dotfiles checkout out of `~/.config`
+### 0.1 — B1: clone the dotfiles checkout outside `~/.config`
 
-`modules/home/dotfiles.nix` currently sets `dots` to `~/.config`, but
-`xdg.configFile.<name>` *writes to* `~/.config/<name>`. Source and target are
-the same path, so every entry becomes a symlink to itself.
+**The flake side of this is already fixed** (commit `b1/b2`): `dotfiles.nix`
+now sets `dots` to `~/src/arch-config`. What remains is to actually put the
+clone there.
 
 Clone the repo to its new home:
 
@@ -28,12 +28,8 @@ mkdir -p ~/src
 git clone https://git.henrydowd.dev/henry/arch-config ~/src/arch-config
 ```
 
-Then edit `~/src/arch-config/nixos/modules/home/dotfiles.nix`, line ~22:
-
-```diff
--  dots = "${config.home.homeDirectory}/.config";
-+  dots = "${config.home.homeDirectory}/src/arch-config";
-```
+If you clone anywhere else, update `dots` in
+`~/src/arch-config/nixos/modules/home/dotfiles.nix` to match.
 
 From here on, **work in `~/src/arch-config`**, not `~/.config/nixos`.
 
@@ -77,23 +73,11 @@ the clone. Delete the `.hm-bak` leftovers once you are happy:
 find ~/.config -maxdepth 1 -name '*.hm-bak'
 ```
 
-### 0.2 — B2: declare `mango-session.target`
+### 0.2 — B2: `mango-session.target` — DONE
 
-`mango/universal/autostart.conf` starts it, but it exists only in
-`~/.config/systemd/user/`, which is in neither git nor the flake. Add to
-`modules/home/default.nix`:
+Already declared in `modules/home/default.nix`. No action needed.
 
-```nix
-systemd.user.targets.mango-session = {
-  Unit = {
-    Description = "MangoWC Session Target";
-    Requires = [ "graphical-session.target" ];
-    After = [ "graphical-session.target" ];
-  };
-};
-```
-
-Consider porting the other hand-written units the same way:
+Still worth porting the other hand-written units the same way:
 `micmute-led` (already handled in `modules/system/audio.nix`),
 `rclone-nextcloud`, `elephant`, `claude-message.{service,timer}`.
 

@@ -12,14 +12,24 @@
 #
 # Trade-off, stated plainly: out-of-store symlinks are NOT reproducible. A
 # fresh install of this flake gets the symlink but not the file contents, so
-# ~/.config must be a git repo you clone first. That's the deal — reproducible
-# system, hand-managed dotfiles. Move things into the "native" section below
-# as you convert them.
+# the dotfiles repo must be cloned to ~/src/arch-config first. That's the deal
+# — reproducible system, hand-managed dotfiles. Move things into the "native"
+# section below as you convert them.
 { config, pkgs, lib, ... }:
 
 let
   # Absolute path to your live dotfiles checkout.
-  dots = "${config.home.homeDirectory}/.config";
+  #
+  # This MUST NOT be ~/.config. `xdg.configFile.<name>` writes to
+  # ~/.config/<name>, so pointing `dots` at ~/.config makes every entry below a
+  # symlink to itself: ~/.config/mango -> store -> ~/.config/mango. Combined
+  # with `backupFileExtension = "hm-bak"` in flake.nix, first activation
+  # renames the real directory aside and then links to the path it just
+  # vacated — a dangling symlink, silently, with no error printed.
+  #
+  # So the repo is cloned to ~/src/arch-config and linked from there. See
+  # INSTALL.md §0.1.
+  dots = "${config.home.homeDirectory}/src/arch-config";
   link = path: config.lib.file.mkOutOfStoreSymlink "${dots}/${path}";
 in
 {

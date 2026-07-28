@@ -601,6 +601,107 @@ paths. That is how `rclone.conf`, `gh/hosts.yml`, `glab-cli/config.yml`,
 through both nets simultaneously. When adding a tool that stores config in
 `~/.config`, add a `!/toolname/` line at the same time.
 
+## 8. Install walkthrough, with blockers verified (2026-07-28)
+
+Every prerequisite below was checked against the live machine on 2026-07-28,
+not assumed. Two blockers were found; **B1 must be fixed before you install**.
+
+### Verified clear
+
+| Check | Result |
+|---|---|
+| Flake evaluates | `verify-packages.sh` passes all 3 stages, **no deprecation warnings** |
+| Build size | 842 derivations, 5622 paths, 13.8 GiB download / 37.1 GiB unpacked |
+| Free space | 133 GiB on `nvme0n1p2` — fits with ~80 GiB spare |
+| ESP capacity | 1022 MiB, 62 MiB used by Arch. `configurationLimit = 6` → ~450–720 MiB. Fits |
+| Partition UUIDs | `hardware-configuration.nix` matches live `blkid` exactly (`32D9-7457`, `3c2d15a1-…`) |
+| Greeter | decided — `tuigreet`, a TTY greeter that cannot lock you out |
+| Nix on host | 2.35.1, flakes enabled in `~/.config/nix/nix.conf` |
+| Config repo | pushed to `git.henrydowd.dev/henry/arch-config`, HEAD `1f7d427` |
+
+### B1 — BLOCKER: `dotfiles.nix` symlinks point at themselves
+
+`dotfiles.nix` sets `dots = "${config.home.homeDirectory}/.config"` and then
+does `xdg.configFile."mango".source = link "mango"`. But `xdg.configFile.<name>`
+*writes to* `~/.config/<name>`. So the target and the source are the same path.
+
+Verified by evaluating and building the real derivation:
+
+```
+target: .config/mango
+source: /nix/store/…-hm_mango
+$ readlink /nix/store/…-hm_mango
+/home/henry/.config/mango
+```
+
+`~/.config/mango` → store path → `~/.config/mango`. A loop. This affects **all
+26 entries**, not just mango.
+
+What happens if you install as-is:
+
+- `backupFileExtension` is **not set**, so home-manager's `check-link-targets`
+  aborts activation: *"Existing file … is in the way"*. First rebuild fails.
+- If you set `backupFileExtension` to get past that, it is worse: home-manager
+  renames `~/.config/mango` → `~/.config/mango.backup`, then creates the
+  symlink — which now points at a path that no longer exists. Dangling link,
+  and mango cannot find its config.
+
+**Fix.** The repo must live somewhere other than `~/.config`. Clone it to
+`~/src/arch-config`, then in `dotfiles.nix`:
+
+```nix
+dots = "${config.home.homeDirectory}/src/arch-config";
+```
+
+`~/.config/mango` → `~/src/arch-config/mango`. Everything else in the file
+stays as written. Do this **before** the first `nixos-rebuild`, and re-run
+`verify-packages.sh` after.
+
+### B2 — `mango-session.target` is not declared
+
+`mango/universal/autostart.conf` line 2 runs
+`systemctl --user start mango-session.target`. That unit exists only in
+`~/.config/systemd/user/`, which is neither allowlisted in git nor declared in
+the flake. On first boot the exec-once fails silently. See §7b.
+
+### Hardening worth doing first
+
+- **Pin the UID.** `users.users.henry` does not set `uid`. NixOS will almost
+  certainly assign 1000 (you are the only normal user, and 1000 is the live
+  value), but since `@home` is reused, a mismatch would leave every file in
+  `/home/henry` owned by the wrong user. Add `uid = 1000;` and remove the
+  doubt — it costs one line.
+- **Lock the flake.** There is no `flake.lock`, so inputs float on every build
+  and the install is not reproducible. Run `nix flake lock` and commit it.
+
+### Order of operations
+
+1. Fix **B1**. Clone the config repo to `~/src/arch-config`, update `dots`,
+   re-run `./verify-packages.sh`.
+2. Fix **B2** (`systemd.user.targets.mango-session`) and pin `uid = 1000`.
+3. `nix flake lock`, commit, push.
+4. Capture root-only state: run `capture-root-state.sh` from the backup drive
+   (WiFi credentials for 38 networks incl. eduroam, Bluetooth pairings, CUPS).
+5. Commit or discard the 4 dirty repos — `homelab` (9), `Azure-in-bullet-points`
+   (5), `aur-malware-check` (2), `learning` (1).
+6. Snapshot `@home` (§2) and confirm the backup drive is current.
+7. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
+   `@home`, `@pkg`, `@log`, or the ESP.
+8. `nixos-install --flake ~/src/arch-config/nixos#thinkpad`. Arch stays
+   bootable throughout — that is the whole point of side-by-side.
+9. Boot to the TTY greeter. Get the compositor up. Nothing else matters today.
+10. Restore what the flake does not carry: NetworkManager profiles, Bluetooth
+    pairings, the 3 flatpaks, `rclone.conf` and the CLI tokens from the drive.
+11. Work the genuinely-absent package list (§6b) down over the following weeks.
+12. Once you have not booted Arch in a month: delete `@`, `@pkg`, `@swap`.
+
+### Rollback
+
+At every point up to step 12, Arch is intact and selectable from the boot
+menu. Steps 1–6 change nothing about the running system. Step 7 adds
+subvolumes without touching existing ones. The first genuinely
+hard-to-reverse action is step 12.
+
 ### A caution on 37.4 GiB
 
 The closure is 37.4 GiB unpacked and you have 149 GiB free. That fits, but

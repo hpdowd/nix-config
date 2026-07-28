@@ -24,7 +24,7 @@ window#waybar {
 
 #workspaces,
 #taskbar,
-#window,
+#custom-window,
 #clock,
 #custom-layout,
 #mpris,
@@ -129,7 +129,7 @@ window#waybar {
 
 /* ── Window ───────────────────────────────────────────────────────── */
 
-#window {
+#custom-window {
     color: @subtext;
     font-size: 11px;
 }

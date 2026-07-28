@@ -22,7 +22,7 @@ window#waybar {
 
 #workspaces,
 #taskbar,
-#window,
+#custom-window,
 #clock,
 #custom-layout,
 #mpris,
@@ -122,14 +122,14 @@ window#waybar {
 
 /* ── Window (layout name) ─────────────────────────────────────────── */
 
-#window {
+#custom-window {
     color: @subtext;
     background: transparent;
     padding: 0 6px;
     font-size: 11px;
 }
 
-window#waybar.empty #window {
+window#waybar.empty #custom-window {
     background: transparent;
     padding: 0;
     margin: 0;

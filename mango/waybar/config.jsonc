@@ -1,6 +1,8 @@
 // -*- mode: jsonc -*-
 // Waybar config for mango
-// Note: ext/workspaces and dwl/window require mango's waybar integration.
+// Note: ext/workspaces requires mango's waybar integration. The focused-window
+// title comes from custom/window (scripts/waybar/window-title.sh) — mango 0.15.5
+// dropped the dwl IPC protocol that waybar's dwl/window module needs.
 // See: https://github.com/DreamMaoMao/mango/wiki
 {
   "layer": "top",
@@ -16,7 +18,7 @@
     "custom/layout",
     "mpris",
     "wlr/taskbar",
-    "dwl/window"
+    "custom/window"
   ],
   "modules-center": [
     "clock"
@@ -70,6 +72,13 @@
     "ignore-list": [
       "Rofi"
     ]
+  },
+  "custom/window": {
+    "exec": "~/.config/mango/scripts/waybar/window-title.sh",
+    "return-type": "json",
+    "format": "{}",
+    "max-length": 60,
+    "escape": true
   },
   "custom/layout": {
     "exec": "mmsg -g -l | awk '{print $3}'",

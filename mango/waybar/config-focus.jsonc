@@ -15,11 +15,11 @@
     "ext/workspaces",
     "custom/layout",
     "mpris"
-    //"dwl/window"
+    //"custom/window"
     //"wlr/taskbar"
   ],
   "modules-center": [
-    "dwl/window"
+    "custom/window"
   ],
   "modules-right": [
     "custom/notification",
@@ -97,12 +97,12 @@
     "tooltip": false
   },
   // ── Center ───────────────────────────────────────────────────────────
-  "dwl/window": {
+  "custom/window": {
+    "exec": "~/.config/mango/scripts/waybar/window-title.sh",
+    "return-type": "json",
     "format": "{}",
     "max-length": 60,
-    "rewrite": {
-      "": " "
-    }
+    "escape": true
   },
   // ── Right ─────────────────────────────────────────────────────────────
   "clock": {

@@ -16,7 +16,7 @@
     "mpris"
   ],
   "modules-center": [
-    "dwl/window"
+    "custom/window"
   ],
   "modules-right": [
     "clock",
@@ -70,12 +70,12 @@
     "tooltip": false
   },
   // ── Center ───────────────────────────────────────────────────────────
-  "dwl/window": {
+  "custom/window": {
+    "exec": "~/.config/mango/scripts/waybar/window-title.sh",
+    "return-type": "json",
     "format": "{}",
     "max-length": 80,
-    "rewrite": {
-      "": " "
-    }
+    "escape": true
   },
   // ── Right ─────────────────────────────────────────────────────────────
   "clock": {

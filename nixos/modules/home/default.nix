@@ -96,6 +96,25 @@
   # protonmail-bridge — needs a keyring, hence gnome-keyring in the host config.
   services.protonmail-bridge.enable = true;
 
+  # --- Session environment --------------------------------------------------
+  # Reproduces ~/.config/environment.d/, which nothing in the flake referenced
+  # (MIGRATION.md §7b.3). It has to be `systemd.user.sessionVariables` rather
+  # than `home.sessionVariables`: the latter writes hm-session-vars.sh, which
+  # is sourced by interactive shells and NOT by systemd user units — and the
+  # whole reason this file exists is xdg-desktop-portal-gtk, which runs as a
+  # user unit and ignores settings.ini without GTK_THEME set. This option
+  # writes ~/.config/environment.d/10-home-manager.conf, the same mechanism.
+  #
+  # NOTE the value below is Gruvbox-**Yellow**-Dark, copied verbatim from the
+  # live file, while theme.nix sets gtk.theme.name = "Gruvbox-Dark". That
+  # disagreement is pre-existing on Arch, not introduced here. Reconcile the
+  # two when you settle the theme.nix vs gtk-apply.sh ownership question.
+  systemd.user.sessionVariables = {
+    GTK_THEME = "Gruvbox-Yellow-Dark";
+    QT_QPA_PLATFORM = "wayland";
+    QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
+  };
+
   # --- User systemd units ---------------------------------------------------
   # mango/universal/autostart.conf line 2 runs
   #   systemctl --user start mango-session.target

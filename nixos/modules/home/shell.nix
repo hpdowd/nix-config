@@ -75,11 +75,14 @@
     cleantmp = "~/.scripts/clean_tmp";
     lidaction = "~/.scripts/toggle_lid_action";
 
-    # NixOS replacements for your pacman aliases
-    rebuild = "sudo nixos-rebuild switch --flake ~/.config/nixos#thinkpad";
-    rebuild-test = "sudo nixos-rebuild test --flake ~/.config/nixos#thinkpad";
-    rebuild-boot = "sudo nixos-rebuild boot --flake ~/.config/nixos#thinkpad";
-    update = "nix flake update --flake ~/.config/nixos";
+    # NixOS replacements for your pacman aliases. The flake lives in the clone
+    # at ~/src/arch-config, NOT ~/.config — see dotfiles.nix and INSTALL.md
+    # §0.1. ~/.config/nixos is not linked by dotfiles.nix, so it does not exist
+    # on the installed system.
+    rebuild = "sudo nixos-rebuild switch --flake ~/src/arch-config/nixos#thinkpad";
+    rebuild-test = "sudo nixos-rebuild test --flake ~/src/arch-config/nixos#thinkpad";
+    rebuild-boot = "sudo nixos-rebuild boot --flake ~/src/arch-config/nixos#thinkpad";
+    update = "nix flake update --flake ~/src/arch-config/nixos";
     generations = "nixos-rebuild list-generations";
     gc = "sudo nix-collect-garbage --delete-older-than 30d";
     search = "nix search nixpkgs";

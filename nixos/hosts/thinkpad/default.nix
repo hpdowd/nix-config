@@ -18,8 +18,19 @@
 
   networking.hostName = "arch"; # keep the name; rename here if you'd rather not
 
+  # `@home` is reused by this install AND stays mounted by Arch until the
+  # side-by-side period ends, so BOTH ids have to be pinned to the live Arch
+  # values (`id henry` -> uid=1000 gid=1000(henry)). Leaving them unset gets
+  # you uid=1000 by luck but group `users` (gid 100) by default, which would
+  # mean every file under /home/henry — all owned by gid 1000 — shows up as an
+  # unmapped group on NixOS, and any file NixOS creates shows up as gid 100 on
+  # Arch. Pinning both keeps one home directory readable from either system.
+  users.groups.henry.gid = 1000;
+
   users.users.henry = {
     isNormalUser = true;
+    uid = 1000;
+    group = "henry";
     description = "Henry";
     shell = pkgs.zsh;
     extraGroups = [

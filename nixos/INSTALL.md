@@ -290,9 +290,11 @@ sudo systemctl restart bluetooth
 # the intended mechanism.
 cp -a "$B/.config/rclone" "$B/.config/gh" "$B/.config/glab-cli" "$B/.config/rbw" ~/.config/
 
-# Flatpaks (services.flatpak.enable installs the daemon, not the apps)
-flatpak install -y flathub com.hypixel.HytaleLauncher com.stremio.Stremio io.github.wivrn.wivrn
 ```
+
+Flatpak is deliberately absent — the three apps installed on Arch (Hytale,
+Stremio, WiVRn) are not wanted, so neither they nor the daemon are carried
+over. See `desktop.nix` if you change your mind.
 
 ### 5.2 — Verify the things that were broken before
 

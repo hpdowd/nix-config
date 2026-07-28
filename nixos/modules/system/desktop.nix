@@ -160,10 +160,15 @@
   services.tumbler.enable = true;
   services.udisks2.enable = true;
 
-  # Flatpak — you have Stremio, Hytale Launcher and WiVRn installed this way.
-  # NixOS only enables the daemon; the remote and apps are re-added by hand:
-  #   flatpak remote-add --if-not-exists flathub \
-  #     https://dl.flathub.org/repo/flathub.flatpakrepo
-  #   flatpak install flathub com.stremio.Stremio com.hypixel.HytaleLauncher io.github.wivrn.wivrn
-  services.flatpak.enable = true;
+  # Flatpak — deliberately NOT enabled (decided 2026-07-28).
+  #
+  # Arch has three flatpaks installed: com.stremio.Stremio,
+  # com.hypixel.HytaleLauncher and io.github.wivrn.wivrn. None are wanted on
+  # the new system, so neither the apps nor the daemon are carried over.
+  # MIGRATION.md §7b.6 previously listed these as an outstanding gap; they are
+  # now a dropped-on-purpose item.
+  #
+  # To bring it back: `services.flatpak.enable = true`, then add the flathub
+  # remote and install the apps by hand — NixOS's module ships the daemon
+  # only, not any declarative app list.
 }

@@ -69,18 +69,32 @@ in
     "lazygit".source = link "lazygit";
     "glow".source = link "glow";
     "imv".source = link "imv";
-    "mpv".source = link "mpv";
     "ncspot".source = link "ncspot";
     "gtk-3.0".source = link "gtk-3.0";
     "gtk-4.0".source = link "gtk-4.0";
     "Kvantum".source = link "Kvantum";
     "nwg-look".source = link "nwg-look";
-    "gpu-screen-recorder".source = link "gpu-screen-recorder";
     "corectrl".source = link "corectrl";
-    "gh".source = link "gh";
-    "glab-cli".source = link "glab-cli";
-    "opencode".source = link "opencode";
   };
+
+  # NOT linked, deliberately — see MIGRATION.md §7b.2. Every one of these was
+  # listed above at some point, but none of them is in the repo, so a fresh
+  # clone produces a link to a path that does not exist:
+  #
+  #   gh, glab-cli, gpu-screen-recorder, opencode
+  #       Excluded by the ~/.config/.gitignore allowlist because they hold
+  #       credentials (gh/hosts.yml, gpu-screen-recorder/restore_token,
+  #       glab-cli/config.yml). They must stay out of git, so they must also
+  #       stay out of this list — linking them would rename the real
+  #       directories to *.hm-bak and leave dangling links in their place,
+  #       exactly the B1 failure mode. They are restored from the backup
+  #       drive instead; see INSTALL.md §5.1.
+  #   mpv
+  #       The allowlist un-ignores /mpv/, but the directory is empty, so git
+  #       carries nothing and the clone has no mpv/ at all.
+  #
+  # If you want any of them managed, put real (credential-free) content in the
+  # repo first, then add the link back.
 
   # ~/.zshenv sets ZDOTDIR. home-manager writes this itself when
   # programs.zsh.dotDir is set, so it is NOT symlinked here.
@@ -94,8 +108,21 @@ in
   #   clean_tmp, pdf_to_a4, texpdf -> work unchanged, but pdf_to_a4/texpdf need
   #                                   `ghostscript` and a TeX distribution on
   #                                   PATH; both are in modules/home/packages.nix
-  home.file.".scripts".source = config.lib.file.mkOutOfStoreSymlink
-    "${config.home.homeDirectory}/.scripts";
+  #
+  # ~/.scripts is intentionally NOT declared here. It used to be
+  #   home.file.".scripts".source = mkOutOfStoreSymlink "${config.home.homeDirectory}/.scripts";
+  # which is the same self-referential bug as B1 — `home.file.".scripts"`
+  # *writes to* ~/.scripts, so that linked ~/.scripts at ~/.scripts. The B1 fix
+  # repointed `dots` and missed this one entry because it does not go through
+  # `link`. With backupFileExtension = "hm-bak" it would have renamed
+  # ~/.scripts to ~/.scripts.hm-bak and left a dangling link, silently taking
+  # out `cleantmp`, `lidaction`, keyd-application-mapper and the
+  # micmute-led.service ExecStart (%h/.scripts/micmute-led).
+  #
+  # There is nothing to point it at: ~/.scripts is not in this repo and not in
+  # any other. It survives the migration because @home is reused, and
+  # home.sessionPath already puts it on PATH. To make it reproducible, move the
+  # scripts into this repo and link them like everything else above.
 
   # ~/.hidden — the GTK file-manager clutter list from CLAUDE.md. Small and
   # static, so it's expressed natively rather than symlinked.

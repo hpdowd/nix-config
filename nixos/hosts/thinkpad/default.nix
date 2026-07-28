@@ -27,6 +27,22 @@
   # Arch. Pinning both keeps one home directory readable from either system.
   users.groups.henry.gid = 1000;
 
+  # NO PASSWORD IS DECLARED HERE, DELIBERATELY — and that has a consequence you
+  # must handle during the install, or you cannot log in.
+  #
+  # `users.mutableUsers` is true (the default), so passwords live in
+  # /etc/shadow. The install creates a *fresh* /etc/shadow on the new @nixos
+  # subvolume, and `nixos-install` prompts only for the ROOT password. That
+  # leaves henry with a locked account: tuigreet will reject the login even
+  # though @home and the uid are reused.
+  #
+  # Fixed procedurally rather than declaratively, to keep a password hash out
+  # of git. Before rebooting out of the installer, run:
+  #
+  #     sudo nixos-enter --root /mnt -c 'passwd henry'
+  #
+  # See MIGRATION-GUIDE.md Step 8.3. If you skip it, boot back into Arch (or
+  # the installer) and set it from there — nothing is lost.
   users.users.henry = {
     isNormalUser = true;
     uid = 1000;

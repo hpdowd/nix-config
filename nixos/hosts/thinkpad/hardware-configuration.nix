@@ -8,7 +8,7 @@
 #
 # Your current Arch layout on /dev/nvme0n1:
 #   p1  vfat  32D9-7457                              -> /boot  (1 GiB ESP)
-#   p2  btrfs 3c2d15a1-3a17-4715-99e5-969f27027571   -> subvols @ @home @pkg @log @swap
+#   p2  btrfs 3c2d15a1-3a17-4715-99e5-969f27027571   -> subvols @ @home @pkg @log swap
 #
 # This config assumes the SIDE-BY-SIDE migration described in MIGRATION.md:
 # NixOS gets new subvolumes (@nixos, @nix) on the SAME btrfs filesystem, and
@@ -85,7 +85,7 @@ in
     options = [ "fmask=0077" "dmask=0077" "errors=remount-ro" ];
   };
 
-  # You currently run zram + a btrfs swapfile in @swap. zram alone is plenty
+  # You currently run zram + a btrfs swapfile in swap. zram alone is plenty
   # for 14 GiB of RAM unless you want hibernation; see power.nix.
   swapDevices = [ ];
 

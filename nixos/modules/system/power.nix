@@ -37,7 +37,7 @@
 
   # --- zram -----------------------------------------------------------------
   # Replaces zram-generator + /etc/systemd/zram-generator.conf. You also have a
-  # btrfs swapfile in @swap on Arch; with 14 GiB RAM zram alone is enough
+  # btrfs swapfile in swap on Arch; with 14 GiB RAM zram alone is enough
   # unless you want hibernation, so hardware-configuration.nix leaves
   # swapDevices empty. Add the swapfile back there if you want to hibernate.
   zramSwap = {

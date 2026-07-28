@@ -67,7 +67,7 @@ Your disk:
 
 ```
 nvme0n1p1  vfat   1 GiB   ESP        -> /boot
-nvme0n1p2  btrfs  475 GiB            -> subvols @ @home @pkg @log @swap
+nvme0n1p2  btrfs  475 GiB            -> subvols @ @home @pkg @log swap
                                         321 GiB used, 149 GiB free
 ```
 
@@ -295,7 +295,8 @@ filling the partition and wedging `nixos-rebuild`. This is the most common way
 a NixOS laptop breaks, and it's silent until it isn't.
 
 **Swapfile dropped.** You currently run zram *and* a btrfs swapfile in
-`@swap`. With 14 GiB of RAM, zram at 50% is enough. Re-add the swapfile in
+`swap` (note: no `@` prefix — unlike the other four subvolumes, per
+`/etc/fstab`). With 14 GiB of RAM, zram at 50% is enough. Re-add the swapfile in
 `hardware-configuration.nix` only if you want hibernation (which also needs a
 `resume_offset` kernel param — btrfs swapfiles make this fiddly).
 
@@ -550,7 +551,7 @@ every Tier-1 package resolves. What's left:
    time a mode switch doesn't change your GTK theme.
 10. Work the genuinely-absent list (§6b) down over the following weeks —
     `distrobox` with an Arch container is a legitimate answer for most of it.
-11. Once you haven't booted Arch in a month: delete `@`, `@pkg`, `@swap`.
+11. Once you haven't booted Arch in a month: delete `@`, `@pkg`, `swap`.
 
 ## 7b. Gaps found in the 2026-07-28 sweep
 
@@ -746,7 +747,7 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
 10. Restore what the flake does not carry: NetworkManager profiles, Bluetooth
     pairings, the 3 flatpaks, `rclone.conf` and the CLI tokens from the drive.
 11. Work the genuinely-absent package list (§6b) down over the following weeks.
-12. Once you have not booted Arch in a month: delete `@`, `@pkg`, `@swap`.
+12. Once you have not booted Arch in a month: delete `@`, `@pkg`, `swap`.
 
 ### Rollback
 

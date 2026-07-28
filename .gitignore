@@ -76,6 +76,10 @@
 /zsh/completions/
 /zsh/.zcompdump*
 **/.zsh_history
+
+# Per-shell scratch files for the async git prompt (conf.d/40-prompt.zsh).
+# Named by PID, rewritten every prompt, removed by the zshexit hook.
+/zsh/.zsh_tmp_git_*
 **/*.log
 **/*.tmp
 **/cache/

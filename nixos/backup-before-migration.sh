@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Back up the irreplaceable parts of /home/henry before the NixOS migration.
 #
-# Sizing, measured 2026-07-27: /home/henry is 236 GB, but only ~33 GB of that
-# is data you cannot recreate. This script backs up that 33 GB and skips the
-# ~200 GB of Steam libraries, caches, container images, VM disks and trash.
+# Sizing, re-measured 2026-07-28: /home/henry is 236 GB, but only ~7 GB of it
+# is both irreplaceable and not already protected somewhere else. This script
+# backs up that ~7 GB and skips the rest — the ~200 GB of Steam libraries,
+# caches, container images, VM disks and trash, plus Nextcloud and Android
+# (see the exclusion notes below for why each is safe to drop).
 #
 # Usage:
 #   ./backup-before-migration.sh /run/media/henry/MyDrive/backup
@@ -49,14 +51,9 @@ export RESTIC_REPOSITORY="$TARGET"
 # ---------------------------------------------------------------------------
 INCLUDE=(
   # --- Cannot be recreated at any price ---
-  "$HOME_DIR/Nextcloud"          # 22G. This IS syncing to
-                                 # nextcloud.henrydowd.dev, but sync is
-                                 # replication, not backup — it propagates
-                                 # deletions server-side. Keep it here.
   "$HOME_DIR/Documents"          # 3.7G — contracts, CV, licences
   "$HOME_DIR/Pictures"           # 395M
   "$HOME_DIR/vaults"             # 127M — Obsidian
-  "$HOME_DIR/Android"            # 4.8G
   "$HOME_DIR/R"                  # 424M
 
   # --- Credentials. Tiny, catastrophic to lose. ---
@@ -64,7 +61,11 @@ INCLUDE=(
   "$HOME_DIR/.gnupg"             # 144K
   "$HOME_DIR/.local/share/keyrings"  # 32K — gnome-keyring secrets
 
-  # --- Source. Small once build artifacts are excluded (448M, not 9.1G). ---
+  # --- Source. Small once build artifacts are excluded (523M, not 9.1G). ---
+  # Kept deliberately even though every repo here has an origin remote: as of
+  # 2026-07-28 five of them carry work that exists nowhere else — see the
+  # unpushed-work check below. At half a gigabyte this is the cheapest
+  # insurance in the set.
   "$HOME_DIR/code"
   "$HOME_DIR/Projects"
 
@@ -74,7 +75,6 @@ INCLUDE=(
                                  # (xdg-settings confirms zen.desktop).
                                  # LibreWolf is NOT installed despite what
                                  # CLAUDE.md and mimeapps.list claim.
-  "$HOME_DIR/.config/vivaldi"    # 283M — has a real profile
   "$HOME_DIR/.config/chromium"   # 261M
   "$HOME_DIR/.config/obsidian"   # 666M
   "$HOME_DIR/.config/nixos"      # this flake
@@ -85,6 +85,16 @@ INCLUDE=(
 # ---------------------------------------------------------------------------
 # What is deliberately NOT backed up, and why.
 # ---------------------------------------------------------------------------
+#   Nextcloud                 22G  syncs to nextcloud.henrydowd.dev, and the
+#                                  sync journal confirms the 21.8G
+#                                  ATM9NF_march26.zip reached the server at
+#                                  full size. Caveat accepted knowingly: sync
+#                                  is replication, so a local delete
+#                                  propagates. Server-side trash/versioning is
+#                                  the safety net, not this script.
+#   Android                  4.8G  Android Studio build output and SDK/AVD
+#                                  state — regenerated on next build.
+#   .config/vivaldi          283M  secondary browser, profile not wanted.
 #   .local/share/Steam        30G  re-downloadable from Steam
 #   .local/share/Trash        20G  it's the bin. Empty it instead.
 #   winboat                   39G  Windows VM disk — recreate it
@@ -100,7 +110,7 @@ INCLUDE=(
 #   nvim.bak.*               1.3G  old backup, delete it
 #   Downloads                2.6G  transient — review manually first
 #
-# Total skipped: ~200 GB.
+# Total skipped: ~227 GB.
 
 EXCLUDE=(
   --exclude="node_modules"
@@ -136,9 +146,36 @@ done
 
 echo
 echo "=== Estimated size ==="
+# `|| true` is load-bearing: du exits non-zero on any unreadable file (sockets
+# and lock files inside the browser and gnupg dirs), and under `set -o
+# pipefail` that killed the whole script here — before restic ever ran.
 du -shc --exclude=node_modules --exclude=target --exclude=.venv \
         --exclude=__pycache__ --exclude=Cache \
-        "${INCLUDE[@]}" 2>/dev/null | tail -1
+        "${INCLUDE[@]}" 2>/dev/null | tail -1 || true
+
+# ---------------------------------------------------------------------------
+# Unpushed work. "It's in git" only protects what actually reached the remote.
+# ---------------------------------------------------------------------------
+echo
+echo "=== Git repos with work that exists only on this machine ==="
+found_risk=0
+while IFS= read -r g; do
+  repo="${g%/.git}"
+  git -C "$repo" remote get-url origin >/dev/null 2>&1 || {
+    printf '  NO REMOTE   %s\n' "${repo#$HOME_DIR/}"; found_risk=1; continue
+  }
+  dirty=$(git -C "$repo" status --porcelain 2>/dev/null | wc -l)
+  unpushed=$(git -C "$repo" log --branches --not --remotes --oneline 2>/dev/null | wc -l)
+  stashed=$(git -C "$repo" stash list 2>/dev/null | wc -l)
+  if [ "$dirty" -gt 0 ] || [ "$unpushed" -gt 0 ] || [ "$stashed" -gt 0 ]; then
+    printf '  %-42s uncommitted=%-4s unpushed=%-4s stashed=%s\n' \
+           "${repo#$HOME_DIR/}" "$dirty" "$unpushed" "$stashed"
+    found_risk=1
+  fi
+done < <(find "$HOME_DIR/code" "$HOME_DIR/Projects" -maxdepth 3 -name .git -type d 2>/dev/null)
+if [ "$found_risk" -eq 0 ]; then
+  echo "  none — every repo is clean and pushed"
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo
@@ -168,6 +205,6 @@ restic snapshots
 
 echo
 echo "Done. Before you install, also:"
-echo "  1. Push the 4 git repos flagged below."
+echo "  1. Push the git repos flagged in the pre-flight output above."
 echo "  2. Take a btrfs snapshot of @home (see MIGRATION.md §2)."
 echo "  3. Record the restic password somewhere OFF this machine."

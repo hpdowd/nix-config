@@ -98,7 +98,8 @@ not a data migration.** The realistic threat is a mistyped
 `btrfs subvolume delete` or formatting the wrong partition — not the install
 working as designed.
 
-`/home/henry` is 236 GB, but only **~34 GB** cannot be recreated. Run:
+`/home/henry` is 236 GB, but only **~6.8 GB** is both irreplaceable and not
+already protected elsewhere. Run:
 
 ```bash
 ./backup-before-migration.sh --dry-run /path/to/drive   # see what it'd take
@@ -108,17 +109,28 @@ working as designed.
 The script refuses to write to the same physical disk as `/home`, because a
 copy on `nvme0n1` dies with the original in every scenario that matters.
 
-**Backed up (~34 GB):** `Nextcloud`, `Documents`, `Pictures`, `vaults`,
-`Android`, `R`, `code`, `Projects`, `.ssh`, `.gnupg`,
-`.local/share/keyrings`, `.thunderbird`, and the browser/Obsidian profiles
-under `.config`.
+**Backed up (~6.8 GB):** `Documents` (3.7G), `.config/zen` (853M), `Projects`
++ `code` (523M), `R` (424M), `.thunderbird` (411M), `Pictures` (395M),
+`.config/chromium` (261M), `.config/obsidian` (174M), `vaults` (127M),
+`.ssh`, `.gnupg`, `.local/share/keyrings`, `.scripts`, `.hidden`, and this
+flake.
 
-**Skipped (~200 GB):** Steam (30G), Trash (20G — just empty it), `winboat`
+**Skipped (~227 GB):** Steam (30G), Trash (20G — just empty it), `winboat`
 (39G VM disk), `.cache` (26G), containers (7G), PrismLauncher (6.9G), Hytale
-flatpak (8G), `Games` (20G), `.wine` (3.6G), `nvim.bak.*` (1.3G).
+flatpak (8G), `Games` (20G), `.wine` (3.6G), `nvim.bak.*` (1.3G), plus three
+dropped 2026-07-28:
 
-Source trees shrink from 9.1 GB to 448 MB once `node_modules`, `target`,
-`.venv` and friends are excluded.
+- **`Nextcloud` (22G)** — syncs to `nextcloud.henrydowd.dev`, and the sync
+  journal confirms the 21.8 GB `ATM9NF_march26.zip` reached the server at
+  full size. The replication-is-not-backup caveat below still applies and is
+  accepted knowingly; server-side trash/versioning is the safety net now.
+- **`Android` (4.8G)** — Android Studio build output and SDK/AVD state,
+  regenerated on next build.
+- **`.config/vivaldi` (283M)** — secondary browser, profile not wanted.
+
+Source trees shrink from 9.1 GB to 523 MB once `node_modules`, `target`,
+`.venv` and friends are excluded. They stay in the set despite every repo
+having an origin remote — see the unpushed-work finding below.
 
 #### Things this survey turned up
 
@@ -127,13 +139,16 @@ Source trees shrink from 9.1 GB to 448 MB once `node_modules`, `target`,
    `https://nextcloud.henrydowd.dev` (account `henry`, folder
    `/home/henry/Nextcloud/` → `/`, `paused=false`), runs from
    `~/.config/autostart/Nextcloud.desktop`, and its journal and logs show
-   active PROPFIND traffic. It stays in the backup set anyway: sync is
-   replication, not backup — it happily propagates your deletions to the
-   server.
-2. **Four git repos have unpushed work:** `code/paraphrase-detector`
-   (6 commits ahead), `Projects/homelab` (9 dirty), `Projects/aur-malware-check`
-   (2 dirty), `Projects/Azure-in-bullet-points` (5 dirty). Push these; it's
-   faster than restoring them.
+   active PROPFIND traffic. Dropped from the backup set on 2026-07-28 on that
+   basis. Know the tradeoff you accepted: sync is replication, not backup — it
+   propagates deletions to the server, so a local `rm` is not recoverable from
+   the server unless its trash/versioning still holds the file.
+2. **Five git repos hold work that exists only on this machine** (as of
+   2026-07-28): `code/paraphrase-detector` (5 unpushed commits),
+   `Projects/homelab` (9 uncommitted), `Projects/Azure-in-bullet-points` (5),
+   `Projects/aur-malware-check` (2), `Projects/learning` (1). Push these; it's
+   faster than restoring them. The backup script now re-checks this on every
+   run rather than relying on this list staying accurate.
 3. **`.local/share/Trash` is 20 GB.** Empty it and reclaim the space before
    you do anything else.
 

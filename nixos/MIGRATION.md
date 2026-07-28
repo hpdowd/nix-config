@@ -120,12 +120,16 @@ flatpak (8G), `Games` (20G), `.wine` (3.6G), `nvim.bak.*` (1.3G).
 Source trees shrink from 9.1 GB to 448 MB once `node_modules`, `target`,
 `.venv` and friends are excluded.
 
-#### Three things this survey turned up
+#### Things this survey turned up
 
-1. **`~/Nextcloud` is not syncing.** No sync config exists and the client is
-   inactive. Those 22 GB are local-only despite the folder name — do not
-   assume the server has a copy. This is the single biggest risk in your
-   current setup, migration or not.
+1. **`~/Nextcloud` IS syncing** — correcting an earlier note in this file that
+   said otherwise. The client is configured against
+   `https://nextcloud.henrydowd.dev` (account `henry`, folder
+   `/home/henry/Nextcloud/` → `/`, `paused=false`), runs from
+   `~/.config/autostart/Nextcloud.desktop`, and its journal and logs show
+   active PROPFIND traffic. It stays in the backup set anyway: sync is
+   replication, not backup — it happily propagates your deletions to the
+   server.
 2. **Four git repos have unpushed work:** `code/paraphrase-detector`
    (6 commits ahead), `Projects/homelab` (9 dirty), `Projects/aur-malware-check`
    (2 dirty), `Projects/Azure-in-bullet-points` (5 dirty). Push these; it's

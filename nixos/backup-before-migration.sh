@@ -49,9 +49,10 @@ export RESTIC_REPOSITORY="$TARGET"
 # ---------------------------------------------------------------------------
 INCLUDE=(
   # --- Cannot be recreated at any price ---
-  "$HOME_DIR/Nextcloud"          # 22G. NOTE: despite the name this is NOT
-                                 # syncing — no sync config, client inactive.
-                                 # It is local-only data. Verify before trusting.
+  "$HOME_DIR/Nextcloud"          # 22G. This IS syncing to
+                                 # nextcloud.henrydowd.dev, but sync is
+                                 # replication, not backup — it propagates
+                                 # deletions server-side. Keep it here.
   "$HOME_DIR/Documents"          # 3.7G — contracts, CV, licences
   "$HOME_DIR/Pictures"           # 395M
   "$HOME_DIR/vaults"             # 127M — Obsidian

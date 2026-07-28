@@ -181,8 +181,7 @@ sudo "/run/media/henry/Samsung 128G/backup-2026-07-28/capture-root-state.sh"
 These hold work that exists nowhere else:
 
 ```bash
-for r in ~/Projects/homelab ~/Projects/Azure-in-bullet-points \
-         ~/Projects/aur-malware-check ~/Projects/learning; do
+for r in ~/Projects/homelab ~/Projects/learning; do
   echo "=== $r"; git -C "$r" status --short
 done
 ```

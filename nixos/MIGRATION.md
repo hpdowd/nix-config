@@ -145,10 +145,17 @@ having an origin remote — see the unpushed-work finding below.
    the server unless its trash/versioning still holds the file.
 2. **Five git repos hold work that exists only on this machine** (as of
    2026-07-28): `code/paraphrase-detector` (5 unpushed commits),
-   `Projects/homelab` (9 uncommitted), `Projects/Azure-in-bullet-points` (5),
-   `Projects/aur-malware-check` (2), `Projects/learning` (1). Push these; it's
-   faster than restoring them. The backup script now re-checks this on every
+   `Projects/homelab` (9 uncommitted) and `Projects/learning` (1). Push these;
+   it's faster than restoring them. The backup script re-checks this on every
    run rather than relying on this list staying accurate.
+
+   Two of the original five are **deleted** (2026-07-29):
+   `Projects/aur-malware-check` and `Projects/Azure-in-bullet-points`, both
+   third-party clones. The Azure one carried ~4.3 MB of untracked work that was
+   not upstream's — a LaTeX build (`AZ-900_Study_Notes.tex`, `diagrams.tex`), a
+   `CLAUDE.md` describing it, the built PDF and a compiled `Complete.md` —
+   discarded knowingly on the basis that the notes are re-clonable and the
+   build easy to redo.
 3. **`.local/share/Trash` is 20 GB.** Empty it and reclaim the space before
    you do anything else.
 
@@ -853,8 +860,9 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
 3. ~~`nix flake lock`~~ — done, `flake.lock` is committed.
 4. Capture root-only state: run `capture-root-state.sh` from the backup drive
    (WiFi credentials for 38 networks incl. eduroam, Bluetooth pairings, CUPS).
-5. Commit or discard the 4 dirty repos — `homelab` (9), `Azure-in-bullet-points`
-   (5), `aur-malware-check` (2), `learning` (1).
+5. Commit or discard the 2 remaining dirty repos — `homelab` (9) and
+   `learning` (1). `aur-malware-check` and `Azure-in-bullet-points` were
+   deleted on 2026-07-29; see §2.
 6. Snapshot `@home` (§2) and confirm the backup drive is current.
 7. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
    `@home`, `@pkg`, `@log`, or the ESP.

@@ -8,15 +8,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Shell environment
 
-Fish shell (`~/.config/fish/config.fish`) with key aliases that affect all terminal work:
+**The login shell is zsh** (`/etc/passwd`), configured from `~/.config/zsh/conf.d/*.zsh` via `ZDOTDIR`. Fish is installed as a secondary interactive shell with its own `~/.config/fish/config.fish`, but it is **not** what terminals start, and it is being dropped in the NixOS migration (see `nixos/modules/home/shell.nix`).
+
+Aliases common to both, which affect terminal work:
 
 - `cat` → `bat` (syntax-highlighted pager — use Read tool instead of Bash cat)
 - `ls` / `ll` / `la` → `eza` variants
 - `lf` → `yazi` (file manager)
 - `zed` → `zeditor`
-- `pacman` → `sudo pacman`; typo alias `pamcan` also works
+- `pacman` → `sudo pacman`; typo alias `pamcan` also works (fish only)
 - PATH additions: `~/.config/emacs/bin`, `~/.cargo/bin`, `~/Applications/*/bin`, `~/.local/bin`, `~/.bun/bin`
 - `zoxide` is active for `z` directory jumping
+
+Note the fish `lidt` and `cleantmp` aliases point at `$scripts/toggle_lid_action.sh` and `$scripts/clean_tmp.sh` — with `.sh` extensions the real scripts don't have, so both are broken. The zsh equivalents (`lidaction`, `cleantmp`) are correct.
 
 **Home-directory clutter hiding** (added to reduce `ls ~` / file-manager noise, not to move anything):
 - `~/.hidden` lists top-level dirs that GTK file managers (Thunar) omit from the `~` view. Toggle back with **Ctrl+H**.
@@ -144,3 +148,19 @@ When you make any change that affects the system layout described in this file �
 | Mangowm | `~/.config/mango/scripts/reload.sh` |
 | Switch mode | `~/.config/mango/scripts/modes/<mode>.sh` |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
+
+## Agent skills
+
+### Issue tracker
+
+Gitea issues on the self-hosted instance at `git.henrydowd.dev` (repo `henry/arch-config`), driven by the `tea` CLI, which is already authenticated. Reachable only over the `homelab` WireGuard tunnel — when that is down, `tea` and `git push` both fail. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. They do not exist on the Gitea repo yet; `docs/agents/triage-labels.md` has the `tea labels create` commands.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` and `docs/adr/` at the root. Note that for this repo `CLAUDE.md` itself is the standing system description, so read it before `CONTEXT.md`. See `docs/agents/domain.md`.
+
+Note for anything adding files under `docs/`: `.gitignore` is an allowlist, so a new top-level directory is invisible to git until it gets a `!/dirname/` line.

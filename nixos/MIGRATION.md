@@ -547,8 +547,10 @@ every Tier-1 package resolves. What's left:
 6. `restic` backup.
 7. Create `@nixos`/`@nix` subvolumes, `nixos-install --flake`, boot to a TTY.
 8. Get the compositor up. Nothing else matters on day one.
-9. Decide the `theme.nix` vs `gtk-apply.sh` ownership question (§6a) the first
-   time a mode switch doesn't change your GTK theme.
+9. ~~Decide the `theme.nix` vs `gtk-apply.sh` ownership question (§6a)~~ —
+   **decided 2026-07-28: the mode scripts own it.** The `gtk` block is gone
+   from `theme.nix`; the theme *packages*, the Qt platform theme and the cursor
+   stay declared in Nix. See §7c.
 10. Work the genuinely-absent list (§6b) down over the following weeks —
     `distrobox` with an Arch container is a legitimate answer for most of it.
 11. Once you haven't booted Arch in a month: delete `@`, `@pkg`, `swap`.
@@ -584,20 +586,30 @@ badly they bite.
    `xdg-desktop-portal-gtk`, which *is* a user unit and ignores `settings.ini`
    without `GTK_THEME`.
 
-   Note the value is `Gruvbox-Yellow-Dark`, copied verbatim, while
-   `theme.nix` sets `Gruvbox-Dark`. That disagreement predates the migration;
-   settle it with the ownership question in item 9 of §7.
+   The value is `Gruvbox-Yellow-Dark`, copied verbatim. `theme.nix` used to
+   disagree with it; that is resolved — the `gtk` block is gone and
+   `pkgs/default.nix` now builds the yellow variant, which stock nixpkgs does
+   not. See §7c.
 
 ### Silently absent
 
-4. **`rclone-nextcloud.service` is not reproduced** — a FUSE mount of
-   `Nextcloud:` at `~/mnt/Nextcloud`, separate from the desktop sync client.
-   Its config, `~/.config/rclone/rclone.conf`, holds the remote credentials and
-   was in neither git nor the backup until 2026-07-28.
-5. **`claude-message.service` / `.timer` not reproduced.**
-6. **Three installed flatpaks are not declared**: `com.hypixel.HytaleLauncher`,
-   `com.stremio.Stremio`, `io.github.wivrn.wivrn`. `services.flatpak.enable` is
-   on, but that installs no apps.
+4. ~~**`rclone-nextcloud.service` is not reproduced**~~ **WRONG UNIT — see
+   §7c.** `rclone-nextcloud.service` exists on disk but is *not enabled*. The
+   enabled unit is the template instance `rclone@ProtonDrive.service`, which
+   the sweep missed entirely. That one is now ported as
+   `systemd.user.services.rclone-protondrive`. Its config,
+   `~/.config/rclone/rclone.conf`, holds the remote credentials and was in
+   neither git nor the backup until 2026-07-28.
+5. ~~**`claude-message.service` / `.timer` not reproduced.**~~ **DROPPED on
+   purpose** (2026-07-28). The timer was enabled and fired daily at 08:45, but
+   its `ExecStart` pointed at `~/.local/bin/claude-scheduler` while the script
+   on disk is `claude_scheduler` — a one-character mismatch that had it failing
+   silently since June. Decision was to drop it rather than repair it; the
+   timer is now disabled on Arch and the script is left in place.
+6. ~~**Three installed flatpaks are not declared**~~ **DROPPED on purpose**
+   (2026-07-28). `com.hypixel.HytaleLauncher`, `com.stremio.Stremio` and
+   `io.github.wivrn.wivrn` are not wanted on the new system, so
+   `services.flatpak.enable` is now off too and the daemon is not installed.
 7. **38 saved NetworkManager connections**, including an 802.1x/eduroam
    profile, exist only in `/etc/NetworkManager/system-connections`. Capture
    them with `capture-root-state.sh` on the backup drive, or re-enter by hand.
@@ -606,7 +618,19 @@ badly they bite.
    `trashrc`, `user-dirs.dirs`/`.locale`, `QtProject.conf`, `Trolltech.conf`,
    `gtkrc`/`gtkrc-2.0` (GTK2 theming), `qt5ct`/`qt6ct` (Qt theming).
 
-### Root cause worth fixing once
+### Root cause worth fixing once (units)
+
+The sweep read `~/.config/systemd/user/*.service` and assumed every file there
+was live. It isn't — the directory holds units that are enabled, units that
+were superseded, and units that were never enabled at all. **Check
+`*.target.wants/` before porting anything**, because that is the only place
+that records what actually runs:
+
+```bash
+ls ~/.config/systemd/user/{default,timers,multi-user}.target.wants/
+```
+
+### Root cause worth fixing once (files)
 
 `~/.config/.gitignore` is an **allowlist**. Anything not explicitly un-ignored
 is invisible to git *and* was invisible to a backup that copied only tracked
@@ -614,6 +638,99 @@ paths. That is how `rclone.conf`, `gh/hosts.yml`, `glab-cli/config.yml`,
 `rbw/config.json`, `autostart/`, `dconf/` and the user systemd units all fell
 through both nets simultaneously. When adding a tool that stores config in
 `~/.config`, add a `!/toolname/` line at the same time.
+
+## 7c. What the sweep got wrong (checked 2026-07-28, second pass)
+
+§7b was written from the *contents* of `~/.config/systemd/user/`. Checking the
+`*.target.wants/` symlinks instead — the only record of what is actually
+enabled — changes three of its conclusions.
+
+**Enabled on Arch, and what each needs:**
+
+| Unit | Status |
+|---|---|
+| `rclone@ProtonDrive.service` | **Missed by the sweep.** Now ported. |
+| `micmute-led.service` | Already ported (`modules/system/audio.nix`). |
+| `gpu-screen-recorder-ui.service` | **Missed by the sweep.** Dropped — see below. |
+| `claude-message.timer` | Dropped on purpose; disabled on Arch. |
+
+**Listed as gaps but needing no work:**
+
+- **`elephant.service`** — not enabled, and it would be redundant anyway:
+  `mango/{tiling,hud}/autostart.conf` line 8 already starts it with
+  `exec=pgrep -x elephant || elephant`. Nothing to port.
+- **`rclone-nextcloud.service`** — not enabled. `~/Nextcloud` is handled by the
+  desktop sync client (`services.nextcloud-client`), not a FUSE mount, which
+  matches the §2 finding that the client is running and syncing.
+
+**`gpu-screen-recorder-ui`** is a package-provided unit
+(`/usr/lib/systemd/user/`), not a hand-written one. nixpkgs has
+`gpu-screen-recorder` and `gpu-screen-recorder-gtk` but **no**
+`gpu-screen-recorder-ui`, so the always-running overlay/hotkey daemon has no
+equivalent. Decision: drop it, keep the plain CLI already in `packages.nix`,
+and bind a key in mango if you want a capture shortcut. Left enabled on Arch.
+
+### Two owners on one path — a collision class worth checking for
+
+`verify-packages.sh` evaluates the closure, which catches bad option names and
+unresolvable packages. It does **not** catch two home-manager entries claiming
+overlapping paths, because that only fails when the home-files derivation is
+built. Two such collisions existed:
+
+- **`gtk`** — `dotfiles.nix` links `~/.config/gtk-3.0` out-of-store while the
+  `gtk` module wanted to write `~/.config/gtk-3.0/settings.ini` inside it.
+  Removed as a side effect of settling the ownership question.
+- **`fish`** — `dotfiles.nix` linked all of `~/.config/fish` while
+  `programs.fish.enable` writes `~/.config/fish/config.fish`. Fish is now
+  dropped entirely (2026-07-28): zsh is and always was the login shell per
+  `/etc/passwd`, so fish was only ever secondary.
+
+`zsh` avoids the trap by linking `zsh/conf.d`, the subdirectory, rather than
+`zsh` — home-manager owns `.zshrc`. **That is the pattern to follow**: when
+home-manager owns any file inside a directory, link the subdirectory, never the
+parent.
+
+Building the home-files derivation to check is slow (it drags in texlive and
+logseq via shell completions). This is quick and catches the same thing:
+
+```bash
+nix eval --impure --expr '
+let
+  f = builtins.getFlake "path:/home/henry/src/arch-config/nixos";
+  hm = f.nixosConfigurations.thinkpad.config.home-manager.users.henry;
+  names = builtins.attrNames hm.home.file;
+in builtins.concatMap (a: builtins.concatMap (b:
+     if a != b && builtins.substring 0 (builtins.stringLength a + 1) b == "${a}/"
+     then [ "${a} << ${b}" ] else []) names) names'
+# want: [ ]
+```
+
+### The GTK theme would have fallen back to Adwaita
+
+Found while settling the ownership question. Your GTK theme is
+`Gruvbox-Yellow-Dark`, named in seven places: `gtk-{3,4}.0/settings.ini`, both
+`settings-tiling.ini` files, `xsettingsd.conf`, `environment.d/gtk.conf`, and
+`mango/scripts/system/gtk-apply.sh` line 9.
+
+The stock nixpkgs `gruvbox-gtk-theme` builds **only** `Gruvbox-Dark` and
+`Gruvbox-Light` — verified by building it and listing `share/themes`. On Arch
+the yellow variant comes from the AUR build, which passes `-t yellow` to
+`install.sh`. Without an override, every GTK app on the new system would have
+asked for a theme that does not exist and silently fallen back to Adwaita.
+
+`pkgs/default.nix` now overrides the package with
+`themeVariants = [ "yellow" ]; colorVariants = [ "dark" ]`, which produces
+`Gruvbox-Yellow-Dark` — confirmed by building the override and listing the
+output. The upstream derivation takes those flags as arguments, so this is a
+plain override, not a fork.
+
+The same check turned up a smaller mismatch: `theme.nix` declared the cursor as
+`Adwaita` while `gtk-3.0/settings.ini` asks for `Capitaine Cursors (Gruvbox)`
+at size 24. With GTK ownership handed to the scripts, `settings.ini` wins for
+GTK apps, so the Nix declaration would have produced a split — Capitaine in GTK
+apps, Adwaita for Wayland cursors. `home.pointerCursor` now names the same
+theme, from `capitaine-cursors-themed`, which provides it under exactly that
+name.
 
 ## 8. Install walkthrough, with blockers verified (2026-07-28)
 

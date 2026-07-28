@@ -13,6 +13,12 @@
 # --- The NixOS flake ---------------------------------------------------------
 !/nixos/
 
+# --- Agent / domain docs -----------------------------------------------------
+# docs/agents/ is read by the mattpocock engineering skills; docs/adr/ holds
+# architecture decision records. Without this line the top-level `/*` rule
+# swallows the whole directory and none of it is ever committed.
+!/docs/
+
 # --- Desktop environment -----------------------------------------------------
 !/mango/
 

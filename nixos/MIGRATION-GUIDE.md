@@ -255,12 +255,25 @@ sudo dd if=~/nixos-minimal.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ## Part 5 — Boot the installer
 
 1. Reboot, hold **F12** (ThinkPad boot menu), pick the USB stick.
-2. You land at a root shell prompt.
-3. Get on the network:
-   - Ethernet: works already.
-   - WiFi: `sudo systemctl start wpa_supplicant` then `wpa_cli`, or simply
-     `nmtui` if NetworkManager is running on the ISO.
-4. Confirm: `ping -c2 cache.nixos.org`
+2. You land at a shell. Depending on the image you may be `root` or the
+   `nixos` user; every command here uses `sudo`, which works either way.
+3. Get on the network. **Ethernet is by far the least hassle** — plug in and
+   it works. For WiFi, try in this order:
+
+   ```bash
+   nmtui                      # if NetworkManager is on the image
+   # otherwise:
+   sudo systemctl start wpa_supplicant
+   wpa_cli                    # then: add_network / set_network / enable_network
+   ```
+
+   The minimal ISO is deliberately sparse, so do not assume `nmtui` exists.
+4. Confirm you can reach the cache — the install is ~13.8 GiB of downloads and
+   will fail without it:
+
+   ```bash
+   ping -c2 cache.nixos.org
+   ```
 
 **Enable flakes.** The installer ISO does *not* enable them by default, and
 every command below needs them:
@@ -346,16 +359,28 @@ Do not continue.
 
 The installer is the authority on kernel modules for your exact hardware.
 
+A raw `diff` against the committed file is not useful — that file is
+hand-written with a `let` block and long comments, so the diff is almost all
+formatting noise. Compare the two things that actually matter instead:
+
 ```bash
-sudo nixos-generate-config --root /mnt --show-hardware-config \
-  | diff -u /mnt/home/henry/src/arch-config/nixos/hosts/thinkpad/hardware-configuration.nix - \
-  | head -40
+HW=/mnt/home/henry/src/arch-config/nixos/hosts/thinkpad/hardware-configuration.nix
+sudo nixos-generate-config --root /mnt --show-hardware-config > /tmp/hw-generated.nix
+
+# the committed file lists modules one per line, so -A9 is needed to see them;
+# nixos-generate-config emits them on a single line
+echo "--- generated:"; grep -E 'availableKernelModules|kernelModules' /tmp/hw-generated.nix
+echo "--- committed:"; grep -A9 'availableKernelModules' "$HW"; grep -E '^\s+boot\.(initrd\.)?kernelModules' "$HW"
+
+echo "--- generated UUIDs:"; grep -oE '[0-9a-fA-F-]{8,}' /tmp/hw-generated.nix | sort -u
+echo "--- committed UUIDs:"; grep -oE '(3c2d15a1[a-f0-9-]*|32D9-7457)' "$HW" | sort -u
 ```
 
-- Differences in `availableKernelModules`: worth folding into the committed
-  file.
-- **Differences in UUIDs: stop.** Something is wrong about which disk you are
-  on.
+- A module in the generated list that is missing from the committed one is
+  worth adding (it goes in `boot.initrd.availableKernelModules`).
+- **Any UUID mismatch: stop.** The committed values are `32D9-7457` (ESP) and
+  `3c2d15a1-3a17-4715-99e5-969f27027571` (btrfs). If the installer sees
+  something else, you are looking at a different disk and must not continue.
 
 ### Step 8.2 — Run the install
 

@@ -540,8 +540,9 @@ every Tier-1 package resolves. What's left:
 4. **Transcribe your keyd `[typst]` layer** if you want it — `locale.nix` has
    the layer defined from `greek-typst.conf`, but check it matches your
    intent, since it was never actually active on Arch.
-5. **Put `~/.config` in git and push it.** Still not done, and the flake's
-   out-of-store dotfile symlinks depend on it.
+5. ~~**Put `~/.config` in git and push it.**~~ Done — pushed to
+   `git.henrydowd.dev/henry/arch-config`. What remains is cloning it to
+   `~/src/arch-config`, which is where the flake now expects it (§8, B1).
 6. `restic` backup.
 7. Create `@nixos`/`@nix` subvolumes, `nixos-install --flake`, boot to a TTY.
 8. Get the compositor up. Nothing else matters on day one.
@@ -559,20 +560,32 @@ badly they bite.
 
 ### Will visibly break
 
-1. **`mango-session.target` is not reproduced.** `mango/universal/autostart.conf`
-   line 2 runs `systemctl --user start mango-session.target`. The unit lives in
-   `~/.config/systemd/user/`, which is **not** on the dotfiles allowlist and is
-   not declared in the flake, so that exec-once fails silently on first boot.
-   Add it as `systemd.user.targets.mango-session`.
-2. **Five `dotfiles.nix` symlinks point at paths not in git**: `mpv`,
-   `gpu-screen-recorder`, `gh`, `glab-cli`, `opencode`. The flake links them,
-   but cloning `~/.config` will not produce them, so each becomes a dangling
-   symlink. Either track them or drop the links.
-3. **`~/.config/environment.d/` is not referenced anywhere in the flake.** It
-   sets `GTK_THEME`, `QT_QPA_PLATFORM=wayland` and
-   `QT_WAYLAND_DISABLE_WINDOWDECORATION=1`. Its own comment says the GTK portal
-   file picker ignores `settings.ini` without it. Use
-   `home.sessionVariables` or `environment.sessionVariables`.
+1. ~~**`mango-session.target` is not reproduced.**~~ **FIXED** — declared as
+   `systemd.user.targets.mango-session` in `modules/home/default.nix`.
+   `mango/universal/autostart.conf` line 2 runs
+   `systemctl --user start mango-session.target`; the unit lived only in
+   `~/.config/systemd/user/`, which is not on the dotfiles allowlist, so the
+   exec-once failed silently on every boot.
+2. ~~**Five `dotfiles.nix` symlinks point at paths not in git**~~ **FIXED** —
+   the `mpv`, `gpu-screen-recorder`, `gh`, `glab-cli` and `opencode` links are
+   removed (§8, B3). Four of the five are credential directories the
+   `.gitignore` allowlist excludes on purpose, so tracking them was never the
+   right answer; they are restored from the backup drive instead. `mpv` is
+   allowlisted but empty, so git carries nothing.
+3. ~~**`~/.config/environment.d/` is not referenced anywhere in the flake.**~~
+   **FIXED** — reproduced as `systemd.user.sessionVariables` in
+   `modules/home/default.nix`, which writes
+   `~/.config/environment.d/10-home-manager.conf`.
+
+   It had to be that option and not `home.sessionVariables`: the latter writes
+   `hm-session-vars.sh`, which interactive shells source and systemd user units
+   do not — and the entire reason the file exists is
+   `xdg-desktop-portal-gtk`, which *is* a user unit and ignores `settings.ini`
+   without `GTK_THEME`.
+
+   Note the value is `Gruvbox-Yellow-Dark`, copied verbatim, while
+   `theme.nix` sets `Gruvbox-Dark`. That disagreement predates the migration;
+   settle it with the ownership question in item 9 of §7.
 
 ### Silently absent
 
@@ -610,7 +623,8 @@ not assumed. Two blockers were found; **B1 must be fixed before you install**.
 
 | Check | Result |
 |---|---|
-| Flake evaluates | `verify-packages.sh` passes all 3 stages, **no deprecation warnings** |
+| Flake evaluates | `verify-packages.sh` passes all 3 stages, **no deprecation warnings**. Re-confirmed 2026-07-28 after the B3/uid/lock fixes |
+| Inputs pinned | `flake.lock` committed 2026-07-28 — nixpkgs `624af665` (26.11.20260726) |
 | Build size | 842 derivations, 5622 paths, 13.8 GiB download / 37.1 GiB unpacked |
 | Free space | 133 GiB on `nvme0n1p2` — fits with ~80 GiB spare |
 | ESP capacity | 1022 MiB, 62 MiB used by Arch. `configurationLimit = 6` → ~450–720 MiB. Fits |
@@ -666,22 +680,59 @@ stays as written. Do this **before** the first `nixos-rebuild`, and re-run
 `~/.config/systemd/user/`, which is neither allowlisted in git nor declared in
 the flake. On first boot the exec-once fails silently. See §7b.
 
-### Hardening worth doing first
+### B3 — the entries the B1 fix missed (2026-07-28 audit)
 
-- **Pin the UID.** `users.users.henry` does not set `uid`. NixOS will almost
-  certainly assign 1000 (you are the only normal user, and 1000 is the live
-  value), but since `@home` is reused, a mismatch would leave every file in
-  `/home/henry` owned by the wrong user. Add `uid = 1000;` and remove the
-  doubt — it costs one line.
-- **Lock the flake.** There is no `flake.lock`, so inputs float on every build
-  and the install is not reproducible. Run `nix flake lock` and commit it.
+B1 was fixed by repointing `dots`, which corrected the 26 entries built with
+`link`. Three did not go through `link` and so stayed broken:
+
+- **`home.file.".scripts"` was still self-referential.** It read
+  `mkOutOfStoreSymlink "${config.home.homeDirectory}/.scripts"`, and
+  `home.file.".scripts"` *writes to* `~/.scripts` — the same loop B1
+  described, in the one entry the B1 diff did not touch. Activation would have
+  produced `~/.scripts.hm-bak` plus a dangling `~/.scripts`, taking out
+  `cleantmp`, `lidaction`, `keyd-application-mapper` and the ExecStart of
+  `micmute-led.service` (`%h/.scripts/micmute-led`) — silently, as before.
+
+  Removed rather than repointed: `~/.scripts` is in no git repo at all, it
+  survives because `@home` is reused, and `home.sessionPath` already carries
+  it. Moving those scripts into this repo is the way to make it reproducible.
+
+- **The four credential directories** (`gh`, `glab-cli`,
+  `gpu-screen-recorder`, `opencode`) were §7b.2's known dangling links, and
+  linking them was worse than dangling: `INSTALL.md` §5.1 restores them with
+  `cp -a "$B/.config/gh" ~/.config/`, and `cp -a` onto a dangling symlink
+  writes through to the *resolved* path — so the restore step would have
+  deposited `hosts.yml`, `restore_token` and friends inside the git clone at
+  `~/src/arch-config/`. Links removed.
+
+- **`mpv`** is un-ignored by the allowlist but the directory is empty, so git
+  carries nothing and the clone has no `mpv/`. Link removed.
+
+### Hardening — done in the same pass
+
+- **Pin the uid *and* the primary group.** `uid` was unset, and pinning it
+  alone (which this section previously advised) would not have been enough:
+  `isNormalUser` defaults the primary group to `users` (gid 100), while every
+  file under `/home/henry` is gid 1000 (`henry`) and `@home` stays mounted by
+  Arch throughout the side-by-side period. Verified by evaluating the closure:
+  `uid = null; group = "users"; hasHenryGroup = false`. Now pinned to
+  `uid = 1000` with `users.groups.henry.gid = 1000`.
+- **Lock the flake.** `flake.lock` is committed, pinning nixpkgs to
+  `624af665` (26.11.20260726). Before this, every build floated and the
+  "verified on 2026-07-27" result described whatever nixpkgs happened to be
+  current that day.
+- **The `rebuild`/`update` aliases pointed at `~/.config/nixos`**, which the
+  B1 fix made wrong — the flake now lives in the clone, and `dotfiles.nix`
+  never linked `nixos/`, so that path does not exist on the installed system.
+  Repointed at `~/src/arch-config/nixos`.
 
 ### Order of operations
 
-1. Fix **B1**. Clone the config repo to `~/src/arch-config`, update `dots`,
-   re-run `./verify-packages.sh`.
-2. Fix **B2** (`systemd.user.targets.mango-session`) and pin `uid = 1000`.
-3. `nix flake lock`, commit, push.
+1. **B1** — the flake side is fixed; what remains is to actually
+   `git clone` the repo to `~/src/arch-config` and re-run
+   `./verify-packages.sh` from there.
+2. ~~Fix **B2** and pin `uid`~~ — done, along with **B3** and the group pin.
+3. ~~`nix flake lock`~~ — done, `flake.lock` is committed.
 4. Capture root-only state: run `capture-root-state.sh` from the backup drive
    (WiFi credentials for 38 networks incl. eduroam, Bluetooth pairings, CUPS).
 5. Commit or discard the 4 dirty repos — `homelab` (9), `Azure-in-bullet-points`

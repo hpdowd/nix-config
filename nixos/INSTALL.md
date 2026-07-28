@@ -11,9 +11,11 @@ until Phase 6, which you should not reach for at least a month.
 
 ---
 
-## Phase 0 — Fix the two blockers
+## Phase 0 — Fix the blockers
 
-These are not optional. B1 makes the first rebuild fail.
+Only **0.1 still needs you to do something** — cloning the repo. Everything
+else in this phase is already committed; it is listed so you can confirm it
+rather than rediscover it.
 
 ### 0.1 — B1: clone the dotfiles checkout outside `~/.config`
 
@@ -81,33 +83,45 @@ Still worth porting the other hand-written units the same way:
 `micmute-led` (already handled in `modules/system/audio.nix`),
 `rclone-nextcloud`, `elephant`, `claude-message.{service,timer}`.
 
-### 0.3 — Pin the UID
+### 0.3 — B3: the links B1 missed — DONE
 
-`@home` is reused, so a UID mismatch would misown every file in `/home/henry`.
-You are `uid=1000` today. In `hosts/thinkpad/default.nix`:
+The B1 fix repointed `dots`, which fixed the 26 entries that go through
+`link`. Three things did not go through `link` and stayed broken:
 
-```diff
-   users.users.henry = {
-     isNormalUser = true;
-+    uid = 1000;
-```
+- **`~/.scripts`** was `mkOutOfStoreSymlink "${config.home.homeDirectory}/.scripts"`
+  — a link to itself, the exact B1 bug. On activation it would have become
+  `~/.scripts.hm-bak` plus a dangling `~/.scripts`, silently killing
+  `cleantmp`, `lidaction`, `keyd-application-mapper` and the ExecStart of
+  `micmute-led.service`. The declaration is gone; `~/.scripts` survives
+  because `@home` is reused, and `home.sessionPath` already has it.
+- **`gh`, `glab-cli`, `gpu-screen-recorder`, `opencode`** are excluded by the
+  `.gitignore` allowlist because they hold credentials, so a clone never
+  produces them — each link was a guaranteed dangling link, and §5.1's
+  `cp -a` into one would have written your tokens *into the git clone*. Links
+  removed; they are restored from the backup drive instead.
+- **`mpv`** is allowlisted but empty, so git carries nothing. Link removed.
 
-### 0.4 — Lock the inputs
+### 0.4 — Pin the uid *and* the group — DONE
 
-There is no `flake.lock`, so inputs float on every build and the install is not
-reproducible.
+`@home` is reused and Arch keeps mounting it, so both ids are now pinned to
+the live values (`uid=1000`, `gid=1000(henry)`) in `hosts/thinkpad/default.nix`.
 
-```bash
-cd ~/src/arch-config/nixos && nix flake lock
-```
+Pinning only the uid — which is what this file used to advise — was not
+enough. `isNormalUser` defaults the primary group to `users` (gid 100), so
+every file under `/home/henry` (all gid 1000) would have shown up under an
+unmapped group on NixOS, and anything NixOS created would have shown up as
+gid 100 on Arch.
 
-### 0.5 — Re-verify and push
+### 0.5 — Lock the inputs — DONE
+
+`flake.lock` is committed. Re-lock deliberately with `nix flake update`, not
+as a side effect of a build.
+
+### 0.6 — Re-verify
 
 ```bash
 cd ~/src/arch-config/nixos
 ./verify-packages.sh          # must pass all 3 stages
-cd ~/src/arch-config && git add -A && git commit -m "Fix dotfiles self-symlink, declare mango-session, pin uid, lock inputs"
-git push
 ```
 
 **Checkpoint:** do not continue until `verify-packages.sh` passes.
@@ -270,7 +284,10 @@ sudo systemctl restart NetworkManager
 sudo cp -a "$B/system-state/root-only/bluetooth-pairings/." /var/lib/bluetooth/
 sudo systemctl restart bluetooth
 
-# CLI credentials — gitignored, so a clone does NOT restore them
+# CLI credentials — gitignored, so a clone does NOT restore them. These are
+# also the directories deliberately left out of dotfiles.nix (§0.3), so these
+# paths are plain directories, not managed symlinks. Restoring them by hand is
+# the intended mechanism.
 cp -a "$B/.config/rclone" "$B/.config/gh" "$B/.config/glab-cli" "$B/.config/rbw" ~/.config/
 
 # Flatpaks (services.flatpak.enable installs the daemon, not the apps)
@@ -298,6 +315,8 @@ Only once you have not booted Arch in weeks and everything you need works.
 **This is the first irreversible step.**
 
 ```bash
+sudo mkdir -p /mnt/btrfs-root      # you are on the installed system now, not
+                                   # the installer — this dir won't exist yet
 sudo mount -o subvolid=5 /dev/nvme0n1p2 /mnt/btrfs-root
 sudo btrfs subvolume delete /mnt/btrfs-root/@
 sudo btrfs subvolume delete /mnt/btrfs-root/@pkg

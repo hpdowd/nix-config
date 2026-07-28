@@ -104,7 +104,7 @@ If the issue recurs, check `journalctl -u NetworkManager` for DHCP timeout after
 
 `~/.config/nixos/` holds a NixOS flake that reproduces this machine. It is **not yet in use** — the system is still Arch. See `nixos/MIGRATION.md` for the plan, the benefit/cost assessment, and the outstanding work queue.
 
-**Status:** the full system closure evaluates cleanly against nixpkgs-unstable with zero errors and zero warnings (verified 2026-07-27); `nix build --dry-run` reports 13.9 GiB download / 37.4 GiB unpacked. Re-verify at any time with `nixos/verify-packages.sh` (parses every file, evaluates the closure, then sizes the build). Nix is installed on the Arch host via the `nix` package, with flakes enabled in `~/.config/nix/nix.conf`.
+**Status:** the full system closure evaluates cleanly against nixpkgs-unstable with zero errors and zero warnings (re-verified 2026-07-28); `nix build --dry-run` reports 13.9 GiB download / 37.4 GiB unpacked. Re-verify at any time with `nixos/verify-packages.sh` (parses every file, evaluates the closure, then sizes the build). Nix is installed on the Arch host via the `nix` package, with flakes enabled in `~/.config/nix/nix.conf`. Inputs are pinned by `nixos/flake.lock` (nixpkgs `624af665`) — re-lock deliberately with `nix flake update`, not as a side effect of a build.
 
 - `flake.nix` — inputs: nixpkgs unstable, home-manager, nixos-hardware, plus only two third-party flakes (`zen-browser`, `claude-desktop`). Most AUR software turned out to be in nixpkgs already — `mango`, `fsel`, `walker`, `elephant`, `dsearch`, `weathr`, `sidequest`, `winboat`, `valent`. (`dms-shell`, `quickshell` and `dgop` are packaged too, but are excluded on purpose — DankMaterialShell is being dropped.) Note `claude-desktop` must NOT use `inputs.nixpkgs.follows`; it references the removed `pkgs.nodePackages` and only builds against its own pin.
 - `hosts/thinkpad/` — host config and `hardware-configuration.nix` (real UUIDs from the live fstab)
@@ -114,6 +114,8 @@ If the issue recurs, check `journalctl -u NetworkManager` for DHCP timeout after
 - `verify-packages.sh` — checks which package names resolve in nixpkgs; run before any rebuild
 
 Design decision worth knowing: `modules/home/dotfiles.nix` uses `mkOutOfStoreSymlink`, so `~/.config/{mango,nvim,kitty,foot,…}` stay writable rather than becoming read-only store paths. This is deliberate — the Mangowm mode scripts symlink `active-theme.*` and `jq`-patch Equibop's `settings.json` at runtime, which requires writable config directories.
+
+Consequence to keep in mind when editing `dotfiles.nix`: the link **source** must be a path outside `~/.config`, because `xdg.configFile.<name>` writes *to* `~/.config/<name>`. The flake therefore expects this repo cloned at **`~/src/arch-config`**, not used in place at `~/.config`. Pointing a link at its own destination produces a symlink to itself, and with `backupFileExtension = "hm-bak"` that fails silently rather than loudly. Two rules follow: only link directories that are actually tracked in git (`gh`, `glab-cli`, `gpu-screen-recorder`, `opencode` are credential dirs excluded by the `.gitignore` allowlist, and `~/.scripts` is in no repo at all — none of them are linked), and `~/.config/nixos` itself is not linked, so `nixos-rebuild` runs against `~/src/arch-config/nixos`.
 
 Planned installation is **side-by-side**: new `@nixos` and `@nix` btrfs subvolumes on the existing `nvme0n1p2`, reusing `@home` and the shared ESP, leaving the Arch install bootable.
 

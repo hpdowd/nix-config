@@ -551,6 +551,56 @@ every Tier-1 package resolves. What's left:
     `distrobox` with an Arch container is a legitimate answer for most of it.
 11. Once you haven't booted Arch in a month: delete `@`, `@pkg`, `@swap`.
 
+## 7b. Gaps found in the 2026-07-28 sweep
+
+A backup protects data. These are things the **flake** does not reproduce, so
+they are lost on first boot even though the files survive. Ordered by how
+badly they bite.
+
+### Will visibly break
+
+1. **`mango-session.target` is not reproduced.** `mango/universal/autostart.conf`
+   line 2 runs `systemctl --user start mango-session.target`. The unit lives in
+   `~/.config/systemd/user/`, which is **not** on the dotfiles allowlist and is
+   not declared in the flake, so that exec-once fails silently on first boot.
+   Add it as `systemd.user.targets.mango-session`.
+2. **Five `dotfiles.nix` symlinks point at paths not in git**: `mpv`,
+   `gpu-screen-recorder`, `gh`, `glab-cli`, `opencode`. The flake links them,
+   but cloning `~/.config` will not produce them, so each becomes a dangling
+   symlink. Either track them or drop the links.
+3. **`~/.config/environment.d/` is not referenced anywhere in the flake.** It
+   sets `GTK_THEME`, `QT_QPA_PLATFORM=wayland` and
+   `QT_WAYLAND_DISABLE_WINDOWDECORATION=1`. Its own comment says the GTK portal
+   file picker ignores `settings.ini` without it. Use
+   `home.sessionVariables` or `environment.sessionVariables`.
+
+### Silently absent
+
+4. **`rclone-nextcloud.service` is not reproduced** — a FUSE mount of
+   `Nextcloud:` at `~/mnt/Nextcloud`, separate from the desktop sync client.
+   Its config, `~/.config/rclone/rclone.conf`, holds the remote credentials and
+   was in neither git nor the backup until 2026-07-28.
+5. **`claude-message.service` / `.timer` not reproduced.**
+6. **Three installed flatpaks are not declared**: `com.hypixel.HytaleLauncher`,
+   `com.stremio.Stremio`, `io.github.wivrn.wivrn`. `services.flatpak.enable` is
+   on, but that installs no apps.
+7. **38 saved NetworkManager connections**, including an 802.1x/eduroam
+   profile, exist only in `/etc/NetworkManager/system-connections`. Capture
+   them with `capture-root-state.sh` on the backup drive, or re-enter by hand.
+8. **Bluetooth pairings** (`/var/lib/bluetooth`) — same situation.
+9. Not referenced by the flake, each minor on its own: `starship.toml`,
+   `trashrc`, `user-dirs.dirs`/`.locale`, `QtProject.conf`, `Trolltech.conf`,
+   `gtkrc`/`gtkrc-2.0` (GTK2 theming), `qt5ct`/`qt6ct` (Qt theming).
+
+### Root cause worth fixing once
+
+`~/.config/.gitignore` is an **allowlist**. Anything not explicitly un-ignored
+is invisible to git *and* was invisible to a backup that copied only tracked
+paths. That is how `rclone.conf`, `gh/hosts.yml`, `glab-cli/config.yml`,
+`rbw/config.json`, `autostart/`, `dconf/` and the user systemd units all fell
+through both nets simultaneously. When adding a tool that stores config in
+`~/.config`, add a `!/toolname/` line at the same time.
+
 ### A caution on 37.4 GiB
 
 The closure is 37.4 GiB unpacked and you have 149 GiB free. That fits, but

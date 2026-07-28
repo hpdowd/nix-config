@@ -52,7 +52,8 @@ project exactly its own versions without a global install.
   wheels with compiled extensions, and AppImages need wrapping. You do a lot
   of this — Cursor, PyCharm, RStudio, CurseForge, SideQuest.
 - **Disk.** `/nix/store` with 30 days of generations will use 40–80 GiB. You
-  have 149 GiB free, so it fits, but it's not nothing.
+  have 110 GiB free (2026-07-29; it was 149 GiB when this was written), so it's
+  a tighter fit than it looks.
 
 **Honest recommendation:** your setup is unusually deep in AUR territory for a
 NixOS migration. It's very doable, but do §2 (side-by-side install) rather
@@ -68,7 +69,7 @@ Your disk:
 ```
 nvme0n1p1  vfat   1 GiB   ESP        -> /boot
 nvme0n1p2  btrfs  475 GiB            -> subvols @ @home @pkg @log swap
-                                        321 GiB used, 149 GiB free
+                                        365 GiB used, 110 GiB free
 ```
 
 You do **not** need to repartition. NixOS installs into new subvolumes on the
@@ -160,6 +161,14 @@ having an origin remote — see the unpushed-work finding below.
    `CLAUDE.md` describing it, the built PDF and a compiled `Complete.md` —
    discarded knowingly on the basis that the notes are re-clonable and the
    build easy to redo.
+
+   **It is recoverable after all** — checked 2026-07-29. The 2026-07-28 sweep
+   copied `~/Projects` wholesale, so
+   `<backup>/Projects/Azure-in-bullet-points/` still holds the `.tex` sources,
+   `diagrams.tex`, `CLAUDE.md`, the built PDF and the `build/` tree. The
+   refresh step in `INSTALL.md` §1.2 is a plain `rsync` with no `--delete`, so
+   it will not remove them; only re-running the backup script from scratch, or
+   adding `--delete`, would.
 3. **`.local/share/Trash` is 20 GB.** Empty it and reclaim the space before
    you do anything else.
 
@@ -755,7 +764,7 @@ not assumed. Two blockers were found; **B1 must be fixed before you install**.
 | Flake evaluates | `verify-packages.sh` passes all 3 stages, **no deprecation warnings**. Re-confirmed 2026-07-28 after the B3/uid/lock fixes |
 | Inputs pinned | `flake.lock` committed 2026-07-28 — nixpkgs `624af665` (26.11.20260726) |
 | Build size | 842 derivations, 5622 paths, 13.8 GiB download / 37.1 GiB unpacked |
-| Free space | 133 GiB on `nvme0n1p2` — fits with ~80 GiB spare |
+| Free space | **110 GiB** on `nvme0n1p2` as of 2026-07-29 — fits, with ~73 GiB spare |
 | ESP capacity | 1022 MiB, 62 MiB used by Arch. `configurationLimit = 6` → ~450–720 MiB. Fits |
 | Partition UUIDs | `hardware-configuration.nix` matches live `blkid` exactly (`32D9-7457`, `3c2d15a1-…`) |
 | Greeter | decided — `tuigreet`, a TTY greeter that cannot lock you out |
@@ -885,9 +894,32 @@ menu. Steps 1–6 change nothing about the running system. Step 7 adds
 subvolumes without touching existing ones. The first genuinely
 hard-to-reverse action is step 12.
 
-### A caution on 37.4 GiB
+### A caution on 37 GiB — and it got tighter
 
-The closure is 37.4 GiB unpacked and you have 149 GiB free. That fits, but
-with `nix.gc` keeping 30 days of generations you should expect real usage
-around 60–80 GiB once you've rebuilt a few dozen times. Keep an eye on it for
-the first month; `nix-collect-garbage --delete-older-than 7d` if it gets tight.
+The closure is ~37 GiB unpacked. Free space was 149 GiB when this was written
+and is **110 GiB as of 2026-07-29**, so the margin has shrunk from ~112 GiB to
+~73 GiB while nothing about the plan changed. With `nix.gc` keeping 30 days of
+generations, expect real usage of 60–80 GiB once you have rebuilt a few dozen
+times — which lands uncomfortably close to 73 GiB.
+
+Re-measure before you install rather than trusting this number; it has already
+moved once. `nix-collect-garbage --delete-older-than 7d` if it gets tight, and
+note `.local/share/Trash` was 20 GiB at last check.
+
+### The several-hundred-derivation build list is not what it looks like
+
+`nix build --dry-run` reports a few hundred derivations "will be built", which
+reads as though the installer is about to compile the world. It is not. Almost
+all are trivial `/etc` files (`etc-fstab`, `fc-*.conf`, `dbus-1`).
+
+The only substantial entries are three Electron runtimes — 39.8.10 (`logseq`),
+40.10.5 (`winboat`) and 35.5.0 (`claude-desktop`, via its own nixpkgs pin).
+Checked on 2026-07-29: these are **prebuilt binaries**, not source builds. Each
+derivation fetches upstream's `electron-vXX-linux-x64.zip` and unpacks it; the
+only other inputs are the runtime libraries autoPatchelf needs.
+
+They are absent from `cache.nixos.org` (confirmed 404) purely because they are
+flagged **insecure**, and Hydra does not build insecure-flagged packages. That
+is the same fact as `nix-settings.nix` needing `permittedInsecurePackages` —
+worth stating plainly, because "not cached" plus "Electron" invites the wrong
+conclusion that a Chromium compile is about to happen.

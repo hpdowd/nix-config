@@ -637,14 +637,16 @@ $ readlink /nix/store/…-hm_mango
 `~/.config/mango` → store path → `~/.config/mango`. A loop. This affects **all
 26 entries**, not just mango.
 
-What happens if you install as-is:
+What happens if you install as-is — and it is worse than an error, because
+`flake.nix` line 73 already sets `backupFileExtension = "hm-bak"`:
 
-- `backupFileExtension` is **not set**, so home-manager's `check-link-targets`
-  aborts activation: *"Existing file … is in the way"*. First rebuild fails.
-- If you set `backupFileExtension` to get past that, it is worse: home-manager
-  renames `~/.config/mango` → `~/.config/mango.backup`, then creates the
-  symlink — which now points at a path that no longer exists. Dangling link,
-  and mango cannot find its config.
+1. home-manager renames `~/.config/mango` → `~/.config/mango.hm-bak`
+2. it creates `~/.config/mango` → store path → `/home/henry/.config/mango`
+3. that target no longer exists, because step 1 moved it
+
+The result is a dangling symlink and a compositor with no config, **with no
+error printed**. Had `backupFileExtension` been unset, activation would at
+least have aborted loudly with "existing file is in the way".
 
 **Fix.** The repo must live somewhere other than `~/.config`. Clone it to
 `~/src/arch-config`, then in `dotfiles.nix`:

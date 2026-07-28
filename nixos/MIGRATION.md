@@ -145,9 +145,13 @@ having an origin remote — see the unpushed-work finding below.
    the server unless its trash/versioning still holds the file.
 2. **Five git repos hold work that exists only on this machine** (as of
    2026-07-28): `code/paraphrase-detector` (5 unpushed commits),
-   `Projects/homelab` (9 uncommitted) and `Projects/learning` (1). Push these;
-   it's faster than restoring them. The backup script re-checks this on every
-   run rather than relying on this list staying accurate.
+   ~~`Projects/homelab` (9 uncommitted) and `Projects/learning` (1)~~ — **all
+   pushed 2026-07-29**, along with `code/paraphrase-detector`'s
+   `backup/local-main-pre-sync-20260704` branch (4 commits, including the final
+   thesis report), which went up as a branch rather than being merged into
+   `main`. Nothing in `~/Projects` or `~/code` is now dirty or unpushed. The
+   backup script re-checks this on every run rather than relying on this list
+   staying accurate.
 
    Two of the original five are **deleted** (2026-07-29):
    `Projects/aur-malware-check` and `Projects/Azure-in-bullet-points`, both
@@ -860,9 +864,9 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
 3. ~~`nix flake lock`~~ — done, `flake.lock` is committed.
 4. Capture root-only state: run `capture-root-state.sh` from the backup drive
    (WiFi credentials for 38 networks incl. eduroam, Bluetooth pairings, CUPS).
-5. Commit or discard the 2 remaining dirty repos — `homelab` (9) and
-   `learning` (1). `aur-malware-check` and `Azure-in-bullet-points` were
-   deleted on 2026-07-29; see §2.
+5. ~~Commit or discard the dirty repos~~ — **done 2026-07-29.** `homelab` and
+   `learning` pushed; `paraphrase-detector`'s backup branch pushed;
+   `aur-malware-check` and `Azure-in-bullet-points` deleted. See §2.
 6. Snapshot `@home` (§2) and confirm the backup drive is current.
 7. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
    `@home`, `@pkg`, `@log`, or the ESP.

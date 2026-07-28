@@ -176,19 +176,28 @@ CUPS printers.
 sudo "/run/media/henry/Samsung 128G/backup-2026-07-28/capture-root-state.sh"
 ```
 
-### 1.2 — Resolve the dirty repos
+### 1.2 — Resolve the dirty repos — DONE (2026-07-29)
 
-These hold work that exists nowhere else:
+All of it is now on a remote. `homelab` (9 files: phase 9/11 plans, ADR 013,
+the OOM lesson, vaultwarden scaffolding) and `learning` (the golang 03
+exercise) were committed and pushed. `paraphrase-detector`'s
+`backup/local-main-pre-sync-20260704` branch — 4 commits including the final
+thesis report — was pushed as a branch, not merged into `main`; that merge is
+still yours to decide.
+
+Two clones were deleted instead: `aur-malware-check` and
+`Azure-in-bullet-points` (see MIGRATION.md §2).
+
+Re-check before you install, since this goes stale:
 
 ```bash
-for r in ~/Projects/homelab ~/Projects/learning; do
-  echo "=== $r"; git -C "$r" status --short
+for r in ~/Projects/* ~/code/*; do
+  [ -d "$r/.git" ] || continue
+  d=$(git -C "$r" status --short | wc -l)
+  u=$(git -C "$r" log --branches --not --remotes --oneline | wc -l)
+  [ "$d" = 0 ] && [ "$u" = 0 ] || echo "$r: $d dirty, $u unpushed"
 done
 ```
-
-Commit and push, or decide it is debris. Also decide on
-`code/paraphrase-detector`'s `backup/local-main-pre-sync-20260704` branch —
-4 commits that exist on no remote.
 
 ### 1.3 — Refresh the backup drive
 

@@ -58,6 +58,11 @@
   # gnome-keyring, as on Arch.
   services.gnome.gnome-keyring.enable = true;
 
+  # Writes `user_allow_other` into /etc/fuse.conf. Without it the `--allow-other`
+  # flag on the rclone ProtonDrive mount (modules/home/default.nix) is refused
+  # and the unit fails at start. On Arch this was a hand-edited /etc/fuse.conf.
+  programs.fuse.userAllowOther = true;
+
   # Do not change after first install — this pins stateful defaults, not versions.
   system.stateVersion = "25.11";
 }

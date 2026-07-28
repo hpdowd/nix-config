@@ -105,10 +105,12 @@
   # user unit and ignores settings.ini without GTK_THEME set. This option
   # writes ~/.config/environment.d/10-home-manager.conf, the same mechanism.
   #
-  # NOTE the value below is Gruvbox-**Yellow**-Dark, copied verbatim from the
-  # live file, while theme.nix sets gtk.theme.name = "Gruvbox-Dark". That
-  # disagreement is pre-existing on Arch, not introduced here. Reconcile the
-  # two when you settle the theme.nix vs gtk-apply.sh ownership question.
+  # GTK_THEME is Gruvbox-Yellow-Dark, matching gtk-3.0/settings.ini and
+  # gtk-apply.sh line 9. theme.nix no longer declares a competing theme name
+  # (the ownership question was settled in favour of the mode scripts), and
+  # pkgs/default.nix overrides gruvbox-gtk-theme to actually build that
+  # variant — the stock nixpkgs build has only Gruvbox-Dark, so this name
+  # would otherwise resolve to nothing and fall back to Adwaita.
   systemd.user.sessionVariables = {
     GTK_THEME = "Gruvbox-Yellow-Dark";
     QT_QPA_PLATFORM = "wayland";
@@ -130,5 +132,49 @@
       Requires = [ "graphical-session.target" ];
       After = [ "graphical-session.target" ];
     };
+  };
+
+  # rclone FUSE mount of Proton Drive at ~/mnt/ProtonDrive.
+  #
+  # MIGRATION.md §7b.4 named `rclone-nextcloud.service` as the unit to port.
+  # That was wrong: checking ~/.config/systemd/user/default.target.wants shows
+  # rclone-nextcloud is NOT enabled — the enabled unit is the template instance
+  # `rclone@ProtonDrive.service`. This is that instance, pinned to the one
+  # remote actually in use. Nextcloud is handled by the desktop sync client
+  # above (services.nextcloud-client), not by a mount.
+  #
+  # ExecStart is deliberately one line: the Arch unit used backslash
+  # continuations, but home-manager writes these values through an INI
+  # generator, where an embedded newline would split the file.
+  #
+  # `--allow-other` needs `user_allow_other` in /etc/fuse.conf, which on NixOS
+  # comes from `programs.fuse.userAllowOther` — set in hosts/thinkpad.
+  # Credentials live in ~/.config/rclone/rclone.conf, which is gitignored and
+  # restored from the backup drive (INSTALL.md §5.1).
+  systemd.user.services.rclone-protondrive = {
+    Unit = {
+      Description = "rclone: FUSE mount for cloud remote ProtonDrive";
+      Documentation = [ "man:rclone(1)" ];
+      After = [ "network-online.target" ];
+      Wants = [ "network-online.target" ];
+    };
+    Service = {
+      Type = "notify";
+      ExecStartPre = "-${pkgs.coreutils}/bin/mkdir -p %h/mnt/ProtonDrive";
+      ExecStart =
+        "${pkgs.rclone}/bin/rclone mount"
+        + " --config=%h/.config/rclone/rclone.conf"
+        + " --vfs-cache-mode writes"
+        + " --vfs-cache-max-size 100M"
+        + " --log-level INFO"
+        + " --umask 022"
+        + " --allow-other"
+        + " --allow-non-empty"
+        + " ProtonDrive: %h/mnt/ProtonDrive";
+      ExecStop = "${pkgs.fuse}/bin/fusermount -uz %h/mnt/ProtonDrive";
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "default.target" ];
   };
 }

@@ -59,8 +59,10 @@ in
     "ghostty".source = link "ghostty";
 
     # --- Shell --------------------------------------------------------------
+    # NOTE: `zsh/conf.d`, not `zsh` — home-manager owns ~/.config/zsh/.zshrc,
+    # so linking the parent directory would put two owners on one path. That
+    # is exactly the collision `fish` used to have; see shell.nix.
     "zsh/conf.d".source = link "zsh/conf.d";
-    "fish".source = link "fish";
 
     # --- Everything else ----------------------------------------------------
     "yazi".source = link "yazi";

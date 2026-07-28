@@ -37,16 +37,23 @@
   };
 
   # --- fish -----------------------------------------------------------------
-  # CLAUDE.md documents ~/.config/fish/config.fish as the primary shell, but
-  # /etc/passwd says zsh. Both are installed here; fish stays available as an
-  # interactive shell without being the login shell.
-  programs.fish.enable = true;
+  # Dropped 2026-07-28. CLAUDE.md described fish as the primary shell, but
+  # /etc/passwd says zsh and always did, so fish was only ever a secondary
+  # interactive shell.
+  #
+  # It also could not have worked as written: dotfiles.nix linked the whole
+  # ~/.config/fish directory out-of-store while `programs.fish.enable` writes
+  # ~/.config/fish/config.fish, putting two owners on one path — activation
+  # would have failed. The same collision class as the old `gtk` block.
+  #
+  # The files are still tracked in the repo and fish is still installed on
+  # Arch; nothing here deletes either. To bring it back, restore
+  # `programs.fish.enable` OR the dotfiles link, never both.
 
   # --- Tools that hook the shell -------------------------------------------
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;
-    enableFishIntegration = true;
   };
 
   programs.fzf = {

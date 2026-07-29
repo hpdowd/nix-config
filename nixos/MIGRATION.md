@@ -906,6 +906,38 @@ Re-measure before you install rather than trusting this number; it has already
 moved once. `nix-collect-garbage --delete-older-than 7d` if it gets tight, and
 note `.local/share/Trash` was 20 GiB at last check.
 
+### Evaluation is not buildability — the `fsel` near-miss
+
+`verify-packages.sh` passing means every option name and package name
+*resolves*. It does **not** mean anything compiles. That gap nearly cost the
+install.
+
+The `fsel` override in `pkgs/default.nix` set `src` to the release **binary**
+tarball (`fsel-x86_64-unknown-linux-gnu.tar.xz`). But nixpkgs builds fsel with
+`rustPlatform.buildRustPackage` **from source**, so the cargo vendor step had
+no `Cargo.lock` to read and failed with a Python traceback. Every evaluation
+had passed for weeks; the first actual `nix build` failed instantly.
+
+`fsel` is the `SUPER+Space` launcher, and it is in the system closure — so
+`nixos-install` would have aborted partway through, after the disk had already
+been written to.
+
+Fixed by overriding with the GitHub *source* for the tag and regenerating
+`cargoDeps` via `rustPlatform.fetchCargoVendor`, with both hashes obtained by
+building. While doing it, the version turned out to be stale too: the comment
+claimed Arch runs 3.5.2, but `fsel --version` says **3.6.0**. The override now
+builds 3.6.0 and the binary reports the same version as the live one.
+
+**The rule:** any hand-written or overridden derivation must be *built* at
+least once, not merely evaluated. Of the four in `pkgs/default.nix`, only
+`fsel` and `gruvbox-gtk-theme` are in the closure — both have now been built.
+`curseforge` and `brother-mfc-l3740cdw` are defined but not installed, so they
+remain untested and will need this treatment if you ever add them.
+
+```bash
+nix build --no-link path:.#nixosConfigurations.thinkpad.pkgs.<name>
+```
+
 ### The several-hundred-derivation build list is not what it looks like
 
 `nix build --dry-run` reports a few hundred derivations "will be built", which

@@ -10,16 +10,33 @@ final: prev: {
   # ==========================================================================
   # fsel — version override
   # ==========================================================================
-  # nixpkgs has fsel 3.1.0; you're running 3.5.2 on Arch. This bumps it to
-  # match, using the URL and checksum from the AUR PKGBUILD.
+  # nixpkgs has fsel 3.1.0; Arch runs 3.6.0 (`fsel --version`, 2026-07-29).
+  # This bumps it to match. fsel is your SUPER+Space launcher and its
+  # config.toml is written for the current release, so the version matters.
   #
-  # If 3.1.0 is fine for you, DELETE this block — one less thing to maintain
-  # when nixpkgs catches up.
+  # If 3.1.0 turns out to be fine, DELETE this block — one less thing to
+  # maintain when nixpkgs catches up.
+  #
+  # The previous version of this override was broken and would have aborted
+  # `nixos-install` partway through. It replaced `src` with the release
+  # *binary* tarball (fsel-x86_64-unknown-linux-gnu.tar.xz), but nixpkgs builds
+  # fsel with `rustPlatform.buildRustPackage` from source — so the cargo vendor
+  # step had no Cargo.lock to read and died. Evaluation never caught it,
+  # because a build failure is not an evaluation failure.
+  #
+  # Fixed by overriding with the GitHub *source* for the tag, and regenerating
+  # cargoDeps to match. Both hashes were obtained by building.
   fsel = prev.fsel.overrideAttrs (old: rec {
-    version = "3.5.2";
-    src = prev.fetchurl {
-      url = "https://github.com/Mjoyufull/fsel/releases/download/${version}/fsel-x86_64-unknown-linux-gnu.tar.xz";
-      hash = "sha256-MaaRKSxi6inMSWJ8LHtW6EC5YPMaAinsF1oN4Clb0PQ=";
+    version = "3.6.0";
+    src = prev.fetchFromGitHub {
+      owner = "Mjoyufull";
+      repo = "fsel";
+      tag = version;
+      hash = "sha256-yUenkuZ5ryUSpeGjJPO7xgbMObZ5SeBs8/LKU3ROo4g=";
+    };
+    cargoDeps = prev.rustPlatform.fetchCargoVendor {
+      inherit src;
+      hash = "sha256-WmHrMALgP52OJH1acrB7DMgo/8FMgksPyXpeRL9Q7s0=";
     };
   });
 

@@ -94,7 +94,7 @@ used here for verification; the actual install is done by the NixOS installer.
 
 All of these passed on 2026-07-29. Run them again — the machine drifts.
 
-### Step 1 — The flake still builds
+### Step 1 — The flake still evaluates
 
 ```bash
 cd ~/src/arch-config/nixos
@@ -103,6 +103,24 @@ cd ~/src/arch-config/nixos
 
 Must reach `Done.` with **no deprecation warnings**. If it fails, stop and fix
 that before anything else; nothing later will work.
+
+### Step 1b — The overridden packages still *build*
+
+Evaluation only proves names resolve. It does not compile anything, and a
+package that evaluates fine can still fail to build — which during
+`nixos-install` means aborting partway, after the disk has been written to.
+This exact thing was caught in the `fsel` override on 2026-07-29.
+
+Only two packages in the closure come from `pkgs/default.nix`. Build both:
+
+```bash
+nix build --no-link path:.#nixosConfigurations.thinkpad.pkgs.fsel
+nix build --no-link path:.#nixosConfigurations.thinkpad.pkgs.gruvbox-gtk-theme
+```
+
+Both should finish without error. If you ever add `curseforge` or
+`brother-mfc-l3740cdw` from that file, build them the same way first — neither
+has ever been compiled.
 
 ### Step 2 — No broken dotfile links
 

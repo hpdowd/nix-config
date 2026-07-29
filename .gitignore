@@ -64,6 +64,7 @@
 !/user-dirs.dirs
 !/user-dirs.locale
 !/CLAUDE.md
+!/README.md
 
 # =============================================================================
 # Exclusions WITHIN the allowlisted directories

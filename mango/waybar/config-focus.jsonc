@@ -197,7 +197,7 @@
     "signal": 9,
     "on-click": "~/.config/mango/scripts/menus/night-mode.sh toggle",
     "on-click-right": "~/.config/mango/scripts/menus/night-mode.sh menu",
-    "tooltip": false
+    "tooltip": true
   },
   "power-profiles-daemon": {
     "format": "{icon} ",

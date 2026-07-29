@@ -86,10 +86,63 @@
 
   # --- Services -------------------------------------------------------------
   services.cliphist.enable = true; # replaces your cliphist autostart
-  services.wlsunset = {
-    enable = true;
-    latitude = "53.35"; # Dublin
-    longitude = "-6.26";
+
+  # Mask the swaync unit that ships inside the SwayNotificationCenter package.
+  #
+  # This is the same one-owner problem as wlsunset below, but arrived by a
+  # different route: nixpkgs' swaync ships its own user unit with
+  # `WantedBy=graphical-session.target`, and Arch's package did not. So on
+  # NixOS the unit auto-starts at login and races the `exec=` line in
+  # mango/{tiling,hud}/autostart.conf, which is the copy that actually matters
+  # because it passes `-s ~/.config/mango/swaync/style.css`. The autostart copy
+  # wins the org.freedesktop.Notifications bus name; the unit exits 1 with
+  # "An instance of SwayNotificationCenter is already running!", five times,
+  # then lands in start-limit-hit. Notifications work throughout, which is why
+  # this sat unnoticed as a permanently failed unit until 2026-07-30.
+  #
+  # Masking rather than overriding ExecStart: autostart owns swaync's lifecycle
+  # (it pkills and respawns on every mode switch, so a restyle takes effect),
+  # and nothing in mango/scripts calls systemctl for it. If you ever want
+  # systemd to own it instead, drop the autostart line and give the unit the
+  # `-s` argument — do not do both.
+  #
+  # An empty file rather than the usual symlink to /dev/null: per systemd.unit(5)
+  # both load as "masked", and `source = "/dev/null"` is an absolute path, which
+  # pure evaluation refuses outright.
+  xdg.configFile."systemd/user/swaync.service".text = "";
+
+  # Night light. NOT `services.wlsunset` — that module bakes the temperatures
+  # into a static ExecStart, and wlsunset has no runtime IPC, so the waybar
+  # temperature picker in mango/scripts/menus/night-mode.sh could not change
+  # them. Worse, the script used to `pkill` wlsunset and spawn its own copy;
+  # only one client can hold a Wayland gamma control, so whichever lost printed
+  # `gamma control of output eDP-1 failed` and silently did nothing.
+  #
+  # So: the service owns the process, and the runner reads the user-chosen
+  # night temperature from ~/.config/mango/state/night-temp at start.
+  # night-mode.sh writes that file and restarts this unit.
+  systemd.user.services.wlsunset = {
+    Unit = {
+      Description = "Day/night gamma adjustments (night light)";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      ExecStart = "%h/.config/mango/scripts/system/night-light-run.sh";
+      # This PATH is the unit's entire PATH. `bash` is mandatory: the runner's
+      # shebang is `#!/usr/bin/env bash` and NixOS has no /bin/bash, so env
+      # would exit 127 without it.
+      Environment = [
+        "PATH=${lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.wlsunset ]}"
+        "NIGHT_LAT=53.35" # Dublin
+        "NIGHT_LONG=-6.26"
+        "NIGHT_DAY_TEMP=6500"
+      ];
+      Restart = "on-failure";
+      RestartSec = 3;
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   services.nextcloud-client = {
@@ -138,7 +191,17 @@
     };
   };
 
-  # rclone FUSE mount of Proton Drive at ~/mnt/ProtonDrive.
+  # rclone FUSE mount of Proton Drive at ~/ProtonDrive.
+  #
+  # The mount point is deliberately NOT ~/mnt/ProtonDrive, which is what the
+  # Arch template unit used (`%h/mnt/%i`). `~/mnt` is a symlink to
+  # /run/media/henry — the udisks removable-media directory, which does not
+  # exist unless a drive happens to be mounted. So `mkdir -p %h/mnt/ProtonDrive`
+  # failed with "File exists" (mkdir -p reports that for a dangling symlink),
+  # rclone could not create the mount point, and `Restart=on-failure` retried
+  # every 5s until Proton answered 429 with a one-hour backoff — 230 restarts
+  # deep when it was caught on 2026-07-30. Hence also the restart limit below:
+  # a broken mount must not be able to hammer a remote API unattended.
   #
   # MIGRATION.md §7b.4 named `rclone-nextcloud.service` as the unit to port.
   # That was wrong: checking ~/.config/systemd/user/default.target.wants shows
@@ -161,10 +224,18 @@
       Documentation = [ "man:rclone(1)" ];
       After = [ "network-online.target" ];
       Wants = [ "network-online.target" ];
+      # Give up after 5 failures in 10 minutes rather than retrying forever.
+      # Without this the unit is an unattended request loop against Proton's
+      # API, which is how the 429 above was earned.
+      StartLimitIntervalSec = 600;
+      StartLimitBurst = 5;
     };
     Service = {
       Type = "notify";
-      ExecStartPre = "-${pkgs.coreutils}/bin/mkdir -p %h/mnt/ProtonDrive";
+      # Not prefixed with `-`: if the mount point cannot be created there is no
+      # point starting rclone, and a hard failure here is visible in the journal
+      # instead of being swallowed.
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %h/ProtonDrive";
       ExecStart =
         "${pkgs.rclone}/bin/rclone mount"
         + " --config=%h/.config/rclone/rclone.conf"
@@ -174,10 +245,10 @@
         + " --umask 022"
         + " --allow-other"
         + " --allow-non-empty"
-        + " ProtonDrive: %h/mnt/ProtonDrive";
-      ExecStop = "${pkgs.fuse}/bin/fusermount -uz %h/mnt/ProtonDrive";
+        + " ProtonDrive: %h/ProtonDrive";
+      ExecStop = "${pkgs.fuse}/bin/fusermount -uz %h/ProtonDrive";
       Restart = "on-failure";
-      RestartSec = 5;
+      RestartSec = 30;
     };
     Install.WantedBy = [ "default.target" ];
   };

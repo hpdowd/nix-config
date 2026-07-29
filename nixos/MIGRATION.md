@@ -1146,3 +1146,52 @@ Two things worth carrying forward:
   warning) and no commit is needed on the installer. **New untracked files are
   ignored** — anything genuinely new has to be `git add`ed before the flake
   will see it.
+
+### Collision #2 and #3 — compilers and pythons
+
+The vscode fix uncovered the next one immediately:
+
+```
+> pkgs.buildEnv error: two given paths contain a conflicting subpath:
+>   …-gfortran-wrapper-15.3.0/bin/c++  and  …-clang-wrapper-21.1.0/bin/c++
+```
+
+`gfortran` in nixpkgs is not a standalone Fortran compiler — it is a full GCC
+wrapper with `langFortran` on, so it ships `gcc`, `g++`, `cc` and `c++`
+alongside `gfortran`. `clang` ships its own `cc` and `c++`. On Arch these are
+separate packages resolved by `/usr/bin/cc` being a symlink; in a Nix profile
+they are two packages claiming the same two paths.
+
+**Here `lib.lowPrio` IS the right fix**, unlike the vscode case. The contested
+set is two generic driver symlinks, not an entire application directory —
+`buildEnv` priority only decides paths that actually conflict, so both
+toolchains land complete and every compiler stays reachable under its own
+name. `clang` is the lowPrio one, which leaves `cc`/`c++` pointing at GCC and
+matches what Arch does.
+
+The same reasoning applies pre-emptively to `python313` + `python311`, which
+both ship `bin/python3`, `bin/pydoc3`, `bin/idle3` and
+`share/man/man1/python3.1`. `python311` is lowPrio; 3.13 owns the unversioned
+names.
+
+### The rest of the list, checked by hand
+
+Since `buildEnv` aborts on the first conflict, the list was read once for
+remaining same-file overlaps rather than waiting to hit them one per install
+attempt. Nothing else looks contested: the browsers, editors, Electron apps
+and games each own a private `lib/`, `share/` or `opt/` subtree, and the CLI
+tools have distinct binary names (`nc` from netcat-openbsd vs `ncat` from
+nmap; `7z` vs `unrar`; `man-pages` uses man2/man3 while `man-pages-posix`
+uses man0p/man1p/man3p).
+
+Two that look risky and are not:
+
+- `python3Packages.pip` next to `python313` — pip only adds
+  `lib/python3.13/site-packages/pip/`, a subpath neither python owns, and
+  `buildEnv` merges directories rather than claiming them whole.
+- `gst_all_1.gst-libav` next to `gst-plugins-good` — separate `.so` files
+  under a shared plugin directory.
+
+This is inspection, not proof. If another one appears, the same two questions
+decide the fix: does one package fully supersede the other (drop it), or do
+they merely contend over a few shared names (`lowPrio` the loser)?

@@ -72,10 +72,18 @@
 
     # --- Languages / toolchains --------------------------------------------
     rustup
-    clang
+    # `gfortran` is a full GCC wrapper — it ships gcc/g++/cc/c++ as well as
+    # gfortran — so it collides with clang over the generic `cc` and `c++`
+    # driver names. lowPrio hands those two to GCC, matching Arch, where
+    # /usr/bin/cc is gcc. `clang`/`clang++` are unaffected: priority only
+    # decides contested paths, so both toolchains stay complete.
+    (lib.lowPrio clang)
     gfortran # gcc-fortran
     python313
-    python311
+    # Same collision: both pythons ship bin/python3, bin/pydoc3, bin/idle3 and
+    # share/man/man1/python3.1. 3.13 wins the unversioned names; python3.11
+    # is still on PATH under its own version-suffixed name.
+    (lib.lowPrio python311)
     python3Packages.pip
     lua5_1
     nodejs

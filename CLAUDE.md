@@ -36,6 +36,8 @@ Theming is driven by **Mangowm mode scripts** (`~/.config/mango/scripts/modes/`)
 
 Current modes: **tiling** (Gruvbox Orange) and **hud**. Active mode is stored in `~/.config/mango/state/current-mode`. (A third `dms` mode was removed in July 2026 along with DankMaterialShell.)
 
+**`mango/config.conf` and `mango/state/` are generated, not configuration** — both are gitignored. The mode script copies `tiling/tiling.conf` (or `hud/hud.conf`) to `config.conf`, and that is the file that `source=`s every keybind, rule and autostart line. A fresh clone therefore has no config.conf, and mango starts on built-in defaults with no waybar and no keybinds until a mode script has been run once. Same for `kitty/active-theme.conf` and `foot/active-theme.ini`.
+
 To reload Mangowm config: `~/.config/mango/scripts/reload.sh` (re-runs the mode script, sends `mmsg reload_config`, restarts elephant).
 
 Static theme baseline: **Gruvbox Dark** across terminals, editors, and shell. Fonts: **Hack Nerd Font Mono** at size 11 in kitty/foot, 0xProto Nerd Font for bold/italic variants.

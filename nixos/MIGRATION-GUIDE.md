@@ -496,6 +496,29 @@ cannot fail in a way that locks you out of a graphical session. Log in as
 If mango does not come up, pick the previous generation at the boot menu, or
 boot Arch — it is completely untouched.
 
+### ⚠️ Run a mode script before you judge the result
+
+`mango/config.conf` is **gitignored** — the mode scripts generate it by copying
+`tiling/tiling.conf`, and it is the file that `source=`s every keybind, window
+rule and autostart line. `mango/state/` is gitignored for the same reason. So a
+fresh clone has neither, and mango starts on its **built-in defaults**: no
+waybar, no keybinds, nothing opening. That is expected on first boot and is not
+a broken install.
+
+Switch to a TTY (`Ctrl+Alt+F2`), log in, and generate it:
+
+```bash
+~/.config/mango/scripts/modes/tiling.sh
+```
+
+Then log out of the session and back in. A `reload.sh` is not enough — the
+`exec-once`/`exec` autostart lines, waybar included, only fire when the
+compositor starts.
+
+The same applies to `kitty/active-theme.conf` and `foot/active-theme.ini`,
+which are symlinks the mode script rewrites; both terminals will look wrong
+until it has run once.
+
 ### What you will notice immediately, and should not panic about
 
 - **Your `~/.config` directories have been renamed to `*.hm-bak`.** This is

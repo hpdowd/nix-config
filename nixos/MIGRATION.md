@@ -110,6 +110,14 @@ already protected elsewhere. Run:
 The script refuses to write to the same physical disk as `/home`, because a
 copy on `nvme0n1` dies with the original in every scenario that matters.
 
+> **Known inconsistency (found 2026-07-29).** This script creates a **restic
+> repository**. The backup actually on the drive is a plain `rsync` tree, and
+> `MIGRATION-GUIDE.md` Part 10 restores from it with `cp -a "$B/..."`, which
+> cannot read a restic repo. The 2026-07-28 backup was therefore not made by
+> this script. Running it now would create a second, parallel backup in a
+> different format next to the first. Resolve which mechanism is authoritative
+> before using it. See `WORK-LOG.md` §9.
+
 **Backed up (~6.8 GB):** `Documents` (3.7G), `.config/zen` (853M), `Projects`
 + `code` (523M), `R` (424M), `.thunderbird` (411M), `Pictures` (395M),
 `.config/chromium` (261M), `.config/obsidian` (174M), `vaults` (127M),

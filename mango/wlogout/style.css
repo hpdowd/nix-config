@@ -34,22 +34,27 @@ button:active {
     color: #201b14;
 }
 
+/* Icons are vendored into ./icons/ and referenced *relatively* — GTK resolves
+ * url() against the stylesheet's own path. They used to point at
+ * /usr/share/wlogout/icons/, which does not exist on NixOS: `share/wlogout`
+ * is not in environment.pathsToLink, so the files only live under the
+ * versioned /nix/store path. GTK drew its missing-image box for each one. */
 #lock {
-    background-image: image(url("/usr/share/wlogout/icons/lock.png"));
+    background-image: image(url("icons/lock.png"));
 }
 
 #logout {
-    background-image: image(url("/usr/share/wlogout/icons/logout.png"));
+    background-image: image(url("icons/logout.png"));
 }
 
 #suspend {
-    background-image: image(url("/usr/share/wlogout/icons/suspend.png"));
+    background-image: image(url("icons/suspend.png"));
 }
 
 #reboot {
-    background-image: image(url("/usr/share/wlogout/icons/reboot.png"));
+    background-image: image(url("icons/reboot.png"));
 }
 
 #shutdown {
-    background-image: image(url("/usr/share/wlogout/icons/shutdown.png"));
+    background-image: image(url("icons/shutdown.png"));
 }

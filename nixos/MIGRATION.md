@@ -898,7 +898,18 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
 5. ~~Commit or discard the dirty repos~~ — **done 2026-07-29.** `homelab` and
    `learning` pushed; `paraphrase-detector`'s backup branch pushed;
    `aur-malware-check` and `Azure-in-bullet-points` deleted. See §2.
-6. Snapshot `@home` (§2) and confirm the backup drive is current.
+6. ~~Snapshot `@home` (§2) and confirm the backup drive is current.~~ —
+   **done 2026-07-29.** `@home/.snapshot-pre-nixos` (ID 6036) exists, and the
+   backup drive verified clean with browser and mail profiles quiescent.
+
+   **Know what that snapshot does not contain.** `@home/henry/Downloads`
+   (ID 4808) and `@home/henry/Nextcloud` (ID 4843) are *nested subvolumes*,
+   and a btrfs snapshot does not recurse into those — both appear as empty
+   directories inside `.snapshot-pre-nixos`. Neither is in the rsync backup
+   either, and both are deliberate (§0b: Nextcloud replicates to the server,
+   Downloads is transient). So nothing is newly at risk — but "I have a
+   snapshot of `@home`" is not true in the way it sounds, and that is exactly
+   the belief that becomes a nasty surprise during a restore.
 7. ~~**Write the installer ISO to removable media.**~~ — **done 2026-07-29.**
    See §8b. The SK Hynix 256 GB in the USB enclosure carries
    `nixos-minimal-26.05` as a whole-device `dd`.

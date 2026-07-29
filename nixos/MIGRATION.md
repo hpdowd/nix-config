@@ -871,28 +871,35 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
    `./verify-packages.sh` from there.
 2. ~~Fix **B2** and pin `uid`~~ — done, along with **B3** and the group pin.
 3. ~~`nix flake lock`~~ — done, `flake.lock` is committed.
-4. Capture root-only state: run `capture-root-state.sh` from the backup drive
-   (WiFi credentials for 38 networks incl. eduroam, Bluetooth pairings, CUPS).
+4. Capture root-only state: run `capture-root-state.sh` **from the backup
+   drive** (WiFi credentials for 38 networks incl. eduroam, Bluetooth
+   pairings, CUPS). A copy now lives at `nixos/capture-root-state.sh` so it
+   is no longer a single file on removable media — but run the drive's copy,
+   because the script writes its output next to itself and the repo is the
+   wrong place for cleartext PSKs.
 5. ~~Commit or discard the dirty repos~~ — **done 2026-07-29.** `homelab` and
    `learning` pushed; `paraphrase-detector`'s backup branch pushed;
    `aur-malware-check` and `Azure-in-bullet-points` deleted. See §2.
 6. Snapshot `@home` (§2) and confirm the backup drive is current.
-7. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
+7. ~~**Write the installer ISO to removable media.**~~ — **done 2026-07-29.**
+   See §8b. The SK Hynix 256 GB in the USB enclosure carries
+   `nixos-minimal-26.05` as a whole-device `dd`.
+8. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
    `@home`, `@pkg`, `@log`, or the ESP.
-8. `nixos-install --flake ~/src/arch-config/nixos#thinkpad`. Arch stays
+9. `nixos-install --flake ~/src/arch-config/nixos#thinkpad`. Arch stays
    bootable throughout — that is the whole point of side-by-side.
-9. Boot to the TTY greeter. Get the compositor up. Nothing else matters today.
-10. Restore what the flake does not carry: NetworkManager profiles, Bluetooth
+10. Boot to the TTY greeter. Get the compositor up. Nothing else matters today.
+11. Restore what the flake does not carry: NetworkManager profiles, Bluetooth
     pairings, the 3 flatpaks, `rclone.conf` and the CLI tokens from the drive.
-11. Work the genuinely-absent package list (§6b) down over the following weeks.
-12. Once you have not booted Arch in a month: delete `@`, `@pkg`, `swap`.
+12. Work the genuinely-absent package list (§6b) down over the following weeks.
+13. Once you have not booted Arch in a month: delete `@`, `@pkg`, `swap`.
 
 ### Rollback
 
-At every point up to step 12, Arch is intact and selectable from the boot
-menu. Steps 1–6 change nothing about the running system. Step 7 adds
+At every point up to step 13, Arch is intact and selectable from the boot
+menu. Steps 1–7 change nothing about the running system. Step 8 adds
 subvolumes without touching existing ones. The first genuinely
-hard-to-reverse action is step 12.
+hard-to-reverse action is step 13.
 
 ### A caution on 37 GiB — and it got tighter
 
@@ -970,3 +977,99 @@ whole set finished in about nine minutes.** A Chromium source build would have
 been many hours on this hardware and would likely have exhausted 14 GiB of RAM
 at link time. Nothing in the closure now needs proving; every package that the
 installer must build locally has been built at least once.
+
+---
+
+## 8b. Installer media, and the drive shuffle behind it (2026-07-29)
+
+The plan never said where the installer ISO would live. Getting it there
+turned up two drives' worth of surprises, so the outcome is recorded here.
+
+### The finished state
+
+```
+sdb  SK Hynix 256 GB in an AMicro AM8180 USB enclosure
+     whole-device dd of nixos-minimal-26.05.6282.2f5a153c270b-x86_64-linux.iso
+     iso9660  label nixos-minimal-26.05-x86_64   + vfat EFIBOOT
+
+sda  Samsung 128 GB — the backup drive, UNTOUCHED by the install media work
+     sda1  ext4  100 GiB  "Samsung 128G"   (17 GB backup + docs)
+     free        ~19.5 GiB unallocated tail
+```
+
+### Why the ISO could not go on a spare partition
+
+The obvious idea — carve the backup drive's free tail into a partition and
+`dd` the ISO there — does not boot, for two independent reasons:
+
+1. **The ISO is isohybrid.** Its EFI partition lives at sector 284 *inside*
+   the image. Written to `/dev/sdX2`, that nested partition table is invisible
+   to firmware, which only enumerates partitions listed in the disk's own GPT.
+2. **Extracting the ISO to a FAT32 ESP fails later.** The initrd's fstab is
+   hardcoded:
+
+   ```
+   /dev/disk/by-label/nixos-minimal-26.05-x86_64  /iso  iso9660  x-initrd.mount 0 0
+   /sysroot/iso/nix-store.squashfs  /nix/.ro-store  squashfs  loop 0 0
+   ```
+
+   Stage-1 demands an **iso9660** filesystem labelled with all 26 characters
+   of that volume ID. FAT32 labels cap at 11. GRUB itself would have been
+   fine — `EFI/BOOT/grub.cfg` finds its root with
+   `search --set=root --file /EFI/nixos-installer-image`, a marker file, not a
+   label — so the failure would have arrived late, after the kernel loaded.
+
+A whole-device `dd` sidesteps both: the ISO's MBR becomes the disk's MBR, so
+`EFIBOOT` is a real partition firmware can boot, and the iso9660 label is
+present on a real block device.
+
+### The target drive was a dead Arch install
+
+`sdb` held `ArchinstallVg` — an `archinstall`-created system, not the flashed
+ISO it was assumed to be. Verified disposable before wiping:
+
+| Check | Result |
+|---|---|
+| Hostname / user | `archpad`, single user `henry` (uid 1000) |
+| Created | 2025-09-04, 15:04:06 → 15:08:06 UTC — a 4-minute installer run |
+| Ever booted | twice, both 2025-09-04, ~5 minutes of uptime in total |
+| `pacman.log` | 914 lines, all of it the installer; nothing installed after |
+| `/home/henry` | 2.2 MB of default skel dotfiles; largest file was a mesa shader cache |
+| `/root` | empty |
+
+An empty `ly-session.log` next to two boots of one and four minutes is the
+whole story: the display manager did not come up and the install was
+abandoned that afternoon.
+
+`vgchange -an` before `wipefs`/`dd` is not optional — device-mapper holds the
+partitions open. `wipefs` was run on `sdb1`/`sdb2`/`sdb3` as well as `sdb`,
+because a 1.6 GB ISO write never reaches the LVM signatures further into the
+disk, and a half-assembled `ArchinstallVg` would keep reappearing.
+
+### The backup drive was resized first, and it went wrong once
+
+Before the SK Hynix was found, the backup drive was shrunk to make room. The
+ext4 shrink itself was uneventful — `resize2fs` relocates extents, so
+fragmentation is irrelevant — but the partition step truncated the filesystem:
+
+```
+resize2fs 98G   → 98 GiB  (2^30)
+parted    100G  → 93.131 GiB  (10^9)   ← fs now overhangs the partition by 4.869 GiB
+```
+
+**`G` means GiB to `resize2fs` and GB to `parted`.** `e2fsck` refused to run,
+which was correct. Recovery was `parted resizepart 1 100%` to put the
+partition back around the filesystem, then `e2fsck -f`, then a redo with
+`unit GiB` throughout. No data was lost — the file count was 217,286 before
+and after — but the lesson is to write `GiB` explicitly in `parted`, always.
+
+The drive now sits at 100 GiB with a ~19.5 GiB unallocated tail. That tail is
+spare; nothing needs it.
+
+### Also cleared up
+
+`Lee_old` on the backup drive — 13.6 GB, root-owned, unreadable to `du`, and
+briefly suspected of being someone else's data — is
+`/home/henry/Pictures/Lee_old`, copied on 2026-07-28 with `sudo cp -r`. It is
+duplicated on the internal drive and can be dropped from the backup if the
+space is ever wanted.

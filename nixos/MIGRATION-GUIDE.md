@@ -268,6 +268,27 @@ sudo dd if=~/nixos-minimal.iso of=/dev/sdX bs=4M status=progress conv=fsync
 
 `/dev/sda` is currently your backup drive. Do not write to it.
 
+### Done 2026-07-29 — but with a different ISO than this part specifies
+
+The media is written: **`/dev/sdb`**, the SK Hynix 256 GB in the AMicro AM8180
+USB enclosure, whole-device `dd`. Verified afterwards as `iso9660` labelled
+`nixos-minimal-26.05-x86_64` with a `vfat` `EFIBOOT` partition.
+
+The image used was **`nixos-minimal-26.05.6282.2f5a153c270b`**, not the
+unstable `624af665` image this part asks for. That forfeits the cache-matching
+benefit described above: the installer's own store will not already contain
+the paths your `flake.lock` pins, so `nixos-install` substitutes more from
+`cache.nixos.org` than it would have. **It is slower, not broken** — the flake
+pins its own nixpkgs and fetches accordingly, and a 26.05 installer is recent
+enough to evaluate it. If the install turns out to be download-bound and you
+would rather redo the media, re-flash with the unstable image and the
+substitution advantage comes back.
+
+`/dev/sdb` previously held an abandoned `archinstall` system (`archpad`,
+2025-09-04, ~5 minutes lifetime uptime, no user data) — verified before wiping.
+Deactivate the volume group with `vgchange -an ArchinstallVg` before any
+`wipefs`/`dd`, or device-mapper holds the partitions open.
+
 ---
 
 ## Part 5 — Boot the installer

@@ -333,6 +333,10 @@ a week later and cannot place. `nerd-fonts._3270` is now in `fonts.nix`.
 
 ### Still genuinely outstanding
 
+- **Run `capture-root-state.sh`.** Not yet done. Run the copy **on the backup
+  drive**, not the one now in the repo — it writes its output next to itself.
+- **Re-run `backup-before-migration.sh`.** The backup on the drive is dated
+  2026-07-28 and the repo has commits after it.
 - **Delete `system-state/root-only` from the backup drive** once you are
   settled — SSH host keys, `/root`, and 38 WiFi PSKs in cleartext on an
   unencrypted disk. **Not yet:** Part 10 restores from it, so it is needed
@@ -345,3 +349,32 @@ been fixed and verified. But this config has never been booted. Evaluation and
 builds prove it *can* exist; they do not prove mango starts. That is why the
 guide's only goal for day one is that the compositor comes up, and why Arch
 stays bootable for a month.
+
+---
+
+## 9. Installer media and repository hygiene (2026-07-29)
+
+**`capture-root-state.sh` is now in the repo** at `nixos/capture-root-state.sh`.
+It previously existed as a single file on an unencrypted removable drive, while
+three documents instructed the reader to run it — the same
+one-copy-in-one-place failure mode as `rclone.conf` and `gh/hosts.yml` in §1.
+
+It is committed **verbatim**, which means the hazard travels with it: the
+script writes to `system-state/root-only` relative to its own location, so
+running the repo's copy would drop 38 cleartext WiFi PSKs, SSH host keys and
+`/root` into a git working tree. Two guards, because a comment alone is not
+one: the header note in `MIGRATION.md` §8 step 4, and `/nixos/system-state/`
+added to `.gitignore`. Run the drive's copy.
+
+**The installer ISO is written** — whole-device `dd` onto the SK Hynix 256 GB
+in the USB enclosure. That drive turned out to hold an abandoned `archinstall`
+system from 2025-09-04 with ~5 minutes of lifetime uptime and no user data, so
+wiping it cost nothing and spared the backup drive any partition surgery.
+`MIGRATION.md` §8b has the verification table and the two independent reasons
+the ISO could not simply go on a spare partition.
+
+The backup drive was resized 119.5 → 100 GiB earlier the same day and briefly
+ended up with its filesystem overhanging its partition, because `G` means GiB
+to `resize2fs` and GB to `parted`. Recovered with `resizepart 1 100%` and
+`e2fsck -f`; file count identical either side (217,286). Also recorded in §8b,
+because the unit trap is worth not repeating.

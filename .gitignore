@@ -79,6 +79,12 @@
 **/cookies*
 **/.env
 
+# capture-root-state.sh writes to `system-state/root-only` relative to its own
+# location. It is meant to be run from the backup drive, but if it is ever run
+# from the repo instead, this stops 38 cleartext WiFi PSKs, SSH host keys and
+# /root from landing in a commit.
+/nixos/system-state/
+
 # Caches, history and generated state.
 /zsh/completions/
 /zsh/.zcompdump*

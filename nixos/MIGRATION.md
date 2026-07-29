@@ -239,14 +239,20 @@ sudo mount /dev/nvme0n1p1 /mnt/boot
 
 ### Step 3 — install
 
-```bash
-sudo mkdir -p /mnt/etc/nixos
-sudo cp -r /mnt/home/henry/.config/nixos/* /mnt/etc/nixos/   # or clone from git
+> **Superseded — do not use the `cp -r` line below.** It predates the B1 fix
+> (§8). Two things are wrong with it now: the flake is read from the clone at
+> `~/src/arch-config/nixos`, not `~/.config/nixos`; and `~/.config/nixos` can
+> contain `system-state/root-only`, so that copy would deposit 38 cleartext
+> WiFi PSKs and SSH host keys onto the new system's `/etc/nixos`. Install from
+> the clone instead — see §8 step 9 and `MIGRATION-GUIDE.md`:
+>
+> ```bash
+> sudo nixos-install --flake /mnt/home/henry/src/arch-config/nixos#thinkpad
+> ```
 
+```bash
 # Sanity-check the generated hardware config against the committed one
 sudo nixos-generate-config --root /mnt --show-hardware-config
-
-sudo nixos-install --flake /mnt/etc/nixos#thinkpad
 ```
 
 systemd-boot will pick up Arch's existing entries in `/boot/loader/entries/`

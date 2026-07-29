@@ -333,23 +333,18 @@ a week later and cannot place. `nerd-fonts._3270` is now in `fonts.nix`.
 
 ### Still genuinely outstanding
 
-- **Run `capture-root-state.sh`.** Not yet done. Run the copy **on the backup
-  drive**, not the one now in the repo — it writes its output next to itself.
-- **`backup-before-migration.sh` does not produce the backup that is on the
-  drive, and the guide cannot restore what it produces.** The script runs
-  `restic init` / `restic backup`; the drive holds a plain `rsync` tree; and
-  `MIGRATION-GUIDE.md` Part 10 restores with `cp -a "$B/.config/gh"`, which
-  only works against a plain tree. Whatever made the 2026-07-28 backup, it was
-  not this script. Attempting a re-run on 2026-07-29 failed at `restic init`
-  (no password set) and wrote nothing, which is the only reason there is not
-  now a stray restic repo sitting beside the tree. **Decide which mechanism is
-  real before running it again** — either rewrite the script as `rsync`, or
-  rewrite Part 10 as `restic restore`.
-- The bulk backup is dated 2026-07-28 and was not refreshed. The data it
-  covers (Documents, Pictures, mail, browser profiles) has not meaningfully
-  changed; what *had* drifted — the four phone-readable documents at the drive
-  root and the git bundle — was refreshed on 2026-07-29
-  (`config-repo-2026-07-29.bundle`).
+- **`~/Pictures/Lee_old` is mode 311, owner `root:henry` — nobody can read
+  it.** It is ~13.6 GB and has therefore *never* been in the rsync backup;
+  the copy at the backup drive's root is `root:root` 311 and equally
+  unreadable. Both were produced by `sudo cp -r` with a botched mode. Fix with
+  `sudo chown -R henry:henry ~/Pictures/Lee_old && sudo chmod -R u+rwX
+  ~/Pictures/Lee_old`, then re-run the backup. Until then this is a known,
+  deliberate hole and the script says so on every run.
+- **Delete `~/.config/nixos/system-state/root-only`.** Created 2026-07-29
+  15:28 by running the repo's copy of `capture-root-state.sh` instead of the
+  drive's — the exact hazard §9 predicted. `.gitignore` caught it, so nothing
+  was ever tracked or pushed, but 38 cleartext PSKs and SSH host keys are
+  sitting in the working tree. `sudo rm -rf` it.
 - **Delete `system-state/root-only` from the backup drive** once you are
   settled — SSH host keys, `/root`, and 38 WiFi PSKs in cleartext on an
   unencrypted disk. **Not yet:** Part 10 restores from it, so it is needed

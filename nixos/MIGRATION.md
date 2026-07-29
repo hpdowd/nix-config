@@ -110,13 +110,23 @@ already protected elsewhere. Run:
 The script refuses to write to the same physical disk as `/home`, because a
 copy on `nvme0n1` dies with the original in every scenario that matters.
 
-> **Known inconsistency (found 2026-07-29).** This script creates a **restic
-> repository**. The backup actually on the drive is a plain `rsync` tree, and
-> `MIGRATION-GUIDE.md` Part 10 restores from it with `cp -a "$B/..."`, which
-> cannot read a restic repo. The 2026-07-28 backup was therefore not made by
-> this script. Running it now would create a second, parallel backup in a
-> different format next to the first. Resolve which mechanism is authoritative
-> before using it. See `WORK-LOG.md` §9.
+> **Resolved 2026-07-29 — the script now uses `rsync`.** It previously built a
+> **restic repository**, which no restore step in `MIGRATION-GUIDE.md` could
+> read (Part 10 uses `cp -a "$B/..."`, and the drive holds a plain tree). Raw
+> files won on the merits: the drive is local and offline, so a repository
+> format buys encryption and dedup you do not need, at the cost of a password
+> and a tool standing between you and your data mid-install. Re-running is
+> incremental — refreshing a days-old backup moves only the delta.
+>
+> Pass the **tree** path, not the drive root:
+>
+> ```bash
+> ./backup-before-migration.sh "/run/media/henry/Samsung 128G/backup-2026-07-28"
+> ```
+>
+> There is no `--delete`. A file removed from `$HOME` stays in the backup,
+> which is the right default for something whose whole purpose is protecting
+> against a mistake.
 
 **Backed up (~6.8 GB):** `Documents` (3.7G), `.config/zen` (853M), `Projects`
 + `code` (523M), `R` (424M), `.thunderbird` (411M), `Pictures` (395M),

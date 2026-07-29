@@ -7,11 +7,21 @@
 # caches, container images, VM disks and trash, plus Nextcloud and Android
 # (see the exclusion notes below for why each is safe to drop).
 #
+# Produces a PLAIN FILE TREE mirroring /home/henry — not an archive, not a
+# restic repo. No password, no tooling to restore: browse it, or copy it back.
+# That is deliberate. The drive is local and offline, and the restore steps in
+# MIGRATION-GUIDE.md Part 10 use `cp -a "$B/.config/gh"`, which only works
+# against plain files. (This script built a restic repository until
+# 2026-07-29, which no restore step in the guide could read.)
+#
+# Re-running is cheap: rsync transfers only what changed, so refreshing a
+# backup taken days ago costs seconds, not the full ~7 GB.
+#
 # Usage:
-#   ./backup-before-migration.sh /run/media/henry/MyDrive/backup
+#   ./backup-before-migration.sh "/run/media/henry/Samsung 128G/backup-2026-07-28"
 #   ./backup-before-migration.sh --dry-run /path/to/target
 #
-# Requires: restic (already installed).
+# Requires: rsync.
 set -euo pipefail
 
 DRY_RUN=0
@@ -38,13 +48,11 @@ if [ "$DRY_RUN" -eq 0 ]; then
   dst_disk=$(lsblk -no PKNAME "$(findmnt -no SOURCE --target "$TARGET" | sed 's/\[.*//')" 2>/dev/null | head -1)
   if [ -n "$src_disk" ] && [ "$src_disk" = "$dst_disk" ]; then
     echo "REFUSING: target is on the same physical disk ($src_disk) as /home." >&2
-    echo "Use an external drive, or a remote (restic supports sftp:, s3:, rclone:)." >&2
+    echo "Use an external drive." >&2
     echo "Override with FORCE_SAME_DISK=1 if you really mean it." >&2
     [ "${FORCE_SAME_DISK:-0}" = "1" ] || exit 1
   fi
 fi
-
-export RESTIC_REPOSITORY="$TARGET"
 
 # ---------------------------------------------------------------------------
 # What gets backed up — the irreplaceable set.
@@ -130,6 +138,12 @@ EXCLUDE=(
   --exclude="Cache"
   --exclude="cache2"
   --exclude="*.log"
+  # capture-root-state.sh's output. It is root-owned 0700, so an unprivileged
+  # rsync cannot read it anyway — excluding it says so deliberately rather
+  # than failing on it. The authoritative copy lives on the backup drive at
+  # backup-*/system-state/root-only; it must NOT be duplicated into a git
+  # working tree (see .gitignore /nixos/system-state/).
+  --exclude="system-state/root-only"
 )
 
 # ---------------------------------------------------------------------------
@@ -148,7 +162,7 @@ echo
 echo "=== Estimated size ==="
 # `|| true` is load-bearing: du exits non-zero on any unreadable file (sockets
 # and lock files inside the browser and gnupg dirs), and under `set -o
-# pipefail` that killed the whole script here — before restic ever ran.
+# pipefail` that killed the whole script here — before the copy ever ran.
 du -shc --exclude=node_modules --exclude=target --exclude=.venv \
         --exclude=__pycache__ --exclude=Cache \
         "${INCLUDE[@]}" 2>/dev/null | tail -1 || true
@@ -183,28 +197,81 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
+# ---------------------------------------------------------------------------
+# Build the rsync source list.
+# ---------------------------------------------------------------------------
+# The `/./` marker is what makes `-R` write $TARGET/Documents rather than
+# $TARGET/home/henry/Documents: rsync treats everything after it as the path
+# to recreate at the destination.
+RSYNC_SRC=()
+for p in "${INCLUDE[@]}"; do
+  [ -e "$p" ] || continue
+  RSYNC_SRC+=( "$HOME_DIR/./${p#$HOME_DIR/}" )
+done
+
 echo
-echo "=== Repository ==="
-if restic cat config >/dev/null 2>&1; then
-  echo "  using existing repo at $TARGET"
-else
-  echo "  initialising new repo at $TARGET"
-  restic init
+echo "=== Copying ==="
+echo "  $TARGET"
+# -a  archive          -H  hardlinks        -A  ACLs
+# -X  xattrs           -R  relative paths (see the /./ marker above)
+#
+# No --delete. A path removed from $HOME stays in the backup, which is the
+# safer default for a one-shot pre-migration copy: this exists to protect
+# against a mistake, and "I deleted it and rsync propagated that" is one of
+# the mistakes. Add --delete by hand if you want a true mirror.
+#
+# --info=progress2 gives a single overall progress line rather than per-file.
+#
+# rsync exits 23 ("some files/attrs were not transferred") when it hits a path
+# it cannot read. That is not a reason to abort before verifying — but it IS a
+# reason to say loudly which paths were skipped, because a backup with a silent
+# hole in it is worse than no backup. `set -e` would kill the script here, so
+# the exit code is captured rather than allowed to propagate.
+ERRLOG=$(mktemp); trap 'rm -f "$ERRLOG"' EXIT
+rc=0
+rsync -aHAX -R --info=progress2 --human-readable \
+      "${EXCLUDE[@]}" "${RSYNC_SRC[@]}" "$TARGET/" 2>"$ERRLOG" || rc=$?
+[ -s "$ERRLOG" ] && cat "$ERRLOG" >&2
+
+if [ "$rc" -eq 23 ] || [ "$rc" -eq 24 ]; then
+  echo
+  echo "  PARTIAL — these paths could not be read and are NOT in the backup:"
+  sed -n 's/.*opendir "\([^"]*\)".*/    \1/p' "$ERRLOG" | sort -u
+  echo
+  echo "  Each is a permissions problem, not an rsync problem. Fix the mode"
+  echo "  or accept the gap knowingly — do not ignore this line."
+elif [ "$rc" -ne 0 ]; then
+  echo "  rsync failed with exit code $rc" >&2
+  exit "$rc"
 fi
 
 echo
-echo "=== Backup ==="
-restic backup --verbose "${EXCLUDE[@]}" "${INCLUDE[@]}"
+echo "=== Verify ==="
+# An unverified backup is a hope, not a backup. Re-running rsync in dry-run
+# with --itemize-changes lists anything that did NOT make it across; silence
+# means source and destination agree. This reads both sides, so it catches a
+# truncated or failed transfer, not merely a non-zero exit code.
+# Unreadable paths reported above surface on stderr, not stdout, so they do
+# not pollute this comparison — but the dry-run still exits 23 because of
+# them, hence `|| true`.
+leftover=$( { rsync -aHAX -R --dry-run --itemize-changes \
+                    "${EXCLUDE[@]}" "${RSYNC_SRC[@]}" "$TARGET/" 2>/dev/null \
+              || true; } \
+           | grep -vE '^$|^\.d\.\.t|^cd\+\+\+\+\+\+\+\+\+ \./$' | head -20)
+if [ -z "$leftover" ]; then
+  echo "  verified — destination matches source"
+else
+  echo "  MISMATCH — these differ after the copy:" >&2
+  printf '%s\n' "$leftover" >&2
+  exit 1
+fi
 
 echo
-echo "=== Verify ==="
-# Checks repository structure and 5% of pack data. Do NOT skip this: an
-# unverified backup is a hope, not a backup.
-restic check --read-data-subset=5%
-restic snapshots
+echo "=== Size on target ==="
+du -sh "$TARGET" 2>/dev/null | tail -1 || true
 
 echo
 echo "Done. Before you install, also:"
 echo "  1. Push the git repos flagged in the pre-flight output above."
 echo "  2. Take a btrfs snapshot of @home (see MIGRATION.md §2)."
-echo "  3. Record the restic password somewhere OFF this machine."
+echo "  3. Run capture-root-state.sh from the drive, as root, if you have not."

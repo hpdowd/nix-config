@@ -173,6 +173,20 @@ least once. `fsel` and `gruvbox-gtk-theme` are the two in the closure and both
 are now verified. `curseforge` and `brother-mfc-l3740cdw` are defined in the
 overlay but not installed — still uncompiled, still untested.
 
+Applying the same rule to the rest of the closure: the only packages the
+installer must build locally rather than fetch are `logseq`, `winboat` and
+`claude-desktop` (plus the Electron runtimes they pull). **All three were built
+on 2026-07-29 and all three succeeded**, in about nine minutes total. So
+nothing in the closure is now unproven — the install will not stop on a build
+failure.
+
+That also settled a question the earlier docs got wrong. Those Electron
+runtimes are missing from `cache.nixos.org` because they are flagged insecure
+and Hydra skips such packages — *not* because they are source builds. Each
+fetches upstream's prebuilt `linux-x64` zip and unpacks it. Nine minutes for
+three Electron apps is the proof; a Chromium compile would have been hours and
+would likely have run out of RAM.
+
 ---
 
 ## 6. Reproducibility and correctness of the plan itself

@@ -955,3 +955,18 @@ flagged **insecure**, and Hydra does not build insecure-flagged packages. That
 is the same fact as `nix-settings.nix` needing `permittedInsecurePackages` —
 worth stating plainly, because "not cached" plus "Electron" invites the wrong
 conclusion that a Chromium compile is about to happen.
+
+**Settled empirically on 2026-07-29.** All three were built:
+
+```
+/nix/store/...-claude-desktop-0.14.10    41 MB
+/nix/store/...-logseq-0.10.15           290 MB
+/nix/store/...-winboat-0.9.0             82 MB
+```
+
+Nine derivations in total — the three apps, `electron-40.10.5` (288 MB), a Go
+toolchain for `winboat-guest-server`, and four small Rust/NAPI helpers. **The
+whole set finished in about nine minutes.** A Chromium source build would have
+been many hours on this hardware and would likely have exhausted 14 GiB of RAM
+at link time. Nothing in the closure now needs proving; every package that the
+installer must build locally has been built at least once.

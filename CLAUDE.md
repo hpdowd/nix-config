@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this directory is
 
-`~/.config` is Henry's personal dotfiles and application configuration directory on Arch Linux. There is no build system or test suite — changes are applied by restarting or reloading the relevant application.
+Henry's personal dotfiles and application configuration. There is no build system or test suite — changes are applied by restarting or reloading the relevant application.
+
+**Read this first — where the repo lives depends on which OS is booted.** As of 2026-07-29 this ThinkPad dual-boots Arch and NixOS side-by-side, sharing `@home` and the ESP.
+
+| Booted | Repo location | `~/.config/<app>` is |
+|---|---|---|
+| **NixOS** (current) | `~/src/arch-config` | a symlink into `~/src/arch-config/<app>`, created by home-manager |
+| Arch (still bootable) | `~/.config` itself | the real directory |
+
+On NixOS, **edit files under `~/src/arch-config`** — editing through the `~/.config` symlink reaches the same file, but `~/.config/nixos` does not exist there at all (`dotfiles.nix` deliberately never links it), so the flake is only at `~/src/arch-config/nixos`. Rebuild with `nixos-rebuild switch --flake ~/src/arch-config/nixos#thinkpad` (aliases: `rebuild`, `update`).
+
+Only directories tracked in git are linked. `~/.scripts`, and the credential dirs the `.gitignore` allowlist excludes (`gh`, `glab-cli`, `gpu-screen-recorder`, `opencode`), are plain directories surviving via `@home`.
 
 ## Shell environment
 
@@ -16,7 +27,7 @@ Aliases common to both, which affect terminal work:
 - `ls` / `ll` / `la` → `eza` variants
 - `lf` → `yazi` (file manager)
 - `zed` → `zeditor`
-- `pacman` → `sudo pacman`; typo alias `pamcan` also works (fish only)
+- `pacman` → `sudo pacman`; typo alias `pamcan` also works (fish only) — **Arch only; there is no pacman on the booted NixOS system.** Package changes go in `nixos/modules/home/packages.nix` followed by a rebuild
 - PATH additions: `~/.config/emacs/bin`, `~/.cargo/bin`, `~/Applications/*/bin`, `~/.local/bin`, `~/.bun/bin`
 - `zoxide` is active for `z` directory jumping
 
@@ -104,13 +115,29 @@ Mangowm is the sole desktop environment. KDE Plasma has been removed from this s
 
 These can't be merged: TLP is applied by its service; the sleep hook is executed by systemd. Each covers a different failure mode.
 
+**On NixOS both are declarative — do not edit `/etc` directly**, it is generated and read-only. `networking.wifi.powersave = false` and `systemd.services.wifi-resume` live in `nixos/modules/system/networking.nix`; the TLP settings are in `power.nix`. Change those and `nixos-rebuild switch`.
+
 If the issue recurs, check `journalctl -u NetworkManager` for DHCP timeout after wake. Disabling Fast Transition (`nmcli connection modify Minerva_2 wifi-sec.key-mgmt wpa-psk`) is an additional option if the sleep hook alone doesn't resolve it.
 
-## NixOS migration (in progress)
+## NixOS migration — INSTALLED 2026-07-29, now the booted system
 
-`~/.config/nixos/` holds a NixOS flake that reproduces this machine. It is **not yet in use** — the system is still Arch. See `nixos/MIGRATION.md` for the plan, the benefit/cost assessment, and the outstanding work queue.
+`nixos/` holds the flake that reproduces this machine. **It is live.** `nixos-install` completed on 2026-07-29 and the machine boots NixOS; Arch remains untouched and selectable from the boot menu. `nixos/MIGRATION.md` §8c records the install, `MIGRATION-GUIDE.md` Part 10 the remaining restore steps.
 
-**Status:** the full system closure evaluates cleanly against nixpkgs-unstable with zero errors and zero warnings (re-verified 2026-07-28); `nix build --dry-run` reports 13.9 GiB download / 37.4 GiB unpacked. Re-verify at any time with `nixos/verify-packages.sh` (parses every file, evaluates the closure, then sizes the build). Nix is installed on the Arch host via the `nix` package, with flakes enabled in `~/.config/nix/nix.conf`. Inputs are pinned by `nixos/flake.lock` (nixpkgs `624af665`) — re-lock deliberately with `nix flake update`, not as a side effect of a build.
+**What is done:** install, bootloader, both EFI entries, root and `henry` passwords, home-manager activation, mango starting.
+
+**What remains** (nothing blocking; see `MIGRATION-GUIDE.md` Part 10):
+- Restore NetworkManager profiles (38, incl. eduroam), Bluetooth pairings, `rclone.conf`, and CLI tokens from the backup drive — none are in git.
+- Copy `mango/wallpaper/` back (excluded from the repo, 4.6 MB of binaries).
+- Clean up `~/.config/*.hm-bak`, the originals home-manager moved aside.
+- Printer: try driverless IPP discovery before touching `/etc/cups`, which the `services.printing` module owns.
+- Don't delete the Arch subvolumes (`@`, `@pkg`, `swap`) until a month has passed without booting it.
+
+**Three things that will surprise you if you don't know them:**
+1. **Generated files are gitignored**, so a fresh clone lacks them. `mango/config.conf` is the big one — it `source=`s every keybind and autostart line, and without it mango runs on built-in defaults (no waybar, no shortcuts). Run `~/.config/mango/scripts/modes/tiling.sh`, then log out and back in. Same for `mango/state/`, `kitty/active-theme.conf`, `foot/active-theme.ini`.
+2. **`cc` and `c++` are clang, not gcc** — the reverse of Arch. `packages.nix` carries `(lib.hiPrio clang)` to break a `buildEnv` collision with `gfortran`, which ships its own `cc`/`c++`. `gcc`, `g++` and `gfortran` are all still on PATH.
+3. **`buildEnv` collisions are the failure mode to expect** when adding packages. Two packages owning the same file path abort the whole generation. If one supersedes the other, drop it; if they merely contend over a few names, use `lib.hiPrio` on the winner — **not** `lib.lowPrio` on the loser, which silently does nothing when the two priorities are already equal.
+
+Inputs are pinned by `nixos/flake.lock` (nixpkgs `624af665`) — re-lock deliberately with `nix flake update`, not as a side effect of a build. `nixos/verify-packages.sh` re-checks that the closure evaluates, but note it only evaluates: it cannot catch profile collisions or a derivation that fails to build.
 
 **Installer media is ready (2026-07-29):** the SK Hynix 256 GB in the AMicro AM8180 USB enclosure carries `nixos-minimal-26.05` as a whole-device `dd` (iso9660, label `nixos-minimal-26.05-x86_64`, plus a `vfat` `EFIBOOT` partition). It previously held a dead `archinstall` system, verified empty before wiping. The Samsung 128 GB backup drive is separate and untouched by that work — one 100 GiB ext4 partition plus a spare ~19.5 GiB unallocated tail. See `nixos/MIGRATION.md` §8b, including why the ISO cannot live on a spare partition and the `parted`-`G`-means-GB trap that briefly truncated the backup drive's filesystem.
 

@@ -39,7 +39,11 @@
         files = [ "thunar.desktop" ];
         mail = [ "eu.betterbird.Betterbird.desktop" ];
         editor = [ "nvim.desktop" ];
-        torrent = [ "freedownloadmanager.desktop" ];
+        # freedownloadmanager is not in nixpkgs, so this pointed at a handler
+        # that would not exist — magnet links and .torrent files would have
+        # opened nothing. Verified the replacement's filename by building it
+        # and reading share/applications rather than guessing.
+        torrent = [ "org.qbittorrent.qBittorrent.desktop" ];
       in
       {
         "text/html" = browser;

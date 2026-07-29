@@ -12,6 +12,12 @@
       nerd-fonts.fira-code # ttf-firacode-nerd
       nerd-fonts.jetbrains-mono # ttf-jetbrains-mono-nerd
       nerd-fonts.symbols-only
+      # mango/waybar/style.css asks for "3270 Nerd Font" by name. It was not
+      # declared here, so the bar would have fallen back to a generic
+      # monospace — visible, but the kind of thing you notice a week later and
+      # cannot place. Found 2026-07-29 by grepping the configs for font names
+      # rather than trusting the package list.
+      nerd-fonts._3270
 
       # 0xProto is used for bold/italic in your terminals (CLAUDE.md).
       _0xproto

@@ -562,6 +562,19 @@ mount | grep ProtonDrive
 ls /run/current-system/sw/share/themes/ | grep Gruvbox
 # want: Gruvbox-Yellow-Dark
 
+# waybar's font — style.css asks for "3270 Nerd Font" by name
+fc-list | grep -i 3270 | head -2
+
+# PIA VPN. You run it through NetworkManager, not the proprietary client,
+# so restoring system-connections (Part 10) is all that is needed.
+nmcli connection show | grep vpn        # want 8 profiles
+nmcli connection up ireland             # then check your IP changed
+ls ~/.local/share/networkmanagement/certificates/nm-openvpn/   # want 8 .pem
+
+# torrents now open in qbittorrent, not the dead freedownloadmanager handler
+xdg-mime query default x-scheme-handler/magnet
+# want: org.qbittorrent.qBittorrent.desktop
+
 # your ids survived, and /home is not misowned
 id henry                 # want uid=1000(henry) gid=1000(henry)
 ls -ld ~/Documents       # want henry henry

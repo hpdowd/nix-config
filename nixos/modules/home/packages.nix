@@ -97,6 +97,12 @@
     rclone
     restic
     lynx
+    # Replaces freedownloadmanager, which is not in nixpkgs (decided
+    # 2026-07-29). Its .desktop file declares exactly the two MIME types the
+    # old handler claimed, so xdg.mimeApps in ./default.nix now points at
+    # org.qbittorrent.qBittorrent.desktop. Note this covers the torrent half
+    # only — FDM's general HTTP download manager has no replacement here.
+    qbittorrent
 
     # --- Documents / writing ------------------------------------------------
     pandoc
@@ -213,22 +219,48 @@
   # This list is now short. Everything else your Arch system has is either in
   # nixpkgs (see above), handled by a NixOS module, or in ../../pkgs.
   #
-  # CONFIRMED ABSENT from nixpkgs — decide on each:
-  #   piavpn-bin            Private Internet Access. Proprietary + ships its
-  #                         own systemd service. `wireguard-tools` and
-  #                         `networkmanager-openvpn` are installed, so a plain
-  #                         WireGuard config is the low-effort alternative.
-  #   freedownloadmanager   your torrent/magnet handler. Nothing equivalent;
-  #                         consider qbittorrent (in nixpkgs) instead. NOTE:
-  #                         xdg.mimeApps in ./default.nix still points magnet:
-  #                         and .torrent at freedownloadmanager.desktop —
-  #                         update that if you switch.
+  # ABSENT from nixpkgs — all decided 2026-07-29, nothing here is open:
+  #
+  #   piavpn-bin          RESOLVED — and it needs no work, because you already
+  #                       run PIA through NetworkManager rather than only
+  #                       through the proprietary client. Checked 2026-07-29:
+  #                       8 OpenVPN profiles exist (algeria, ca_ontario,
+  #                       ireland, netherlands, us_chicago, us_east,
+  #                       us_houston, us_new_york), all of service-type
+  #                       org.freedesktop.NetworkManager.openvpn.
+  #
+  #                       All three pieces survive the migration already:
+  #                         - the profiles live in
+  #                           /etc/NetworkManager/system-connections, captured
+  #                           by capture-root-state.sh and restored in Part 10
+  #                         - `password-flags = 0`, so the passwords are in
+  #                           those same files rather than the keyring
+  #                         - the CA certs are at
+  #                           ~/.local/share/networkmanagement/certificates/,
+  #                           which survives via @home and is in the backup
+  #                       The absolute cert paths resolve unchanged because
+  #                       the uid and home path are pinned identical.
+  #
+  #                       What you lose is only PIA's own GUI — the kill
+  #                       switch and the port-forwarding toggle.
+  #
+  #   freedownloadmanager REPLACED by `qbittorrent`, above. Torrent half only;
+  #                       FDM's HTTP download manager has no equivalent here.
+  #
   #   quickmedia, pipemixer, r-quick-share, haroopad, mdview, pdf-compress,
-  #   qrookie-vrp, retext
-  #   nerd-fonts-sf-mono    not redistributable (Apple SF Mono)
-  #   ttf-phosphor-icons    drop the TTFs in ~/.local/share/fonts instead
-  #   torbrowser-launcher   but `tor-browser` itself is packaged and included
-  #   betterbird-bin        `thunderbird` (the upstream) is included instead
+  #   qrookie-vrp         DROPPED. `distrobox` is in the list above — run an
+  #                       Arch container for any you actually miss, rather
+  #                       than packaging seven things you might not use.
+  #
+  #   nerd-fonts-sf-mono  DROPPED, and confirmed unused: the only reference is
+  #                       a COMMENTED-OUT line in foot/foot.ini (line 7). Also
+  #                       not redistributable (Apple).
+  #   ttf-phosphor-icons  DROPPED, and confirmed unused: not referenced in any
+  #                       waybar, kitty, foot, zed or nvim config. It was a
+  #                       DankMaterialShell dependency, and DMS is gone.
+  #
+  #   torbrowser-launcher `tor-browser` itself is packaged and included.
+  #   betterbird-bin      `thunderbird`, the upstream it forks, is included.
   #
   # HANDLED IN ../../pkgs/default.nix:
   #   fsel (version bump 3.1.0 -> 3.5.2), brother-mfc-l3740cdw, curseforge

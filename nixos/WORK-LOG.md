@@ -285,19 +285,60 @@ as bugs later.
 
 ## 10. What is left
 
-Everything below is either physical, or a judgement call only you can make.
+Worked through on 2026-07-29. All four open decisions are now closed.
 
-- **Write the NixOS ISO to a USB stick.** The only removable device attached is
-  the backup drive; `dd` to it would destroy the one copy of several things.
-- **Merge decision** on `paraphrase-detector`'s backup branch.
-- **`mimeapps.list`** still points `magnet:` and `.torrent` at
-  `freedownloadmanager`, which is not in nixpkgs and not installed — that
-  handler will be dead on first boot. `qbittorrent` is packaged.
-- **`piavpn-bin`** and a short tail of AUR software have no nixpkgs equivalent;
-  see `MIGRATION.md` §6b.
+| Was open | Decision |
+|---|---|
+| NixOS ISO on a USB stick | Done by hand |
+| `paraphrase-detector` branch | **Leave as a branch.** `main` and the branch genuinely diverged — 4 commits on the branch (incl. the final thesis report), 6 on main (incl. "removing report images"), 49 files, 2 merge conflicts. Main looks deliberately slimmed for GitHub, so merging would fight an earlier decision. It is pushed and safe |
+| Dead `magnet:`/`.torrent` handler | **`qbittorrent`.** Added to `packages.nix`; `xdg.mimeApps` now names `org.qbittorrent.qBittorrent.desktop`, verified by building it and reading `share/applications` rather than guessing. Covers the torrent half only — FDM's HTTP download manager has no equivalent |
+| `piavpn-bin` | **No work needed** — see below |
+| The AUR tail | **Dropped**, with `distrobox` as the escape hatch |
+
+### The VPN turned out to be a non-problem
+
+The plan was to replace the unpackaged proprietary client with
+NetworkManager + OpenVPN. Checking first showed that is **already how you run
+it**: 8 PIA region profiles exist, all of service-type
+`org.freedesktop.NetworkManager.openvpn`.
+
+Everything it needs already survives the migration:
+
+- profiles in `/etc/NetworkManager/system-connections` — captured by
+  `capture-root-state.sh`, restored in Part 10
+- `password-flags = 0`, so credentials are in those files, not the keyring
+- CA certs in `~/.local/share/networkmanagement/certificates/` — survive via
+  `@home`, and are in the backup
+
+The certs are referenced by *absolute* path, which resolves unchanged only
+because the uid and home path were pinned identical (§2). The only real loss
+is PIA's own GUI — the kill switch and port-forwarding toggle.
+
+### The AUR tail, and one thing it turned up
+
+`quickmedia`, `pipemixer`, `r-quick-share`, `haroopad`, `mdview`,
+`pdf-compress`, `qrookie-vrp` are dropped. `distrobox` is already installed,
+so an Arch container covers anything you miss — better than packaging seven
+things before knowing which you use.
+
+Both fonts were checked rather than assumed, and both are genuinely unused:
+`nerd-fonts-sf-mono` appears only in a **commented-out** line in
+`foot/foot.ini`, and `ttf-phosphor-icons` is referenced nowhere (it was a
+DankMaterialShell dependency, and DMS is gone).
+
+That grep found the opposite problem, though: `mango/waybar/style.css` asks
+for **`"3270 Nerd Font"`**, which the flake never declared. Waybar would have
+fallen back to a generic monospace — visible, but the kind of thing you notice
+a week later and cannot place. `nerd-fonts._3270` is now in `fonts.nix`.
+
+### Still genuinely outstanding
+
 - **Delete `system-state/root-only` from the backup drive** once you are
-  settled. It contains SSH host keys, `/root`, and 38 WiFi PSKs in cleartext on
-  an unencrypted disk — fine at your desk, bad to lose.
+  settled — SSH host keys, `/root`, and 38 WiFi PSKs in cleartext on an
+  unencrypted disk. **Not yet:** Part 10 restores from it, so it is needed
+  until the migration is done.
+- **FDM's HTTP download-manager side** has no replacement. If you used it for
+  more than torrents, you will notice.
 
 **The honest summary:** the configuration is sound and every defect found has
 been fixed and verified. But this config has never been booted. Evaluation and

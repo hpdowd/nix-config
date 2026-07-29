@@ -74,10 +74,13 @@
     rustup
     # `gfortran` is a full GCC wrapper — it ships gcc/g++/cc/c++ as well as
     # gfortran — so it collides with clang over the generic `cc` and `c++`
-    # driver names. lowPrio hands those two to GCC, matching Arch, where
-    # /usr/bin/cc is gcc. `clang`/`clang++` are unaffected: priority only
-    # decides contested paths, so both toolchains stay complete.
-    (lib.lowPrio clang)
+    # driver names. buildEnv only errors when the two priorities are EQUAL,
+    # and `lowPrio` here did nothing: it moves clang to 10, which is where
+    # gfortran already sits. `hiPrio` (-10) breaks the tie from the other
+    # side and is what actually builds. Cost: `cc`/`c++` resolve to clang
+    # rather than gcc, unlike Arch. gcc/g++/gfortran are all still present
+    # from the GCC wrapper — priority only decides contested paths.
+    (lib.hiPrio clang)
     gfortran # gcc-fortran
     python313
     # Same collision: both pythons ship bin/python3, bin/pydoc3, bin/idle3 and

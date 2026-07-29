@@ -1162,17 +1162,36 @@ alongside `gfortran`. `clang` ships its own `cc` and `c++`. On Arch these are
 separate packages resolved by `/usr/bin/cc` being a symlink; in a Nix profile
 they are two packages claiming the same two paths.
 
-**Here `lib.lowPrio` IS the right fix**, unlike the vscode case. The contested
-set is two generic driver symlinks, not an entire application directory —
+**Priority is the right fix here**, unlike the vscode case. The contested set
+is two generic driver symlinks, not an entire application directory —
 `buildEnv` priority only decides paths that actually conflict, so both
 toolchains land complete and every compiler stays reachable under its own
-name. `clang` is the lowPrio one, which leaves `cc`/`c++` pointing at GCC and
-matches what Arch does.
+name.
 
-The same reasoning applies pre-emptively to `python313` + `python311`, which
-both ship `bin/python3`, `bin/pydoc3`, `bin/idle3` and
-`share/man/man1/python3.1`. `python311` is lowPrio; 3.13 owns the unversioned
-names.
+**But `lib.lowPrio clang` does not work, and the reason is worth writing
+down.** Reading the machinery: `buildEnv` computes
+`priority = drv.meta.priority or lib.meta.defaultPriority`, and `builder.pl`
+resolves any *unequal* pair in either processing order — the collision `die`
+is reachable **only when the two priorities are equal**. `lowPrio` sets 10,
+which is exactly where `gfortran` already sits, so the tie survived and the
+error came back byte-for-byte identical. (nixpkgs uses `meta.priority` on real
+packages for this purpose — busybox carries 10 so it loses to coreutils.)
+
+`lib.hiPrio clang` (-10) breaks the tie from the other side and builds. It
+wins regardless of what the other package's priority actually is, which makes
+it the safer of the two whenever the opposing value is unknown.
+
+The cost is that `cc` and `c++` resolve to **clang**, not gcc — the opposite
+of Arch, where `/usr/bin/cc` is gcc. `gcc`, `g++` and `gfortran` are all still
+on PATH from the GCC wrapper. To flip it back you would need to raise gfortran
+instead (`hiPrio gfortran`, leaving clang unwrapped), not lower clang.
+
+`python313` + `python311` collide the same way — both ship `bin/python3`,
+`bin/pydoc3`, `bin/idle3` and `share/man/man1/python3.1`. `python311` carries
+`lowPrio` and the build passed, so either that tie broke cleanly or the pair
+never contended; the successful build does not distinguish the two. If a
+python collision ever surfaces, apply `hiPrio python313` rather than debugging
+`lowPrio`.
 
 ### The rest of the list, checked by hand
 
@@ -1195,3 +1214,33 @@ Two that look risky and are not:
 This is inspection, not proof. If another one appears, the same two questions
 decide the fix: does one package fully supersede the other (drop it), or do
 they merely contend over a few shared names (`lowPrio` the loser)?
+
+## 8d. `installation finished!` — the install completed (2026-07-29)
+
+After the three collision fixes, `sudo nixos-install --root /mnt --flake
+/mnt/home/henry/src/arch-config/nixos#thinkpad` ran to completion: bootloader
+installed, `Linux Boot Manager` and `Fallback Linux Boot Manager` EFI entries
+created, `/etc` populated, root password set.
+
+Every failure in this install was the same class — `buildEnv` path collisions
+in the home-manager profile — and none of them were NixOS or flake problems.
+The flake itself evaluated cleanly on the first attempt, exactly as
+`verify-packages.sh` predicted.
+
+### The two `bootctl` warnings are not a problem
+
+```
+Mount point '/boot' which backs the random seed file is world accessible, …
+Random seed file '/boot/loader/random-seed' is world accessible, …
+```
+
+These describe the ESP **as mounted by hand in the installer**, not the
+installed system. vfat has no on-disk permission bits — they come entirely
+from mount options — and `hosts/thinkpad/hardware-configuration.nix` already
+mounts `/boot` with `fmask=0077,dmask=0077`. On first boot the seed becomes
+root-only and the warning stops.
+
+The one place it still applies is the **shared ESP under Arch**, which mounts
+the same partition with its own fstab options. Adding `fmask=0077,dmask=0077`
+there too would close it on both sides; the exposure is a local non-root user
+being able to read the boot entropy seed.

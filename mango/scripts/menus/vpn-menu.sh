@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # VPN menu — WireGuard + PIA OpenVPN server picker
 
 WALKER=(~/.config/mango/scripts/walker/walker.sh -d)

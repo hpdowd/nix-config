@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Volume menu — set volume, toggle mute, switch sinks, enable amplification
 
 WALKER=(~/.config/mango/scripts/walker/walker.sh -d)

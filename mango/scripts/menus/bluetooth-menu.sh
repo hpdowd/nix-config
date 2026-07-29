@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Bluetooth manager menu
 
 WALKER=(~/.config/mango/scripts/walker/walker.sh -d)

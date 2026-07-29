@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 current=$(powerprofilesctl get)
 case $current in
     power-saver)  powerprofilesctl set balanced ;;

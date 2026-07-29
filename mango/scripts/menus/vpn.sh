@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # WireGuard VPN status/toggle for waybar
 
 VPN_STATE="/run/user/$(id -u)/mango-vpn"

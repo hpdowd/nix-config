@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Daemon: syncs /tmp/scratch-* state files with mango focus events.
 # Signals waybar (SIGRTMIN+8) only when state actually changes.
 # Start from autostart.sh; restarts automatically if mmsg -w exits.

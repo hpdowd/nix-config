@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Usage: set-wallpaper.sh <path-to-image>
 # Sets the wallpaper live via swww and saves it as the persistent wallpaper.
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Network manager menu — WiFi, Ethernet, VPN
 # Instant open via cache; rescan re-launches with fresh data.
 

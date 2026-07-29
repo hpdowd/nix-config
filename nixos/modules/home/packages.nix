@@ -49,8 +49,10 @@
     neovim
     helix
     vis
+    # vscode and vscodium both install into lib/vscode and collide in the
+    # home-manager buildEnv (they coexist on Arch only because of separate
+    # prefixes). Keeping the MS build for marketplace/Copilot access.
     vscode
-    vscodium
     code-cursor # cursor-bin
     zed-editor
     jetbrains.pycharm # attr is `pycharm`; `pycharm-professional` doesn't exist

@@ -1108,3 +1108,41 @@ briefly suspected of being someone else's data — is
 `/home/henry/Pictures/Lee_old`, copied on 2026-07-28 with `sudo cp -r`. It is
 duplicated on the internal drive and can be dropped from the backup if the
 space is ever wanted.
+
+## 8c. First `nixos-install` run — vscode/vscodium collision (2026-07-29)
+
+The first real `sudo nixos-install --root /mnt --flake …#thinkpad` got past
+flake evaluation and died in the **home-manager profile build**, not in
+anything NixOS-specific:
+
+```
+error: builder failed with exit code 25
+> pkgs.buildEnv error: two given paths contain a conflicting subpath:
+>   …-vscodium-1.126.04524/lib/vscode/LICENSES.chromium.html  and
+>   …-vscode-1.129.1/lib/vscode/LICENSES.chromium.html
+```
+
+`modules/home/packages.nix` listed **both `vscode` and `vscodium`**. On Arch
+that is fine — `visual-studio-code-bin` and `vscodium-bin` ship under separate
+prefixes. In Nix they both unpack to `lib/vscode/`, and `home.packages` merges
+every package into one `buildEnv`, so the shared paths collide and the whole
+generation fails.
+
+`lib.lowPrio` would silence it but is the wrong fix: `buildEnv` recurses into
+directories, so the surviving `lib/vscode` would be a merge of two different
+Electron builds. **Fixed by dropping `vscodium` and keeping `vscode`** (the MS
+build is the one that can reach the official extension marketplace, which the
+`github-copilot-cli` / `code-cursor` side of the list assumes).
+
+Two things worth carrying forward:
+
+- `verify-packages.sh` and `nix build --dry-run` do **not** catch this. They
+  evaluate and fetch; profile collisions only surface when the `buildEnv` is
+  actually realised. Expect more of these to appear one at a time — `buildEnv`
+  aborts on the *first* conflict, so a clean run after a fix is not proof that
+  the rest of the list is collision-free.
+- Editing a **tracked** file under `/mnt/home/henry/src/arch-config` is enough
+  to re-run the install; Nix reads dirty git trees (with a `Git tree is dirty`
+  warning) and no commit is needed on the installer. **New untracked files are
+  ignored** — anything genuinely new has to be `git add`ed before the flake
+  will see it.

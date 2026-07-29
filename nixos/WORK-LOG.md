@@ -333,13 +333,11 @@ a week later and cannot place. `nerd-fonts._3270` is now in `fonts.nix`.
 
 ### Still genuinely outstanding
 
-- **`~/Pictures/Lee_old` is mode 311, owner `root:henry` — nobody can read
-  it.** It is ~13.6 GB and has therefore *never* been in the rsync backup;
-  the copy at the backup drive's root is `root:root` 311 and equally
-  unreadable. Both were produced by `sudo cp -r` with a botched mode. Fix with
-  `sudo chown -R henry:henry ~/Pictures/Lee_old && sudo chmod -R u+rwX
-  ~/Pictures/Lee_old`, then re-run the backup. Until then this is a known,
-  deliberate hole and the script says so on every run.
+- ~~`~/Pictures/Lee_old` is unreadable and therefore unbacked-up~~ —
+  **closed 2026-07-29: backed up by hand.** The directory is mode 311 owner
+  `root:henry`, so rsync could never have read it regardless. Now an explicit
+  `--exclude`, which is why the run is clean rather than warning every time.
+  If the mode is ever fixed and you want it included again, delete that line.
 - **Delete `~/.config/nixos/system-state/root-only`.** Created 2026-07-29
   15:28 by running the repo's copy of `capture-root-state.sh` instead of the
   drive's — the exact hazard §9 predicted. `.gitignore` caught it, so nothing

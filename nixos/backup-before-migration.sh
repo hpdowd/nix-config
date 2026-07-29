@@ -117,8 +117,11 @@ INCLUDE=(
 #   .wine                    3.6G  recreate prefixes
 #   nvim.bak.*               1.3G  old backup, delete it
 #   Downloads                2.6G  transient — review manually first
+#   Pictures/Lee_old        13.6G  backed up by hand 2026-07-29. Mode 311
+#                                  owner root:henry, so unreadable to rsync
+#                                  regardless — see the EXCLUDE note.
 #
-# Total skipped: ~227 GB.
+# Total skipped: ~241 GB.
 
 EXCLUDE=(
   --exclude="node_modules"
@@ -144,6 +147,13 @@ EXCLUDE=(
   # backup-*/system-state/root-only; it must NOT be duplicated into a git
   # working tree (see .gitignore /nixos/system-state/).
   --exclude="system-state/root-only"
+  # Pictures/Lee_old — ~13.6 GB, backed up by hand (confirmed 2026-07-29), so
+  # this is a deliberate exclusion rather than the permissions failure it used
+  # to be. The directory is mode 311 owner root:henry and unreadable even to
+  # its owner, so rsync could never have copied it anyway; excluding it keeps
+  # the run clean instead of raising a warning on every backup. If you ever
+  # fix the mode and want it included again, delete this line.
+  --exclude="/Pictures/Lee_old"
 )
 
 # ---------------------------------------------------------------------------
@@ -190,6 +200,28 @@ done < <(find "$HOME_DIR/code" "$HOME_DIR/Projects" -maxdepth 3 -name .git -type
 if [ "$found_risk" -eq 0 ]; then
   echo "  none — every repo is clean and pushed"
 fi
+
+# ---------------------------------------------------------------------------
+# Applications writing into the backup set.
+# ---------------------------------------------------------------------------
+# Browser and mail profiles are live SQLite databases. Copying one while its
+# owner is running gets you a torn snapshot: the .sqlite and its -wal are
+# copied at different instants, and the verify pass below will flag them as
+# differing because they genuinely changed mid-run. Nothing is corrupted on
+# the source, but the *copy* may not open cleanly on restore.
+#
+# For a routine refresh this is noise. For the final pre-install backup, quit
+# these first.
+echo
+echo "=== Applications writing into the backup set ==="
+live=0
+for proc in zen-bin chromium thunderbird betterbird obsidian; do
+  if pgrep -x "$proc" >/dev/null 2>&1; then
+    printf '  RUNNING  %s — its profile will be copied mid-write\n' "$proc"
+    live=1
+  fi
+done
+[ "$live" -eq 0 ] && echo "  none — profiles are quiescent"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo
@@ -254,15 +286,27 @@ echo "=== Verify ==="
 # Unreadable paths reported above surface on stderr, not stdout, so they do
 # not pollute this comparison — but the dry-run still exits 23 because of
 # them, hence `|| true`.
+# The trailing `|| true` is load-bearing twice over: the dry-run exits 23 on
+# any unreadable path, and `grep -v` exits 1 when it filters out *everything*
+# — which is the success case. Under `set -o pipefail` either one aborts the
+# assignment, so without this the script fails exactly when the backup is
+# perfect.
 leftover=$( { rsync -aHAX -R --dry-run --itemize-changes \
                     "${EXCLUDE[@]}" "${RSYNC_SRC[@]}" "$TARGET/" 2>/dev/null \
               || true; } \
-           | grep -vE '^$|^\.d\.\.t|^cd\+\+\+\+\+\+\+\+\+ \./$' | head -20)
+           | grep -vE '^$|^\.d\.\.t|^cd\+\+\+\+\+\+\+\+\+ \./$' | head -20 ) || true
 if [ -z "$leftover" ]; then
   echo "  verified — destination matches source"
 else
   echo "  MISMATCH — these differ after the copy:" >&2
   printf '%s\n' "$leftover" >&2
+  if [ "$live" -eq 1 ]; then
+    echo >&2
+    echo "  An application above was running while this ran. If every path" >&2
+    echo "  listed belongs to its profile, that is the cause: the file changed" >&2
+    echo "  between the copy and the check. Quit it and re-run to get a clean" >&2
+    echo "  verification — do that for the final pre-install backup." >&2
+  fi
   exit 1
 fi
 

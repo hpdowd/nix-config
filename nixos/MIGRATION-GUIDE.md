@@ -429,8 +429,18 @@ sudo nixos-install --root /mnt \
   --flake /mnt/home/henry/src/arch-config/nixos#thinkpad
 ```
 
-You may see `warning: Git tree ... is dirty` — harmless, it just means the
-working tree has edits. Nix uses them.
+You may see `warning: Git tree ... is dirty` — harmless for the install
+itself; Nix reads modified **tracked** files (new untracked files are ignored,
+so `git add` anything genuinely new).
+
+It stops being harmless afterwards. The 2026-07-29 install needed three
+`buildEnv` collision fixes (§8c of MIGRATION.md) that exist only as
+uncommitted edits, so commit them on first boot — do **not** `git stash`, or
+the next `nixos-rebuild` fails on the same collisions:
+
+```bash
+cd ~/src/arch-config && git add -A && git commit -m "nixos: resolve buildEnv collisions"
+```
 
 At the end it prompts for a **root** password. Set one you will remember.
 

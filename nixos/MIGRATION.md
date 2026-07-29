@@ -589,7 +589,8 @@ every Tier-1 package resolves. What's left:
    `git.henrydowd.dev/henry/arch-config`. What remains is cloning it to
    `~/src/arch-config`, which is where the flake now expects it (§8, B1).
 6. `restic` backup.
-7. Create `@nixos`/`@nix` subvolumes, `nixos-install --flake`, boot to a TTY.
+7. ~~Create `@nixos`/`@nix` subvolumes, `nixos-install --flake`~~ — **done
+   2026-07-29 (§8c).** Booting to the TTY is what remains.
 8. Get the compositor up. Nothing else matters on day one.
 9. ~~Decide the `theme.nix` vs `gtk-apply.sh` ownership question (§6a)~~ —
    **decided 2026-07-28: the mode scripts own it.** The `gtk` block is gone
@@ -919,10 +920,11 @@ B1 was fixed by repointing `dots`, which corrected the 26 entries built with
 7. ~~**Write the installer ISO to removable media.**~~ — **done 2026-07-29.**
    See §8b. The SK Hynix 256 GB in the USB enclosure carries
    `nixos-minimal-26.05` as a whole-device `dd`.
-8. Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`. Do **not** touch `@`,
-   `@home`, `@pkg`, `@log`, or the ESP.
-9. `nixos-install --flake ~/src/arch-config/nixos#thinkpad`. Arch stays
-   bootable throughout — that is the whole point of side-by-side.
+8. ~~Create `@nixos` and `@nix` subvolumes on `nvme0n1p2`.~~ — **done
+   2026-07-29.** `@`, `@home`, `@pkg`, `@log` and the ESP untouched.
+9. ~~`nixos-install --flake ~/src/arch-config/nixos#thinkpad`~~ — **done
+   2026-07-29, after three `buildEnv` collision fixes (§8c).** Arch stays
+   bootable; that is the whole point of side-by-side.
 10. Boot to the TTY greeter. Get the compositor up. Nothing else matters today.
 11. Restore what the flake does not carry: NetworkManager profiles, Bluetooth
     pairings, the 3 flatpaks, `rclone.conf` and the CLI tokens from the drive.
@@ -1109,138 +1111,65 @@ briefly suspected of being someone else's data — is
 duplicated on the internal drive and can be dropped from the backup if the
 space is ever wanted.
 
-## 8c. First `nixos-install` run — vscode/vscodium collision (2026-07-29)
+## 8c. The install itself (2026-07-29) — `installation finished!`
 
-The first real `sudo nixos-install --root /mnt --flake …#thinkpad` got past
-flake evaluation and died in the **home-manager profile build**, not in
-anything NixOS-specific:
+`sudo nixos-install --root /mnt --flake /mnt/home/henry/src/arch-config/nixos#thinkpad`
+completed: bootloader installed, both EFI entries created, root password set.
 
-```
-error: builder failed with exit code 25
-> pkgs.buildEnv error: two given paths contain a conflicting subpath:
->   …-vscodium-1.126.04524/lib/vscode/LICENSES.chromium.html  and
->   …-vscode-1.129.1/lib/vscode/LICENSES.chromium.html
-```
+The flake evaluated first try. Every failure was one class — `buildEnv` path
+collisions in the **home-manager profile** — and each aborts on the *first*
+conflict, so they surfaced one per attempt. Three fixes, all in
+`modules/home/packages.nix`:
 
-`modules/home/packages.nix` listed **both `vscode` and `vscodium`**. On Arch
-that is fine — `visual-studio-code-bin` and `vscodium-bin` ship under separate
-prefixes. In Nix they both unpack to `lib/vscode/`, and `home.packages` merges
-every package into one `buildEnv`, so the shared paths collide and the whole
-generation fails.
+| Conflict | Fix | Effect |
+|---|---|---|
+| `vscode` + `vscodium` → `lib/vscode/…` | dropped `vscodium` | VSCodium gone; VS Code kept for marketplace/Copilot |
+| `gfortran` + `clang` → `bin/c++`, `bin/cc` | `(lib.hiPrio clang)` | **`cc`/`c++` now resolve to clang, not gcc** — the reverse of Arch. `gcc`, `g++`, `gfortran` all still on PATH |
+| `python313` + `python311` → `bin/python3` | `(lib.lowPrio python311)` | `python3` is 3.13; 3.11 reachable as `python3.11` |
 
-`lib.lowPrio` would silence it but is the wrong fix: `buildEnv` recurses into
-directories, so the surviving `lib/vscode` would be a merge of two different
-Electron builds. **Fixed by dropping `vscodium` and keeping `vscode`** (the MS
-build is the one that can reach the official extension marketplace, which the
-`github-copilot-cli` / `code-cursor` side of the list assumes).
+Two rules learned, both worth reusing:
 
-Two things worth carrying forward:
+- **Does one package supersede the other, or do they merely contend over a few
+  names?** Supersede → drop it (vscodium: `lowPrio` would have merged two
+  Electron builds into one broken `lib/vscode`). Contend → priority.
+- **Prefer `hiPrio` to `lowPrio`.** `buildEnv` errors *only* when priorities
+  are equal. `lowPrio` sets 10, which is where `gfortran` already sat, so it
+  changed nothing and the error returned byte-identical. `hiPrio` (-10) wins
+  regardless of the opposing value, which matters because you cannot see that
+  value without evaluating.
 
-- `verify-packages.sh` and `nix build --dry-run` do **not** catch this. They
-  evaluate and fetch; profile collisions only surface when the `buildEnv` is
-  actually realised. Expect more of these to appear one at a time — `buildEnv`
-  aborts on the *first* conflict, so a clean run after a fix is not proof that
-  the rest of the list is collision-free.
-- Editing a **tracked** file under `/mnt/home/henry/src/arch-config` is enough
-  to re-run the install; Nix reads dirty git trees (with a `Git tree is dirty`
-  warning) and no commit is needed on the installer. **New untracked files are
-  ignored** — anything genuinely new has to be `git add`ed before the flake
-  will see it.
+Neither `verify-packages.sh` nor `nix build --dry-run` catches this class:
+they evaluate and fetch, while collisions only appear when the profile is
+realised. The rest of the package list was read by hand afterwards and nothing
+else contends — the GUI apps each own a private subtree, and the CLI tools
+have distinct binary names.
 
-### Collision #2 and #3 — compilers and pythons
-
-The vscode fix uncovered the next one immediately:
-
-```
-> pkgs.buildEnv error: two given paths contain a conflicting subpath:
->   …-gfortran-wrapper-15.3.0/bin/c++  and  …-clang-wrapper-21.1.0/bin/c++
-```
-
-`gfortran` in nixpkgs is not a standalone Fortran compiler — it is a full GCC
-wrapper with `langFortran` on, so it ships `gcc`, `g++`, `cc` and `c++`
-alongside `gfortran`. `clang` ships its own `cc` and `c++`. On Arch these are
-separate packages resolved by `/usr/bin/cc` being a symlink; in a Nix profile
-they are two packages claiming the same two paths.
-
-**Priority is the right fix here**, unlike the vscode case. The contested set
-is two generic driver symlinks, not an entire application directory —
-`buildEnv` priority only decides paths that actually conflict, so both
-toolchains land complete and every compiler stays reachable under its own
-name.
-
-**But `lib.lowPrio clang` does not work, and the reason is worth writing
-down.** Reading the machinery: `buildEnv` computes
-`priority = drv.meta.priority or lib.meta.defaultPriority`, and `builder.pl`
-resolves any *unequal* pair in either processing order — the collision `die`
-is reachable **only when the two priorities are equal**. `lowPrio` sets 10,
-which is exactly where `gfortran` already sits, so the tie survived and the
-error came back byte-for-byte identical. (nixpkgs uses `meta.priority` on real
-packages for this purpose — busybox carries 10 so it loses to coreutils.)
-
-`lib.hiPrio clang` (-10) breaks the tie from the other side and builds. It
-wins regardless of what the other package's priority actually is, which makes
-it the safer of the two whenever the opposing value is unknown.
-
-The cost is that `cc` and `c++` resolve to **clang**, not gcc — the opposite
-of Arch, where `/usr/bin/cc` is gcc. `gcc`, `g++` and `gfortran` are all still
-on PATH from the GCC wrapper. To flip it back you would need to raise gfortran
-instead (`hiPrio gfortran`, leaving clang unwrapped), not lower clang.
-
-`python313` + `python311` collide the same way — both ship `bin/python3`,
-`bin/pydoc3`, `bin/idle3` and `share/man/man1/python3.1`. `python311` carries
-`lowPrio` and the build passed, so either that tie broke cleanly or the pair
-never contended; the successful build does not distinguish the two. If a
-python collision ever surfaces, apply `hiPrio python313` rather than debugging
-`lowPrio`.
-
-### The rest of the list, checked by hand
-
-Since `buildEnv` aborts on the first conflict, the list was read once for
-remaining same-file overlaps rather than waiting to hit them one per install
-attempt. Nothing else looks contested: the browsers, editors, Electron apps
-and games each own a private `lib/`, `share/` or `opt/` subtree, and the CLI
-tools have distinct binary names (`nc` from netcat-openbsd vs `ncat` from
-nmap; `7z` vs `unrar`; `man-pages` uses man2/man3 while `man-pages-posix`
-uses man0p/man1p/man3p).
-
-Two that look risky and are not:
-
-- `python3Packages.pip` next to `python313` — pip only adds
-  `lib/python3.13/site-packages/pip/`, a subpath neither python owns, and
-  `buildEnv` merges directories rather than claiming them whole.
-- `gst_all_1.gst-libav` next to `gst-plugins-good` — separate `.so` files
-  under a shared plugin directory.
-
-This is inspection, not proof. If another one appears, the same two questions
-decide the fix: does one package fully supersede the other (drop it), or do
-they merely contend over a few shared names (`lowPrio` the loser)?
-
-## 8d. `installation finished!` — the install completed (2026-07-29)
-
-After the three collision fixes, `sudo nixos-install --root /mnt --flake
-/mnt/home/henry/src/arch-config/nixos#thinkpad` ran to completion: bootloader
-installed, `Linux Boot Manager` and `Fallback Linux Boot Manager` EFI entries
-created, `/etc` populated, root password set.
-
-Every failure in this install was the same class — `buildEnv` path collisions
-in the home-manager profile — and none of them were NixOS or flake problems.
-The flake itself evaluated cleanly on the first attempt, exactly as
-`verify-packages.sh` predicted.
-
-### The two `bootctl` warnings are not a problem
+### The two `bootctl` warnings need no action
 
 ```
 Mount point '/boot' which backs the random seed file is world accessible, …
 Random seed file '/boot/loader/random-seed' is world accessible, …
 ```
 
-These describe the ESP **as mounted by hand in the installer**, not the
-installed system. vfat has no on-disk permission bits — they come entirely
-from mount options — and `hosts/thinkpad/hardware-configuration.nix` already
-mounts `/boot` with `fmask=0077,dmask=0077`. On first boot the seed becomes
-root-only and the warning stops.
+That describes the ESP **as mounted by hand in the installer**. vfat has no
+on-disk permission bits — they come from mount options — and
+`hosts/thinkpad/hardware-configuration.nix` already mounts `/boot` with
+`fmask=0077,dmask=0077`. First boot fixes it. It remains true under **Arch**,
+which mounts the shared ESP with its own fstab options; add the same two
+options there if you want it closed on both sides.
 
-The one place it still applies is the **shared ESP under Arch**, which mounts
-the same partition with its own fstab options. Adding `fmask=0077,dmask=0077`
-there too would close it on both sides; the exposure is a local non-root user
-being able to read the boot entropy seed.
+### Carry the fixes forward before the first rebuild
+
+The installed system was built from a **dirty working tree**, so those three
+fixes exist only as uncommitted edits in `/mnt/home/henry/src/arch-config`.
+Commit them on the machine after first boot:
+
+```bash
+cd ~/src/arch-config && git add -A && git commit -m "nixos: resolve buildEnv collisions"
+```
+
+Do **not** `git stash` them. They also exist as commits on the GitHub mirror
+(`hpdowd/arch-config`, branch `claude/new-session-lh98n1`), but not on `main`
+and not on the Gitea origin — so a plain `git pull` fetches nothing and a
+stash would lose them, and the next `nixos-rebuild` would fail on the
+vscodium collision again.

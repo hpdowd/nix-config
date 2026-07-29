@@ -17,9 +17,9 @@
 
   networking.firewall = {
     enable = true;
-    # Warpinator (file transfer) and KDE-Connect/Valent need these open.
+    # Warpinator (file transfer) and KDE Connect need these open.
     allowedTCPPorts = [ 42000 42001 ];
-    allowedTCPPortRanges = [{ from = 1714; to = 1764; }]; # Valent / KDE Connect
+    allowedTCPPortRanges = [{ from = 1714; to = 1764; }]; # KDE Connect
     allowedUDPPortRanges = [{ from = 1714; to = 1764; }];
   };
 

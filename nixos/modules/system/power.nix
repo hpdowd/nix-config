@@ -23,9 +23,17 @@
       PLATFORM_PROFILE_ON_AC = "performance";
       PLATFORM_PROFILE_ON_BAT = "low-power";
 
-      # ThinkPad battery thresholds — longevity over runtime. Adjust or drop.
+      # ThinkPad battery thresholds — longevity over runtime.
+      #
+      # STOP must stay in sync with `"full-at"` in mango/waybar/config-focus.jsonc,
+      # which rescales the reading (`shown = real / full-at * 100`). full-at is 85,
+      # so a STOP of 80 capped the bar at 80/85*100 = 94% and never read 100%.
+      #
+      # START is deliberately wide: on AC the battery parks wherever it is and
+      # only tops back up below 40%, so the bar normally sits *below* 100% —
+      # that is the hysteresis working, not a stuck reading.
       START_CHARGE_THRESH_BAT0 = 40;
-      STOP_CHARGE_THRESH_BAT0 = 80;
+      STOP_CHARGE_THRESH_BAT0 = 85;
     };
   };
 

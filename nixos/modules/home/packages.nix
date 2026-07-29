@@ -172,7 +172,14 @@
     teams-for-linux
     bitwarden-desktop
     warpinator
-    valent
+    # KDE Connect, not valent. The mango configs are written against KDE
+    # Connect: both autostart.conf files run `kdeconnectd`, and the Waybar
+    # phone module shells out to `kdeconnect-cli` and queries the
+    # `org.kde.kdeconnect` D-Bus name (scripts/kdeconnect/phone-status.sh).
+    # Valent is a separate implementation under `ca.andyholmes.Valent`, so it
+    # satisfies none of those. Firewall ports 1714-1764 are already open in
+    # modules/system/networking.nix and serve either one.
+    kdePackages.kdeconnect-kde
     thunderbird # betterbird is NOT in nixpkgs; this is the upstream it forks
     proton-authenticator
     cloudflare-warp

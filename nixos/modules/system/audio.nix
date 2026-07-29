@@ -32,7 +32,11 @@
     description = "Sync ThinkPad mic-mute LED with PipeWire default source";
     wantedBy = [ "default.target" ];
     after = [ "pipewire.service" ];
-    path = with pkgs; [ pulseaudio coreutils gnugrep gawk ];
+    # `bash` is required, not optional: the script's shebang is
+    # `#!/usr/bin/env bash` (it has to be — NixOS has no /bin/bash), and this
+    # `path` is the unit's *entire* PATH, so without bash here env exits 127
+    # with `env: 'bash': No such file or directory` and systemd restart-loops.
+    path = with pkgs; [ bash pulseaudio coreutils gnugrep gawk ];
     serviceConfig = {
       # Keeping this as an external file means you can iterate on it without a
       # nixos-rebuild. Note: no .sh extension — the real filename is

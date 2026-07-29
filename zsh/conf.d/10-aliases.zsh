@@ -3,6 +3,11 @@
 scripts="$HOME/.scripts"
 
 # --- ls / eza ------------------------------------------------------
+# NixOS's /etc/zshrc (programs.zsh.enable) predefines ls/l/ll from
+# environment.shellAliases. `ls` being an alias makes the ls() function below
+# a parse error, which aborts the rest of this file — so clear them first.
+unalias ls l ll 2>/dev/null
+
 alias l='ls'
 # `ls`/`l` hide personal top-level dirs *only while in $HOME* (mirrors ~/.hidden).
 # Elsewhere, or with any argument (e.g. `ls foo`), nothing is filtered.

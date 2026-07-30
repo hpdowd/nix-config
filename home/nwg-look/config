@@ -1,1 +1,7 @@
-/nix/store/dsns0z4494xsmx77z96g1987jfgrjlp4-home-manager-files/.config/nwg-look/config
+{
+ "export-settings-ini": true,
+ "export-gtkrc-20": true,
+ "export-index-theme": true,
+ "export-xsettingsd": true,
+ "export-gtk4-symlinks": true
+}

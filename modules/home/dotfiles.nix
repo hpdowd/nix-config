@@ -241,14 +241,33 @@ in
   # directories, so this becomes a no-op. It stays anyway, because it also
   # makes the conversion reproducible on a fresh machine rather than a manual
   # step someone has to remember.
+  #
+  # The list is DERIVED from xdg.configFile, not written out. An earlier
+  # version hardcoded `mango` and `nvim`, and when htop/ncspot/zed/Kvantum/
+  # nwg-look/gtk-3.0/gtk-4.0 were converted the next day, the guard silently
+  # did not cover them — so activation wrote through their surviving directory
+  # symlinks and clobbered ten tracked files in the repo, exactly the failure
+  # the guard exists to prevent. A hand-maintained list of "things that must
+  # not be forgotten" is the same bug waiting to happen, so it maintains
+  # itself: every top-level name under ~/.config that this module manages is
+  # covered automatically.
   home.activation.unlinkStaleConfigDirs =
-    lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
-      for d in "$HOME/.config/mango" "$HOME/.config/nvim"; do
-        if [ -L "$d" ]; then
-          run rm $VERBOSE_ARG "$d"
-        fi
-      done
-    '';
+    let
+      # "gtk-3.0/assets" and "htop/htoprc" both guard "~/.config/<first
+      # segment>", because that is the path a stale symlink would sit at.
+      topLevel = lib.unique (
+        map (n: lib.head (lib.splitString "/" n)) (lib.attrNames config.xdg.configFile)
+      );
+    in
+    lib.hm.dag.entryBefore [ "checkLinkTargets" ] (
+      lib.concatMapStrings
+        (d: ''
+          if [ -L "${config.xdg.configHome}/${d}" ]; then
+            run rm $VERBOSE_ARG "${config.xdg.configHome}/${d}"
+          fi
+        '')
+        topLevel
+    );
 
   # ~/.hidden — the GTK file-manager clutter list from CLAUDE.md. Small and
   # static, so it's expressed natively rather than symlinked.

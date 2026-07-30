@@ -220,6 +220,15 @@
     wl-clipboard
     grim
     slurp
+    # Deliberately NOT wlopm, even though mango/universal/bind.conf binds
+    # SUPER+SHIFT+p to it. mango advertises zwlr_output_power_manager_v1 but
+    # no `wl_output` global at all, so wlopm enumerates zero outputs
+    # (`wlopm --json` returns `[]`) and every invocation is a silent no-op.
+    # `mmsg get all-monitors` likewise returns `{"monitors":[]}` while
+    # `mmsg watch focusing-client` correctly reports "monitor":"eDP-1".
+    # Installing it would only make a broken keybind look supported.
+    # Screen blanking across sleep is done via the backlight instead — see
+    # modules/system/power.nix.
 
     # --- Android / misc tooling --------------------------------------------
     apktool # android-apktool

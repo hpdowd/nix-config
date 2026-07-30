@@ -22,6 +22,22 @@
   # (verified 2026-07-27) — no upstream flake needed.
   programs.mango.enable = true;
 
+  # swaylock MUST have its own PAM service or it can never unlock. It is not
+  # setuid and does not read /etc/shadow itself — it authenticates through
+  # PAM under the service name `swaylock`, and with no /etc/pam.d/swaylock PAM
+  # falls back to /etc/pam.d/other, which on NixOS is pam_warn + pam_deny.
+  # Result: every password is rejected, correct or not, and the only tell is
+  # `pam_warn(swaylock:auth)` in the journal — the lock screen itself just
+  # says the password is wrong. Locked out this way on 2026-07-30.
+  #
+  # sway and river get this for free because their nixpkgs modules import
+  # nixos/modules/programs/wayland/wayland-session.nix, which sets exactly
+  # this. `programs.mango.enable` does NOT import it — it only wires up
+  # portals and displayManager.sessionPackages — so on mango it has to be
+  # declared by hand. Applies to swaylock-effects too; the PAM service name
+  # is still `swaylock`.
+  security.pam.services.swaylock = { };
+
   # Everything mango's config, scripts and keybinds shell out to.
   environment.systemPackages = with pkgs; [
     # Bar / notifications / OSD / lock

@@ -65,6 +65,49 @@
     HandleLidSwitchDocked = "ignore";
   };
 
+  # --- Blank the panel across sleep -----------------------------------------
+  # This machine only offers s2idle. `cat /sys/power/mem_sleep` reports
+  # `[s2idle]` with no `deep` alternative, because the firmware exposes Modern
+  # Standby (s0ix) rather than S3 — so setting `mem_sleep_default=deep` on the
+  # kernel command line would achieve nothing.
+  #
+  # That matters here because **s2idle does not cut power to the display**. S3
+  # would have blanked the panel in hardware; under s2idle the compositor owns
+  # it, and nothing did, so suspending left the last frame lit on screen and
+  # read as "suspend just freezes the display". The machine was suspending and
+  # resuming correctly throughout — `PM: suspend entry (s2idle)` / `suspend
+  # exit` in the journal, WiFi reassociating via the hook in networking.nix.
+  #
+  # There is no idle daemon on this system (no swayidle/hypridle), so this is
+  # also the only thing that ever turns the panel off.
+  #
+  # This drives the **backlight** rather than Wayland DPMS, which is not a
+  # shortcut — the DPMS route cannot work here. mango advertises
+  # `zwlr_output_power_manager_v1` but no `wl_output` global whatsoever, so
+  # wlopm enumerates zero outputs (`wlopm --json` → `[]`) and every call is a
+  # silent no-op; `mmsg get all-monitors` returns `{"monitors":[]}` too, even
+  # though `mmsg watch focusing-client` correctly reports "monitor":"eDP-1".
+  # brightnessctl writes /sys/class/backlight/amdgpu_bl1 directly, so it needs
+  # no compositor connection, no Wayland socket and no runuser dance — which
+  # also makes it correct when the lid closes with the session locked.
+  #
+  # --save/--restore keep state in /var/lib/brightnessctl; both hooks run as
+  # root, so the save and the restore agree on that location.
+  #
+  # `|| true` on the way down: a sleep hook that fails must not block suspend.
+  powerManagement.powerDownCommands = ''
+    ${pkgs.brightnessctl}/bin/brightnessctl --save || true
+    ${pkgs.brightnessctl}/bin/brightnessctl set 0 || true
+  '';
+
+  # The fallback matters more than it looks: if --restore fails or the saved
+  # state is missing, the machine wakes to a black screen that no keypress
+  # brings back — a worse failure than the one being fixed.
+  powerManagement.resumeCommands = ''
+    ${pkgs.brightnessctl}/bin/brightnessctl --restore \
+      || ${pkgs.brightnessctl}/bin/brightnessctl set 50%
+  '';
+
   # AMD GPU control (corectrl) needs this to avoid a polkit prompt per launch.
   # `programs.corectrl.gpuOverclock.enable` was renamed to the option below.
   programs.corectrl.enable = true;

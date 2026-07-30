@@ -145,6 +145,26 @@ ThinkPad EC thresholds are set by TLP in `nixos/modules/system/power.nix`: **STA
 
 Note `upower -i` reports `charge-start-threshold: 75%` regardless of the real value — trust sysfs, not upower, for thresholds.
 
+## Suspend — s2idle only, and the panel is software's problem
+
+`cat /sys/power/mem_sleep` reports **`[s2idle]`** with no `deep` alternative: the firmware exposes Modern Standby (s0ix), not S3. Putting `mem_sleep_default=deep` on the kernel command line would therefore achieve nothing. Journal confirms it every time — `PM: suspend entry (s2idle)`.
+
+**The consequence that looks like a fault:** s2idle does not cut power to the display. S3 blanked the panel in hardware; under s2idle the software owns it, and nothing did — so suspending left the last frame lit on screen. Reported as "suspending doesn't turn off the screen, just freezes it". The machine was suspending and resuming correctly the whole time (`suspend entry` → `suspend exit`, WiFi reassociating via the hook in `networking.nix`).
+
+Fixed 2026-07-30 with `powerManagement.powerDownCommands` / `resumeCommands` in `nixos/modules/system/power.nix`, driving the **backlight** via `brightnessctl` (`--save` + `set 0`, then `--restore` with a `set 50%` fallback so a failed restore can't wake to a permanently black screen). Both land in the generated `sleep-actions.service` — `ExecStart` before sleep, `ExecStop` on resume.
+
+### Why not wlopm / Wayland DPMS
+
+**mango advertises no `wl_output` global at all.** It offers `zwlr_output_power_manager_v1` (and `zwlr_output_manager_v1` v4, `zxdg_output_manager_v1` v3), but of the 51 globals on the wayland socket, none is `wl_output`. So every output-enumerating client sees nothing:
+
+- `wlopm --json` → `[]`, and `wlopm --off '*'` matches zero outputs — a silent no-op
+- `wlr-randr` prints nothing
+- `mmsg get all-monitors` → `{"monitors":[]}`
+
+…while `mmsg watch focusing-client` happily reports `"monitor":"eDP-1"` and `awww` sets the wallpaper on `eDP-1: 1920x1200`. Identical on both `wayland-0` and `wayland-1`, so it is not a socket mix-up. This is why the backlight is the mechanism: `brightnessctl` writes `/sys/class/backlight/amdgpu_bl1` and needs no compositor connection, which also makes it correct when the lid closes on a locked session.
+
+**`wlopm` is deliberately not installed** — see the comment in `modules/home/packages.nix`. That means **`bind=SUPER+SHIFT,p` in `mango/universal/bind.conf` is dead** and cannot be fixed by installing the package; it would need a different mechanism. There is also **no idle daemon** (no swayidle/hypridle), so the screen never blanks on idle either.
+
 ## Networking
 
 **WiFi card**: Qualcomm QCNFA765 (`wlp1s0`), driver `ath11k_pci`. Connected to `Minerva_2` (enterprise router).
@@ -180,10 +200,10 @@ Bring the tunnel up by hand when you need Gitea: `nmcli connection up homelab`. 
 **What remains** (nothing blocking; see `MIGRATION-GUIDE.md` Part 10):
 - ~~Restore NetworkManager profiles and Bluetooth pairings~~ — **done 2026-07-30**: 35 profiles into `/etc/NetworkManager/system-connections` (37 connections, 8 VPN) and 7 Bluetooth devices into `/var/lib/bluetooth`. See the VPN autoconnect note under Networking — restoring the profiles broke DNS until autoconnect was turned off.
 - ~~Clean up `~/.config/*.hm-bak` and the `.arch-bak` units~~ — **done 2026-07-30**: all 21 `*.hm-bak` entries removed, plus `micmute-led.service.arch-bak` and `mango-session.target.hm-bak`. Each was diffed against its repo counterpart first; the only content that existed *nowhere else* was `mango/state/pia-auth` (PIA credentials, mode 600) and `mango/state/last-vpn`, both restored into `mango/state/` before deleting. `micmute-led.service` now resolves to `/etc/systemd/user/` and runs.
-- Test suspend/resume — still never exercised on NixOS, and it is this machine's historical failure mode (see Networking above).
+- Verify the suspend screen-blank fix — suspend/resume itself is confirmed working (WiFi reassociates), but the `brightnessctl` sleep hooks added 2026-07-30 need one rebuild plus one suspend to confirm. See Suspend above.
 - Don't delete the Arch subvolumes (`@`, `@pkg`, `swap`) until a month has passed without booting it.
 
-**Eight things that will surprise you if you don't know them:**
+**Nine things that will surprise you if you don't know them:**
 1. **`~/.config/systemd/user/` overrides `/etc/systemd/user/`**, and that directory survived the migration via `@home`, so Arch-era units silently shadow the ones the flake generates. `micmute-led.service` was shadowed this way: the leftover copy had no `PATH=`, so `pactl` was not found and the daemon exited instantly — 6464 restarts deep. Moved aside on 2026-07-30 and deleted the same day, so `micmute-led.service` now resolves to `/etc/systemd/user/` and runs. To audit: compare `ls ~/.config/systemd/user/` against `/etc/systemd/user/`; that was the only collision. Note a unit's `path`/`Environment=PATH` is its **entire** PATH, so anything a script shells out to must be listed — including **`bash` itself**, since every script here is `#!/usr/bin/env bash`.
 2. **There is no `/bin/bash`** — `/bin` holds exactly one entry, `sh`. Every script must use `#!/usr/bin/env bash`; a `#!/bin/bash` shebang fails with `bad interpreter` and exit 127. This bit 13 scripts after the migration (fixed 2026-07-30), and the symptom is *silence*, not an error: a waybar `custom/*` module whose `exec` script exits 127 simply renders as an empty module, which reads as "the module is missing from the bar". `custom/night-mode` disappeared this way. When something in mango is inexplicably absent, run its script by hand first.
 3. **`share/<pkgname>` is not in `environment.pathsToLink`**, so a package's data files exist *only* at its versioned `/nix/store` path — `/run/current-system/sw/share/wlogout/` does not exist even though wlogout is in `systemPackages`. Never hardcode `/usr/share/...` or a store path in a config. `mango/wlogout/` vendors its five PNGs into `wlogout/icons/` and references them **relatively** (`url("icons/lock.png")`), which works because GTK resolves CSS `url()` against the stylesheet's own path. GTK draws its missing-image box for a failed `url()` **without logging a warning**, so this class of bug is invisible in logs — it was reported as "the icons are just square boxes".
@@ -192,6 +212,7 @@ Bring the tunnel up by hand when you need Gitea: `nmcli connection up homelab`. 
 6. **`buildEnv` collisions are the failure mode to expect** when adding packages. Two packages owning the same file path abort the whole generation. If one supersedes the other, drop it; if they merely contend over a few names, use `lib.hiPrio` on the winner — **not** `lib.lowPrio` on the loser, which silently does nothing when the two priorities are already equal.
 7. **nixpkgs packages ship user units that Arch's packages did not**, and they auto-start. `swaync` is the case in point: nixpkgs' SwayNotificationCenter ships `swaync.service` with `WantedBy=graphical-session.target`, so it raced the `exec=` line in `mango/{tiling,hud}/autostart.conf` — which is the copy that matters, because it passes `-s ~/.config/mango/swaync/style.css`. Autostart won the `org.freedesktop.Notifications` bus name and the unit died with `An instance of SwayNotificationCenter is already running!`, five times, then sat in `start-limit-hit`. **Notifications worked the whole time**, which is why it went unnoticed until 2026-07-30. It is now masked in `modules/home/default.nix` via `xdg.configFile."systemd/user/swaync.service".text = ""` — an empty unit file loads as `masked` per systemd.unit(5), and the usual `source = "/dev/null"` is rejected by pure evaluation as an absolute path. When adding a package that has a daemon, check `ls $(nix eval --raw nixpkgs#foo)/share/systemd/user/` before trusting autostart to be the only owner.
 8. **A ported unit can carry a path that only worked by accident.** `rclone-protondrive` faithfully reproduced the Arch template's `%h/mnt/%i`, but `~/mnt` is a symlink to `/run/media/henry` — the udisks removable-media directory, which does not exist unless a drive is mounted. `mkdir -p` reports `File exists` for a dangling symlink rather than creating anything, so rclone could not make its mount point, and `Restart=on-failure` retried every 5s until Proton answered **HTTP 429 with a one-hour backoff** — 230 restarts deep when caught on 2026-07-30. Now mounted at `~/ProtonDrive` (matching the `~/Nextcloud` convention), with `RestartSec=30` and `StartLimitBurst=5`/`StartLimitIntervalSec=600`. **Any unit that talks to a remote API needs a start limit**, or a local misconfiguration becomes an unattended request flood against someone else's service.
+9. **The compositor exposes no `wl_output`, and the machine only has s2idle.** Two independent facts that combine into one confusing symptom — suspend leaving a lit, frozen screen. Neither is fixable by a package or a kernel parameter, and the tool you would reach for first (`wlopm`) fails silently rather than erroring. Full detail in the **Suspend** section above; read it before touching anything to do with displays, DPMS or idle behaviour.
 
 Inputs are pinned by `nixos/flake.lock` (nixpkgs `624af665`) — re-lock deliberately with `nix flake update`, not as a side effect of a build. `nixos/verify-packages.sh` re-checks that the closure evaluates, but note it only evaluates: it cannot catch profile collisions or a derivation that fails to build.
 

@@ -1,111 +1,64 @@
-# ~/.config is 9.6 GB, almost all of it browser profiles, Electron app data,
-# game launchers and caches — plus real credentials (gh/hosts.yml,
-# cursor/auth.json, JetBrains licence keys, cookie databases).
+# This was a 119-line ALLOWLIST until 2026-07-30, and it had to be: the repo
+# root was literally ~/.config — a 9.6 GB directory full of browser profiles,
+# Electron app data, game launchers and real credentials. Ignoring everything
+# with `/*` and un-ignoring 38 known-good paths was the only safe rule, and the
+# cost was that any new directory stayed invisible to git until someone
+# remembered to add a `!/name/` line for it.
 #
-# So this is an ALLOWLIST, not a blocklist: ignore everything at the top
-# level, then explicitly un-ignore the hand-written config worth versioning.
-# Adding a new tool? Add a `!/toolname/` line for it.
+# The restructure moved the dotfiles under `home/` and put the flake at the
+# repo root, so this is an ordinary project root now — and an ordinary
+# denylist. Add a new config directory by just adding it.
 
-/*
+# --- Generated at runtime, not configuration --------------------------------
+# The mode scripts write this; the rest of home/mango/ is tracked input.
+/home/mango/config.conf
 
-!/.gitignore
+# Runtime state moved to ~/.local/state/mango on 2026-07-30. Kept as a rule so
+# an old checkout or a stray script cannot quietly reintroduce state into the
+# config tree — state living there is what forced ~/.config/mango to stay
+# writable, and it left `pia-auth` (PIA credentials, mode 600) sitting inside
+# the repo relying on this file to stay out of history.
+/home/mango/state/
 
-# --- The NixOS flake ---------------------------------------------------------
-!/nixos/
+# active-theme.* removed 2026-07-30 — both mode scripts pointed them at the
+# same gruvbox files, so the indirection selected nothing. kitty.conf and
+# foot.ini name their theme directly now.
+/home/kitty/active-theme.conf
+/home/foot/active-theme.ini
 
-# --- Agent / domain docs -----------------------------------------------------
-# docs/agents/ is read by the mattpocock engineering skills; docs/adr/ holds
-# architecture decision records. Without this line the top-level `/*` rule
-# swallows the whole directory and none of it is ever committed.
-!/docs/
+# --- User data, not config --------------------------------------------------
+# 4.6 MB PNG. wallpaper-restore.sh exits 0 when it is absent, so a fresh clone
+# is not an error — but note a store-based home/mango/ would not carry it,
+# since flakes only copy git-tracked files. Either commit it or move it to
+# ~/.local/share/mango/ before converting mango to `.source`.
+/home/mango/wallpaper/
 
-# --- Desktop environment -----------------------------------------------------
-!/mango/
+# --- Credentials ------------------------------------------------------------
+# Deliberately NOT linked by dotfiles.nix and restored by hand. Listed so an
+# accidental `git add -A` cannot pull them in.
+/home/gh/
+/home/glab-cli/
+/home/gpu-screen-recorder/
+/home/opencode/
+/home/rclone/
+/home/rbw/
+/home/tea/
 
-# --- Editors -----------------------------------------------------------------
-!/nvim/
-!/helix/
-!/zed/
-
-# --- Terminals & shell -------------------------------------------------------
-!/kitty/
-!/foot/
-!/ghostty/
-!/zsh/
-!/fish/
-!/starship.toml
-
-# --- CLI tools ---------------------------------------------------------------
-!/yazi/
-!/bottom/
-!/htop/
-!/lazygit/
-!/glow/
-!/imv/
-!/mpv/
-!/ncspot/
-
-# --- Theming -----------------------------------------------------------------
-!/gtk-3.0/
-!/gtk-4.0/
-!/Kvantum/
-!/nwg-look/
-!/gtkrc
-!/gtkrc-2.0
-!/Trolltech.conf
-!/QtProject.conf
-
-# --- Misc --------------------------------------------------------------------
-!/corectrl/
-!/environment.d/
-!/mimeapps.list
-!/pavucontrol.ini
-!/trashrc
-!/user-dirs.dirs
-!/user-dirs.locale
-!/CLAUDE.md
-!/README.md
-
-# =============================================================================
-# Exclusions WITHIN the allowlisted directories
-# =============================================================================
-
-# Never version credentials, even from tracked dirs.
-**/hosts.yml
-**/auth.json
-**/*token*
-**/*secret*
-**/*.key
-**/cookies*
-**/.env
-
-# capture-root-state.sh writes to `system-state/root-only` relative to its own
-# location. It is meant to be run from the backup drive, but if it is ever run
-# from the repo instead, this stops 38 cleartext WiFi PSKs, SSH host keys and
-# /root from landing in a commit.
-/nixos/system-state/
-
-# Caches, history and generated state.
-/zsh/completions/
-/zsh/.zcompdump*
-**/.zsh_history
-
-# Per-shell scratch files for the async git prompt (conf.d/40-prompt.zsh).
-# Named by PID, rewritten every prompt, removed by the zshexit hook.
-/zsh/.zsh_tmp_git_*
+# --- Caches, history, scratch ----------------------------------------------
+/home/zsh/.zsh_history
+/home/zsh/.zcompdump*
+/home/zsh/.zcompcache/
+/home/zsh/.zsh_tmp_git_*
 **/*.log
 **/*.tmp
 **/cache/
 **/Cache/
 
-# Wallpapers — 4.6 MB of binaries that don't belong in a config repo.
-# Drop this line if you'd rather keep them versioned.
-/mango/wallpaper/
-
-# Runtime state written by the mode scripts, not configuration.
-/mango/state/
-/mango/config.conf
-
-# The active-theme.* files are symlinks that mode scripts rewrite at runtime.
-/kitty/active-theme.conf
-/foot/active-theme.ini
+# --- Build output and editor noise ------------------------------------------
+result
+result-*
+.direnv/
+*.hm-bak
+*.arch-bak
+*.swp
+*~

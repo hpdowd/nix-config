@@ -16,7 +16,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 ## Creating them on the Gitea repo
 
-These labels do not exist on `henry/arch-config` yet — Gitea seeds a new repo
+These labels do not exist on `henry/nix-config` yet — Gitea seeds a new repo
 with its own default set, which does not include any of them. Create them once
 (requires the homelab tunnel to be up; see `issue-tracker.md`):
 

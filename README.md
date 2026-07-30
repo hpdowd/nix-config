@@ -1,10 +1,24 @@
-# arch-config
+# nix-config
 
-Henry's personal dotfiles and application configuration for a ThinkPad L14
-Gen 5, plus a NixOS flake that reproduces the same machine.
+Henry's NixOS system for a ThinkPad L14 Gen 5 — the flake that builds the
+machine, and the dotfiles it installs.
 
-The repo is checked out in two places, and **which one is live depends on
-which OS is booted** — see [Two working trees](#two-working-trees) below.
+## Layout
+
+```
+flake.nix          the system, at the ROOT so it can reference everything below
+hosts/thinkpad/    host config + hardware-configuration.nix
+modules/system/    boot, locale, networking, audio, desktop, fonts, power, …
+modules/home/      home-manager: packages, shell, dotfiles, theme
+home/              the dotfiles themselves (mango, nvim, kitty, foot, zsh, …)
+pkgs/              overlay for anything not in nixpkgs
+docs/              adr/ and agents/; archive/ holds the Arch→NixOS migration
+```
+
+Rebuild with `rebuild` — an alias for
+`sudo nixos-rebuild switch --flake ~/src/nix-config#thinkpad`. Also
+`rebuild-test` (applies without changing the boot default), `rebuild-boot`,
+`update`, `generations`, `gc`.
 
 ---
 
@@ -12,14 +26,9 @@ which OS is booted** — see [Two working trees](#two-working-trees) below.
 
 | I want to… | Read |
 |---|---|
-| **Migrate this machine to NixOS** | [`nixos/MIGRATION-GUIDE.md`](nixos/MIGRATION-GUIDE.md) — standalone, start to finish |
-| Know what was fixed in the config, and why | [`nixos/WORK-LOG.md`](nixos/WORK-LOG.md) |
-| Understand the *design* decisions | [`nixos/MIGRATION.md`](nixos/MIGRATION.md) — why side-by-side, why these packages |
-| Skip the explanation and just run the steps | [`nixos/INSTALL.md`](nixos/INSTALL.md) |
 | Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the standing description of how this machine is put together |
-
-Copies of all four migration documents also live on the backup drive, so they
-can be read from another machine while this one is mid-install.
+| Understand a past design decision | [`docs/adr/`](docs/adr/) |
+| Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. The Arch→NixOS migration finished 2026-07-29; these are kept for their post-mortems, **not** as live instructions |
 
 ---
 
@@ -43,38 +52,41 @@ installed system — `nixos-rebuild` runs against the checkout directly.
 
 ---
 
-## The `.gitignore` is an allowlist
+## The `.gitignore` is an ordinary denylist
 
-`~/.config` is ~9.6 GB, nearly all of it browser profiles, Electron app data
-and caches — plus real credentials. So `.gitignore` ignores **everything** at
-the top level and then un-ignores what is worth versioning.
+It was an **allowlist** until 2026-07-30, and it had to be: the repo root was
+literally `~/.config`, ~9.6 GB of browser profiles, Electron app data, caches
+and real credentials. Ignoring everything with `/*` and un-ignoring 38 known
+paths was the only safe rule — and the cost was that any new directory stayed
+invisible to git until someone added a `!/name/` line. That is how
+`rclone.conf`, `gh/hosts.yml` and the user systemd units all fell through both
+git *and* the backups at once.
 
-**Adding a tool means adding a `!/toolname/` line at the same time**, or its
-config is invisible to git *and* to any backup that copies tracked paths only.
-That is exactly how `rclone.conf`, `gh/hosts.yml` and the user systemd units
-all fell through both nets at once.
+The restructure moved the dotfiles under `home/`, so the root is now an
+ordinary project root. Add a new config directory by just adding it.
 
 Credential directories (`gh`, `glab-cli`, `opencode`, `gpu-screen-recorder`)
-are excluded deliberately and are **not** linked by the flake — see
-`nixos/WORK-LOG.md` §1 for why linking them would have been worse than not
-having them.
+are still excluded deliberately and are **not** linked by the flake — see
+`docs/archive/WORK-LOG.md` §1 for why linking them would have been worse than
+not having them.
 
 ---
 
-## Two working trees
+## Where the dotfiles live
 
-| Booted | Live config | The other tree |
-|---|---|---|
-| **Arch** | `~/.config` — the real directories | `~/src/arch-config` goes stale |
-| **NixOS** | `~/src/arch-config` — via the `~/.config/*` symlinks | `~/.config` is bypassed |
+`home/` in this repo; `~/.config/*` are symlinks into it, created by
+home-manager. The flake sits at the repo root specifically so it *can*
+reference `home/` — when it lived in a `nixos/` subdirectory the dotfiles were
+outside the flake root and unreachable by any relative path.
 
-On NixOS the flake uses `mkOutOfStoreSymlink`, so `~/.config/mango`,
-`~/.config/nvim` and friends are symlinks into the checkout and stay
-**writable** — which the Mangowm mode scripts require, because they rewrite
-`active-theme.*` and `jq`-patch Equibop's settings at runtime.
+Those links are `mkOutOfStoreSymlink`, so the directories stay **writable**.
+That is still required for `home/mango/`, because the mode scripts write
+`config.conf` into it. It is no longer required for `kitty/`, `foot/`, `nvim/`
+and the rest — the `active-theme.*` indirection they needed was removed on
+2026-07-30, so those can move into the store (`.source = ../../home/kitty`
+with `recursive = true`) whenever the rebuild-per-tweak cost is acceptable.
 
-Keep the two in sync with an ordinary `git push` / `git pull`. `nixos-install`
-and `nixos-rebuild` both read the checkout, not `~/.config`.
+`nixos-rebuild` reads this checkout, not `~/.config`.
 
 ---
 

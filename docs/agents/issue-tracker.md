@@ -1,7 +1,7 @@
 # Issue tracker: Gitea
 
 Issues and PRDs for this repo live as **Gitea issues** on the self-hosted
-instance at `https://git.henrydowd.dev`, repo `henry/arch-config`. Use the
+instance at `https://git.henrydowd.dev`, repo `henry/nix-config`. Use the
 [`tea`](https://gitea.com/gitea/tea) CLI for all operations.
 
 `tea` is already authenticated: login `henry`, marked default. Verify with
@@ -26,7 +26,7 @@ writing tickets somewhere else, and do not retry in a loop.
 ## Conventions
 
 Commands infer the repo from `git remote -v` when run inside the clone. Add
-`--repo henry/arch-config` to run from elsewhere.
+`--repo henry/nix-config` to run from elsewhere.
 
 - **Create an issue**: `tea issues create --title "..." --description "..."`.
   Use a heredoc via `$(cat <<'EOF' ... EOF)` for multi-line descriptions.
@@ -38,7 +38,7 @@ Commands infer the repo from `git remote -v` when run inside the clone. Add
   body through the API and the comments separately:
 
   ```bash
-  tea api repos/henry/arch-config/issues/<n>
+  tea api repos/henry/nix-config/issues/<n>
   tea comments list <n>
   ```
 
@@ -73,7 +73,7 @@ Create a Gitea issue with `tea issues create`.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `tea api repos/henry/arch-config/issues/<n>` for the body, then
+Run `tea api repos/henry/nix-config/issues/<n>` for the body, then
 `tea comments list <n>` for the discussion.
 
 ## Wayfinding operations

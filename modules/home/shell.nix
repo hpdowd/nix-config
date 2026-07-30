@@ -88,10 +88,18 @@
     # at ~/src/nix-config, NOT ~/.config — see dotfiles.nix and INSTALL.md
     # §0.1. ~/.config/nixos is not linked by dotfiles.nix, so it does not exist
     # on the installed system.
-    rebuild = "sudo nixos-rebuild switch --flake ~/src/nix-config#thinkpad";
-    rebuild-test = "sudo nixos-rebuild test --flake ~/src/nix-config#thinkpad";
-    rebuild-boot = "sudo nixos-rebuild boot --flake ~/src/nix-config#thinkpad";
-    update = "nix flake update --flake ~/src/nix-config";
+    #
+    # The flake ref MUST be quoted. zsh runs with EXTENDED_GLOB (set in
+    # zsh/conf.d/00-options.zsh), which makes `#` a pattern operator meaning
+    # "zero or more of the preceding" — so an unquoted ~/src/nix-config#thinkpad
+    # is parsed as a glob, matches nothing, and dies with
+    # `zsh: no matches found:` before nixos-rebuild is ever reached.
+    # Double quotes keep `#` literal; "$HOME" is used because `~` does not
+    # expand inside them.
+    rebuild = ''sudo nixos-rebuild switch --flake "$HOME/src/nix-config#thinkpad"'';
+    rebuild-test = ''sudo nixos-rebuild test --flake "$HOME/src/nix-config#thinkpad"'';
+    rebuild-boot = ''sudo nixos-rebuild boot --flake "$HOME/src/nix-config#thinkpad"'';
+    update = ''nix flake update --flake "$HOME/src/nix-config"'';
     generations = "nixos-rebuild list-generations";
     gc = "sudo nix-collect-garbage --delete-older-than 30d";
     search = "nix search nixpkgs";

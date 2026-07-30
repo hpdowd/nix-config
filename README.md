@@ -29,7 +29,7 @@ actually needs recording.
 
 | Alias | Runs |
 |---|---|
-| `rebuild` | `nixos-rebuild switch --flake ~/src/nix-config#thinkpad` |
+| `rebuild` | `nixos-rebuild switch --flake "$HOME/src/nix-config#thinkpad"` |
 | `rebuild-test` | `nixos-rebuild test` — applies **without** changing the boot default |
 | `rebuild-boot` | `nixos-rebuild boot` — next boot only |
 | `update` | `nix flake update` |
@@ -39,6 +39,11 @@ actually needs recording.
 Use **`rebuild-test`** for anything structural: it applies without touching the
 boot default, so a mistake is one reboot from gone. Defined in
 `modules/home/shell.nix`.
+
+**Quote flake refs in zsh.** `EXTENDED_GLOB` is on (`zsh/conf.d/00-options.zsh`),
+which makes `#` a pattern operator — so an unquoted `~/src/nix-config#thinkpad`
+is globbed, matches nothing, and fails with `zsh: no matches found:` before
+`nixos-rebuild` runs at all.
 
 ---
 

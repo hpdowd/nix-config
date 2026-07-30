@@ -18,7 +18,9 @@ docs/archive/      the Arch→NixOS migration — history, not live instructions
 
 `~/.config/<app>` is a symlink into `~/src/nix-config/home/<app>`, created by home-manager. **Edit under `home/`**; going through the `~/.config` symlink reaches the same file.
 
-Rebuild with `rebuild` (= `sudo nixos-rebuild switch --flake ~/src/nix-config#thinkpad`). Use **`rebuild-test`** for anything structural — it applies without changing the boot default, so a mistake is one reboot from gone.
+Rebuild with `rebuild` (= `sudo nixos-rebuild switch --flake "$HOME/src/nix-config#thinkpad"`). Use **`rebuild-test`** for anything structural — it applies without changing the boot default, so a mistake is one reboot from gone.
+
+**Always quote a flake ref in zsh.** This shell runs with `EXTENDED_GLOB` (`zsh/conf.d/00-options.zsh`), which makes `#` a pattern operator meaning "zero or more of the preceding", so an unquoted `~/src/nix-config#thinkpad` is treated as a glob, matches nothing, and fails with `zsh: no matches found:` before `nixos-rebuild` is ever invoked. It reads like a broken path. Double quotes fix it; use `"$HOME/…"` rather than `~`, which does not expand inside them.
 
 **Why the flake is at the root, and why that matters.** Until 2026-07-30 this repo was `arch-config`, its root *was* `~/.config`, and the flake sat in a `nixos/` subdirectory — which put the dotfiles **outside the flake root**, unreachable by any relative path. That, not just writability, is why `dotfiles.nix` uses `mkOutOfStoreSymlink` for everything. With the flake at the root, `.source = ../../home/kitty` resolves; paired with `recursive = true` (links individual files, leaves the directory writable) configs can move into the store one at a time. **Don't move the flake back down a level.**
 

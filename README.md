@@ -21,9 +21,11 @@ docs/archive/      the Arch→NixOS migration — history, not live instructions
 verify-packages.sh checks that package names still resolve in nixpkgs
 ```
 
-`docs/adr/` and `CONTEXT.md` do not exist yet. That is deliberate — see
-`docs/agents/domain.md`; they get created lazily, when a decision or a term
-actually needs recording.
+`docs/adr/` holds numbered architecture decision records — the decisions that
+were expensive to learn, written down so they don't get quietly undone. Start
+at [`docs/adr/README.md`](docs/adr/README.md). `CONTEXT.md` still does not
+exist; per `docs/agents/domain.md` it gets created lazily, once there is
+vocabulary worth pinning down.
 
 ## Rebuilding
 
@@ -52,6 +54,7 @@ is globbed, matches nothing, and fails with `zsh: no matches found:` before
 | I want to… | Read |
 |---|---|
 | Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the standing description of how this machine is put together |
+| Understand why something is the way it is | [`docs/adr/`](docs/adr/) — numbered decision records, each with the failure that motivated it |
 | Know how agents should use this repo | [`docs/agents/`](docs/agents/) — domain docs, issue tracker, triage labels |
 | Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. Kept for their post-mortems, **not** as live instructions |
 

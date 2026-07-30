@@ -96,10 +96,10 @@
     # `zsh: no matches found:` before nixos-rebuild is ever reached.
     # Double quotes keep `#` literal; "$HOME" is used because `~` does not
     # expand inside them.
-    rebuild = ''sudo nixos-rebuild switch --flake "$HOME/src/nix-config#thinkpad"'';
-    rebuild-test = ''sudo nixos-rebuild test --flake "$HOME/src/nix-config#thinkpad"'';
-    rebuild-boot = ''sudo nixos-rebuild boot --flake "$HOME/src/nix-config#thinkpad"'';
-    update = ''nix flake update --flake "$HOME/src/nix-config"'';
+    rebuild = ''sudo nixos-rebuild switch --flake "${config.local.checkout}#thinkpad"'';
+    rebuild-test = ''sudo nixos-rebuild test --flake "${config.local.checkout}#thinkpad"'';
+    rebuild-boot = ''sudo nixos-rebuild boot --flake "${config.local.checkout}#thinkpad"'';
+    update = ''nix flake update --flake "${config.local.checkout}"'';
     generations = "nixos-rebuild list-generations";
     gc = "sudo nix-collect-garbage --delete-older-than 30d";
     search = "nix search nixpkgs";

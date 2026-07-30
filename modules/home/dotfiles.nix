@@ -46,7 +46,11 @@ let
   # `recursive = true` so the target directory stays writable for generated
   # files (mango/config.conf is the one that still needs this). Convert entries
   # one at a time — `link` stays for whatever must remain mutable.
-  dots = "${config.home.homeDirectory}/src/nix-config";
+  # Declared in options.nix, not written out here — it is also needed by the
+  # rebuild aliases in shell.nix, and one literal path in two files is how they
+  # drift apart. See that option's description for why Nix cannot work this out
+  # on its own.
+  dots = config.local.checkout;
   link = path: config.lib.file.mkOutOfStoreSymlink "${dots}/home/${path}";
 in
 {

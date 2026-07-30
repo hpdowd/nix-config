@@ -2,6 +2,7 @@
 
 {
   imports = [
+    ./options.nix
     ./packages.nix
     ./shell.nix
     ./dotfiles.nix

@@ -64,3 +64,8 @@ result-*
 *.arch-bak
 *.swp
 *~
+
+# ncspot writes playback state next to its config. It was tracked until
+# 2026-07-30, which is state committed to a repo — see docs/adr/0003. The
+# config file is pinned from the store; the directory stays writable for this.
+/home/ncspot/userstate.cbor

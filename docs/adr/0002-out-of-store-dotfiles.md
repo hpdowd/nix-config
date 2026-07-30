@@ -35,10 +35,31 @@ better than accepting a mutable directory. Two were done this way:
   is gitignored, so it is not in the store and is not being overwritten;
   `recursive = true` leaves the directory writable so the `cp` still works.
 
-Out-of-store as of 2026-07-30, with the blocking writer: `zed` (its UI rewrites
-`settings.json`), `htop` (`htoprc` on quit), `ncspot`,
-`gtk-3.0`/`gtk-4.0`/`nwg-look` (nwg-look writes `settings.ini`), `Kvantum`
-(kvantummanager), `corectrl`.
+### Manage a file, not a directory
+
+The rest were converted by a third technique, and it is the one to reach for
+first: **pin the individual file instead of the directory.**
+
+`xdg.configFile."htop/htoprc".source` puts the tracked config read-only in the
+store while leaving `~/.config/htop` a *real, writable directory*. home-manager
+links a directory-valued `source` as one symlink, but a file-valued one as a
+real directory containing a file symlink — so sibling runtime files still work.
+`ncspot/userstate.cbor` is the case that proves it: ncspot writes playback state
+next to its config, and that file had been committed to git, which violated
+[0003](0003-state-outside-config-tree.md). It is now gitignored and written
+freely.
+
+Applied to `htop`, `ncspot`, `zed`, `Kvantum` and `nwg-look`. The cost is real
+and intended: **the config can no longer be changed from inside the app.** Edit
+it in the repo and rebuild.
+
+### What is left
+
+`corectrl` alone, and not as a backlog item. It writes `corectrl.ini` and
+`profiles/*.ccpro` from its GUI, and that GUI *is* the program — fan curves and
+power profiles are meant to be tuned interactively. Pinning them would remove
+the only way the tool is used. This is what an honest out-of-store entry looks
+like: not "not converted yet", but "converting it would remove functionality".
 
 ## Consequences
 

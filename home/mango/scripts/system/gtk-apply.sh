@@ -1,26 +1,33 @@
 #!/usr/bin/env bash
-# Apply GTK theme for a given mode. Usage: gtk-apply.sh <mode>
-MODE="${1:-tiling}"
-GTK3="$HOME/.config/gtk-3.0"
-GTK4="$HOME/.config/gtk-4.0"
+# Runtime GTK glue. Usage: gtk-apply.sh  (the old <mode> argument is gone)
+#
+# Nix owns the GTK theme as of 2026-07-30 — see modules/home/theme.nix and
+# docs/adr/0004. home-manager writes gtk-3.0/settings.ini, gtk-4.0/settings.ini,
+# both gtk.css files, the bookmarks, and the matching
+# org.gnome.desktop.interface dconf keys.
+#
+# What was removed from this script, and why:
+#
+#   cp "$GTK3/gtk-tiling.css"      "$GTK3/gtk.css"
+#   cp "$GTK3/settings-tiling.ini" "$GTK3/settings.ini"    (and the GTK4 pair)
+#       Dead. The `-tiling` files were byte-identical to their targets, this
+#       script took a $MODE argument and then ignored it, and BOTH modes called
+#       it as `gtk-apply.sh tiling` anyway. The same empty indirection as the
+#       `active-theme.*` symlinks. Those source files are deleted.
+#
+#   gsettings set org.gnome.desktop.interface …
+#       home-manager writes these dconf keys itself, and reasserts them on
+#       every rebuild and at login. Leaving both in place is the conflict
+#       theme.nix warned about — whichever ran last would win.
+#
+# What is left is the part home-manager does NOT do:
+#
+#   - GTK_THEME in the systemd user environment, so user services started
+#     outside the login shell still get the theme.
+#   - Restarting the GTK portal, which caches the theme at startup and will
+#     otherwise keep serving the old one to Flatpak/portal clients.
 
-# All remaining modes (tiling, hud) share the Gruvbox GTK theme. The `dms`
-# branch that used to live here was removed along with DankMaterialShell.
 GTK_THEME_NAME="Gruvbox-Yellow-Dark"
-GTK_ICON_THEME="Papirus-Dark"
-GTK_CURSOR_THEME="Capitaine Cursors (Gruvbox)"
-GTK_FONT="Hack Nerd Font Regular 10"
-COLOR_SCHEME="prefer-dark"
-cp "$GTK3/gtk-tiling.css"       "$GTK3/gtk.css"
-rm -f "$GTK4/gtk.css"
-cp "$GTK4/gtk-tiling.css"       "$GTK4/gtk.css"
-cp "$GTK3/settings-tiling.ini"  "$GTK3/settings.ini"
-cp "$GTK4/settings-tiling.ini"  "$GTK4/settings.ini"
 
 systemctl --user set-environment GTK_THEME="$GTK_THEME_NAME"
-gsettings set org.gnome.desktop.interface gtk-theme      "$GTK_THEME_NAME"
-gsettings set org.gnome.desktop.interface icon-theme     "$GTK_ICON_THEME"
-gsettings set org.gnome.desktop.interface cursor-theme   "$GTK_CURSOR_THEME"
-gsettings set org.gnome.desktop.interface font-name      "$GTK_FONT"
-gsettings set org.gnome.desktop.interface color-scheme   "$COLOR_SCHEME"
 systemctl --user restart xdg-desktop-portal-gtk

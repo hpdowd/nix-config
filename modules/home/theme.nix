@@ -13,25 +13,30 @@
 # So: GTK/Qt *global* theming is declared here, while per-app theme files stay
 # out-of-store symlinks in dotfiles.nix.
 #
-# OWNERSHIP — decided 2026-07-28, option (a): the mode scripts own the GTK
-# theme, Nix does not.
+# OWNERSHIP — switched to option (b) on 2026-07-30: Nix owns the GTK theme.
 #
-# `mango/scripts/system/gtk-apply.sh` sets org.gnome.desktop.interface
-# gtk-theme/icon-theme/cursor-theme/font-name/color-scheme via `gsettings` at
-# runtime. home-manager's `gtk` module writes those same dconf keys. Both
-# writes succeed (dconf stays writable), but home-manager reasserts its values
-# on every `nixos-rebuild switch` and at login — so with a `gtk` block declared
-# here, a mode switch's theme change silently reverts.
+# The old decision (option (a), 2026-07-28) gave it to `gtk-apply.sh`, on the
+# grounds that home-manager reasserts its dconf values on every rebuild and at
+# login, so a Nix-declared theme would silently revert whatever a mode switch
+# had set. That reasoning was sound but rested on a premise that turned out to
+# be false: **GTK theming is not mode-dependent here, and never was.**
 #
-# The `gtk` block is therefore deliberately absent. Mode switching is the point
-# of this setup, so the script wins. What stays declared in Nix is the part the
-# scripts never touch: the theme *packages* (in modules/system/desktop.nix, so
-# the names gtk-apply.sh sets actually resolve), the Qt platform theme, and the
-# cursor.
+# Three things were checked before flipping it:
+#   - `gtk-apply.sh` takes a $MODE argument and then ignores it — it copies the
+#     `-tiling` variants unconditionally.
+#   - Both `tiling/autostart.conf` and `hud/autostart.conf` call it as
+#     `gtk-apply.sh tiling`. Even hud asks for tiling.
+#   - `settings-tiling.ini` and `gtk-tiling.css` were byte-identical to the
+#     `settings.ini` / `gtk.css` they were copied over.
 #
-# If you ever want Nix to own it instead — option (b) — add a `gtk` block back
-# here AND strip the gsettings lines out of gtk-apply.sh. Do not do one without
-# the other; that is the state this file used to be in.
+# So the per-mode GTK machinery selected nothing, exactly like the
+# `active-theme.*` indirection removed the same day (docs/adr/0004). There is
+# no mode switch for Nix to fight.
+#
+# Per the rule this file already stated, the gsettings and cp lines were
+# stripped from `gtk-apply.sh` in the same change — never one without the
+# other. What is left of that script is the GTK_THEME environment variable for
+# systemd user services and the portal restart, which home-manager does not do.
 { config, pkgs, lib, ... }:
 
 {
@@ -39,6 +44,77 @@
     enable = true;
     platformTheme.name = "qtct";
     style.name = "kvantum";
+  };
+
+  # GTK. Replaces the hand-maintained settings.ini files and the `gsettings`
+  # block in gtk-apply.sh — home-manager writes both the ini files and the
+  # matching org.gnome.desktop.interface dconf keys, which is strictly more
+  # than the script did by hand.
+  #
+  # Values transcribed from the old home/gtk-3.0/settings.ini so nothing
+  # changes visually. The cursor stays on `home.pointerCursor` below: this
+  # home-manager version has no `gtk.cursorTheme`, and pointerCursor already
+  # propagates to GTK.
+  gtk = {
+    enable = true;
+
+    theme = {
+      name = "Gruvbox-Yellow-Dark";
+      package = pkgs.gruvbox-gtk-theme;
+    };
+    iconTheme = {
+      name = "Papirus-Dark";
+      package = pkgs.papirus-icon-theme;
+    };
+    font = {
+      name = "Hack Nerd Font";
+      size = 10;
+    };
+    colorScheme = "dark";
+
+    gtk3 = {
+      # `gtk-decoration-layout=:` means no titlebar buttons — mango draws its
+      # own decorations, so client-side ones would be duplicates.
+      extraConfig = {
+        gtk-application-prefer-dark-theme = 1;
+        gtk-decoration-layout = ":";
+        gtk-toolbar-style = "GTK_TOOLBAR_ICONS";
+        gtk-toolbar-icon-size = "GTK_ICON_SIZE_LARGE_TOOLBAR";
+        gtk-button-images = 0;
+        gtk-menu-images = 0;
+        gtk-enable-event-sounds = 1;
+        gtk-enable-input-feedback-sounds = 0;
+        gtk-xft-antialias = 1;
+        gtk-xft-hinting = 1;
+        gtk-xft-hintstyle = "hintslight";
+        gtk-xft-rgba = "rgb";
+      };
+      extraCss = ''
+        * {
+          border-radius: 0;
+        }
+      '';
+      # Thunar's sidebar. Previously a hand-edited gtk-3.0/bookmarks file.
+      bookmarks = [
+        "file:///home/henry/Projects/homelab"
+        "file:///home/henry/Projects"
+        "file:///home/henry/Downloads"
+        "file:///home/henry/Pictures"
+        "file:///home/henry/temp"
+      ];
+    };
+
+    gtk4 = {
+      extraConfig = {
+        gtk-application-prefer-dark-theme = 1;
+        gtk-decoration-layout = ":";
+      };
+      extraCss = ''
+        * {
+          border-radius: 0;
+        }
+      '';
+    };
   };
 
   # Cursor — set at the home level so it propagates to Wayland clients via

@@ -26,19 +26,21 @@ Only directories tracked in git are linked. `~/.scripts`, and the credential dir
 
 ## Shell environment
 
-**The login shell is zsh** (`/etc/passwd`), configured from `~/.config/zsh/conf.d/*.zsh` via `ZDOTDIR`. Fish is installed as a secondary interactive shell with its own `~/.config/fish/config.fish`, but it is **not** what terminals start, and it is being dropped in the NixOS migration (see `modules/home/shell.nix`).
+**The login shell is zsh** (`/etc/passwd`), configured from `~/.config/zsh/conf.d/*.zsh` via `ZDOTDIR`. **Fish is gone** — dropped from the flake on 2026-07-28 and its config deleted from the repo on 2026-07-30, once `command -v fish` confirmed the shell was not installed here at all. It was only ever a secondary interactive shell; zsh is what terminals start and always was.
 
-Aliases common to both, which affect terminal work:
+`programs.zsh` in `modules/home/shell.nix` owns `~/.zshrc`, the plugins, and the history settings, and it sources `conf.d/*.zsh` at the end. **`conf.d/00-options.zsh` is where the shell options live** — recovered on 2026-07-30 from the Arch-era `.zshrc` that home-manager displaced at the migration, which had carried settings Nix never reproduced. It is sourced *after* home-manager's own `set_opts` loop, so it deliberately wins: `EXTENDED_HISTORY` and `INC_APPEND_HISTORY` are re-enabled there against home-manager's `NO_*` defaults. It also does `zmodload zsh/datetime` — `40-prompt.zsh` times commands with `$EPOCHSECONDS`, and without the module that parameter is simply unset, so the timer silently computed `0 - 0` on every prompt.
+
+Aliases that affect terminal work:
 
 - `cat` → `bat` (syntax-highlighted pager — use Read tool instead of Bash cat)
 - `ls` / `ll` / `la` → `eza` variants
 - `lf` → `yazi` (file manager)
 - `zed` → `zeditor`
-- `pacman` → `sudo pacman`; typo alias `pamcan` also works (fish only) — **Arch only; there is no pacman on the booted NixOS system.** Package changes go in `modules/home/packages.nix` followed by a rebuild
+- No package-manager alias. The old `pacman`/`pamcan` wrappers are commented out in `10-aliases.zsh` and there is no pacman on this system. Package changes go in `modules/home/packages.nix`, followed by a rebuild
 - PATH additions: `~/.config/emacs/bin`, `~/.cargo/bin`, `~/Applications/*/bin`, `~/.local/bin`, `~/.bun/bin`
 - `zoxide` is active for `z` directory jumping
 
-Note the fish `lidt` and `cleantmp` aliases point at `$scripts/toggle_lid_action.sh` and `$scripts/clean_tmp.sh` — with `.sh` extensions the real scripts don't have, so both are broken. The zsh equivalents (`lidaction`, `cleantmp`) are correct.
+The zsh `lidaction` and `cleantmp` aliases point at the real extensionless scripts in `~/.scripts/` and work. (Fish had its own `lidt`/`cleantmp` aliases that appended a `.sh` the scripts do not have, so they were always broken — moot now that fish is gone.)
 
 **Home-directory clutter hiding** (added to reduce `ls ~` / file-manager noise, not to move anything):
 - `~/.hidden` lists top-level dirs that GTK file managers (Thunar) omit from the `~` view. Toggle back with **Ctrl+H**.
@@ -111,7 +113,7 @@ The `pdf` shell alias opens files via `xdg-open`, deferring to the system defaul
 
 **Neovim** (`~/.config/nvim/`) — minimal hand-rolled config on `lazy.nvim` (~18 plugins; replaced a LazyVim install in June 2026). See `nvim/README.md` for the full map.
 - `lua/config/` holds `options.lua`, `keymaps.lua`, `autocmds.lua`, `lazy.lua`; `lua/plugins/` holds one spec file per concern (colorscheme, treesitter, lsp, completion, coding, editor, ui, writing, ai)
-- **No mason** — language servers are taken from `$PATH` (install via pacman/npm/AUR; list in `README.md`). LSP uses Neovim 0.11+ native `vim.lsp.enable`; completion is `blink.cmp`
+- **No mason** — language servers are taken from `$PATH` (add them to `modules/home/packages.nix`; list in `README.md`). LSP uses Neovim 0.11+ native `vim.lsp.enable`; completion is `blink.cmp`
 - Tree-sitter is the classic `master` branch; parsers compile with system `cc`. `latex`/`bibtex` parsers are intentionally omitted (vimtex owns `.tex`/`.bib`)
 - Writing stack: `render-markdown` (in-buffer), `knap` (live preview: `<leader>ks` once, `<leader>ka` toggle, `<leader>kc` close), `vimtex` (LaTeX, zathura viewer), `typst-preview` (`<leader>tp`). knap converter/wrapper live in `nvim/scripts/`
 - `<C-d>` / `<C-u>` centre the cursor after scroll; Copilot ghost-text accept is `<M-l>`
@@ -137,7 +139,7 @@ Key components running under Mangowm:
 - **Night light (wlsunset)** — the **systemd user service owns the process**; `mango/scripts/menus/night-mode.sh` only drives that unit (`systemctl --user start/stop/restart`). Never go back to `pgrep`/`pkill` + spawning a second wlsunset: only one Wayland client can hold a gamma control, so the loser prints `gamma control of output eDP-1 failed` and silently does nothing. The unit is hand-written in `modules/home/default.nix` rather than using `services.wlsunset`, because that module bakes temperatures into a static `ExecStart` and wlsunset has no runtime IPC — so the waybar temperature picker could not change them. Instead `ExecStart` is `mango/scripts/system/night-light-run.sh`, which reads the chosen night temperature from `~/.local/state/mango/night-temp` at start; the picker writes that file and restarts the unit. Location and day temperature stay declared in Nix via `Environment=`. Waybar module: `custom/night-mode`, refreshed by `pkill -RTMIN+9 waybar`.
 - **wlogout** — the power menu behind the waybar power icon (`custom/power`). Layout and CSS in `mango/wlogout/`; its five PNGs are **vendored into `mango/wlogout/icons/`** and referenced relatively. See NixOS point 3 below for why.
 - **Proton Drive — removed 2026-07-30, do not re-add.** Proton actively blocks rclone's standard access method, so the mount cannot be made reliable however the unit is written; and it was inherited config, not something in use. Cloud sync here is **Nextcloud**, via `services.nextcloud-client`. Both the `rclone-protondrive` unit and the Arch-era `rclone@ProtonDrive.service` template are gone, along with `~/ProtonDrive` and the dangling `~/mnt` → `/run/media/henry` symlink. `rclone` stays in `packages.nix` for interactive use. See NixOS point 8 for what leaving it in place cost.
-- **Polkit agent** — **on NixOS this is `polkit_gnome`**, run as the systemd user service `polkit-gnome-authentication-agent-1` (`modules/system/desktop.nix`), *not* from autostart. The `exec-once=... command -v lxpolkit && lxpolkit` line in `mango/universal/autostart.conf` is an Arch leftover; it is guarded, so on NixOS it is a deliberate no-op — `lxsession`/`lxpolkit` are not installed. On Arch, lxpolkit is the agent and that autostart line is what starts it. Note: `exec-once` only fires on initial compositor startup, not on reload — log out/in after changing autostart.
+- **Polkit agent** — **on NixOS this is `polkit_gnome`**, run as the systemd user service `polkit-gnome-authentication-agent-1` (`modules/system/desktop.nix`), *not* from autostart. The `exec-once=... command -v lxpolkit && lxpolkit` line in `mango/universal/autostart.conf` is an Arch leftover. It is guarded by `command -v`, so it is a permanent no-op — `lxsession`/`lxpolkit` are not installed and, with Arch gone, never will be. Safe to delete whenever that file is next edited. Note: `exec-once` only fires on initial compositor startup, not on reload — log out/in after changing autostart.
 - **KDE Connect** — `kdePackages.kdeconnect-kde`. Both `autostart.conf` files start `kdeconnectd`, and the Waybar phone module (`mango/scripts/kdeconnect/phone-status.sh`) queries the `org.kde.kdeconnect` D-Bus name and shells out to `kdeconnect-cli`. **Do not swap in `valent`** — it is a different implementation under `ca.andyholmes.Valent` and satisfies none of those call sites. Firewall ports 1714-1764 are opened in `modules/system/networking.nix`.
 DankMaterialShell and Quickshell were **removed in July 2026**, along with the `dms` mode and all its theme files. Two things kept their names deliberately: `kitty/tabs.conf` (renamed from `dank-tabs.conf`; included by `kitty.conf` in every mode) and `yazi/flavors/noctalia.yazi` (still the active yazi theme per `yazi/theme.toml`).
 
@@ -205,7 +207,7 @@ Bring the tunnel up by hand when you need Gitea: `nmcli connection up homelab`. 
 
 ## NixOS migration — INSTALLED 2026-07-29, now the booted system
 
-the flake at the repo root that reproduces this machine. **It is live.** `nixos-install` completed on 2026-07-29 and the machine boots NixOS; Arch remains untouched and selectable from the boot menu. `docs/archive/MIGRATION.md` §8c records the install, `MIGRATION-GUIDE.md` Part 10 the remaining restore steps.
+the flake at the repo root that reproduces this machine. **It is live and it is the only system.** `nixos-install` completed on 2026-07-29 and the machine boots NixOS; Arch stayed selectable from the boot menu through the transition and was removed on 2026-07-30. `docs/archive/MIGRATION.md` §8c records the install, `docs/archive/MIGRATION-GUIDE.md` Part 10 the restore steps — both are history now, not instructions.
 
 **What is done:** install, bootloader, both EFI entries, root and `henry` passwords, home-manager activation, mango starting. Then, verified on 2026-07-30: CLI credentials (`rclone`, `gh`, `glab-cli`, `rbw`), the printer (`Brother_MFC_L3740CDW_series` — driverless IPP discovery found it, `/etc/cups` never touched), the GTK theme resolving to `Gruvbox-Yellow-Dark`, 3270 Nerd Font, magnet links reaching qBittorrent, and the 8 OpenVPN `.pem` certs which survived via `@home`. `mango/wallpaper/` is restored — it is a single 4.6 MB `wallpaper.png`, not a collection.
 
@@ -216,6 +218,8 @@ the flake at the repo root that reproduces this machine. **It is live.** `nixos-
   **Finished 2026-07-30**: five hand-written units the `*.hm-bak` sweep did not cover were still present — `claude-message.service`, `claude-message.timer`, `elephant.service`, `rclone-nextcloud.service`, `rclone@.service` — plus two dangling `default.target.wants` links (`gpu-screen-recorder-ui.service` → `/usr/lib/systemd/user/`, which does not exist on NixOS, and `micmute-led.service` → the file already deleted). All removed, backed up to `~/arch-residue-backup-2026-07-30/`. **`~/.config/systemd/user/` now contains only home-manager symlinks into the store** — no hand-written content remains, so the shadowing hazard in point 1 is closed rather than merely audited.
 - Verify the suspend screen-blank fix — suspend/resume itself is confirmed working (WiFi reassociates), but the `brightnessctl` sleep hooks added 2026-07-30 need one rebuild plus one suspend to confirm. See Suspend above.
 - ~~Don't delete the Arch subvolumes (`@`, `@pkg`, `swap`) until a month has passed without booting it.~~ — **superseded 2026-07-30**: Arch was removed outright, see the top of this file. `/etc/fstab` now mounts only `@nixos`, `@home`, `@nix` and `@log`, and nothing Arch-era is mounted. There is no fallback to preserve.
+
+**Dead weight removed 2026-07-30, once Arch was gone.** `~/src/arch-config` (the old repo — verified to hold nothing that was not already in this one) and `~/.config/.git` (a third clone, at an ancestor commit, left over from when the repo root *was* `~/.config`). From the repo itself: `home/fish/` (the shell is not installed — `command -v fish` finds nothing), `home/zsh/.zshrc` (Arch-era, superseded by the one `programs.zsh` generates), 20 tracked `home/zsh/.zsh_tmp_git_*` junk files, `home/gtk-4.0/assets` (a symlink into `/usr/share/themes/…`, which does not exist here, and which nothing referenced), and `home/mango/walker/themes/noctalia` (a symlink that resolved into its own parent via `~/.config/walker`, so it was an unresolvable loop). Anything not recoverable from git history was tarred into `~/arch-residue-backup-2026-07-30/` first.
 
 **Ten things that will surprise you if you don't know them:**
 1. **`~/.config/systemd/user/` overrides `/etc/systemd/user/`**, and that directory survived the migration via `@home`, so Arch-era units silently shadow the ones the flake generates. `micmute-led.service` was shadowed this way: the leftover copy had no `PATH=`, so `pactl` was not found and the daemon exited instantly — 6464 restarts deep. Moved aside on 2026-07-30 and deleted the same day, so `micmute-led.service` now resolves to `/etc/systemd/user/` and runs. To audit: compare `ls ~/.config/systemd/user/` against `/etc/systemd/user/`; that was the only collision. Note a unit's `path`/`Environment=PATH` is its **entire** PATH, so anything a script shells out to must be listed — including **`bash` itself**, since every script here is `#!/usr/bin/env bash`.
@@ -268,7 +272,7 @@ When you make any change that affects the system layout described in this file �
 
 | Component | How to reload |
 |---|---|
-| fish config | `source ~/.config/fish/config.fish` |
+| zsh config | `source ~/.config/zsh/conf.d/<file>.zsh`, or open a new shell |
 | kitty | `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | Restart terminal (no live reload) |
 | Neovim plugins | `:Lazy sync` inside nvim |

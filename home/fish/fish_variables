@@ -1,5 +1,0 @@
-# This file contains fish universal variable definitions.
-# VERSION: 3.0
-SETUVAR __fish_initialized:4300
-SETUVAR fish_greeting:\x1d
-SETUVAR fish_user_paths:/home/henry/\x2escripts\x1e/home/henry/Applications/platform\x2dtools/lib64\x1e/home/henry/\x2elocal/bin\x1e/home/henry/Applications/VSCode\x2dlinux\x2dx64/bin\x1e/home/henry/Applications/clion\x2d2025\x2e3\x2e1/bin\x1e/home/henry/Applications/WebStorm\x2d253\x2e29346\x2e143/bin\x1e/home/henry/Applications/JetBrainsGateway\x2d253\x2e28294\x2e342/bin\x1e/home/henry/Applications/RustRover\x2d2025\x2e3\x2e1/bin\x1e/home/henry/Applications/dataspell\x2d2025\x2e3/bin\x1e/home/henry/\x2ecargo/bin\x1e/home/henry/\x2econfig/emacs/bin

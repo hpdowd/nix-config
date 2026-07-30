@@ -46,9 +46,11 @@
   # ~/.config/fish/config.fish, putting two owners on one path — activation
   # would have failed. The same collision class as the old `gtk` block.
   #
-  # The files are still tracked in the repo and fish is still installed on
-  # Arch; nothing here deletes either. To bring it back, restore
-  # `programs.fish.enable` OR the dotfiles link, never both.
+  # The config files were deleted from the repo on 2026-07-30, once Arch was
+  # gone and `command -v fish` confirmed the shell is not installed here at
+  # all — they were config for a program that does not exist. They remain in
+  # git history if wanted. To bring fish back, add the package and restore
+  # EITHER `programs.fish.enable` OR a dotfiles link, never both.
 
   # --- Tools that hook the shell -------------------------------------------
   programs.zoxide = {

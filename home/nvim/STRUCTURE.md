@@ -146,9 +146,10 @@ plugins/lsp.lua
 | `cc` / `gcc` | treesitter parser compile | ✅ present |
 | `git`, `curl` | lazy.nvim | ✅ present |
 | `rust-analyzer`, `rustfmt` | LSP/format | ✅ present |
-| `clangd` | LSP | ⬜ **missing** — was listed as present; it is not |
-| `lua-language-server`, `pyright`, `ruff`, `texlab`, `taplo`, `yaml-language-server`, `marksman`, `stylua`, `shfmt` | LSP/format | ⬜ add to `modules/home/packages.nix` |
-| `typescript-language-server`, `bash-language-server` | LSP | ⬜ in nixpkgs under those names — **not** `npm -g` |
+| `nil`, `lua-language-server`, `bash-language-server`, `marksman`, `taplo`, `yaml-language-server` | LSP | ✅ declared in `packages.nix` 2026-07-30 |
+| `pyright`, `ruff`, `texlab`, `stylua`, `shfmt` | LSP/format | ⬜ in nixpkgs under those names |
+| `clangd` | LSP | ⬜ **missing** — was listed as present; ships in `clang-tools` |
+| `typescript-language-server` | LSP | ⬜ in nixpkgs — **not** `npm -g` |
 | `tinymist` | typst LSP + preview | ⬜ in nixpkgs (`typst` itself is present) |
 | `live-server` | knap markdown preview | ⬜ **missing** — was listed as present; it is not |
 | `latexmk`, `zathura` | vimtex compile + view | ⬜ latexmk missing |

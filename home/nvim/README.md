@@ -33,25 +33,32 @@ There is no mason: a server with no binary on `$PATH` is silently skipped. On
 NixOS that means **declaring it in `modules/home/packages.nix` and rebuilding** —
 `pacman`, the AUR and `npm -g` are all gone with Arch.
 
-**Status as of 2026-07-30: almost none of these are installed.** On `$PATH`:
-`rust-analyzer`, `rustfmt`, `typst`. Missing: everything else listed below,
-including `clangd` and `live-server`, which this file used to claim were
-present. Since a missing server fails *silently*, LSP for Lua, Python, LaTeX,
-TOML, YAML, Markdown and shell is simply dead right now rather than erroring.
+**History worth knowing:** the Arch-installed servers did not carry over, and
+until 2026-07-30 the only one present was `rust-analyzer` — everything else had
+been silently dead since the migration. This file used to claim `clangd` and
+`live-server` were present; neither is.
 
-All of the following resolve in the pinned nixpkgs under exactly these
-attribute names (verified 2026-07-30) — add the ones you want to
-`modules/home/packages.nix` and run `rebuild`:
+**Declared now** in `modules/home/packages.nix` (added 2026-07-30, covering what
+this repo is actually made of):
 
 ```nix
-lua-language-server   # Lua
-pyright  ruff         # Python: LSP + linter/formatter
-texlab                # LaTeX
+nil                   # Nix
+lua-language-server   # Lua — this config
+bash-language-server  # shell — home/mango/scripts/**
+marksman              # Markdown
 taplo                 # TOML
 yaml-language-server  # YAML
-marksman              # Markdown
-stylua  shfmt         # formatters: Lua, shell
+```
+
+**Still missing**, and available under exactly these nixpkgs attribute names
+(all verified to resolve 2026-07-30) if you want them:
+
+```nix
+pyright  ruff         # Python: LSP + linter/formatter
+texlab                # LaTeX
 tinymist              # Typst LSP + preview server
+stylua  shfmt         # formatters: Lua, shell
+clangd                # ships in the `clang-tools` package, not `clang`
 ```
 
 Node servers (`typescript-language-server`, `bash-language-server`) are also in

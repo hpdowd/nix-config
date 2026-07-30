@@ -57,6 +57,23 @@
     zed-editor
     jetbrains.pycharm # attr is `pycharm`; `pycharm-professional` doesn't exist
 
+    # --- Language servers ----------------------------------------------------
+    # Neither editor bundles these: nvim is mason-free and takes servers from
+    # $PATH, and helix only *configures* them. They came off Arch via pacman and
+    # were never re-declared, so from the migration until 2026-07-30 the only
+    # working server was rust-analyzer — `hx --health` showed ✘ against
+    # everything else. Nothing errors when one is missing; the feature is just
+    # silently absent, which is why it went unnoticed.
+    #
+    # Add a server here and both editors pick it up. Names below match what
+    # helix looks for by default — check `hx --health <lang>` after adding.
+    nil # Nix — the one that matters most in this repo
+    lua-language-server # nvim's own config
+    bash-language-server # home/mango/scripts/** is all bash
+    marksman # Markdown — CLAUDE.md, README, docs/
+    taplo # TOML
+    yaml-language-server # YAML
+
     # --- AI / dev assistants ------------------------------------------------
     claude-code
     opencode

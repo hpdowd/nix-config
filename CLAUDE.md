@@ -113,11 +113,15 @@ The `pdf` shell alias opens files via `xdg-open`, deferring to the system defaul
 
 **Neovim** (`~/.config/nvim/`) — minimal hand-rolled config on `lazy.nvim` (~18 plugins; replaced a LazyVim install in June 2026). See `nvim/README.md` for the full map.
 - `lua/config/` holds `options.lua`, `keymaps.lua`, `autocmds.lua`, `lazy.lua`; `lua/plugins/` holds one spec file per concern (colorscheme, treesitter, lsp, completion, coding, editor, ui, writing, ai)
-- **No mason** — language servers are taken from `$PATH` (add them to `modules/home/packages.nix`; list in `README.md`). LSP uses Neovim 0.11+ native `vim.lsp.enable`; completion is `blink.cmp`
+- **No mason** — language servers are taken from `$PATH`, so they must be declared in `modules/home/packages.nix`. **This is shared with helix**, which also only *configures* servers rather than shipping them. The Arch-installed set did not survive the migration and nobody noticed for a day, because a missing server is skipped in silence: `rust-analyzer` was the only one working. `nil`, `lua-language-server`, `bash-language-server`, `marksman`, `taplo` and `yaml-language-server` were declared on 2026-07-30; `pyright`, `ruff`, `texlab`, `tinymist`, `stylua`, `shfmt` and `clangd` are still absent. **`hx --health` is the fastest audit** — one line per language, `✘` against any server it cannot find. LSP uses Neovim 0.11+ native `vim.lsp.enable`; completion is `blink.cmp`
 - Tree-sitter is the classic `master` branch; parsers compile with system `cc`. `latex`/`bibtex` parsers are intentionally omitted (vimtex owns `.tex`/`.bib`)
 - Writing stack: `render-markdown` (in-buffer), `knap` (live preview: `<leader>ks` once, `<leader>ka` toggle, `<leader>kc` close), `vimtex` (LaTeX, zathura viewer), `typst-preview` (`<leader>tp`). knap converter/wrapper live in `nvim/scripts/`
 - `<C-d>` / `<C-u>` centre the cursor after scroll; Copilot ghost-text accept is `<M-l>`
 - Old config + plugin data backed up to `~/.config/nvim.bak.*` and `~/.local/share/nvim.bak.*` (delete once settled)
+
+**Helix** (`~/.config/helix/`) — installed and working, config is one line (`theme = "gruvbox"`) plus a `themes/` dir. **The binary is `hx`, not `helix`** — that is upstream's name for it, and there is no `helix` command. The desktop entry ships `Exec=hx %F` with `Terminal=true`, so the launcher entry works while typing `helix` in a shell does not; reported as "it's listed in Applications but the command doesn't work". Nothing is broken. Helix needs no plugins for highlighting, textobjects or indent — those are built in — but it does **not** ship language servers either, so it shares the `$PATH` dependency described under Neovim above. `hx --health` is the audit.
+
+`$EDITOR`/`$VISUAL` are **`nvim`** (`modules/home/shell.nix`), which is what git, `sudoedit`, `systemctl edit`, lazygit and yazi all invoke. Changing editors means changing those, not adding an alias. Separately, `mimeapps.list` points `text/markdown` and `application/x-shellscript` at `nvim.desktop`, which governs GUI double-clicks and is independent of `$EDITOR`.
 
 **Zed** (`~/.config/zed/settings.json`) — vim mode on, VSCode base keymap, Gruvbox Dark theme, MCP agent servers configured (opencode, claude-acp, github-copilot-cli).
 

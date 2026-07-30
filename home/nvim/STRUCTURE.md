@@ -145,11 +145,12 @@ plugins/lsp.lua
 |---|---|---|
 | `cc` / `gcc` | treesitter parser compile | ✅ present |
 | `git`, `curl` | lazy.nvim | ✅ present |
-| `rust-analyzer`, `clangd`, `rustfmt` | LSP/format | ✅ present |
-| `lua-language-server`, `pyright`, `ruff`, `texlab`, `taplo`, `yaml-language-server`, `marksman`, `stylua`, `shfmt` | LSP/format | ⬜ install via pacman |
-| `typescript-language-server`, `bash-language-server` | LSP | ⬜ install via npm |
-| `tinymist` | typst LSP + preview | ⬜ AUR / cargo |
-| `live-server` | knap markdown preview | ✅ present |
+| `rust-analyzer`, `rustfmt` | LSP/format | ✅ present |
+| `clangd` | LSP | ⬜ **missing** — was listed as present; it is not |
+| `lua-language-server`, `pyright`, `ruff`, `texlab`, `taplo`, `yaml-language-server`, `marksman`, `stylua`, `shfmt` | LSP/format | ⬜ add to `modules/home/packages.nix` |
+| `typescript-language-server`, `bash-language-server` | LSP | ⬜ in nixpkgs under those names — **not** `npm -g` |
+| `tinymist` | typst LSP + preview | ⬜ in nixpkgs (`typst` itself is present) |
+| `live-server` | knap markdown preview | ⬜ **missing** — was listed as present; it is not |
 | `latexmk`, `zathura` | vimtex compile + view | ⬜ latexmk missing |
 | Copilot account | copilot.lua | run `:Copilot auth` |
 
@@ -161,7 +162,7 @@ Install block is in `README.md §"Install the language servers"`.
 
 - Pinned to the classic **`master`** branch (`require("nvim-treesitter.configs").setup`), `build = ":TSUpdate"`.
 - 23 parsers in `ensure_installed`, compiled to `lazy/nvim-treesitter/parser/*.so` with system `cc`.
-- `latex` and `bibtex` are **intentionally excluded** — they require the `tree-sitter` CLI to regenerate, and vimtex already owns `.tex`/`.bib` syntax. (Re-add them + `pacman -S tree-sitter-cli` only if LaTeX-math-in-markdown rendering is wanted.)
+- `latex` and `bibtex` are **intentionally excluded** — they require the `tree-sitter` CLI to regenerate, and vimtex already owns `.tex`/`.bib` syntax. (Re-add them plus `tree-sitter` in `modules/home/packages.nix` only if LaTeX-math-in-markdown rendering is wanted.)
 
 ---
 
@@ -182,7 +183,7 @@ data   (~/.local/share/nvim)      751 MB
 
 1. **Footprint is Copilot, full stop.** The 18-plugin core is ~116 MB; `copilot.lua` is 635 MB because it vendors the language server. This is the only place where "minimal" is contradicted, and it's a one-file toggle.
 2. **Eager-load set is minimal (3).** Startup ~28 ms. `snacks.nvim` is the only large eager plugin; if startup ever regresses it's the first candidate to defer (`lazy=true` + rely on its `keys`).
-3. **Mason-free is a deliberate tradeoff:** leaner + Arch-idiomatic (pacman owns servers), but moves install burden to the user and means LSP coverage is "whatever is on `$PATH`." Graceful degradation hides missing servers — good for resilience, but a missing server fails *silently* (check `:checkhealth lsp` / `:LspInfo` if a language seems dead).
+3. **Mason-free is a deliberate tradeoff:** leaner, and now Nix-idiomatic — `modules/home/packages.nix` owns the servers, so they are declared and reproducible rather than installed ad hoc. The cost is that LSP coverage is "whatever is on `$PATH`", and graceful degradation means a missing server fails *silently*. That cost came due at the migration: the Arch-installed servers did not carry over and nobody noticed, because nothing errors. Check `:checkhealth lsp` / `:LspInfo` if a language seems dead.
 4. **Tree-sitter on `master`** is the stable-but-maintenance branch. It works today; the ecosystem is migrating to the `main` rewrite. No urgency, but it's the most likely future migration point.
 5. **Low coupling.** Only 4 declared inter-plugin dependencies; each `plugins/*.lua` is independently removable. Deleting any concern file (e.g. `ai.lua`, `writing.lua`) cleanly drops that feature with no dangling references.
 6. **Single source of truth for keys** (which-key declares groups, not binds) — no hidden rebinds, easy to audit.

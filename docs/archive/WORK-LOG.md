@@ -1,5 +1,13 @@
 # Migration work log — what was done, and why
 
+> **ARCHIVED — history, not instructions.** The migration completed 2026-07-29;
+> Arch was removed 2026-07-30. Paths below are as they were *at the time*: the
+> repo was `arch-config` at `~/src/arch-config`, its root was `~/.config`, and
+> the flake sat in a `nixos/` subdirectory. It is now **`nix-config` at
+> `~/src/nix-config`**, with the flake at the repo root and the dotfiles under
+> `home/`. **Do not run these commands as written** — they point at paths that
+> no longer exist. See `README.md` and `CLAUDE.md` for the current system.
+
 **Covers 2026-07-28 → 2026-07-29 · 18 commits, `bf7094d` → `ee9f6fe`.**
 
 This file explains the *purpose* of the work. It is the answer to "why is the

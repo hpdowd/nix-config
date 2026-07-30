@@ -181,7 +181,7 @@ Fixed 2026-07-30 with `powerManagement.powerDownCommands` / `resumeCommands` in 
 
 ## Networking
 
-**WiFi card**: Qualcomm QCNFA765 (`wlp1s0`), driver `ath11k_pci`. Connected to `Minerva_2` (enterprise router).
+**WiFi card**: Qualcomm QCNFA765 (`wlp1s0`), driver `ath11k_pci`. `Minerva_2` (enterprise router) is the network the resume bug below was diagnosed on, but it is not the only one in use — as of 2026-07-30 the machine was on `Vodafone-3A90`, also on `192.168.1.0/24`, which is the subnet the Gitea host lives on. 37 NetworkManager connections are defined in total.
 
 **Known issue — WiFi fails to recover after system suspend**: The ath11k_pci driver does not cleanly reinitialize on resume, and the enterprise router drops the association. NM retries but DHCP times out and the connection never recovers. Manually restarting NetworkManager fixes it.
 
@@ -201,7 +201,7 @@ The 9 VPN profiles (`homelab` WireGuard + 8 PIA OpenVPN exits) all came off the 
 
 The failure mode, seen the moment the profiles were restored: `homelab` auto-activated, claimed `+DefaultRoute`, and pushed its DNS server `192.168.1.5` onto *every* link. Away from `Minerva_2` that server is unreachable, so **all** name resolution failed — `resolvectl query` returned "All attempts to contact name servers or networks failed" for everything. Nothing identifies itself as a VPN problem at that point; it presents as total DNS death, and the visible symptom was rclone reporting `lookup drive-api.proton.me: no such host`. Check `resolvectl status` for a tunnel holding `Default Route: yes` before suspecting anything else.
 
-Bring the tunnel up by hand when you need Gitea: `nmcli connection up homelab`. It is the only route to `git.henrydowd.dev`, so `tea` and `git push` need it.
+Bring the tunnel up by hand when you are **away from the home LAN** and need Gitea: `nmcli connection up homelab`. `git.henrydowd.dev` is `192.168.1.200`, a LAN address — so on `192.168.1.0/24` it is reachable directly and the tunnel is not involved at all. Verified 2026-07-30: `git push` and `tea` both work with no VPN active. (This file previously said the tunnel was the *only* route, which is wrong and would have you chasing a VPN when nothing is broken.)
 
 **These profiles are not in git and not declarative.** They live in `/etc/NetworkManager/system-connections` (root-only, mode 600) and were restored by hand from the backup drive. If you ever re-restore them, the `autoconnect=yes` comes back with them and so does the DNS failure.
 
@@ -284,7 +284,7 @@ When you make any change that affects the system layout described in this file �
 
 ### Issue tracker
 
-Gitea issues on the self-hosted instance at `git.henrydowd.dev` (repo `henry/nix-config`), driven by the `tea` CLI, which is already authenticated. Reachable only over the `homelab` WireGuard tunnel — when that is down, `tea` and `git push` both fail. See `docs/agents/issue-tracker.md`.
+Gitea issues on the self-hosted instance at `git.henrydowd.dev` (repo `henry/nix-config`), driven by the `tea` CLI, which is already authenticated. It is a LAN host (`192.168.1.200`): reachable directly from the home network, and via the `homelab` WireGuard tunnel from anywhere else. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

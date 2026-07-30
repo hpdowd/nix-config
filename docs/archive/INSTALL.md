@@ -1,5 +1,13 @@
 # NixOS install runbook
 
+> **ARCHIVED — history, not instructions.** The migration completed 2026-07-29;
+> Arch was removed 2026-07-30. Paths below are as they were *at the time*: the
+> repo was `arch-config` at `~/src/arch-config`, its root was `~/.config`, and
+> the flake sat in a `nixos/` subdirectory. It is now **`nix-config` at
+> `~/src/nix-config`**, with the flake at the repo root and the dotfiles under
+> `home/`. **Do not run these commands as written** — they point at paths that
+> no longer exist. See `README.md` and `CLAUDE.md` for the current system.
+
 Rewritten 2026-07-29. Every fact below was checked against the live machine on
 that date, not carried over from the previous draft. Rationale for the design
 decisions lives in `MIGRATION.md`; this file is only the procedure.

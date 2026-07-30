@@ -25,17 +25,24 @@ Single-context repo (this one):
 /
 ├── CLAUDE.md                       ← the standing system description
 ├── CONTEXT.md                      ← glossary, once one exists
-├── docs/
-│   ├── adr/
-│   │   ├── 0001-....md
-│   │   └── 0002-....md
-│   └── agents/                     ← these files
-├── mango/  nvim/  kitty/  zsh/ …   ← the configs themselves
-└── nixos/                          ← the NixOS flake
+├── flake.nix                       ← the system, at the repo root
+├── hosts/  modules/  pkgs/         ← the Nix that builds it
+├── home/                           ← the dotfiles (mango, nvim, kitty, zsh, …)
+└── docs/
+    ├── adr/
+    │   ├── 0001-....md
+    │   └── 0002-....md
+    ├── agents/                     ← these files
+    └── archive/                    ← the Arch→NixOS migration, history only
 ```
 
-There is no `src/`. The "code" is the configuration directories at the root
-plus the Nix modules under `nixos/`.
+Restructured 2026-07-30. Until then the repo was `arch-config`, its root *was*
+`~/.config`, the dotfiles sat at the top level and the flake was in a `nixos/`
+subdirectory. Anything still describing that layout is stale.
+
+There is no `src/`. The "code" is the Nix under `hosts/`, `modules/` and
+`pkgs/`, plus the shell scripts under `home/` — `home/mango/scripts/` is where
+most of the real logic lives.
 
 Multi-context (a root `CONTEXT-MAP.md` pointing at per-context `CONTEXT.md`
 files) does not apply here and shouldn't be introduced without a reason.
@@ -44,7 +51,7 @@ files) does not apply here and shouldn't be introduced without a reason.
 
 Several long-lived architectural decisions are already written down as prose
 rather than as ADRs — the mode-script theming architecture in `CLAUDE.md`, and
-the migration rationale in `nixos/MIGRATION.md` (side-by-side install,
+the migration rationale in `docs/archive/MIGRATION.md` (side-by-side install,
 `mkOutOfStoreSymlink` for writable dotfiles, dropping DankMaterialShell).
 Treat those as binding in the same way an ADR would be. If `/domain-modeling`
 converts any of them into a numbered ADR, link back to the prose rather than

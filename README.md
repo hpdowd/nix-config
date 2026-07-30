@@ -3,22 +3,42 @@
 Henry's NixOS system for a ThinkPad L14 Gen 5 — the flake that builds the
 machine, and the dotfiles it installs.
 
+**This is the booted system.** NixOS was installed 2026-07-29; Arch was removed
+2026-07-30. There is no dual boot and no fallback.
+
 ## Layout
 
 ```
 flake.nix          the system, at the ROOT so it can reference everything below
+flake.lock         pinned inputs — re-lock deliberately with `update`
 hosts/thinkpad/    host config + hardware-configuration.nix
 modules/system/    boot, locale, networking, audio, desktop, fonts, power, …
 modules/home/      home-manager: packages, shell, dotfiles, theme
 home/              the dotfiles themselves (mango, nvim, kitty, foot, zsh, …)
 pkgs/              overlay for anything not in nixpkgs
-docs/              adr/ and agents/; archive/ holds the Arch→NixOS migration
+docs/agents/       config for the engineering agent skills
+docs/archive/      the Arch→NixOS migration — history, not live instructions
+verify-packages.sh checks that package names still resolve in nixpkgs
 ```
 
-Rebuild with `rebuild` — an alias for
-`sudo nixos-rebuild switch --flake ~/src/nix-config#thinkpad`. Also
-`rebuild-test` (applies without changing the boot default), `rebuild-boot`,
-`update`, `generations`, `gc`.
+`docs/adr/` and `CONTEXT.md` do not exist yet. That is deliberate — see
+`docs/agents/domain.md`; they get created lazily, when a decision or a term
+actually needs recording.
+
+## Rebuilding
+
+| Alias | Runs |
+|---|---|
+| `rebuild` | `nixos-rebuild switch --flake ~/src/nix-config#thinkpad` |
+| `rebuild-test` | `nixos-rebuild test` — applies **without** changing the boot default |
+| `rebuild-boot` | `nixos-rebuild boot` — next boot only |
+| `update` | `nix flake update` |
+| `generations` | `nixos-rebuild list-generations` |
+| `gc` | `nix-collect-garbage --delete-older-than 30d` |
+
+Use **`rebuild-test`** for anything structural: it applies without touching the
+boot default, so a mistake is one reboot from gone. Defined in
+`modules/home/shell.nix`.
 
 ---
 
@@ -27,28 +47,29 @@ Rebuild with `rebuild` — an alias for
 | I want to… | Read |
 |---|---|
 | Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the standing description of how this machine is put together |
-| Understand a past design decision | [`docs/adr/`](docs/adr/) |
-| Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. The Arch→NixOS migration finished 2026-07-29; these are kept for their post-mortems, **not** as live instructions |
+| Know how agents should use this repo | [`docs/agents/`](docs/agents/) — domain docs, issue tracker, triage labels |
+| Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. Kept for their post-mortems, **not** as live instructions |
 
 ---
 
-## Layout
+## Where the dotfiles live
 
-```
-.
-├── CLAUDE.md          the standing description of the system
-├── nixos/             the NixOS flake + all migration documentation
-├── mango/             Mangowm: compositor, waybar, walker, fsel, modes, scripts
-├── nvim/  helix/  zed/            editors
-├── kitty/  foot/  ghostty/        terminals
-├── zsh/conf.d/                    shell (zsh is the login shell)
-├── gtk-3.0/  gtk-4.0/  Kvantum/   theming
-├── docs/agents/                   config for the engineering agent skills
-└── yazi/ bottom/ htop/ lazygit/ glow/ imv/ ncspot/ nwg-look/ corectrl/
-```
+`home/` in this repo; `~/.config/*` are symlinks into it, created by
+home-manager. The flake sits at the repo root specifically so it *can*
+reference `home/` — when it lived in a `nixos/` subdirectory the dotfiles were
+outside the flake root and unreachable by any relative path.
 
-`nixos/` is the flake. It is **not** symlinked into `~/.config` on the
-installed system — `nixos-rebuild` runs against the checkout directly.
+Those links are `mkOutOfStoreSymlink`, so the directories stay **writable**, and
+edits take effect immediately without a rebuild. That is still required for
+`home/mango/`, because the mode scripts write `config.conf` into it. It is no
+longer required for `kitty/`, `foot/`, `nvim/` and the rest — the
+`active-theme.*` indirection they needed was removed on 2026-07-30, so those can
+move into the store (`.source = ../../home/kitty` with `recursive = true`)
+whenever the rebuild-per-tweak cost is acceptable.
+
+`nixos-rebuild` reads this checkout directly. The repo is expected at
+**`~/src/nix-config`** — `dotfiles.nix` hardcodes that path, and it cannot be
+`~/.config` itself, since that is where the links are written *to*.
 
 ---
 
@@ -62,31 +83,20 @@ invisible to git until someone added a `!/name/` line. That is how
 `rclone.conf`, `gh/hosts.yml` and the user systemd units all fell through both
 git *and* the backups at once.
 
-The restructure moved the dotfiles under `home/`, so the root is now an
-ordinary project root. Add a new config directory by just adding it.
+The restructure moved the dotfiles under `home/`, so the root is now an ordinary
+project root. Add a new config directory by just adding it.
 
-Credential directories (`gh`, `glab-cli`, `opencode`, `gpu-screen-recorder`)
-are still excluded deliberately and are **not** linked by the flake — see
+What is still ignored is specific and intentional: generated files
+(`home/mango/config.conf`), the wallpaper, zsh's compdump/cache, and the
+credential directories (`gh`, `glab-cli`, `opencode`, `gpu-screen-recorder`).
+Those credential dirs are **not** linked by the flake either — see
 `docs/archive/WORK-LOG.md` §1 for why linking them would have been worse than
 not having them.
 
----
-
-## Where the dotfiles live
-
-`home/` in this repo; `~/.config/*` are symlinks into it, created by
-home-manager. The flake sits at the repo root specifically so it *can*
-reference `home/` — when it lived in a `nixos/` subdirectory the dotfiles were
-outside the flake root and unreachable by any relative path.
-
-Those links are `mkOutOfStoreSymlink`, so the directories stay **writable**.
-That is still required for `home/mango/`, because the mode scripts write
-`config.conf` into it. It is no longer required for `kitty/`, `foot/`, `nvim/`
-and the rest — the `active-theme.*` indirection they needed was removed on
-2026-07-30, so those can move into the store (`.source = ../../home/kitty`
-with `recursive = true`) whenever the rebuild-per-tweak cost is acceptable.
-
-`nixos-rebuild` reads this checkout, not `~/.config`.
+One consequence worth knowing: **flakes copy only git-tracked files**. A file
+that is ignored, or merely untracked, does not exist as far as the build is
+concerned — which is why `home/mango/wallpaper/` cannot move into the store as
+things stand.
 
 ---
 
@@ -94,12 +104,14 @@ with `recursive = true`) whenever the rebuild-per-tweak cost is acceptable.
 
 | Component | Reload |
 |---|---|
+| NixOS / home-manager | `rebuild` (or `rebuild-test`) |
 | Mangowm | `~/.config/mango/scripts/reload.sh` |
 | Switch mode | `~/.config/mango/scripts/modes/<mode>.sh` |
+| zsh | open a new shell, or `source ~/.config/zsh/conf.d/<file>.zsh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
 | foot | restart the terminal |
 | Neovim plugins | `:Lazy sync` |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
-| NixOS (after migrating) | `rebuild` — see `nixos/modules/home/shell.nix` |
 
-The system is still Arch. The flake is verified but has not been installed.
+Dotfile edits under `home/` need no rebuild — the out-of-store symlinks make
+them live. Anything in `modules/`, `hosts/`, `pkgs/` or `flake.nix` does.

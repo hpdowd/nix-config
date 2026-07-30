@@ -9,19 +9,30 @@ instance at `https://git.henrydowd.dev`, repo `henry/nix-config`. Use the
 
 ## Network caveat — read this before assuming a command failed
 
-`git.henrydowd.dev` resolves to `192.168.1.200`, which is reachable **only over
-the `homelab` WireGuard tunnel**. When that tunnel is down, every `tea` command
-hangs and then fails, and so does `git push`.
+`git.henrydowd.dev` resolves to `192.168.1.200` — a **LAN address**, not a
+public one. So reachability depends on which network the machine is on:
 
-Check the tunnel before concluding anything is wrong with the tracker:
+- **On the home LAN** (`192.168.1.0/24`), it is reachable directly and no VPN is
+  involved. Verified 2026-07-30: `tea` and `git push` both work with no tunnel
+  active.
+- **Anywhere else**, the `homelab` WireGuard tunnel is what provides the route.
+  Without it every `tea` command hangs and then fails, and so does `git push`.
+
+Corrected 2026-07-30 — this file previously said "reachable **only** over the
+tunnel", which would have you stop work while the tracker was in fact fine.
+
+Test the thing you actually care about rather than inferring it from the tunnel:
 
 ```bash
-ping -c2 -W2 10.0.0.1        # tunnel peer
-ip -s link show homelab      # RX 0 bytes = no handshake, tunnel is dead
+timeout 10 git ls-remote origin   # the real question: can we reach Gitea?
+ip route get 192.168.1.200        # direct via wlp1s0 = on the LAN
+nmcli connection up homelab       # only needed when away from the LAN
 ```
 
-If the tunnel is down, **say so and stop** — do not silently fall back to
-writing tickets somewhere else, and do not retry in a loop.
+If Gitea is genuinely unreachable, **say so and stop** — do not silently fall
+back to writing tickets somewhere else, and do not retry in a loop. Note the
+tunnel's `autoconnect` is off on purpose (it hijacks DNS; see `CLAUDE.md`), so
+its being down is the normal state, not a fault.
 
 ## Conventions
 

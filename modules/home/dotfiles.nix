@@ -55,24 +55,30 @@ in
     # mango/ contains the compositor config, per-mode overrides, waybar,
     # walker, fsel, elephant, swaync, wlogout, rofi and all the mode scripts.
     #
-    # Store-based with `recursive = true` as of 2026-07-30. The distinction
-    # matters: a plain `source` makes ~/.config/mango ONE symlink to a
-    # read-only store directory, so nothing can be created inside it.
-    # `recursive = true` symlinks each file individually and leaves the
-    # DIRECTORY writable — which is exactly what the mode scripts need, since
-    # `tiling.sh` does `cp tiling/tiling.conf config.conf` and config.conf is
-    # gitignored, so it is not in the store and is not being overwritten.
+    # STAYS OUT-OF-STORE. It was converted to `{ source = ../../home/mango;
+    # recursive = true; }` on 2026-07-30 and reverted the same day, because
+    # that conversion **ate the repo**. Do not retry it the naive way.
     #
-    # This was the last blocker on the whole directory. The other two things
-    # that forced it mutable are both gone: runtime state moved to
-    # ~/.local/state/mango, and the wallpaper to ~/.local/share/mango.
+    # What happens: ~/.config/mango is already an out-of-store symlink to
+    # ~/src/nix-config/home/mango. `recursive = true` does not replace the
+    # directory — it creates files *inside* ~/.config/mango. Those writes
+    # follow the existing symlink straight into the checkout, so activation
+    # overwrote 65 tracked files in home/mango/ with symlinks pointing back
+    # into the store. `git status` showed them as typechanges (` T `), and
+    # every one of those store targets resolved in a loop, so the live config
+    # was unreadable too. Recovered with `git checkout -- home/mango`.
     #
-    # If you add something that rewrites a TRACKED file in here, this breaks —
-    # tracked files are read-only symlinks regardless of `recursive`.
-    "mango" = {
-      source = ../../home/mango;
-      recursive = true;
-    };
+    # It is made worse by `nixos-rebuild test`, which activates WITHOUT
+    # creating a profile generation — so the new store path has no GC root and
+    # a later `nix-collect-garbage` can delete the very files the repo now
+    # points at.
+    #
+    # Converting this safely means removing ~/.config/mango *before*
+    # activating, so home-manager builds a fresh directory instead of writing
+    # through the old link — i.e. a manual step, not something a rebuild does
+    # on its own. The prize is small (config.conf still has to be generated
+    # into it), so it stays mutable until there is a reason.
+    "mango".source = link "mango";
     # ~/.config/DankMaterialShell and ~/.config/quickshell are gone — DMS and
     # the dms mode were removed on 2026-07-27 (see MIGRATION.md §6c).
 

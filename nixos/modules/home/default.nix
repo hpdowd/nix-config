@@ -29,10 +29,19 @@
     enable = true;
     defaultApplications =
       let
-        # Zen, not LibreWolf. `xdg-settings get default-web-browser` returns
-        # zen.desktop and librewolf isn't installed at all — the librewolf
-        # entries in your Arch mimeapps.list (and in CLAUDE.md) are stale.
-        browser = [ "zen.desktop" ];
+        # Zen, not LibreWolf — librewolf isn't installed at all, so the
+        # librewolf entries in the Arch mimeapps.list were stale.
+        #
+        # `zen-beta.desktop`, NOT `zen.desktop`: the zen-browser flake installs
+        # the beta channel, whose desktop file, binary and Wayland app_id are
+        # all `zen-beta`. Arch's zen-browser-bin shipped `zen.desktop`, so
+        # carrying that name over pointed every http/https association at a
+        # desktop file that does not exist — and xdg silently fell back to
+        # chromium, which is what `xdg-mime query default` reported until this
+        # was fixed on 2026-07-30. Verify with
+        # `ls /etc/profiles/per-user/henry/share/applications/` after a channel
+        # change rather than assuming the name.
+        browser = [ "zen-beta.desktop" ];
         pdf = [ "org.pwmt.zathura.desktop" ];
         image = [ "imv.desktop" ];
         media = [ "mpv.desktop" ];

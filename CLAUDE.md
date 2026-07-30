@@ -57,7 +57,7 @@ Default applications are set in `~/.config/mimeapps.list`. Current defaults:
 
 | Type | Application | Desktop file |
 |---|---|---|
-| Browser (HTTP/HTTPS/HTML) | Zen Browser | `zen.desktop` |
+| Browser (HTTP/HTTPS/HTML) | Zen Browser | `zen-beta.desktop` |
 | PDF | Zathura | `org.pwmt.zathura.desktop` |
 | Images | imv | `imv.desktop` |
 | Video / Audio | mpv | `mpv.desktop` |
@@ -68,7 +68,32 @@ Default applications are set in `~/.config/mimeapps.list`. Current defaults:
 | `discord:` scheme | Equibop | `equibop.desktop` |
 | `obsidian:` scheme | Obsidian | `obsidian.desktop` |
 
-**LibreWolf is no longer installed** (verified 2026-07-27 — no package, no profile directory). The default browser is **Zen**, whose profile is at `~/.config/zen/` (848 MB). Stale `librewolf.desktop` entries remain in `mimeapps.list` and can be removed. The `userChrome.css` / Sidebery notes below applied to the LibreWolf profile and are kept only for reference if you set up a Firefox-family browser again: chrome customisation requires `toolkit.legacyUserProfileCustomizations.stylesheets=true` in about:config, and Sidebery's custom CSS must be pasted into the extension's settings (Sidebery → Styles → Custom CSS) since it doesn't read from disk.
+**LibreWolf is no longer installed** (verified 2026-07-27 — no package, no profile directory). The default browser is **Zen**.
+
+### Zen on NixOS — everything is called `zen-beta`
+
+The `zen-browser` flake installs the **beta** channel, so the binary, the desktop file and the Wayland `app_id` are all **`zen-beta`**. Arch's `zen-browser-bin` used `zen` for all three. Every one of those references had to be corrected on 2026-07-30, and each failed *silently*:
+
+- `xdg.mimeApps` pointed at `zen.desktop`, which does not exist — so xdg fell back and `xdg-mime query default x-scheme-handler/https` reported **chromium**. Fixed in `nixos/modules/home/default.nix`.
+- The zsh alias was `zen='zen-browser'`, a binary that exists on neither system.
+- Two `mango/universal/rule.conf` window rules matched `appid:zen` / `appid:^zen$` (Picture-in-Picture float, and the opacity exemption) and so never fired. Confirm the real value with `mmsg watch focusing-client`, which reports `"appid":"zen-beta"`.
+
+Note `nvim/scripts/zen-wrapper` is **unrelated** to this browser — it is a knap live-preview wrapper that launches chromium in app mode. Don't "fix" it to use Zen.
+
+**The profile is at `~/.config/zen/`, and there are two of them — only one is real:**
+
+| Profile | Size | State |
+|---|---|---|
+| `kxsz4wom.Default (release)` | **839 MB** | the real one — 13 extensions, saved logins, 39 KB `prefs.js` |
+| `inemk327.Default Profile` | 64 MB | near-empty, no extensions, no logins |
+
+Gecko resolves the profile root from `Profile=zen` in `application.ini`, i.e. `$XDG_CONFIG_HOME/zen` — so the directory carries across from Arch untouched. What does *not* carry is which profile is default: `profiles.ini` selects it per-installation via an `[Install<hash>]` section keyed on the **executable path**, and `/opt/zen-browser-bin/` became a `/nix/store/` path. With no matching install, Zen fell back to the legacy `Default=1` flag — which sat on the empty profile, so the first launch on NixOS came up with no extensions, no logins and no history.
+
+Fixed by moving `Default=1` onto `[Profile0]` (the real profile) in `~/.config/zen/profiles.ini`; the pre-edit file is kept as `profiles.ini.bak-2026-07-30`. **Do not "fix" this by adding an `[Install<hash>]` entry for the current store path** — that path changes on every Zen update, which would orphan the setting again. A stale lock from the last Arch session (`lock -> 192.168.1.144:+53362`) was also cleared.
+
+`~/.config/zen/` is 859 MB and in no repo; it survives purely via the shared `@home` subvolume, so it is **not** covered by a git clone or by the flake. Back it up separately.
+
+Stale `librewolf.desktop` entries remain in `mimeapps.list` and can be removed. The `userChrome.css` / Sidebery notes below applied to the LibreWolf profile and are kept only for reference if you set up a Firefox-family browser again: chrome customisation requires `toolkit.legacyUserProfileCustomizations.stylesheets=true` in about:config, and Sidebery's custom CSS must be pasted into the extension's settings (Sidebery → Styles → Custom CSS) since it doesn't read from disk.
 
 The `pdf` shell alias opens files via `xdg-open`, deferring to the system default.
 

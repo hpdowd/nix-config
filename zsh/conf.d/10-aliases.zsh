@@ -30,7 +30,9 @@ alias zed='zeditor'
 alias cat='bat'
 alias lf='yazi'
 alias open='xdg-open'
-alias zen='zen-browser'
+# The binary is `zen-beta` on NixOS (beta channel via the zen-browser flake);
+# `zen-browser` was the Arch name and does not exist here.
+alias zen='zen-beta'
 alias mntandroid='simple_mtpfs'
 
 # dot-dot navigation

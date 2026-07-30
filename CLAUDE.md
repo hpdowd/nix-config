@@ -136,6 +136,16 @@ These can't be merged: TLP is applied by its service; the sleep hook is executed
 
 If the issue recurs, check `journalctl -u NetworkManager` for DHCP timeout after wake. Disabling Fast Transition (`nmcli connection modify Minerva_2 wifi-sec.key-mgmt wpa-psk`) is an additional option if the sleep hook alone doesn't resolve it.
 
+### VPN profiles: autoconnect is off, deliberately
+
+The 9 VPN profiles (`homelab` WireGuard + 8 PIA OpenVPN exits) all came off the backup with `connection.autoconnect=yes` and `ipv4.dns-priority=0`. **All 9 were set to `autoconnect=no` on 2026-07-30.** Don't turn it back on.
+
+The failure mode, seen the moment the profiles were restored: `homelab` auto-activated, claimed `+DefaultRoute`, and pushed its DNS server `192.168.1.5` onto *every* link. Away from `Minerva_2` that server is unreachable, so **all** name resolution failed — `resolvectl query` returned "All attempts to contact name servers or networks failed" for everything. Nothing identifies itself as a VPN problem at that point; it presents as total DNS death, and the visible symptom was rclone reporting `lookup drive-api.proton.me: no such host`. Check `resolvectl status` for a tunnel holding `Default Route: yes` before suspecting anything else.
+
+Bring the tunnel up by hand when you need Gitea: `nmcli connection up homelab`. It is the only route to `git.henrydowd.dev`, so `tea` and `git push` need it.
+
+**These profiles are not in git and not declarative.** They live in `/etc/NetworkManager/system-connections` (root-only, mode 600) and were restored by hand from the backup drive. If you ever re-restore them, the `autoconnect=yes` comes back with them and so does the DNS failure.
+
 ## NixOS migration — INSTALLED 2026-07-29, now the booted system
 
 `nixos/` holds the flake that reproduces this machine. **It is live.** `nixos-install` completed on 2026-07-29 and the machine boots NixOS; Arch remains untouched and selectable from the boot menu. `nixos/MIGRATION.md` §8c records the install, `MIGRATION-GUIDE.md` Part 10 the remaining restore steps.
@@ -143,7 +153,7 @@ If the issue recurs, check `journalctl -u NetworkManager` for DHCP timeout after
 **What is done:** install, bootloader, both EFI entries, root and `henry` passwords, home-manager activation, mango starting. Then, verified on 2026-07-30: CLI credentials (`rclone`, `gh`, `glab-cli`, `rbw`), the printer (`Brother_MFC_L3740CDW_series` — driverless IPP discovery found it, `/etc/cups` never touched), the GTK theme resolving to `Gruvbox-Yellow-Dark`, 3270 Nerd Font, magnet links reaching qBittorrent, and the 8 OpenVPN `.pem` certs which survived via `@home`. `mango/wallpaper/` is restored — it is a single 4.6 MB `wallpaper.png`, not a collection.
 
 **What remains** (nothing blocking; see `MIGRATION-GUIDE.md` Part 10):
-- Restore NetworkManager profiles and Bluetooth pairings from the backup drive — both still outstanding as of 2026-07-30, and both live under `system-state/root-only/`, so they need root. NM currently knows **3** connections (`Vodafone-3A90`, `lo`, `Wired connection 1`) against the 38 on Arch, and **zero** VPN profiles — note the PIA certs are already in place, so it is only the profiles that are missing. `bluetoothctl devices` is empty.
+- ~~Restore NetworkManager profiles and Bluetooth pairings~~ — **done 2026-07-30**: 35 profiles into `/etc/NetworkManager/system-connections` (37 connections, 8 VPN) and 7 Bluetooth devices into `/var/lib/bluetooth`. See the VPN autoconnect note under Networking — restoring the profiles broke DNS until autoconnect was turned off.
 - Clean up `~/.config/*.hm-bak` (21 of them), the originals home-manager moved aside, and `~/.config/systemd/user/micmute-led.service.arch-bak` (see point 1 below). Take the wallpaper out of `mango.hm-bak` first if it has not been restored yet.
 - Test suspend/resume — still never exercised on NixOS, and it is this machine's historical failure mode (see Networking above).
 - Don't delete the Arch subvolumes (`@`, `@pkg`, `swap`) until a month has passed without booting it.

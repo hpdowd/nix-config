@@ -277,7 +277,7 @@ window#waybar.empty #custom-window {
 
 /* ── Power profile ────────────────────────────────────────────────── */
 
-#power-profiles-daemon {
+#custom-power-profile {
     background: @surface;
     border-radius: 5px;
     margin: 0 2px;
@@ -286,15 +286,15 @@ window#waybar.empty #custom-window {
     color: @subtext;
 }
 
-#power-profiles-daemon.performance {
+#custom-power-profile.performance {
     color: @red;
 }
 
-#power-profiles-daemon.balanced {
+#custom-power-profile.balanced {
     color: @accent;
 }
 
-#power-profiles-daemon.power-saver {
+#custom-power-profile.low-power {
     color: @green;
 }
 

@@ -38,8 +38,33 @@
   };
 
   # `tlp-pd` on Arch bridges TLP to the power-profiles-daemon D-Bus API so
-  # desktop applets can switch profiles. NixOS's TLP module does this itself
-  # when power-profiles-daemon is disabled.
+  # desktop applets can switch profiles.
+  #
+  # THIS COMMENT USED TO CLAIM NixOS's TLP module does the same thing when
+  # power-profiles-daemon is disabled. **It does not.** There is no bridge:
+  # `busctl --system list | grep -i powerprofile` returns nothing, so the
+  # net.hadess.PowerProfiles API is unimplemented on this machine. Waybar's
+  # built-in `power-profiles-daemon` module binds that API, so it had nothing
+  # to talk to and rendered empty — the module looked absent from the bar
+  # rather than broken. Found 2026-07-30.
+  #
+  # Fixed by not needing a daemon at all. The ThinkPad exposes the same three
+  # states through the kernel:
+  #
+  #   /sys/firmware/acpi/platform_profile_choices -> low-power balanced performance
+  #
+  # `custom/power-profile` in the waybar config reads that file, and
+  # `power-profile-cycle.sh` writes it. Writing needs group permission — the
+  # attribute is root-owned 0644 by default — so this tmpfiles rule hands it to
+  # `wheel`, which henry is in. Same approach as the micmute LED udev rule in
+  # audio.nix; a udev rule is not an option here because
+  # /sys/firmware/acpi/platform_profile is not a device attribute.
+  #
+  # `z` applies the mode to an existing path without creating it, so this is a
+  # no-op on hardware that does not expose the file.
+  systemd.tmpfiles.rules = [
+    "z /sys/firmware/acpi/platform_profile 0664 root wheel -"
+  ];
 
   services.thermald.enable = false; # Intel-only; you're on AMD
 

@@ -33,7 +33,7 @@
     "pulseaudio",
     "backlight",
     "custom/night-mode",
-    "power-profiles-daemon",
+    "custom/power-profile",
     "custom/phone",
     "battery",
     "tray",
@@ -229,16 +229,16 @@
     "tooltip": true
   },
   // Power profile — left-click cycles profiles, right-click goes to power-saver
-  "power-profiles-daemon": {
-    "format": "{icon} ",
-    "tooltip-format": "{profile}",
-    "format-icons": {
-      "performance": "\uf0e7",
-      "balanced": "\uf042",
-      "power-saver": "\uf06c"
-    },
+  // Replaces waybar's built-in `power-profiles-daemon` module, which bound a
+  // D-Bus API that nothing on this system implements (power-profiles-daemon is
+  // disabled — it conflicts with TLP). Reads the ACPI platform profile instead.
+  "custom/power-profile": {
+    "exec": "~/.config/mango/scripts/system/power-profile.sh",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 11,
     "on-click": "~/.config/mango/scripts/system/power-profile-cycle.sh",
-    "on-click-right": "powerprofilesctl set power-saver"
+    "on-click-right": "~/.config/mango/scripts/system/power-profile-cycle.sh low-power"
   },
   "custom/phone": {
     "exec": "~/.config/mango/scripts/kdeconnect/phone-status.sh",

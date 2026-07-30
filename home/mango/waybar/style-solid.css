@@ -40,7 +40,7 @@ window#waybar {
 #tray,
 #custom-power,
 #custom-night-mode,
-#power-profiles-daemon {
+#custom-power-profile {
     background: transparent;
     color: @text;
     border-radius: 0;
@@ -241,15 +241,15 @@ window#waybar {
 
 /* ── Power profile ────────────────────────────────────────────────── */
 
-#power-profiles-daemon {
+#custom-power-profile {
     font-size: 13px;
     color: @subtext;
     border-left: 1px solid @overlay;
 }
 
-#power-profiles-daemon.performance { color: @red; }
-#power-profiles-daemon.balanced    { color: @accent; }
-#power-profiles-daemon.power-saver { color: @green; }
+#custom-power-profile.performance { color: @red; }
+#custom-power-profile.balanced    { color: @accent; }
+#custom-power-profile.low-power { color: @green; }
 
 /* ── Battery ──────────────────────────────────────────────────────── */
 

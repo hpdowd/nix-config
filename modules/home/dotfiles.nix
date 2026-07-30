@@ -54,14 +54,39 @@ in
     # --- Desktop environment ------------------------------------------------
     # mango/ contains the compositor config, per-mode overrides, waybar,
     # walker, fsel, elephant, swaync, wlogout, rofi and all the mode scripts.
-    # It is the heart of your setup and changes constantly — keep it live.
-    "mango".source = link "mango";
+    #
+    # Store-based with `recursive = true` as of 2026-07-30. The distinction
+    # matters: a plain `source` makes ~/.config/mango ONE symlink to a
+    # read-only store directory, so nothing can be created inside it.
+    # `recursive = true` symlinks each file individually and leaves the
+    # DIRECTORY writable — which is exactly what the mode scripts need, since
+    # `tiling.sh` does `cp tiling/tiling.conf config.conf` and config.conf is
+    # gitignored, so it is not in the store and is not being overwritten.
+    #
+    # This was the last blocker on the whole directory. The other two things
+    # that forced it mutable are both gone: runtime state moved to
+    # ~/.local/state/mango, and the wallpaper to ~/.local/share/mango.
+    #
+    # If you add something that rewrites a TRACKED file in here, this breaks —
+    # tracked files are read-only symlinks regardless of `recursive`.
+    "mango" = {
+      source = ../../home/mango;
+      recursive = true;
+    };
     # ~/.config/DankMaterialShell and ~/.config/quickshell are gone — DMS and
     # the dms mode were removed on 2026-07-27 (see MIGRATION.md §6c).
 
     # --- Editors ------------------------------------------------------------
+    # nvim stays MUTABLE: lazy.nvim rewrites `lazy-lock.json` in the config
+    # directory on every `:Lazy sync`, and that file is tracked here — so in
+    # the store it becomes a read-only symlink and the lock can never update.
     "nvim".source = link "nvim";
-    "helix".source = link "helix";
+    # helix writes nothing to its config dir (it looks for a `runtime/` there,
+    # does not find one, and falls back to the store copy — that is the warning
+    # `hx --health` prints, and it is harmless).
+    "helix".source = ../../home/helix;
+    # zed stays MUTABLE: editing settings through Zed's own UI rewrites
+    # settings.json, which is tracked.
     "zed".source = link "zed";
 
     # --- Terminals ----------------------------------------------------------
@@ -71,28 +96,45 @@ in
     # 2026-07-30 — both modes pointed it at the same gruvbox files, so it
     # selected nothing, and kitty.conf/foot.ini now name the theme directly.
     #
-    # Nothing writes into these two directories any more, so they are the first
-    # candidates to become store-based: swap `link "kitty"` for
-    # `{ source = ../../home/kitty; recursive = true; }` and they stop depending
-    # on ~/src/nix-config existing at all. Left as out-of-store links for now
-    # only so the change lands one step at a time.
-    "kitty".source = link "kitty";
-    "foot".source = link "foot";
-    "ghostty".source = link "ghostty";
+    # Converted to store paths 2026-07-30. Nothing writes into any of these, so
+    # there is no reason for them to be mutable, and in the store they stop
+    # depending on ~/src/nix-config existing at all.
+    "kitty".source = ../../home/kitty;
+    "foot".source = ../../home/foot;
+    "ghostty".source = ../../home/ghostty;
 
     # --- Shell --------------------------------------------------------------
     # NOTE: `zsh/conf.d`, not `zsh` — home-manager owns ~/.config/zsh/.zshrc,
     # so linking the parent directory would put two owners on one path. That
     # is exactly the collision `fish` used to have; see shell.nix.
-    "zsh/conf.d".source = link "zsh/conf.d";
+    "zsh/conf.d".source = ../../home/zsh/conf.d;
 
-    # --- Everything else ----------------------------------------------------
-    "yazi".source = link "yazi";
-    "bottom".source = link "bottom";
+    # --- Read-only at runtime: store-based ----------------------------------
+    "yazi".source = ../../home/yazi;
+    "bottom".source = ../../home/bottom;
+    "lazygit".source = ../../home/lazygit;
+    "glow".source = ../../home/glow;
+    "imv".source = ../../home/imv;
+
+    # --- Rewritten at runtime: must stay mutable ----------------------------
+    # Each of these has a tracked file that a running program overwrites. In
+    # the store that file becomes a read-only symlink, so the write fails —
+    # usually silently, which is the worst version of this bug. The named
+    # writer is the blocker in every case:
+    #
+    #   htop      htoprc          rewritten on quit if you change any setting
+    #   ncspot    config.toml     rewritten when settings change in-app
+    #   gtk-3.0   settings.ini    nwg-look writes the theme/font/cursor here
+    #   gtk-4.0   settings.ini    same
+    #   Kvantum   *.kvconfig      kvantummanager writes the active theme
+    #   nwg-look  config          its own saved state
+    #   corectrl  corectrl.ini    plus profiles/*.ccpro, written by the GUI
+    #
+    # These do not become declarative by symlinking them harder. The real fix
+    # is to convert each to a native home-manager module — `programs.htop`,
+    # `gtk.*`, `qt.*` — which GENERATES the file from Nix, so nothing needs to
+    # write to it at runtime. That is a per-app job, not a mechanical one.
     "htop".source = link "htop";
-    "lazygit".source = link "lazygit";
-    "glow".source = link "glow";
-    "imv".source = link "imv";
     "ncspot".source = link "ncspot";
     "gtk-3.0".source = link "gtk-3.0";
     "gtk-4.0".source = link "gtk-4.0";
@@ -133,20 +175,26 @@ in
   #                                   `ghostscript` and a TeX distribution on
   #                                   PATH; both are in modules/home/packages.nix
   #
-  # ~/.scripts is intentionally NOT declared here. It used to be
-  #   home.file.".scripts".source = mkOutOfStoreSymlink "${config.home.homeDirectory}/.scripts";
-  # which is the same self-referential bug as B1 — `home.file.".scripts"`
-  # *writes to* ~/.scripts, so that linked ~/.scripts at ~/.scripts. The B1 fix
-  # repointed `dots` and missed this one entry because it does not go through
-  # `link`. With backupFileExtension = "hm-bak" it would have renamed
-  # ~/.scripts to ~/.scripts.hm-bak and left a dangling link, silently taking
-  # out `cleantmp`, `lidaction`, keyd-application-mapper and the
-  # micmute-led.service ExecStart (%h/.scripts/micmute-led).
+  # ~/.scripts — moved into the repo 2026-07-30 and now STORE-BASED.
   #
-  # There is nothing to point it at: ~/.scripts is not in this repo and not in
-  # any other. It survives the migration because @home is reused, and
-  # home.sessionPath already puts it on PATH. To make it reproducible, move the
-  # scripts into this repo and link them like everything else above.
+  # Until then it existed only on this disk: in no git repo, in no backup, and
+  # yet `modules/system/audio.nix` declared a systemd unit whose ExecStart was
+  # `%h/.scripts/micmute-led`. A fresh install of this flake produced the unit,
+  # the udev rule and the PATH entry — and then failed, because the script it
+  # runs was never part of the flake. That is the exact gap this file's header
+  # warns about, left open on the one directory that most needed closing.
+  #
+  # `source = ../../home/scripts` (not `link`) is deliberate: nothing writes
+  # into ~/.scripts, so there is no reason for it to be mutable, and being in
+  # the store is what makes it reproducible. Nix preserves the executable bit,
+  # so the files stay runnable. `home.sessionPath` already puts it on PATH.
+  #
+  # Note the earlier trap this replaces: `home.file.".scripts".source =
+  # mkOutOfStoreSymlink "${config.home.homeDirectory}/.scripts"` *writes to*
+  # ~/.scripts while pointing at ~/.scripts — a symlink to itself. That is the
+  # same self-referential bug as B1, and with backupFileExtension = "hm-bak" it
+  # fails silently rather than loudly.
+  home.file.".scripts".source = ../../home/scripts;
 
   # ~/.hidden — the GTK file-manager clutter list from CLAUDE.md. Small and
   # static, so it's expressed natively rather than symlinked.

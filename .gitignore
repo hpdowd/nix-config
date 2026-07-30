@@ -27,10 +27,12 @@
 /home/foot/active-theme.ini
 
 # --- User data, not config --------------------------------------------------
-# 4.6 MB PNG. wallpaper-restore.sh exits 0 when it is absent, so a fresh clone
-# is not an error — but note a store-based home/mango/ would not carry it,
-# since flakes only copy git-tracked files. Either commit it or move it to
-# ~/.local/share/mango/ before converting mango to `.source`.
+# The wallpaper MOVED OUT of the config tree on 2026-07-30, to
+# ~/.local/share/mango/wallpaper.png — the same reasoning that moved runtime
+# state to ~/.local/state/mango. It was the last thing blocking a store-based
+# home/mango/: flakes copy only git-tracked files, so an ignored 4.6 MB PNG
+# would simply not exist under a read-only ~/.config/mango.
+# The rule is kept so a stray script cannot quietly reintroduce it.
 /home/mango/wallpaper/
 
 # --- Credentials ------------------------------------------------------------

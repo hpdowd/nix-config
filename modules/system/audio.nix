@@ -38,10 +38,19 @@
     # with `env: 'bash': No such file or directory` and systemd restart-loops.
     path = with pkgs; [ bash pulseaudio coreutils gnugrep gawk ];
     serviceConfig = {
-      # Keeping this as an external file means you can iterate on it without a
-      # nixos-rebuild. Note: no .sh extension — the real filename is
-      # ~/.scripts/micmute-led (CLAUDE.md documented it with one; it doesn't).
-      ExecStart = "%h/.scripts/micmute-led";
+      # Points at the STORE, not %h/.scripts/micmute-led.
+      #
+      # Until 2026-07-30 this was `%h/.scripts/micmute-led`, and ~/.scripts was
+      # in no repo and no backup — so this unit, which is fully declarative,
+      # depended on a file the flake did not carry. A fresh install got the
+      # unit and the udev rule and then failed on a missing ExecStart. The
+      # scripts now live in `home/scripts/` and this references one directly,
+      # so the unit no longer depends on the home directory at all.
+      #
+      # The `#!/usr/bin/env bash` shebang still resolves: NixOS does provide
+      # /usr/bin/env, and `path` above supplies bash. Note: no .sh extension —
+      # the real filename is `micmute-led`.
+      ExecStart = "${../../home/scripts/micmute-led}";
       Restart = "on-failure";
       RestartSec = 3;
     };

@@ -12,7 +12,10 @@ if [ ! -f "$1" ]; then
     exit 1
 fi
 
-WALLPAPER_PATH="$HOME/.config/mango/wallpaper/wallpaper.png"
+# ~/.local/share, not ~/.config/mango — that directory is a read-only store
+# path as of 2026-07-30, and a wallpaper is user data, not configuration.
+WALLPAPER_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/mango/wallpaper.png"
 
+mkdir -p "$(dirname "$WALLPAPER_PATH")"
 cp "$1" "$WALLPAPER_PATH"
 awww img "$WALLPAPER_PATH" --transition-type wipe --transition-duration 1

@@ -10,10 +10,13 @@
 # Note the binary is `awww`, not `swww`: nixpkgs renamed the package to the fork
 # already in use here. See nixos/modules/system/desktop.nix.
 
-WALLPAPER="$HOME/.config/mango/wallpaper/wallpaper.png"
+# Moved out of the config tree on 2026-07-30, same reasoning as runtime state:
+# ~/.config/mango is now a read-only store path, so a 4.6 MB PNG cannot live
+# there — and it never should have, being user data rather than configuration.
+WALLPAPER="${XDG_DATA_HOME:-$HOME/.local/share}/mango/wallpaper.png"
 
-# The file is gitignored (.gitignore excludes /mango/wallpaper/), so a fresh
-# clone has no wallpaper to restore. Nothing to do, and not an error.
+# Not in any repo, so a fresh clone has no wallpaper to restore. Nothing to do,
+# and not an error.
 [ -f "$WALLPAPER" ] || exit 0
 
 pgrep -x awww-daemon >/dev/null || awww-daemon &

@@ -8,5 +8,8 @@
 @define-color green   #b8bb26;
 @define-color red     #fb4934;
 @define-color yellow  #fabd2f;
+/* Gruvbox bright blue. Added 2026-07-31 for the NixOS logo on
+   #custom-power — the palette had no blue at all. */
+@define-color blue    #83a598;
 
 

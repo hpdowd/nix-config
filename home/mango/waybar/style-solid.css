@@ -167,7 +167,8 @@ window#waybar {
 }
 
 #custom-power {
-    color: @subtext;
+    /* NixOS logo, coloured at rest rather than only on hover. */
+    color: @blue;
     font-size: 13px;
     min-width: 28px;
     padding: 0 4px;

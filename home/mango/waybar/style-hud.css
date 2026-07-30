@@ -93,7 +93,8 @@ window#waybar {
 /* ── Power ────────────────────────────────────────────────────────── */
 
 #custom-power {
-    color: @subtext;
+    /* NixOS logo, coloured at rest rather than only on hover. */
+    color: @blue;
 }
 
 #custom-power:hover {

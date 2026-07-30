@@ -8,6 +8,32 @@
 final: prev: {
 
   # ==========================================================================
+  # papirus-icon-theme — Gruvbox-yellow folders
+  # ==========================================================================
+  # Stock Papirus folders are BLUE, which clashes badly with Gruvbox — the
+  # symptom is Thunar looking themed apart from every folder icon.
+  #
+  # The usual fix is the `papirus-folders` CLI, which recolours the theme
+  # **in place**. That cannot work here: the icon theme is a read-only
+  # /nix/store path, so the tool has nothing it is allowed to write to. It is
+  # in systemPackages and is a no-op on this system.
+  #
+  # nixpkgs exposes the same thing as a build input instead — `color` runs
+  # `papirus-folders -t $theme -o -C <color>` inside the derivation, producing
+  # a recoloured copy. `yellow` to match `Gruvbox-Yellow-Dark`; `orange` is the
+  # other reasonable choice, matching the terminals' gruvbox-orange palette.
+  # Full set: adwaita black blue bluegrey breeze brown carmine cyan darkcyan
+  # deeporange green grey indigo magenta nordic orange palebrown paleorange
+  # pink red teal violet white yaru yellow.
+  #
+  # Done as an overlay, not at the two call sites, deliberately: the theme is
+  # referenced by both `gtk.iconTheme.package` (theme.nix) and systemPackages
+  # (desktop.nix), and overriding only one would put two different Papirus
+  # derivations on XDG_DATA_DIRS with the folder colour decided by lookup
+  # order.
+  papirus-icon-theme = prev.papirus-icon-theme.override { color = "yellow"; };
+
+  # ==========================================================================
   # fsel — version override
   # ==========================================================================
   # nixpkgs has fsel 3.1.0; Arch runs 3.6.0 (`fsel --version`, 2026-07-29).

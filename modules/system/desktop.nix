@@ -101,8 +101,14 @@
     adw-gtk3
     gnome-themes-extra
     gtk-engine-murrine
+    # Recoloured to Gruvbox yellow by the overlay in pkgs/default.nix — stock
+    # Papirus folders are blue and clash with everything else.
     papirus-icon-theme
-    papirus-folders
+    # `papirus-folders` removed 2026-07-30. It recolours the icon theme IN
+    # PLACE, and on NixOS the theme is a read-only store path, so running it
+    # here does nothing — it was a no-op that looked like the solution. The
+    # overlay passes `color` to the derivation instead, which runs the same
+    # tool at build time (it is still a nativeBuildInput there).
     libsForQt5.qtstyleplugin-kvantum
     kdePackages.qtstyleplugin-kvantum
     kdePackages.qt6ct # top-level `qt6ct` doesn't exist; it's under qt6Packages/kdePackages

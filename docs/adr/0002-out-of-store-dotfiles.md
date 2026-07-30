@@ -24,9 +24,19 @@ which is the worst version.
 Store-based by default. Out-of-store **only** where a running program rewrites
 a file tracked in this repo, and the blocking writer is named in a comment.
 
-Out-of-store as of 2026-07-30, with the writer: `mango` (mode scripts generate
-`config.conf`), `nvim` (`lazy-lock.json` on `:Lazy sync`), `zed` (its UI
-rewrites `settings.json`), `htop` (`htoprc` on quit), `ncspot`,
+Where the writer can be *relocated*, relocate it and convert — that is strictly
+better than accepting a mutable directory. Two were done this way:
+
+- **`nvim`** — lazy.nvim rewrote `lazy-lock.json` in the config directory.
+  `lua/config/lazy.lua` now sets `lockfile` to `stdpath("state")` and seeds it
+  from the tracked copy on first run, so nothing writes to the config directory
+  at all. Plain `source`.
+- **`mango`** — the mode scripts `cp tiling/tiling.conf config.conf`. That file
+  is gitignored, so it is not in the store and is not being overwritten;
+  `recursive = true` leaves the directory writable so the `cp` still works.
+
+Out-of-store as of 2026-07-30, with the blocking writer: `zed` (its UI rewrites
+`settings.json`), `htop` (`htoprc` on quit), `ncspot`,
 `gtk-3.0`/`gtk-4.0`/`nwg-look` (nwg-look writes `settings.ini`), `Kvantum`
 (kvantummanager), `corectrl`.
 
@@ -58,4 +68,12 @@ generation**, so the new store path has no GC root and a later
 `nix-collect-garbage` can delete exactly what the repo now points at.
 
 Converting an already-linked directory requires **deleting `~/.config/X`
-first**. That is a manual step; no rebuild does it for you.
+first**, so home-manager builds a fresh directory rather than writing through
+the old link.
+
+That is now automated rather than remembered: the `unlinkStaleConfigDirs`
+activation entry in `dotfiles.nix` runs `lib.hm.dag.entryBefore
+[ "checkLinkTargets" ]` and removes those paths when — and only when — they are
+still symlinks (`-L`). After a successful conversion they are real directories,
+so it is a no-op. It stays in place because it also makes the conversion work
+unattended on a fresh machine.

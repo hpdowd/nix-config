@@ -59,38 +59,40 @@ in
     # mango/ contains the compositor config, per-mode overrides, waybar,
     # walker, fsel, elephant, swaync, wlogout, rofi and all the mode scripts.
     #
-    # STAYS OUT-OF-STORE. It was converted to `{ source = ../../home/mango;
-    # recursive = true; }` on 2026-07-30 and reverted the same day, because
-    # that conversion **ate the repo**. Do not retry it the naive way.
+    # Store-based with `recursive = true`.
     #
-    # What happens: ~/.config/mango is already an out-of-store symlink to
-    # ~/src/nix-config/home/mango. `recursive = true` does not replace the
-    # directory — it creates files *inside* ~/.config/mango. Those writes
-    # follow the existing symlink straight into the checkout, so activation
-    # overwrote 65 tracked files in home/mango/ with symlinks pointing back
-    # into the store. `git status` showed them as typechanges (` T `), and
-    # every one of those store targets resolved in a loop, so the live config
-    # was unreadable too. Recovered with `git checkout -- home/mango`.
+    # `recursive` is required, not cosmetic: a plain `source` makes
+    # ~/.config/mango ONE symlink to a read-only store directory, and the mode
+    # scripts must be able to create `config.conf` inside it (`tiling.sh` does
+    # `cp tiling/tiling.conf config.conf`). `recursive` symlinks each tracked
+    # file individually and leaves the DIRECTORY writable, which is exactly
+    # that. Tracked files are still read-only, so nothing else may write here.
     #
-    # It is made worse by `nixos-rebuild test`, which activates WITHOUT
-    # creating a profile generation — so the new store path has no GC root and
-    # a later `nix-collect-garbage` can delete the very files the repo now
-    # points at.
+    # THIS CONVERSION IS DESTRUCTIVE IF ~/.config/mango IS ALREADY AN
+    # OUT-OF-STORE SYMLINK. `recursive` does not replace the directory, it
+    # writes files inside it — straight through the old link and into the
+    # checkout. The first attempt on 2026-07-30 replaced 65 tracked files in
+    # home/mango/ with symlinks (` T ` typechanges in git status) whose targets
+    # resolved in a loop, breaking the live config too. Recovered with
+    # `git checkout -- home/mango`. See docs/adr/0002.
     #
-    # Converting this safely means removing ~/.config/mango *before*
-    # activating, so home-manager builds a fresh directory instead of writing
-    # through the old link — i.e. a manual step, not something a rebuild does
-    # on its own. The prize is small (config.conf still has to be generated
-    # into it), so it stays mutable until there is a reason.
-    "mango".source = link "mango";
+    # The `unlinkStaleConfigDirs` activation entry below is what makes it safe
+    # to do at all: it removes the stale symlink *before* home-manager links
+    # anything, so there is nothing to write through.
+    "mango" = {
+      source = ../../home/mango;
+      recursive = true;
+    };
     # ~/.config/DankMaterialShell and ~/.config/quickshell are gone — DMS and
     # the dms mode were removed on 2026-07-27 (see MIGRATION.md §6c).
 
     # --- Editors ------------------------------------------------------------
-    # nvim stays MUTABLE: lazy.nvim rewrites `lazy-lock.json` in the config
-    # directory on every `:Lazy sync`, and that file is tracked here — so in
-    # the store it becomes a read-only symlink and the lock can never update.
-    "nvim".source = link "nvim";
+    # Store-based as of 2026-07-30. The blocker was lazy.nvim rewriting
+    # `lazy-lock.json` in the config directory; `lua/config/lazy.lua` now sets
+    # `lockfile` to stdpath("state") and seeds it from the tracked copy on
+    # first run, so nothing writes in here any more. Plain `source`, not
+    # `recursive` — with the lockfile gone there is nothing to create.
+    "nvim".source = ../../home/nvim;
     # helix writes nothing to its config dir (it looks for a `runtime/` there,
     # does not find one, and falls back to the store copy — that is the warning
     # `hx --health` prints, and it is harmless).
@@ -205,6 +207,29 @@ in
   # same self-referential bug as B1, and with backupFileExtension = "hm-bak" it
   # fails silently rather than loudly.
   home.file.".scripts".source = ../../home/scripts;
+
+  # Removes a config directory that is still an out-of-store SYMLINK before
+  # home-manager links anything into it.
+  #
+  # This exists because converting an already-linked directory to a store path
+  # is otherwise destructive. home-manager creates the new generation's files
+  # before tearing down the old links, so with `recursive = true` it writes
+  # *through* the surviving symlink and into ~/src/nix-config — which on
+  # 2026-07-30 replaced 65 tracked files in home/mango/ with symlinks into the
+  # store. See docs/adr/0002 for the full account.
+  #
+  # `-L` is the whole test: after a successful conversion these are real
+  # directories, so this becomes a no-op. It stays anyway, because it also
+  # makes the conversion reproducible on a fresh machine rather than a manual
+  # step someone has to remember.
+  home.activation.unlinkStaleConfigDirs =
+    lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
+      for d in "$HOME/.config/mango" "$HOME/.config/nvim"; do
+        if [ -L "$d" ]; then
+          run rm $VERBOSE_ARG "$d"
+        fi
+      done
+    '';
 
   # ~/.hidden — the GTK file-manager clutter list from CLAUDE.md. Small and
   # static, so it's expressed natively rather than symlinked.

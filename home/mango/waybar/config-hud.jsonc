@@ -74,7 +74,7 @@
     "tooltip-format": "{timeTo}"
   },
   "custom/power": {
-    "format": "\udb82\udcc7 ",
+    "format": "\uf313 ",
     "tooltip": false,
     "on-click": "~/.config/mango/scripts/menus/power-menu.sh",
     "on-click-right": "sleep 0.1s && swaync-client -t -sw"

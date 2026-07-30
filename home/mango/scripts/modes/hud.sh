@@ -6,7 +6,10 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mango"
 
 mkdir -p "$STATE"
 echo "hud" > "$STATE/current-mode"
-cp "$MANGO/hud/hud.conf" "$MANGO/config.conf"
+# `install -m 644`, not `cp` — hud.conf is a read-only store file now, and
+# `cp` would give config.conf mode 0444, breaking every subsequent switch.
+# See the longer note in modes/tiling.sh.
+install -m 644 "$MANGO/hud/hud.conf" "$MANGO/config.conf"
 
 # `ln -sf … active-theme.*` removed 2026-07-30 — dead indirection, see tiling.sh.
 # Equibop has no settings.json until it is launched once, which is the normal

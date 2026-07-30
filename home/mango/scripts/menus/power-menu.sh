@@ -9,5 +9,5 @@ case "$CHOICE" in
     suspend)  systemctl suspend ;;
     reboot)   systemctl reboot ;;
     shutdown) systemctl poweroff ;;
-    logout)   mmsg -d quit ;;
+    logout)   mmsg dispatch quit ;;
 esac

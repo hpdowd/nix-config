@@ -105,6 +105,19 @@
     };
 
     gtk4 = {
+      # home-manager changed this default from `config.gtk.theme` to `null`,
+      # gated on home.stateVersion >= "26.05". Ours is 25.11, so we get the
+      # legacy behaviour plus a warning on every rebuild. Set explicitly to the
+      # legacy value: it is what the machine is running today and what was
+      # eyeballed as correct, so silencing the warning must not change how
+      # anything looks. `gruvbox-gtk-theme` does ship gtk-4.0 assets, so this
+      # is meaningful rather than inert.
+      #
+      # To adopt the new default later, set this to `null` — GTK4/libadwaita
+      # apps then fall back to Adwaita instead of following the GTK3 theme.
+      # That is a visual change; make it deliberately, not to quieten a log.
+      theme = config.gtk.theme;
+
       extraConfig = {
         gtk-application-prefer-dark-theme = 1;
         gtk-decoration-layout = ":";

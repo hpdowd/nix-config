@@ -13,7 +13,13 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mango"
 
 mkdir -p "$STATE"
 echo "tiling" > "$STATE/current-mode"
-cp "$MANGO/tiling/tiling.conf" "$MANGO/config.conf"
+# `install -m 644`, not `cp`. ~/.config/mango became a store path on
+# 2026-07-30, so tiling.conf is now a read-only (0444) store file — and `cp`
+# gives a NEW destination the source's mode. The first switch therefore wrote a
+# 0444 config.conf, and every switch after that died with
+# `cp: cannot create regular file …/config.conf: Permission denied`.
+# `install -m` sets the mode explicitly instead of inheriting it.
+install -m 644 "$MANGO/tiling/tiling.conf" "$MANGO/config.conf"
 
 # The two `ln -sf … active-theme.*` lines that were here are gone (2026-07-30).
 # Both mode scripts pointed them at the same gruvbox files, so the indirection

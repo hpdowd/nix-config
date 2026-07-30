@@ -31,4 +31,4 @@ for m in "${MODES[@]}"; do [ "$m" = "$MODE" ] && valid=1; done
 [ $valid -eq 0 ] && exit 0
 
 "$MANGO_DIR/scripts/mode.sh" "$MODE"
-mmsg -s -d reload_config
+mmsg dispatch reload_config

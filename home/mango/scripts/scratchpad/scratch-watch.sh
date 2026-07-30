@@ -26,7 +26,7 @@ update() {
 }
 
 while true; do
-    mmsg -w -c 2>/dev/null | while IFS= read -r line; do
+    mmsg watch all-clients 2>/dev/null | while IFS= read -r line; do
         if [[ "$line" =~ appid[[:space:]]+([^[:space:]]+) ]]; then
             update "${BASH_REMATCH[1],,}"
         fi

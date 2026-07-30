@@ -22,11 +22,20 @@ fi
 
 profile=$(cat "$PROFILE_FILE")
 
+# Escapes, not literal glyphs. Written literally on 2026-07-31 the characters
+# were lost in transit and every branch ended up assigning the empty string —
+# so the module emitted {"text":""} and waybar drew nothing. An empty custom
+# module is indistinguishable from an absent one, which is exactly how this was
+# reported: "I still don't see a power mode module". $'\uXXXX' keeps the source
+# pure ASCII, so it cannot happen again.
+#
+# All four are present in 3270 Nerd Font, which is what the bar renders in —
+# check with `fc-list ':charset=f0e7' family` before swapping any of them.
 case "$profile" in
-    performance) icon="" ;;   # nf-fa-bolt
-    balanced)    icon="" ;;   # nf-fa-adjust
-    low-power)   icon="" ;;   # nf-fa-battery_empty
-    *)           icon="" ;;   # nf-fa-question
+    performance) icon=$'\uf0e7' ;;  # nf-fa-bolt
+    balanced)    icon=$'\uf042' ;;  # nf-fa-adjust
+    low-power)   icon=$'\uf06c' ;;  # nf-fa-leaf
+    *)           icon=$'\uf128' ;;  # nf-fa-question
 esac
 
 printf '{"text":"%s","tooltip":"Power profile: %s","class":"%s"}\n' \

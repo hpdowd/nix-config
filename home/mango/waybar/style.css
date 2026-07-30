@@ -183,7 +183,7 @@ window#waybar.empty #custom-window {
     margin-left: 4px;
     /* NixOS logo, coloured at rest rather than only on hover. */
     color: @blue;
-    font-size: 13px;
+    font-size: 16px;
     min-width: 28px;
     padding: 0;
 }

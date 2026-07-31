@@ -157,6 +157,17 @@ All defined as zsh aliases in `modules/home/shell.nix`:
 | `generations` | `nixos-rebuild list-generations` | See what you can roll back to |
 | `gc` | `nix-collect-garbage --delete-older-than 30d` | Reclaim store space |
 | `search` | `nix search nixpkgs` | Find a package name |
+| `waybar-reload` | Restart waybar from the current state | After a `rebuild` that touched the bar |
+| `mango-reload` | Re-apply the mode, dispatch `reload_config`, restart elephant | After a `rebuild` that touched keybinds, rules or autostart |
+
+The mango scripts are not on `$PATH` — `~/.scripts` is, `~/.config/mango/scripts`
+is not, and putting it there would drop 28 files with names like `mode.sh` into
+command completion. The two that get typed by hand are aliased instead.
+
+⚠️ Neither reload alias picks up repo edits on its own. `~/.config/mango` is a
+store path, so **`rebuild` first, reload second** — running only the reload
+restarts the bar against the config it already had, which looks exactly like the
+change having no effect.
 
 **Always quote the flake ref if you type it by hand.** zsh runs with
 `EXTENDED_GLOB`, which makes `#` a pattern operator, so an unquoted
@@ -186,8 +197,8 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 
 | Changed | Apply with |
 |---|---|
-| Anything under `home/mango/` | `rebuild`, **then** `~/.config/mango/scripts/reload.sh` |
-| Waybar config/CSS | `rebuild`, then `~/.config/mango/scripts/waybar/waybar-restart.sh` |
+| Anything under `home/mango/` | `rebuild`, **then** `mango-reload` |
+| Waybar config/CSS | `rebuild`, then `waybar-reload` |
 | zsh config | `source ~/.config/zsh/conf.d/<file>.zsh`, or a new shell |
 | kitty | `kill -SIGUSR1 $KITTY_PID`, or Ctrl+Shift+F5 |
 | foot | Restart the terminal — no live reload |

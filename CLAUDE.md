@@ -41,6 +41,7 @@ Aliases that affect terminal work:
 - No package-manager alias. The old `pacman`/`pamcan` wrappers are commented out in `10-aliases.zsh` and there is no pacman on this system. Package changes go in `modules/home/packages.nix`, followed by a rebuild
 - PATH additions: `~/.config/emacs/bin`, `~/.cargo/bin`, `~/Applications/*/bin`, `~/.local/bin`, `~/.bun/bin`
 - `zoxide` is active for `z` directory jumping
+- **`waybar-reload`** and **`mango-reload`** (added 2026-07-31, `modules/home/shell.nix`) run `mango/scripts/waybar/waybar-restart.sh` and `mango/scripts/reload.sh`. The mango scripts are deliberately **not** on PATH — `~/.scripts` is, `~/.config/mango/scripts` is not, and adding it would put 28 files with names like `mode.sh` into command completion. Note neither alias picks up a repo edit by itself: `~/.config/mango` is a store path, so it is **`rebuild` first, reload second**, and reloading alone restarts against the config that was already there — indistinguishable from the change having had no effect
 
 The zsh `lidaction` and `cleantmp` aliases point at the real extensionless scripts in `~/.scripts/` and work. (Fish had its own `lidt`/`cleantmp` aliases that appended a `.sh` the scripts do not have, so they were always broken — moot now that fish is gone.)
 

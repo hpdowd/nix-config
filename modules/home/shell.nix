@@ -84,6 +84,19 @@
     cleantmp = "~/.scripts/clean_tmp";
     lidaction = "~/.scripts/toggle_lid_action";
 
+    # The mango scripts are not on PATH — ~/.scripts is (home.sessionPath
+    # below), but ~/.config/mango/scripts is not, and adding it would put 28
+    # files with names like `mode.sh` and `reload.sh` into command completion.
+    # Aliases for the two that get typed by hand are cheaper.
+    #
+    # waybar-reload re-reads the three state files (mode, layout, position) and
+    # restarts the bar. It does NOT pick up edits made in this repo on its own:
+    # ~/.config/mango is a store path, so a config or CSS change needs `rebuild`
+    # first and this afterwards. mango-reload additionally re-applies the mode
+    # and dispatches reload_config, which is what a keybind change needs.
+    waybar-reload = "~/.config/mango/scripts/waybar/waybar-restart.sh";
+    mango-reload = "~/.config/mango/scripts/reload.sh";
+
     # NixOS replacements for your pacman aliases. The flake lives in the clone
     # at ~/src/nix-config, NOT ~/.config — see dotfiles.nix and INSTALL.md
     # §0.1. ~/.config/nixos is not linked by dotfiles.nix, so it does not exist

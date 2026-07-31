@@ -56,7 +56,7 @@ in
       # START is deliberately wide: on AC the battery parks wherever it is and
       # only tops back up below 40%, so the bar normally sits *below* 100% —
       # that is the hysteresis working, not a stuck reading.
-      START_CHARGE_THRESH_BAT0 = 40;
+      START_CHARGE_THRESH_BAT0 = 75;
       STOP_CHARGE_THRESH_BAT0 = 85;
     };
   };

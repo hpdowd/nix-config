@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 
 MANGO_DIR="$HOME/.config/mango"
-STATE_DIR="$MANGO_DIR/state"
+
+# Runtime state moved out of the config tree to ~/.local/state/mango on
+# 2026-07-30, but this script kept reading the old $MANGO_DIR/state path until
+# 2026-07-31. The failure was silent and asymmetric: current_mode() never found
+# the file, so it always returned its "tiling" fallback, the menu always marked
+# tiling as the active mode, and the `•` guard below then treated picking
+# tiling as "already there" and exited 0. Switching TO hud worked; switching
+# BACK was impossible, with nothing logged.
+#
+# Resolve it exactly as scripts/modes/*.sh do — one expression, one location.
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/mango"
 STATE="$STATE_DIR/current-mode"
 WALKER_CONFIGS="$MANGO_DIR/walker/configs"
 

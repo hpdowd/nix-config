@@ -103,8 +103,7 @@
   # different route: nixpkgs' swaync ships its own user unit with
   # `WantedBy=graphical-session.target`, and Arch's package did not. So on
   # NixOS the unit auto-starts at login and races the `exec=` line in
-  # mango/{tiling,hud}/autostart.conf, which is the copy that actually matters
-  # because it passes `-s ~/.config/mango/swaync/style.css`. The autostart copy
+  # mango/{tiling,hud}/autostart.conf. The autostart copy
   # wins the org.freedesktop.Notifications bus name; the unit exits 1 with
   # "An instance of SwayNotificationCenter is already running!", five times,
   # then lands in start-limit-hit. Notifications work throughout, which is why
@@ -113,8 +112,11 @@
   # Masking rather than overriding ExecStart: autostart owns swaync's lifecycle
   # (it pkills and respawns on every mode switch, so a restyle takes effect),
   # and nothing in mango/scripts calls systemctl for it. If you ever want
-  # systemd to own it instead, drop the autostart line and give the unit the
-  # `-s` argument — do not do both.
+  # systemd to own it instead, drop the autostart line — do not do both.
+  #
+  # Note the autostart line no longer passes `-s`: swaync's config moved from
+  # home/mango/swaync/ to home/swaync/ on 2026-07-31, i.e. to ~/.config/swaync/,
+  # which is where swaync looks by default. Nothing has to name it any more.
   #
   # An empty file rather than the usual symlink to /dev/null: per systemd.unit(5)
   # both load as "masked", and `source = "/dev/null"` is an absolute path, which

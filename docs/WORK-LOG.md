@@ -192,3 +192,119 @@ game:
 nix build --no-link --print-out-paths \
   '.#nixosConfigurations.thinkpad.config.home-manager.users.henry.home-files'
 ```
+
+---
+
+# Work log — suspend drain and the mango flattening
+
+**2026-07-31 → 2026-08-01.** Started as "was the lid-close toggle script
+migrated?" and became a power investigation plus a structural change.
+
+## The battery problem
+
+The laptop was found flat after a night closed on the desk. Suspend was working
+throughout; it just cost **~4.1 W**, because the SoC never reached s0i3.
+
+Under s2idle the SMU only enters its deep state once every IP block reports
+idle. `/sys/kernel/debug/amd_pmc/smu_fw_info` named the culprit outright —
+every block at `0` except **`DISPLAY 9440595`** — with `Last S0i3 Status:
+Unknown/Fail` and `amd_pmc: Last suspend didn't reach deepest state` each cycle.
+
+The existing backlight hooks could never have fixed this. `brightnessctl`
+drives the PWM level, the amdgpu backlight is `type: raw`, and the DISPLAY block
+tracks the CRTC rather than the PWM — so `bl_power=4` collapsed to "brightness
+0" and even a genuinely dark panel would have left the block active. The hook
+ran, exited 0, and did nothing. It had been built that way because `CLAUDE.md`
+recorded that mango exposed no `wl_output`, which had **silently stopped being
+true** (probably at the mango 0.15.5 upgrade). One stale sentence cost a battery.
+
+Replaced with `wlopm --off/--on` via a `setDisplayPower` helper, run as the
+session user because it needs the Wayland socket.
+
+| | draw | s0i3 residency |
+|---|---|---|
+| before | 4.10 W | 0% |
+| after `wlopm` | 3.03 / 3.04 W (two runs) | 0% |
+| with `ath11k_pci` unloaded | 3.16 W | 0% |
+
+**s0i3 is still unreached with every block idle**, so a second blocker remains.
+`ath11k_pci` and USB were excluded by bisect; `r8169` and the S0-armed PCIe
+bridges (`GP11`, `NHI0`) are untested. Rather than keep hunting an unbounded
+search space, worked around it with **hibernation**: a 20 GiB swapfile on a
+dedicated `@swap` btrfs subvolume, `suspend-then-hibernate` on battery after
+30 min, plain `suspend` on AC.
+
+### Two false conclusions, both from reading logs
+
+1. **"ACPI S4 is being refused"** → set `HibernateMode=shutdown`. Wrong, and
+   reverted. The kernel log **cannot** distinguish a successful hibernate from a
+   refused one: the memory image is snapshotted *before* the write and
+   power-off, so on resume everything logged after that point never existed.
+   `PM: Wrote … kbytes` is never visible. Three attempts were byte-identical in
+   the journal; the discriminators are a physical power-off and an unchanged
+   boot ID.
+2. **"hibernation is unverified"** → it was working. Committed as unverified,
+   corrected the next commit.
+
+Both were reported to the user as findings before being disproven. The lesson is
+the same one as the `wl_output` note: verify the claim, don't reason from the
+artifact that merely accompanies it.
+
+## Structural change — flattening `home/mango/`
+
+The nesting existed because the config tree doubled as the **backup** unit: only
+directories worth keeping lived under `mango/`. Once everything became
+declarative and tracked, that rationale expired, and what remained was a cost —
+neither app sat at the XDG path it looks in by default, so **eight** call sites
+had to name the config explicitly.
+
+```
+home/mango/wlogout/  →  home/wlogout/     (7 files)
+home/mango/swaync/   →  home/swaync/      (1 file)
+```
+
+Both are now plain store paths **without `recursive = true`**; under `mango/`
+they inherited that flag, which exists only so the mode scripts can write
+`config.conf`. All eight `-s`/`-C`/`-l` flags deleted.
+
+`mango/rofi/` was listed in `CLAUDE.md` as a themed directory. **It does not
+exist and never did.** Grepping for `rofi` is misleading because it
+substring-matches `power-profile`.
+
+## Three stale-path bugs, all from the 2026-07-30 state move
+
+`CLAUDE.md` asserted "every script resolves it as
+`${XDG_STATE_HOME:-$HOME/.local/state}/mango`". That assertion is part of why
+these survived — it read as verified.
+
+- **`scripts/desktop-mode.sh`** still read `$MANGO_DIR/state/current-mode`.
+  `current_mode()` never found it, fell back to `"tiling"`, so the menu always
+  bulleted tiling and the `[[ "$CHOICE" == *"  •" ]] && exit 0` guard treated
+  picking tiling as "already there". **Switching to hud worked; switching back
+  was impossible**, silently. Reported as "I can switch to hud mode but I can't
+  switch back".
+- **`pkill -x swaync`** in both `autostart.conf` files had never worked on
+  NixOS — `comm` is `.swaync-wrapped`, the same wrapper trap as elephant. The
+  pkill hit nothing, the old instance survived, the replacement exited with
+  "already running", so a restyle on mode switch never took effect. Invisible
+  because both modes share one stylesheet. Now `pkill -f '^swaync( |$)'`, which
+  excludes `swaync-client`.
+- **`mango/walker/config.toml` was a tracked symlink** containing an absolute
+  path into `$HOME`, while both `autostart.conf` files rewrite that same path
+  with `ln -sf` on every mode switch. Two owners; home-manager activation failed
+  outright with `would be clobbered`, and `backupFileExtension` does not rescue
+  it. The timing hid the cause: the symlink only exists once a mode script has
+  run, so it broke a rebuild that had nothing to do with it. Untracked and
+  gitignored, matching `mango/config.conf`.
+
+## Open
+
+- **s0i3 never reached.** Hibernation works around it; the cause is unknown.
+  Untested: `r8169`, and `GP11`/`NHI0` armed for wake at S0 via `/proc/acpi/wakeup`.
+  Method is one suspend per suspect: unload, suspend 10+ min on battery, check
+  `last_hw_sleep`.
+- **`walker/`, `fsel/`, `elephant/` not moved.** Same argument as wlogout/swaync,
+  but each needs its config-resolution path confirmed first.
+- **`walker/themes/` unaudited** for the same tracked-symlink pattern that
+  `config.toml` had. A `walker/themes/noctalia` symlink was already deleted on
+  2026-07-30 for resolving into its own parent.

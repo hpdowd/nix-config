@@ -129,6 +129,34 @@ in
     "glow".source = ../../home/glow;
     "imv".source = ../../home/imv;
 
+    # Moved out of home/mango/ on 2026-07-31. They lived there because the
+    # config tree doubled as the backup unit — only the directories worth
+    # keeping were nested under mango/. Everything is in git and in the store
+    # now, so that rationale is gone, and the nesting had an ongoing cost:
+    # neither app was at the XDG path it looks in by default, so every call
+    # site had to name the config explicitly —
+    #
+    #   swaync  -s ~/.config/mango/swaync/style.css
+    #   wlogout -C ~/.config/mango/wlogout/style.css -l ~/.config/mango/wlogout/layout
+    #
+    # eight hardcoded paths across both autostart.conf files and three waybar
+    # layouts. At the default locations both apps find their own configs and
+    # every one of those flags is deleted. Hardcoded paths are the recurring
+    # silent-failure mode in this repo (the wlogout icons, the `.sh` suffixes,
+    # the dead `mmsg -s -d` flags), so removing them is worth more than tidiness.
+    #
+    # These are also plain store paths, with no `recursive = true`. Under
+    # mango/ they inherited that flag, which exists solely so the mode scripts
+    # can create the gitignored config.conf — a writability exemption neither
+    # of these needs.
+    #
+    # wlogout's five PNGs are referenced RELATIVELY from its style.css
+    # (`url("icons/lock.png")`); GTK resolves those against the stylesheet's
+    # own path, so they travel with the directory. Don't make them absolute —
+    # a failed GTK url() draws the missing-image box with nothing in any log.
+    "wlogout".source = ../../home/wlogout;
+    "swaync".source = ../../home/swaync;
+
     # --- Managed as FILES, not directories ----------------------------------
     # Converted 2026-07-30. These were out-of-store because a program rewrites
     # something in the directory. Pinning the individual *file* solves it: the

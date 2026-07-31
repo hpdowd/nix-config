@@ -13,6 +13,21 @@
 # The mode scripts write this; the rest of home/mango/ is tracked input.
 /home/mango/config.conf
 
+# Same story, found the hard way on 2026-07-31: both autostart.conf files do
+#   ln -sf ~/.config/mango/walker/configs/{tiling,hud}.toml \
+#          ~/.config/mango/walker/config.toml
+# so this path is a GENERATED SYMLINK rewritten on every mode switch — while it
+# was simultaneously tracked in git, which made home-manager want to own it too.
+# Two owners on one path. Activation then failed outright with
+#   Existing file '/home/henry/.config/mango/walker/config.toml' would be
+#   clobbered
+# and, because the symlink is only created once a mode script has run, the
+# breakage appeared *after* a mode switch rather than after the change that
+# caused it. The tracked copy was byte-identical to configs/tiling.toml, so it
+# was a duplicate that could only drift. Untracked; the mode configs are the
+# real source, exactly as tiling.conf/hud.conf are for config.conf above.
+/home/mango/walker/config.toml
+
 # Runtime state moved to ~/.local/state/mango on 2026-07-30. Kept as a rule so
 # an old checkout or a stray script cannot quietly reintroduce state into the
 # config tree — state living there is what forced ~/.config/mango to stay

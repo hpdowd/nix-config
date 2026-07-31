@@ -207,7 +207,7 @@ DISPLAY the only non-idle block, every other one at zero. The kernel says it pla
 
 **The backlight cannot fix this, and the 2026-07-30 attempt to do so failed twice over.** `brightnessctl` only drives the PWM level, and the amdgpu backlight is `type: raw` with no panel-power path — so writing `4` (FB_BLANK_POWERDOWN) to `/sys/class/backlight/amdgpu_bl1/bl_power` is folded into "set brightness 0" and changes nothing visible. That was reported as *"setting brightness to 0% clearly doesn't have the same effect as turning off the screen"*, and it was correct. Worse, **even a genuinely dark backlight would leave the DISPLAY block active**, because the block tracks the CRTC, not the PWM. The old hook wrote both values, succeeded, exited 0, and left the screen lit and the battery draining — a fix that logs clean and does nothing.
 
-**Partially addressed 2026-07-31 — NOT yet fixed.** Powering down the display *pipe* through the compositor: `powerManagement.powerDownCommands` / `resumeCommands` in `modules/system/power.nix` now run **`wlopm --off '*'`** / `--on` via the shared `setDisplayPower` helper. Both land in the generated `sleep-actions.service` (`ExecStart` before sleep, `ExecStop` on resume). **The resume hook is the load-bearing one** — an output left in its off power-mode is not restored by input, so dropping it wakes the machine to a black screen that no keypress fixes. **Measured result: this helped but did not fix it.** With the hooks live, an undisturbed 10m41s suspend drew **3.03 W** — down from 4.10 W, roughly the backlight's share — but `last_hw_sleep` was still **0** and `amd_pmc` still logged `Last suspend didn't reach deepest state`. So blanking the display is necessary but not sufficient: something else is also holding s0i3 off. **s0i3 is still unreached and that is now a known, accepted limitation** — see the next section.
+**Addressed 2026-07-31.** Powering down the display *pipe* through the compositor: `powerManagement.powerDownCommands` / `resumeCommands` in `modules/system/power.nix` now run **`wlopm --off '*'`** / `--on` via the shared `setDisplayPower` helper. Both land in the generated `sleep-actions.service` (`ExecStart` before sleep, `ExecStop` on resume). **The resume hook is the load-bearing one** — an output left in its off power-mode is not restored by input, so dropping it wakes the machine to a black screen that no keypress fixes. **Measured result: this helped but did not fix it.** With the hooks live, an undisturbed 10m41s suspend drew **3.03 W** — down from 4.10 W, roughly the backlight's share — but `last_hw_sleep` was still **0** and `amd_pmc` still logged `Last suspend didn't reach deepest state`. So blanking the display is necessary but not sufficient: something else is also holding s0i3 off. **s0i3 is still unreached and that is now a known, accepted limitation** — see the next section.
 
 To verify any of this: snapshot `/sys/class/power_supply/BAT0/energy_now` **on battery**, suspend 10+ minutes, wake, and compare against elapsed time — healthy s0ix is **<1 W** with `last_hw_sleep` near 100% of the window. This machine currently measures ~3 W at 0%.
 
@@ -245,17 +245,29 @@ sudo btrfs inspect-internal map-swapfile -r /swap/swapfile
 
 **A rebuild is not enough — you must REBOOT, and skipping it produces a convincing fake success.** `resume=`/`resume_offset=` are kernel command-line parameters, so `rebuild` writes the new `/etc/systemd/logind.conf` and `sleep.conf` immediately while the *running* kernel still has neither. `systemctl hibernate` then snapshots memory, prepares S4 and returns **without writing an image or powering off** — and because the screen blanks and comes back, it reads as a fast, successful hibernate. It is not: the session was never saved. Observed 2026-07-31.
 
-The signature to check for, in `journalctl -k`:
+**The kernel log CANNOT tell you whether a hibernate succeeded, and believing otherwise wasted an evening on 2026-07-31.** A successful hibernate and a refused one leave the *same* trace, because the memory image is snapshotted **before** the write and power-off. On resume, execution continues from that snapshot point — so everything the kernel logged afterwards (`PM: Wrote … kbytes`, the power-off) was never part of the image and simply does not exist. The resuming kernel's `Image loaded successfully` is lost too: it is printed by the boot kernel, whose log buffer is then replaced by the restored one.
+
+So this block appears on **success as well as failure** and means nothing on its own:
 
 ```
 ACPI: PM: Preparing to enter system sleep state S4
 ACPI: PM: Saving platform NVS memory
-ACPI: PM: Restoring platform NVS memory      <- straight back out
+ACPI: PM: Restoring platform NVS memory
 ACPI: PM: Waking up from system sleep state S4
 PM: hibernation: hibernation exit
 ```
 
-A **real** hibernate writes the image (`PM: Wrote … kbytes`) and the journal simply *stops*, resuming in the same boot afterwards. Two independent confirmations that it genuinely happened: `grep -o 'resume[^ ]*' /proc/cmdline` must show both parameters, and `journalctl --list-boots` must NOT gain a new boot across the cycle — a new boot ID means the image was written but resume failed, so the session was discarded.
+Three attempts here (16:22, 18:59, 19:10) were byte-identical in the journal; the last was confirmed working by watching the machine power off. **Do not conclude from this that ACPI S4 is being refused and set `HibernateMode=shutdown`** — that was tried, on exactly this misreading, and reverted.
+
+What actually distinguishes them:
+
+| Check | Meaning |
+|---|---|
+| Machine physically powers off, firmware/boot screen on the way back | It really hibernated. This is the primary signal |
+| `journalctl --list-boots` — boot ID **unchanged** across the cycle | Resume worked, session restored |
+| A new boot ID | Image was written but resume failed — session discarded |
+| No power-off at all, journal continuous | Aborted; check `grep -o 'resume[^ ]*' /proc/cmdline` shows **both** parameters |
+| Wall-clock gap with no userspace logging | Corroborates the off period |
 
 **This is dangerous while half-applied**, because `HandleLidSwitch=suspend-then-hibernate` goes live at rebuild time. Closing the lid on battery then attempts the failed hibernate after `HibernateDelaySec`, thaws, and leaves the machine awake with the lid shut — draining *faster* than plain suspend. Reboot promptly after the rebuild.
 

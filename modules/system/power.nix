@@ -140,6 +140,15 @@ in
   # it"), not a warning. Same shape as services.logind.settings.Login above.
   systemd.sleep.settings.Sleep = {
     HibernateDelaySec = "30m";
+
+    # HibernateMode is left at systemd's default of `platform` (ACPI S4), which
+    # works here. Do NOT "fix" it to `shutdown` on the strength of the journal
+    # looking like an aborted S4 — see the verification note in CLAUDE.md. The
+    # resumed system's log always ends with `Restoring platform NVS memory` /
+    # `Waking up from system sleep state S4` / `hibernation exit`, on success as
+    # well as on failure, because the memory image is snapshotted *before* the
+    # write and power-off. Everything logged after that point is not in the
+    # image and therefore does not exist after resume.
   };
 
   # --- Power the display down across sleep ----------------------------------

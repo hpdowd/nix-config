@@ -1,6 +1,8 @@
 // -*- mode: jsonc -*-
 // Waybar config for mango — minimal layout
-// Workspaces left, window title centre, clock + battery + tray + power right.
+// Clock + workspaces left, window title centre, battery + tray + power right.
+// Clock leads the left block in every layout — see config.jsonc and
+// config-focus.jsonc. Keep the three consistent.
 {
   "layer": "top",
   "position": "top",
@@ -11,6 +13,7 @@
   "margin-right": 8,
   "spacing": 0,
   "modules-left": [
+    "clock",
     "ext/workspaces",
     "custom/layout",
     "mpris"
@@ -19,7 +22,6 @@
     "custom/window"
   ],
   "modules-right": [
-    "clock",
     "battery",
     "tray",
     "custom/power"

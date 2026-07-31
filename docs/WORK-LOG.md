@@ -297,6 +297,29 @@ these survived — it read as verified.
   run, so it broke a rebuild that had nothing to do with it. Untracked and
   gitignored, matching `mango/config.conf`.
 
+## `verify-claims.sh`
+
+Added 2026-08-01 at the repo root, alongside `verify-packages.sh`. Every check
+in it exists because a documented claim silently stopped being true and cost
+debugging time — prose cannot be trusted to stay correct, so these are run
+instead. Exit 0 if all pass; Wayland-dependent checks skip rather than fail
+when headless.
+
+It covers: tracked symlinks; generated files being gitignored rather than
+tracked; scripts still reading the pre-2026-07-30 state path; `pkill -x` against
+a nixpkgs wrapper; `STOP_CHARGE_THRESH_BAT0` vs waybar `full-at`; and `wlopm` /
+`mmsg` actually enumerating an output.
+
+The `pkill` check resolves each target and only fails on genuinely wrapped
+binaries — flagging every `pkill -x` produced a false positive on `dsearch`,
+which is unwrapped and fine. A checker that cries wolf gets ignored, which
+defeats the point.
+
+Verified non-vacuous by reintroducing the swaync bug: the run failed, named
+`.swaync-wrapped`, and pointed at the file.
+
+Current: **8 passed, 0 failed.**
+
 ## Open
 
 - **s0i3 never reached.** Hibernation works around it; the cause is unknown.

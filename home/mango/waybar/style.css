@@ -88,13 +88,17 @@ window#waybar {
     padding: 0 2px;
 }
 
+/* min-width must not exceed the icon — see the note in style-solid.css. waybar
+   packs the icon at the start of the button's box, so slack from min-width all
+   lands on the right. min-width tracks `"icon-size": 14`; padding absorbs the
+   difference so the button keeps its old width. */
 #taskbar button {
     background: transparent;
     color: @subtext;
     border-radius: 4px;
-    padding: 2px 4px;
+    padding: 2px 7px;
     margin: 2px 1px;
-    min-width: 20px;
+    min-width: 14px;
     transition: background 0.1s;
 }
 
@@ -278,11 +282,16 @@ window#waybar.empty #custom-window {
 
 /* ── Power profile ────────────────────────────────────────────────── */
 
+/* font-family is NOT cosmetic here — see the note in style-solid.css. 3270's
+   Font Awesome glyphs have a 0.54em advance but ~0.92em of ink, so they hang
+   off the right of the cell and no amount of symmetric padding centres them.
+   Symbols Nerd Font Mono advances a full em with the ink centred. */
 #custom-power-profile {
     background: @surface;
     border-radius: 5px;
     margin: 0 2px;
     padding: 0 10px;
+    font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
     color: @subtext;
 }

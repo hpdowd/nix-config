@@ -97,13 +97,21 @@ window#waybar {
     padding: 0;
 }
 
+/* min-width must not exceed the icon, or the icon is not centred. waybar packs
+   the GtkImage into the button's box with pack_start (taskbar.cpp: content_.add),
+   so it sits at the START of the content box — any width min-width adds beyond
+   the icon becomes empty space on the RIGHT only. At min-width 20 against
+   `"icon-size": 14` that was 6px of one-sided slack. Keeping min-width equal to
+   icon-size makes the box hug the icon, so the padding centres it; the padding
+   is widened to hold the button's overall width where it was. Change both
+   together if `icon-size` in the layout JSON changes. */
 #taskbar button {
     background: transparent;
     color: @subtext;
     border-radius: 0;
-    padding: 2px 6px;
+    padding: 2px 9px;
     margin: 0;
-    min-width: 20px;
+    min-width: 14px;
     transition: background 0.1s;
 }
 
@@ -242,8 +250,17 @@ window#waybar {
 
 /* ── Power profile ────────────────────────────────────────────────── */
 
+/* font-family is NOT cosmetic here. 3270 patches the Font Awesome icons in at
+   their natural width but keeps its own narrow 0.54em advance, so the ink
+   overflows the cell to the right (fa-circle_half_stroke: advance 1080/2000,
+   ink 0..1846) and symmetric padding cannot centre it — it sat hard against
+   the right border. Symbols Nerd Font Mono gives every one of these glyphs a
+   full 1em advance with the ink centred inside it, so the padding below does
+   what it says. */
 #custom-power-profile {
+    font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
+    padding: 0 8px;
     color: @subtext;
     border-left: 1px solid @overlay;
 }

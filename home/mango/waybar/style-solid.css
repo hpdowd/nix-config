@@ -20,6 +20,16 @@ window#waybar {
     border-bottom: 1px solid @overlay;
 }
 
+/* The separator has to follow the bar to the bottom edge, or it draws a line
+   against the screen edge and leaves the side facing the windows bare. waybar
+   adds its position as a style class on the window (bar.cpp:
+   add_class(to_string(position))), so `.bottom` is available with no work on
+   our side. Toggle with SUPER+SHIFT+/ . */
+window#waybar.bottom {
+    border-bottom: none;
+    border-top: 1px solid @overlay;
+}
+
 /* ── All modules — flat, no backgrounds, consistent padding ───────── */
 
 #workspaces,

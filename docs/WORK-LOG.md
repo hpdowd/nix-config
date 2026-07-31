@@ -320,6 +320,48 @@ Verified non-vacuous by reintroducing the swaync bug: the run failed, named
 
 Current: **8 passed, 0 failed.**
 
+## Migration discrepancy audit — 2026-08-01
+
+Checked against the live system, not against `CLAUDE.md`, which had been wrong
+three times that week (`wl_output`, state-path uniformity, `mango/rofi/`).
+
+**Genuinely finished.** No `*.hm-bak`, no `~/arch-residue-backup-*`, no
+`~/src/arch-config`, no tracked symlinks, and exactly one out-of-store dotfile
+entry — `corectrl`, which is deliberate and is the last thing keeping
+`local.checkout` alive.
+
+**Still open, in the order worth fixing:**
+
+1. **6 of 12 nvim language servers missing.** `lsp.lua` enables `lua_ls`,
+   `rust_analyzer`, `pyright`, `ruff`, `clangd`, `ts_ls`, `bashls`, `texlab`,
+   `tinymist`, `marksman`, `taplo`, `yamlls`; absent are **`pyright`, `ruff`,
+   `clangd`, `ts_ls`, `texlab`, `tinymist`**. Python, C/C++, TypeScript, LaTeX
+   and Typst therefore have no LSP at all. Formatters are worse — `stylua` and
+   `shfmt` are referenced and absent, only `rustfmt` is present. The config
+   states plainly that "a server whose binary is missing is simply skipped (no
+   error)", which is exactly what hid the original gap for a day after the
+   migration and is hiding these now. `texlab`/`tinymist` also underpin the
+   writing stack (`vimtex`, `typst-preview`, knap).
+
+2. **`~/.config/zen` is 929 MB and in no repo** — 13 extensions, saved logins,
+   history — surviving only via the `@home` subvolume. Up ~70 MB since the
+   migration notes. Needs its own backup; a clone does not reproduce it. Same
+   class: `~/.local/share/mango/wallpaper.png` (4.6 MB) and `~/.config/{gh,glab-cli}`.
+
+3. **Secrets unmanaged** — `pia-auth` plaintext mode 600, WireGuard key, forge
+   tokens. `sops-nix`/`agenix`. Biggest genuine gap; a task of its own.
+
+4. **NetworkManager profiles and Bluetooth pairings** are root-owned and
+   restored by hand. A decision rather than a TODO — but re-restoring
+   reintroduces `autoconnect=yes` on the 9 VPN profiles, which killed all DNS
+   once already. (Counts not re-verified here: both need root and the check
+   returned nothing usable.)
+
+5. **Suspend still costs ~3 W** — the thing that started this week. See above.
+
+Deliberate removals, not discrepancies: fish, LibreWolf, Proton Drive, KDE
+Plasma, DankMaterialShell/Quickshell, `papirus-folders`, the pacman aliases.
+
 ## Open
 
 - **s0i3 never reached.** Hibernation works around it; the cause is unknown.

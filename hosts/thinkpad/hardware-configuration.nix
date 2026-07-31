@@ -85,9 +85,44 @@ in
     options = [ "fmask=0077" "dmask=0077" "errors=remount-ro" ];
   };
 
-  # You currently run zram + a btrfs swapfile in swap. zram alone is plenty
-  # for 14 GiB of RAM unless you want hibernation; see power.nix.
-  swapDevices = [ ];
+  # Hibernation swap, added 2026-07-31. Its own subvolume because a swapfile
+  # must be NODATACOW and must never be snapshotted — keeping it out of @nixos
+  # means a snapshot of / never tries to capture 20 GiB of swap.
+  #
+  # NO compress=zstd:3 here, unlike every other mount in this file. btrfs
+  # rejects a compressed swapfile and `swapon` reports `Invalid argument`,
+  # which reads like a corrupt file rather than a wrong mount option.
+  fileSystems."/swap" = {
+    device = fsUUID;
+    fsType = "btrfs";
+    options = [ "subvol=@swap" "noatime" ];
+  };
+
+  # zram (power.nix) remains the *working* swap — it takes priority 5 against
+  # this file's -1, so ordinary swapping never touches the disk. This file
+  # exists purely to hold a hibernation image, which zram cannot do: it lives
+  # in the RAM being saved.
+  #
+  # Created by hand with `btrfs filesystem mkswapfile --size 20g`, and
+  # deliberately declared WITHOUT a `size` attribute — NixOS recreates the file
+  # when `size` is set, and the resume_offset below is only valid for the file
+  # that exists right now. 20 GiB against 14 GiB of RAM leaves room for zram's
+  # compressed pages, which are in RAM and so land in the image too.
+  swapDevices = [ { device = "/swap/swapfile"; } ];
+
+  # Resume from hibernation. BOTH lines are required for a swapfile:
+  # resumeDevice names the filesystem, resume_offset locates the image inside
+  # it. Getting this wrong does NOT fail loudly — the machine boots fresh and
+  # silently discards the hibernated session, which looks like "hibernate
+  # didn't work" rather than "resume was misconfigured".
+  #
+  # The offset came from `btrfs inspect-internal map-swapfile -r
+  # /swap/swapfile` and is valid ONLY for this exact file. Recreating,
+  # resizing, defragmenting or `btrfs balance`-ing it moves the image and
+  # breaks resume — re-run that command and update this number if the swapfile
+  # is ever touched.
+  boot.resumeDevice = fsUUID;
+  boot.kernelParams = [ "resume_offset=18621696" ];
 
   networking.useDHCP = lib.mkDefault true;
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

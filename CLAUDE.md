@@ -191,23 +191,92 @@ Note `upower -i` reports `charge-start-threshold: 75%` regardless of the real va
 
 `cat /sys/power/mem_sleep` reports **`[s2idle]`** with no `deep` alternative: the firmware exposes Modern Standby (s0ix), not S3. Putting `mem_sleep_default=deep` on the kernel command line would therefore achieve nothing. Journal confirms it every time — `PM: suspend entry (s2idle)`.
 
-**The consequence that looks like a fault:** s2idle does not cut power to the display. S3 blanked the panel in hardware; under s2idle the software owns it, and nothing did — so suspending left the last frame lit on screen. Reported as "suspending doesn't turn off the screen, just freezes it". The machine was suspending and resuming correctly the whole time (`suspend entry` → `suspend exit`, WiFi reassociating via the hook in `networking.nix`).
+**A lit panel during suspend is a battery bug, not a cosmetic one — this is the single most important thing in this section.** Under s2idle the SoC only reaches its low-power state (**s0i3**) once every IP block reports idle, and the **DISPLAY** block stays active for as long as the display *pipe* is on. So the screen staying lit does not merely look wrong: it holds s0i3 off entirely and the machine idles at **~4.1 W** for the whole "suspend". A 42.6 Wh battery lasts ~10.4 h at that rate, which is exactly how the laptop came to be found **dead after a night closed on the desk** (suspended 02:54, flat by morning, 2026-07-31).
 
-Fixed 2026-07-30 with `powerManagement.powerDownCommands` / `resumeCommands` in `modules/system/power.nix`, driving the **backlight** via `brightnessctl` (`--save` + `set 0`, then `--restore` with a `set 50%` fallback so a failed restore can't wake to a permanently black screen). Both land in the generated `sleep-actions.service` — `ExecStart` before sleep, `ExecStop` on resume.
+Measured that day, on battery, over an 11m34s suspend:
 
-**`brightnessctl set 0` is not sufficient on its own, and the shortfall reads as a partial fix.** On amdgpu, brightness 0 is the panel's *minimum*, not off, so the first version of this hook left the screen lit at low brightness — reported as "suspend works, but screen stays on with brightness low". The panel's real power switch is `/sys/class/backlight/amdgpu_bl1/bl_power`, which takes the kernel fb blanking levels: **0 = FB_BLANK_UNBLANK, 4 = FB_BLANK_POWERDOWN**. The hooks now write `4` on the way down and `0` on resume, **before** `--restore` — clearing `bl_power` first is required, or the panel stays dark no matter what brightness is written. Added 2026-07-30, needs one suspend to confirm.
+```
+790 mWh consumed → 4.10 W average
+last_hw_sleep: 0 us          s0i3 residency: 0.0%
+/sys/kernel/debug/amd_pmc/s0ix_stats  → S0ix Entry Time: 0, Residency Time: 0
+/sys/kernel/debug/amd_pmc/smu_fw_info → Last S0i3 Status: Unknown/Fail
+    Active time: DISPLAY 9440595, VDD 0, ACP 0, VCN 0, DF 0, USB3_0 0, USB3_1 0
+```
 
-### Why not wlopm / Wayland DPMS
+DISPLAY the only non-idle block, every other one at zero. The kernel says it plainly too: `amd_pmc AMDI0007:00: Last suspend didn't reach deepest state`. **If suspend drain is ever suspected again, read `smu_fw_info` first** — it names the offending IP block directly and takes one command.
 
-**mango advertises no `wl_output` global at all.** It offers `zwlr_output_power_manager_v1` (and `zwlr_output_manager_v1` v4, `zxdg_output_manager_v1` v3), but of the 51 globals on the wayland socket, none is `wl_output`. So every output-enumerating client sees nothing:
+**The backlight cannot fix this, and the 2026-07-30 attempt to do so failed twice over.** `brightnessctl` only drives the PWM level, and the amdgpu backlight is `type: raw` with no panel-power path — so writing `4` (FB_BLANK_POWERDOWN) to `/sys/class/backlight/amdgpu_bl1/bl_power` is folded into "set brightness 0" and changes nothing visible. That was reported as *"setting brightness to 0% clearly doesn't have the same effect as turning off the screen"*, and it was correct. Worse, **even a genuinely dark backlight would leave the DISPLAY block active**, because the block tracks the CRTC, not the PWM. The old hook wrote both values, succeeded, exited 0, and left the screen lit and the battery draining — a fix that logs clean and does nothing.
 
-- `wlopm --json` → `[]`, and `wlopm --off '*'` matches zero outputs — a silent no-op
-- `wlr-randr` prints nothing
-- `mmsg get all-monitors` → `{"monitors":[]}`
+**Partially addressed 2026-07-31 — NOT yet fixed.** Powering down the display *pipe* through the compositor: `powerManagement.powerDownCommands` / `resumeCommands` in `modules/system/power.nix` now run **`wlopm --off '*'`** / `--on` via the shared `setDisplayPower` helper. Both land in the generated `sleep-actions.service` (`ExecStart` before sleep, `ExecStop` on resume). **The resume hook is the load-bearing one** — an output left in its off power-mode is not restored by input, so dropping it wakes the machine to a black screen that no keypress fixes. **Measured result: this helped but did not fix it.** With the hooks live, an undisturbed 10m41s suspend drew **3.03 W** — down from 4.10 W, roughly the backlight's share — but `last_hw_sleep` was still **0** and `amd_pmc` still logged `Last suspend didn't reach deepest state`. So blanking the display is necessary but not sufficient: something else is also holding s0i3 off. **s0i3 is still unreached and that is now a known, accepted limitation** — see the next section.
 
-…while `mmsg watch focusing-client` happily reports `"monitor":"eDP-1"` and `awww` sets the wallpaper on `eDP-1: 1920x1200`. Identical on both `wayland-0` and `wayland-1`, so it is not a socket mix-up. This is why the backlight is the mechanism: `brightnessctl` writes `/sys/class/backlight/amdgpu_bl1` and needs no compositor connection, which also makes it correct when the lid closes on a locked session.
+To verify any of this: snapshot `/sys/class/power_supply/BAT0/energy_now` **on battery**, suspend 10+ minutes, wake, and compare against elapsed time — healthy s0ix is **<1 W** with `last_hw_sleep` near 100% of the window. This machine currently measures ~3 W at 0%.
 
-**`wlopm` is deliberately not installed** — see the comment in `modules/home/packages.nix`. `bind=SUPER+SHIFT,p` used to be `wlopm --off '*'` ("power off monitors") and was dead for the reason above — not a missing package, but a missing protocol. **That key was reclaimed on 2026-07-31 to cycle the ACPI power profile**; there is still no way to blank the outputs from a keybind, and no idle daemon (no swayidle/hypridle), so the screen never blanks on idle either.
+### s0i3 is never reached — ruled out, and worked around with hibernation
+
+With the display fixed, `smu_fw_info` reports **every** IP block idle (`DISPLAY 0, VDD 0, ACP 0, VCN 0, DF 0, USB3_0 0, USB3_1 0`) and s0i3 is *still* refused: `Last S0i3 Status: Unknown/Fail`, `last_hw_sleep: 0`, and `amd_pmc AMDI0007:00: Last suspend didn't reach deepest state` on every cycle. So the blocker is not one of the seven tracked blocks — it is a device that will not reach its required power state during suspend.
+
+Investigated and **excluded** 2026-07-31, each by unloading the driver and re-measuring an undisturbed 10+ minute suspend:
+
+| Suspect | Result |
+|---|---|
+| Display pipe | **Was a real blocker.** Fixed with `wlopm`; 4.10 → ~3.0 W |
+| `ath11k_pci` (WiFi) | Not it — 3.16 W, residency 0 with the module unloaded |
+| USB3_0 / USB3_1 | Not it — both already report 0 active time |
+| `amdgpu` overdrive | Untested. `VDD` reads 0, which weakens it but does not rule it out (VDD is the voltage rail, not GFXOFF) |
+
+Remaining untested candidates are `r8169` (ethernet), and the PCIe bridges armed for wake at **S0** — `GP11` (`00:03.1`) and `NHI0` (`75:00.5`, USB4/Thunderbolt), which can be disarmed via `/proc/acpi/wakeup`. `nvme` (`02:00.0`) also sits `active`/D0 but is the root disk and cannot be bisected this way.
+
+**The decision was to stop hunting and hibernate instead** — some AMD laptops simply never reach s0i3 on Linux, the remaining search space is unbounded, and hibernation fixes the actual failure (a laptop that dies in a bag) whatever the cause. See the next section. If you do want to resume the hunt, the method is one suspend per suspect: unload the driver, suspend 10+ minutes on battery, and check `last_hw_sleep`.
+
+## Hibernation — the answer to the s0i3 drain
+
+Set up 2026-07-31, because `HandleLidSwitch = "suspend"` could not be trusted at ~3 W: a full 42.6 Wh battery lasts ~14 h asleep, so a night closed in a bag finds it flat.
+
+- **`HandleLidSwitch = "suspend-then-hibernate"`** on battery, `HandleLidSwitchExternalPower = "suspend"` on AC. The two differ **deliberately** — on AC the drain is irrelevant and instant resume is worth more.
+- **`HibernateDelaySec = 30m`** (`systemd.sleep.settings.Sleep` in `power.nix`). 30 min at ~3 W is ~1.5 Wh, so a short lid-close still resumes instantly; anything longer goes to disk. Note this is **`settings.Sleep`, not `extraConfig`** — the latter is now a hard assertion failure, not a warning.
+- **`/swap` is its own btrfs subvolume (`@swap`)** with a 20 GiB swapfile, created by hand with `btrfs filesystem mkswapfile`. It is mounted **without `compress=zstd:3`**, unlike every other mount in `hardware-configuration.nix` — btrfs rejects a compressed swapfile and `swapon` reports `Invalid argument`, which reads like file corruption rather than a wrong mount option. The file must also be `NODATACOW` (`lsattr` shows `C`); creating it with `fallocate` or `dd` instead of `mkswapfile` produces a file `swapon` refuses.
+- **zram stays the working swap.** It holds priority 5 against the swapfile's -1, so ordinary swapping never touches the disk. The file exists only to hold a hibernation image, which zram cannot do — it lives in the RAM being saved. 20 GiB against 14 GiB of RAM leaves room for zram's compressed pages, which are also in the image.
+
+**`resume_offset` is the fragile part.** Both `boot.resumeDevice` and `boot.kernelParams = [ "resume_offset=18621696" ]` are required for a swapfile: one names the filesystem, the other locates the image inside it. Getting it wrong **does not fail loudly** — the machine boots fresh and silently discards the session, which presents as "hibernate didn't work" rather than "resume was misconfigured". The number is valid only for the exact file that exists now; recreating, resizing, defragmenting or `btrfs balance`-ing it moves the image. Re-derive with:
+
+```
+sudo btrfs inspect-internal map-swapfile -r /swap/swapfile
+```
+
+**A rebuild is not enough — you must REBOOT, and skipping it produces a convincing fake success.** `resume=`/`resume_offset=` are kernel command-line parameters, so `rebuild` writes the new `/etc/systemd/logind.conf` and `sleep.conf` immediately while the *running* kernel still has neither. `systemctl hibernate` then snapshots memory, prepares S4 and returns **without writing an image or powering off** — and because the screen blanks and comes back, it reads as a fast, successful hibernate. It is not: the session was never saved. Observed 2026-07-31.
+
+The signature to check for, in `journalctl -k`:
+
+```
+ACPI: PM: Preparing to enter system sleep state S4
+ACPI: PM: Saving platform NVS memory
+ACPI: PM: Restoring platform NVS memory      <- straight back out
+ACPI: PM: Waking up from system sleep state S4
+PM: hibernation: hibernation exit
+```
+
+A **real** hibernate writes the image (`PM: Wrote … kbytes`) and the journal simply *stops*, resuming in the same boot afterwards. Two independent confirmations that it genuinely happened: `grep -o 'resume[^ ]*' /proc/cmdline` must show both parameters, and `journalctl --list-boots` must NOT gain a new boot across the cycle — a new boot ID means the image was written but resume failed, so the session was discarded.
+
+**This is dangerous while half-applied**, because `HandleLidSwitch=suspend-then-hibernate` goes live at rebuild time. Closing the lid on battery then attempts the failed hibernate after `HibernateDelaySec`, thaws, and leaves the machine awake with the lid shut — draining *faster* than plain suspend. Reboot promptly after the rebuild.
+
+**The RTC trap:** the wake that triggers the hibernate needs an RTC alarm, and `rtc0` here is `acpi-tad`, which has **no `wakealarm` at all** — so `rtcwake` fails with `/dev/rtc0 not enabled for wakeup events` and looks like broken firmware. The alarm really comes from **`rtc1` (`rtc_cmos`, "RTC can wake from S4")**, which the kernel's alarmtimer uses because it is the only RTC with a wakeup node. Don't point anything at `rtc0` to "fix" a wakealarm complaint.
+
+`wlopm` needs the Wayland socket, so unlike the old backlight hooks it **cannot run as root directly**. `setDisplayPower` loops over `/run/user/*/wayland-[0-9]`, resolves the owning user and `runuser`s to them — which also handles mango coming up as either `wayland-0` or `wayland-1`, where hardcoding one would be a silent no-op half the time.
+
+### wlopm works now — the note saying it can't is stale
+
+This file used to state that **mango advertises no `wl_output` global**, so `wlopm --json` returned `[]`, `wlr-randr` printed nothing, `mmsg get all-monitors` returned `{"monitors":[]}`, and every DPMS call was a silent no-op. **That is no longer true, verified 2026-07-31:**
+
+```
+$ wlopm --json
+[ { "output": "eDP-1", "power-mode": "on" } ]
+$ mmsg get all-monitors
+{"monitors":[{"name":"eDP-1","active":true,...}]}
+```
+
+`--off` and `--on` genuinely power the display pipe down and back up. The mango 0.15.5 upgrade (2026-07-27) is the likely reason it changed. **That stale fact had a real cost**: believing DPMS was impossible is what sent sleep blanking down the backlight path, which could never have worked, and which cost a flat battery to discover. Re-test a "this protocol isn't available" claim before building around it — `wlopm --json` is one command.
+
+`wlopm` **is** now installed (`modules/home/packages.nix`); `power.nix` references `${pkgs.wlopm}` by store path rather than relying on PATH. Note `bind=SUPER+SHIFT,p` is **not** wired to it — that key was reclaimed on 2026-07-31 to cycle the ACPI power profile, so there is still no blank-the-screen keybind, and with no idle daemon (no swayidle/hypridle) the screen still never blanks on idle.
 
 ## Networking
 
@@ -264,7 +333,7 @@ the flake at the repo root that reproduces this machine. **It is live and it is 
    **Two follow-ups found 2026-07-30, after the above was written.** First, the *old* Arch template was never disabled — `default.target.wants/rclone@ProtonDrive.service` → `~/.config/systemd/user/rclone@.service` was still enabled and restart-looping on `/usr/bin/rclone` (203/EXEC, a path that does not exist on NixOS). Two enabled units for one mount. Disabled and removed. Second, and more seriously: the 230-restart flood escalated past rate-limiting. Proton now returns **422 Code=2028, "unusual activity targeting your account … we have temporarily limited access"** — an account-level abuse restriction, not a backoff. The unit is stopped; **do not restart it to test**, each attempt reinforces the flag. It needs either time or an appeal at `proton.me/support/appeal-abuse`. This is the real cost of the missing start limit, and it landed on the account rather than the machine.
 
    **Resolved by deletion, 2026-07-30.** Proton Drive is not used here and Proton blocks rclone's standard method anyway, so the whole mount was removed from the flake rather than repaired. The transferable lesson is the one above and it still stands for every future service: **a `Restart=` without a `StartLimitBurst=` is a loaded gun**, and when the target is someone else's API the damage is not confined to your machine.
-9. **The compositor exposes no `wl_output`, and the machine only has s2idle.** Two independent facts that combine into one confusing symptom — suspend leaving a lit, frozen screen. Neither is fixable by a package or a kernel parameter, and the tool you would reach for first (`wlopm`) fails silently rather than erroring. Full detail in the **Suspend** section above; read it before touching anything to do with displays, DPMS or idle behaviour.
+9. **A lit screen during suspend is what flattens the battery — the display blocks s0i3.** The machine only has s2idle, and under s2idle the SoC reaches its low-power state only when every IP block is idle. The DISPLAY block tracks the CRTC, so an un-powered-down display pins the system at ~4.1 W and the laptop dies overnight in what looks like sleep. **The backlight is not the display pipe**: `brightnessctl` and `bl_power` cannot idle that block, which is why the first fix logged clean and achieved nothing. `wlopm --off '*'` is the mechanism, and it works despite an older note in this file claiming mango exposed no `wl_output`. Full detail in the **Suspend** section above; read it before touching anything to do with displays, DPMS, suspend drain or idle behaviour.
 10. **swaylock needs a PAM service declared by hand on mango, or it can never unlock.** swaylock is not setuid and does not read `/etc/shadow` itself — it authenticates through PAM as the service name `swaylock` (true for `swaylock-effects` too). With no `/etc/pam.d/swaylock`, PAM falls back to `/etc/pam.d/other`, which on NixOS is `pam_warn` + `pam_deny`: **every password is rejected, correct or not.** sway and river get this free because their nixpkgs modules import `modules/programs/wayland/wayland-session.nix`, which sets `security.pam.services.swaylock = { }`; `programs.mango.enable` does **not** import it — it only wires portals and `displayManager.sessionPackages`. There is no `programs.swaylock` NixOS module to enable, and installing `pkgs.swaylock` alongside `swaylock-effects` would only be a `buildEnv` collision over `bin/swaylock`. Declared in `modules/system/desktop.nix`; locked out this way on 2026-07-30. The only diagnostic is `pam_warn(swaylock:auth)` in the journal — the lock screen just says the password is wrong. **Do not try to escape it with `pkill swaylock`.** swaylock locks via `ext-session-lock-v1`, and that protocol requires the compositor to **stay locked** if the lock client dies without sending `unlock_and_destroy` — that is the protocol's security guarantee, not a bug. Killing swaylock therefore leaves mango showing a permanently blank surface with the session still locked, which reads as "my mango session is blank". `mmsg` has no unlock command (nothing lock-related in its API), so the only ways out are relaunching swaylock on that same `WAYLAND_DISPLAY` to take over the abandoned lock and authenticating, or restarting the session and losing what was open. Both happened on 2026-07-30; the reboot was the fix.
 
 Inputs are pinned by `flake.lock` (nixpkgs `624af665`) — re-lock deliberately with `nix flake update`, not as a side effect of a build. `verify-packages.sh` re-checks that the closure evaluates, but note it only evaluates: it cannot catch profile collisions or a derivation that fails to build.
@@ -308,7 +377,7 @@ Installation was **side-by-side** and is now the only system: `@nixos` and `@nix
 Scripts live in **`home/scripts/`** in this repo and are linked to `~/.scripts` as a **store path** (`dotfiles.nix`). They moved in on 2026-07-30; before that they existed only on this disk, in no repo and no backup, while `modules/system/audio.nix` declared a systemd unit whose `ExecStart` pointed at one of them — so a fresh install produced a unit that could not start. That unit now references the store directly.
 
 **None of them have a file extension** — they are bash scripts named without `.sh`:
-- `toggle_lid_action` — toggle lid close behaviour in `/etc/systemd/logind.conf` (run via `lidaction` alias)
+- `toggle_lid_action` — **migrated but inert on NixOS, and it fails in a way that reads like a permissions bug.** It edits `/etc/systemd/logind.conf` in place, and that path is a symlink into `/etc/static/`, i.e. a read-only store path — so `lidaction /etc/systemd/logind.conf toggle` prints `Permission denied` and exits 1. `sudo` does not help; the store is read-only for root too. Reading still works (`lidaction /etc/systemd/logind.conf` reports the current value). The setting is declarative now: `services.logind.settings.Login` in `modules/system/power.nix`, applied by a rebuild. The script and its `lidaction` alias are kept only because they still answer "what is it set to"
 - `clean_tmp` — clean tmp files (run via `cleantmp` alias)
 - `keyd-application-mapper` — per-application keyd layer switching
 - `micmute-led` — daemon that syncs the ThinkPad mic-mute LED with PipeWire's default source mute state; subscribes to PipeWire events via `pactl subscribe`. On NixOS it runs as the user service declared in `modules/system/audio.nix`, which is also the **only** place `pactl` exists: it comes from `pkgs.pulseaudio` on that unit's `path`, and is deliberately *not* in `systemPackages`, so running this script from an interactive shell fails with `pactl: command not found`. Write access to the LED comes from the udev rule in the same file. Don't add a `.sh` extension — the real filename has none.

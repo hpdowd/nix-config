@@ -1,5 +1,29 @@
 { config, pkgs, lib, ... }:
 
+let
+  # Turn the display pipe off/on via the compositor. wlopm speaks
+  # zwlr_output_power_manager_v1, so it needs the Wayland socket and therefore
+  # has to run as the session user — the sleep hooks themselves run as root.
+  #
+  # The loop covers whichever socket the session actually has: mango has come up
+  # as both wayland-0 and wayland-1, so hardcoding either one is a silent no-op
+  # half the time. `|| true` throughout — a sleep hook that fails must never
+  # block suspend, and this must degrade to "screen stays on" rather than
+  # "machine won't sleep".
+  setDisplayPower = mode: ''
+    for sock in /run/user/*/wayland-[0-9]; do
+      [ -e "$sock" ] || continue
+      rundir=$(${pkgs.coreutils}/bin/dirname "$sock")
+      uid=$(${pkgs.coreutils}/bin/basename "$rundir")
+      user=$(${pkgs.coreutils}/bin/id -nu "$uid" 2>/dev/null) || continue
+      ${pkgs.util-linux}/bin/runuser -u "$user" -- \
+        ${pkgs.coreutils}/bin/env \
+          "XDG_RUNTIME_DIR=$rundir" \
+          "WAYLAND_DISPLAY=$(${pkgs.coreutils}/bin/basename "$sock")" \
+          ${pkgs.wlopm}/bin/wlopm --${mode} '*' || true
+    done
+  '';
+in
 {
   # --- TLP ------------------------------------------------------------------
   # Mirrors your /etc/tlp.conf. Note that NixOS enables
@@ -80,71 +104,91 @@
   };
 
   # --- Lid / suspend --------------------------------------------------------
-  # Your ~/.scripts/toggle_lid_action.sh edits /etc/systemd/logind.conf in
-  # place. That file is read-only on NixOS, so the setting moves here and
-  # changing it means a rebuild. Set to "ignore" if you dock/use an external
-  # monitor and want the old toggle behaviour permanently.
+  # ~/.scripts/toggle_lid_action (no .sh — the real file has no extension)
+  # edits /etc/systemd/logind.conf in place. On NixOS that path is a symlink
+  # into /etc/static/, a read-only store path, so the script exits 1 with
+  # "Permission denied" and sudo does not help. The setting lives here instead
+  # and changing it means a rebuild. Set both to "ignore" if you dock or use an
+  # external monitor and want the old lid-does-nothing behaviour.
+  # On battery: suspend-then-hibernate. Plain suspend cannot be trusted here
+  # because this machine never reaches s0i3 (see below) and idles at ~3 W while
+  # "asleep" — a full battery lasts ~14 h, so a night closed in a bag finds it
+  # flat. After HibernateDelaySec it writes RAM to /swap/swapfile and powers
+  # off properly, costing ~1.5 Wh for the initial suspend window instead of the
+  # whole battery.
+  #
+  # On AC the drain does not matter, so stay on plain suspend and keep the
+  # instant resume. This is the one setting where the two differ deliberately.
   services.logind.settings.Login = {
-    HandleLidSwitch = "suspend";
+    HandleLidSwitch = "suspend-then-hibernate";
     HandleLidSwitchExternalPower = "suspend";
     HandleLidSwitchDocked = "ignore";
   };
 
-  # --- Blank the panel across sleep -----------------------------------------
+  # 30 minutes at ~3 W is ~1.5 Wh — cheap enough that a short lid-close still
+  # resumes instantly, while anything longer goes to disk.
+  #
+  # The wake that triggers the hibernate needs an RTC alarm. rtc0 here is
+  # `acpi-tad`, which has NO wakealarm at all — which is why `rtcwake` fails
+  # with "/dev/rtc0 not enabled for wakeup events" and looks like broken
+  # firmware. The alarm actually comes from rtc1 (`rtc_cmos`, "RTC can wake
+  # from S4"), which the kernel's alarmtimer picks up because it is the only
+  # RTC with a wakeup node. Don't "fix" a wakealarm complaint by pointing
+  # anything at rtc0.
+  # Note this is `settings.Sleep`, not the older `extraConfig` — that option is
+  # now a hard assertion failure ("no longer has any effect; please remove
+  # it"), not a warning. Same shape as services.logind.settings.Login above.
+  systemd.sleep.settings.Sleep = {
+    HibernateDelaySec = "30m";
+  };
+
+  # --- Power the display down across sleep ----------------------------------
   # This machine only offers s2idle. `cat /sys/power/mem_sleep` reports
   # `[s2idle]` with no `deep` alternative, because the firmware exposes Modern
   # Standby (s0ix) rather than S3 — so setting `mem_sleep_default=deep` on the
   # kernel command line would achieve nothing.
   #
-  # That matters here because **s2idle does not cut power to the display**. S3
-  # would have blanked the panel in hardware; under s2idle the compositor owns
-  # it, and nothing did, so suspending left the last frame lit on screen and
-  # read as "suspend just freezes the display". The machine was suspending and
-  # resuming correctly throughout — `PM: suspend entry (s2idle)` / `suspend
-  # exit` in the journal, WiFi reassociating via the hook in networking.nix.
+  # **This is a battery bug, not a cosmetic one.** Under s2idle the SoC only
+  # reaches its low-power state (s0i3) once every IP block reports idle, and the
+  # DISPLAY block stays active for as long as the display *pipe* is on. So a lit
+  # panel does not merely look wrong — it holds s0i3 off entirely, and the
+  # machine sits at ~4.1 W for the whole "suspend". Measured 2026-07-31:
+  # 790 mWh over 11m34s, `Last S0i3 Status: Unknown/Fail`, and in
+  # /sys/kernel/debug/amd_pmc/smu_fw_info every block at 0 except
+  # `DISPLAY: 9440595`. A 42.6 Wh battery lasts ~10.4 h at that draw, which is
+  # why the laptop was found dead after a night closed on the desk. The kernel
+  # says it plainly too: `amd_pmc AMDI0007:00: Last suspend didn't reach
+  # deepest state`.
   #
-  # There is no idle daemon on this system (no swayidle/hypridle), so this is
-  # also the only thing that ever turns the panel off.
+  # **The backlight cannot fix this, and the first attempt at it failed twice
+  # over.** brightnessctl only drives the PWM level, and the amdgpu backlight is
+  # `type: raw` with no panel-power path — so writing 4 (FB_BLANK_POWERDOWN) to
+  # /sys/class/backlight/amdgpu_bl1/bl_power is folded into "set brightness 0"
+  # and changes nothing visible. Worse, even a genuinely dark backlight would
+  # leave the DISPLAY block active, because the block tracks the CRTC, not the
+  # PWM. The 2026-07-30 version of this hook wrote both values, succeeded, exited
+  # 0, and left the screen lit and the battery draining.
   #
-  # This drives the **backlight** rather than Wayland DPMS, which is not a
-  # shortcut — the DPMS route cannot work here. mango advertises
-  # `zwlr_output_power_manager_v1` but no `wl_output` global whatsoever, so
-  # wlopm enumerates zero outputs (`wlopm --json` → `[]`) and every call is a
-  # silent no-op; `mmsg get all-monitors` returns `{"monitors":[]}` too, even
-  # though `mmsg watch focusing-client` correctly reports "monitor":"eDP-1".
-  # brightnessctl writes /sys/class/backlight/amdgpu_bl1 directly, so it needs
-  # no compositor connection, no Wayland socket and no runuser dance — which
-  # also makes it correct when the lid closes with the session locked.
+  # The display pipe belongs to the compositor, so the fix goes through
+  # `zwlr_output_power_manager_v1` — which mango does implement
+  # (`output_power_mgr_set_mode` is in the binary). An earlier note in this file
+  # claimed the DPMS route was impossible because mango advertised no
+  # `wl_output` global, so `wlopm --json` returned `[]` and `mmsg get
+  # all-monitors` returned `{"monitors":[]}`. **That is no longer true** — both
+  # now report eDP-1 correctly, verified 2026-07-31. Whatever it was (the mango
+  # 0.15.5 upgrade is the likely culprit), that stale fact is what sent this down
+  # the backlight path in the first place. Re-check it before believing any
+  # claim here that something "cannot" be done through the compositor.
   #
-  # --save/--restore keep state in /var/lib/brightnessctl; both hooks run as
-  # root, so the save and the restore agree on that location.
-  #
-  # `|| true` on the way down: a sleep hook that fails must not block suspend.
-  #
-  # `set 0` alone is NOT enough, and the failure looks like success: on amdgpu,
-  # brightness 0 is the panel's *minimum*, not off, so suspending left the
-  # screen visibly lit at low brightness — reported 2026-07-30 as "screen stays
-  # on with brightness low". The panel's actual power switch is `bl_power`,
-  # which takes the framebuffer blanking levels from the kernel's fb API:
-  # 0 = FB_BLANK_UNBLANK, 4 = FB_BLANK_POWERDOWN. Writing 4 cuts the backlight
-  # outright. Keep `set 0` as well — it makes the wake-up ramp come back from
-  # dark rather than flashing full brightness before --restore lands.
-  powerManagement.powerDownCommands = ''
-    ${pkgs.brightnessctl}/bin/brightnessctl --save || true
-    ${pkgs.brightnessctl}/bin/brightnessctl set 0 || true
-    echo 4 > /sys/class/backlight/amdgpu_bl1/bl_power || true
-  '';
+  # There is no idle daemon on this system (no swayidle/hypridle), so these
+  # hooks remain the only thing that ever turns the panel off.
+  powerManagement.powerDownCommands = setDisplayPower "off";
 
-  # The fallback matters more than it looks: if --restore fails or the saved
-  # state is missing, the machine wakes to a black screen that no keypress
-  # brings back — a worse failure than the one being fixed.
-  # bl_power must be cleared BEFORE the brightness restore, or the panel stays
-  # powered down no matter what brightness is written to it.
-  powerManagement.resumeCommands = ''
-    echo 0 > /sys/class/backlight/amdgpu_bl1/bl_power || true
-    ${pkgs.brightnessctl}/bin/brightnessctl --restore \
-      || ${pkgs.brightnessctl}/bin/brightnessctl set 50%
-  '';
+  # Without this the machine wakes to a black screen that no keypress brings
+  # back — the output stays in its off power-mode until something sets it on,
+  # and input does not override it. That is a worse failure than the one being
+  # fixed, so if you ever strip a hook, strip the suspend one, never this.
+  powerManagement.resumeCommands = setDisplayPower "on";
 
   # AMD GPU control (corectrl) needs this to avoid a polkit prompt per launch.
   # `programs.corectrl.gpuOverclock.enable` was renamed to the option below.

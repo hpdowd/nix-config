@@ -238,15 +238,21 @@
     wl-clipboard
     grim
     slurp
-    # Deliberately NOT wlopm, even though mango/universal/bind.conf binds
-    # SUPER+SHIFT+p to it. mango advertises zwlr_output_power_manager_v1 but
-    # no `wl_output` global at all, so wlopm enumerates zero outputs
-    # (`wlopm --json` returns `[]`) and every invocation is a silent no-op.
-    # `mmsg get all-monitors` likewise returns `{"monitors":[]}` while
-    # `mmsg watch focusing-client` correctly reports "monitor":"eDP-1".
-    # Installing it would only make a broken keybind look supported.
-    # Screen blanking across sleep is done via the backlight instead — see
-    # modules/system/power.nix.
+    wlopm
+    # This comment used to say wlopm was deliberately omitted because mango
+    # advertised no `wl_output` global, so `wlopm --json` returned `[]` and
+    # every call was a silent no-op. **That is no longer true as of
+    # 2026-07-31**: `wlopm --json` reports eDP-1 and `--off`/`--on` genuinely
+    # power the display pipe down and back up. `mmsg get all-monitors` also
+    # returns eDP-1 now, where it used to return `{"monitors":[]}`. The mango
+    # 0.15.5 upgrade is the likely reason.
+    #
+    # That stale claim had real cost: it is why sleep blanking was built on the
+    # backlight, which cannot idle the DISPLAY IP block and so left the SoC
+    # unable to reach s0i3 — a ~4.1 W "suspend" that flattened the battery
+    # overnight. See modules/system/power.nix, which drives wlopm from the
+    # sleep hooks and references ${pkgs.wlopm} directly rather than PATH.
+    # It is listed here so the SUPER+SHIFT+p style manual use also works.
 
     # --- Android / misc tooling --------------------------------------------
     apktool # android-apktool

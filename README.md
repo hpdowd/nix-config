@@ -55,6 +55,7 @@ is globbed, matches nothing, and fails with `zsh: no matches found:` before
 |---|---|
 | Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the standing description of how this machine is put together |
 | Understand why something is the way it is | [`docs/adr/`](docs/adr/) — numbered decision records, each with the failure that motivated it |
+| See what changed recently, and what broke | [`docs/WORK-LOG.md`](docs/WORK-LOG.md) — the declarative pass (2026-07-30/31), plus a current-state snapshot |
 | Know how agents should use this repo | [`docs/agents/`](docs/agents/) — domain docs, issue tracker, triage labels |
 | Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. Kept for their post-mortems, **not** as live instructions |
 

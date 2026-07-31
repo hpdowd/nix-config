@@ -334,6 +334,8 @@ The five canonical roles, each label string equal to its name. They do not exist
 
 ### Domain docs
 
+**`docs/WORK-LOG.md`** records the 2026-07-30/31 declarative pass — what changed, what broke and why, what is deliberately *not* declarative, and a current-state snapshot with the commands to re-verify it. Read it before assuming something is unfinished rather than decided. (`docs/archive/WORK-LOG.md` is the separate, earlier log for the migration itself.)
+
 Single-context. **`docs/adr/` exists as of 2026-07-30** — eight numbered records covering the flake layout, the out-of-store rule, state placement, theming ownership, daemon ownership, start limits, language servers and the Arch removal. Each carries the failure that motivated it, so read the relevant one before undoing something that looks redundant. `CONTEXT.md` still does not exist and is created lazily. For this repo `CLAUDE.md` itself is the standing system description, so read it first. See `docs/agents/domain.md`.
 
 Note for anything adding files under `docs/`: `.gitignore` **stopped being an allowlist on 2026-07-30**. While the repo root was `~/.config` it had to ignore `/*` and un-ignore 38 known-good paths, so a new top-level directory stayed invisible to git until someone added a `!/dirname/` line. Now that the dotfiles live under `home/` and the flake is at the root, it is an ordinary denylist — a new directory is tracked by default, and the rules that remain are specific: generated files (`home/mango/config.conf`), runtime state, wallpaper, and the credential dirs.

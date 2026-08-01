@@ -241,6 +241,16 @@ in
   programs.helix = {
     enable = true;
     settings.theme = "gruvbox";
+    languages = {
+      language-server.pyright = {
+        command = "pyright-langserver";
+        args = [ "--stdio" ];
+      };
+      language = [{
+        name = "python";
+        language-servers = [ "pyright" "ruff" ];
+      }];
+    };
   };
   xdg.configFile."helix/themes/gruvbox.toml".source = ../../home/helix/themes/gruvbox.toml;
 

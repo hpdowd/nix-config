@@ -19,9 +19,7 @@
     ripgrep
     fzf
     zoxide
-    yazi
     tree
-    htop
     bottom # `btm`
     gdu
     tealdeer # `tldr`
@@ -40,6 +38,9 @@
     # --- Git / forge --------------------------------------------------------
     git
     git-filter-repo
+    # lazygit has a home-manager module, but home/lazygit/config.yml was a
+    # zero-byte file — there is nothing to generate, so the package alone is
+    # the honest declaration. Add `programs.lazygit` if it ever gets settings.
     lazygit
     gh # github-cli
     glab
@@ -47,14 +48,12 @@
 
     # --- Editors ------------------------------------------------------------
     neovim
-    helix
     vis
     # vscode and vscodium both install into lib/vscode and collide in the
     # home-manager buildEnv (they coexist on Arch only because of separate
     # prefixes). Keeping the MS build for marketplace/Copilot access.
     vscode
     code-cursor # cursor-bin
-    zed-editor
     jetbrains.pycharm # attr is `pycharm`; `pycharm-professional` doesn't exist
 
     # --- Language servers ----------------------------------------------------
@@ -82,8 +81,6 @@
     github-copilot-cli
 
     # --- Terminals / multiplexer -------------------------------------------
-    kitty
-    foot
     ghostty
     tmux
 
@@ -166,13 +163,11 @@
 
     # --- Media --------------------------------------------------------------
     mpv
-    imv
     yt-dlp
     gimp3
     blender
     spotify
     spicetify-cli
-    ncspot
     gpu-screen-recorder
     gst_all_1.gst-libav
     gst_all_1.gst-plugins-good

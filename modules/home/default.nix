@@ -5,6 +5,11 @@
     ./options.nix
     ./packages.nix
     ./shell.nix
+    # Native home-manager program modules. Anything here GENERATES its config
+    # from Nix; dotfiles.nix carries what is still a hand-written file. New
+    # conversions go into programs.nix and come out of dotfiles.nix in the same
+    # change — a config with two owners fails activation.
+    ./programs.nix
     ./dotfiles.nix
     ./theme.nix
   ];

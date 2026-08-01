@@ -93,28 +93,13 @@ in
     # first run, so nothing writes in here any more. Plain `source`, not
     # `recursive` — with the lockfile gone there is nothing to create.
     "nvim".source = ../../home/nvim;
-    # helix writes nothing to its config dir (it looks for a `runtime/` there,
-    # does not find one, and falls back to the store copy — that is the warning
-    # `hx --health` prints, and it is harmless).
-    "helix".source = ../../home/helix;
-    # zed: `zed/settings.json` is pinned as a file further down, so its
-    # directory stays writable for the state Zed keeps there. The cost is that
-    # settings can no longer be changed from inside Zed — edit
-    # home/zed/settings.json and rebuild.
-
-    # --- Terminals ----------------------------------------------------------
-    # kitty and foot USED to include an `active-theme.*` file that the mode
-    # scripts replaced with a symlink at runtime, which is why they had to be
-    # writable and therefore out-of-store. That indirection was removed on
-    # 2026-07-30 — both modes pointed it at the same gruvbox files, so it
-    # selected nothing, and kitty.conf/foot.ini now name the theme directly.
+    # helix, kitty, foot, zed → programs.nix (2026-08-01). helix's THEME is
+    # still a file — see the note there — but it is declared alongside the
+    # module rather than here.
     #
-    # Converted to store paths 2026-07-30. Nothing writes into any of these, so
-    # there is no reason for them to be mutable, and in the store they stop
-    # depending on ~/src/nix-config existing at all.
-    "kitty".source = ../../home/kitty;
-    "foot".source = ../../home/foot;
-    "ghostty".source = ../../home/ghostty;
+    # ghostty was dropped entirely in the same pass: home/ghostty/config.ghostty
+    # was a ZERO-BYTE file, so linking it configured nothing. The package stays
+    # in packages.nix and runs on its defaults, exactly as it did before.
 
     # --- Shell --------------------------------------------------------------
     # NOTE: `zsh/conf.d`, not `zsh` — home-manager owns ~/.config/zsh/.zshrc,
@@ -123,11 +108,15 @@ in
     "zsh/conf.d".source = ../../home/zsh/conf.d;
 
     # --- Read-only at runtime: store-based ----------------------------------
-    "yazi".source = ../../home/yazi;
-    "bottom".source = ../../home/bottom;
-    "lazygit".source = ../../home/lazygit;
-    "glow".source = ../../home/glow;
-    "imv".source = ../../home/imv;
+    # yazi and imv → programs.nix (2026-08-01).
+    #
+    # bottom and lazygit were deleted rather than converted, and the reason is
+    # worth recording so nobody "restores" them: home/lazygit/config.yml was
+    # ZERO BYTES, and home/bottom/bottom.toml was bottom's 317-line sample file
+    # with every single line commented out. Both configured nothing. Linking an
+    # empty config is indistinguishable from linking a correct one, which is
+    # how they survived the migration unexamined.
+    "glow".source = ../../home/glow; # no home-manager module at this pin
 
     # Moved out of home/mango/ on 2026-07-31. They lived there because the
     # config tree doubled as the backup unit — only the directories worth
@@ -150,15 +139,25 @@ in
     # can create the gitignored config.conf — a writability exemption neither
     # of these needs.
     #
-    # wlogout's five PNGs are referenced RELATIVELY from its style.css
-    # (`url("icons/lock.png")`); GTK resolves those against the stylesheet's
-    # own path, so they travel with the directory. Don't make them absolute —
-    # a failed GTK url() draws the missing-image box with nothing in any log.
-    "wlogout".source = ../../home/wlogout;
+    # wlogout → programs.nix (2026-08-01). Its five PNGs used to be referenced
+    # RELATIVELY from style.css, which worked only because this entry linked
+    # the whole directory. The module renders style.css as a standalone store
+    # file, so the icons now have to be interpolated as absolute store paths —
+    # see the long note in programs.nix before touching them.
+    #
+    # swaync stays HERE, deliberately, and not because it lacks a module.
+    # `services.swaync` exists and would work — but it declares
+    # `systemd.user.services.swaync`, which is exactly the unit masked in
+    # default.nix. mango/{tiling,hud}/autostart.conf owns swaync's lifecycle so
+    # that a restyle takes effect on mode switch; adopting the module means
+    # handing that to systemd and restyling via `systemctl --user restart`.
+    # That is a real behaviour change and deserves its own decision, not a line
+    # in a bulk conversion. If you do adopt it: drop the mask, drop the
+    # autostart exec= line, and never run both.
     "swaync".source = ../../home/swaync;
 
     # --- Managed as FILES, not directories ----------------------------------
-    # Converted 2026-07-30. These were out-of-store because a program rewrites
+    # Introduced 2026-07-30. These were out-of-store because a program rewrites
     # something in the directory. Pinning the individual *file* solves it: the
     # tracked config lands read-only in the store, while the DIRECTORY stays
     # writable, so sibling runtime files still work. `ncspot/userstate.cbor`
@@ -166,11 +165,13 @@ in
     # config, and it was previously committed to git, which it should never
     # have been (docs/adr/0003).
     #
+    # htop, ncspot and zed moved on to programs.nix (2026-08-01) — their
+    # home-manager modules use precisely this file-not-directory technique
+    # internally, so the workaround became upstream's problem instead of a
+    # local special case. What is left below has no module at this pin.
+    #
     # The trade-off is real and intended: the config file can no longer be
     # changed from inside the app. Edit it here and rebuild.
-    "htop/htoprc".source = ../../home/htop/htoprc;
-    "ncspot/config.toml".source = ../../home/ncspot/config.toml;
-    "zed/settings.json".source = ../../home/zed/settings.json;
     "Kvantum/kvantum.kvconfig".source = ../../home/Kvantum/kvantum.kvconfig;
     # The theme directory is literally named `Gruvbox#`, and `#` starts a
     # comment in Nix — a bare `../../home/Kvantum/Gruvbox#;` swallows the

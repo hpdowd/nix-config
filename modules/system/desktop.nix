@@ -45,7 +45,13 @@
     swaynotificationcenter
     swayosd
     swaylock-effects
-    wlogout
+    # wlogout moved to home-manager on 2026-08-01 — `programs.wlogout` in
+    # modules/home/programs.nix installs it alongside its generated layout and
+    # stylesheet. Deliberately NOT listed here as well: the module adds it to
+    # home.packages, and having the same binary in both the system and user
+    # profiles makes which one you get a question of PATH order. It is only
+    # ever launched from waybar and the mango keybinds, both of which run in
+    # the user session, so the home profile is the right owner.
     wayfreeze
 
     # Launchers & menus — all in nixpkgs, verified 2026-07-27

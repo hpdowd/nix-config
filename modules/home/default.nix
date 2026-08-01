@@ -10,6 +10,7 @@
     # conversions go into programs.nix and come out of dotfiles.nix in the same
     # change — a config with two owners fails activation.
     ./programs.nix
+    ./waybar.nix
     ./dotfiles.nix
     ./theme.nix
   ];

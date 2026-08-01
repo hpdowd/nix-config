@@ -76,6 +76,6 @@ alias gl='git log --oneline --graph --decorate'
 # been decided by source order rather than by anyone's intent. Deleted here and
 # declared there instead. Don't reintroduce it.
 
-if command -v zoxide >/dev/null 2>&1; then
-  eval "$(zoxide init --cmd cd zsh)"
-fi
+# --- zoxide (cd) ---------------------------------------------------
+# Declared by `programs.zoxide` in modules/home/shell.nix. Duplicated here
+# until 2026-08-01, costing ~8 ms per shell.

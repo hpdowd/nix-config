@@ -70,6 +70,10 @@
   # zsh must be enabled system-wide for it to be a valid login shell.
   programs.zsh.enable = true;
 
+  # Not its compinit — home-manager writes a second one into .zshrc, and running
+  # both cost 219 ms per shell.
+  programs.zsh.enableCompletion = false;
+
   security.sudo-rs.enable = true; # you have sudo-rs installed on Arch
   security.sudo.enable = false;
 

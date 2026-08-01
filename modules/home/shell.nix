@@ -19,6 +19,10 @@
     enableCompletion = true; # zsh-completions
     historySubstringSearch.enable = true; # zsh-history-substring-search
 
+    # -C skips compaudit (87 ms of 120 ms) and the staleness check. Only safe
+    # paired with the dump invalidation below.
+    completionInit = "autoload -U compinit && compinit -C";
+
     history = {
       size = 50000;
       save = 50000;
@@ -52,10 +56,19 @@
   # git history if wanted. To bring fish back, add the package and restore
   # EITHER `programs.fish.enable` OR a dotfiles link, never both.
 
+  # Counterpart to `compinit -C`: a rebuild is the only time completions change,
+  # so invalidate the dump then. Globs the .zcompdump.<host>.<pid> temps too.
+  home.activation.invalidateZcompdump =
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      run rm -f ${config.xdg.configHome}/zsh/.zcompdump ${config.xdg.configHome}/zsh/.zcompdump.*
+    '';
+
   # --- Tools that hook the shell -------------------------------------------
+  # `--cmd cd` moved here from conf.d/10-aliases.zsh, which duplicated the init.
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;
+    options = [ "--cmd" "cd" ];
   };
 
   programs.fzf = {

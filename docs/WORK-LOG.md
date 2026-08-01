@@ -373,3 +373,59 @@ Plasma, DankMaterialShell/Quickshell, `papirus-folders`, the pacman aliases.
 - **`walker/themes/` unaudited** for the same tracked-symlink pattern that
   `config.toml` had. A `walker/themes/noctalia` symlink was already deleted on
   2026-07-30 for resolving into its own parent.
+
+---
+
+# Work log — zsh startup time
+
+**2026-08-01.** Interactive shells felt slow to open. Profiled with `zmodload
+zsh/zprof` and per-line `$EPOCHREALTIME` deltas; the cost was all completion
+setup, none of it in the hand-written `conf.d/*.zsh`.
+
+## What was costing what
+
+| Cause | Cost |
+|---|---|
+| `compinit` run **twice** — NixOS's `programs.zsh` and home-manager's | 219 ms |
+| `compaudit` inside the surviving `compinit` | 87 ms of 120 ms |
+| `zoxide init` run twice — `conf.d/10-aliases.zsh` on top of `programs.zoxide` | 8 ms |
+
+~315 ms removed. An interactive shell now measures ~110 ms.
+
+## The three changes
+
+1. **`programs.zsh.enableCompletion = false`** (`hosts/thinkpad/default.nix`).
+   Drops the system-level `compinit`; home-manager's is the one kept.
+   `programs.zsh.enable = true` stays — that is what makes zsh a valid login
+   shell and has nothing to do with completion.
+2. **`completionInit = "autoload -U compinit && compinit -C"`**
+   (`modules/home/shell.nix`). `-C` skips `compaudit`, which was auditing
+   store paths that are read-only by construction.
+3. **`home.activation.invalidateZcompdump`** — `rm -f ~/.config/zsh/.zcompdump*`
+   on every rebuild.
+
+**2 and 3 are one change and must not be separated.** `-C` also skips the
+staleness check, so on its own it pins completions to whatever the dump held
+when it was written: a newly installed package's completions never appear, and
+nothing reports it. A rebuild is the only moment completions can change on this
+system, so invalidating the dump exactly then is equivalent to checking on every
+shell, at zero per-shell cost. The glob also clears the
+`.zcompdump.<host>.<pid>` temps a killed `compdump` leaves behind.
+
+## zoxide
+
+The init moved to `programs.zoxide` with `options = [ "--cmd" "cd" ]` and was
+deleted from `conf.d/10-aliases.zsh`. **`--cmd cd` had to move with it** — it is
+what makes `cd` zoxide rather than the builtin, so deleting the duplicate
+without carrying the flag across silently reverts `cd` to builtin `cd`. Same
+shape as the `y`/`yy` yazi wrapper noted in that file: two owners for one name,
+surviving only on source order.
+
+## Checking it still holds
+
+```
+zsh -i -c exit            # time it; ~0.11 s
+grep compinit ~/.config/zsh/.zshrc   # exactly one, with -C
+grep -c compinit /etc/zshrc          # 0
+zsh -ic 'whence -w cd'               # "cd: function", not builtin
+```

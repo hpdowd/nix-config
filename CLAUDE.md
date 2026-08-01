@@ -34,6 +34,14 @@ Only directories tracked in git are linked. `~/.scripts` moved into the repo on 
 
 `programs.zsh` in `modules/home/shell.nix` owns `~/.zshrc`, the plugins, and the history settings, and it sources `conf.d/*.zsh` at the end. **`conf.d/00-options.zsh` is where the shell options live** — recovered on 2026-07-30 from the Arch-era `.zshrc` that home-manager displaced at the migration, which had carried settings Nix never reproduced. It is sourced *after* home-manager's own `set_opts` loop, so it deliberately wins: `EXTENDED_HISTORY` and `INC_APPEND_HISTORY` are re-enabled there against home-manager's `NO_*` defaults. It also does `zmodload zsh/datetime` — `40-prompt.zsh` times commands with `$EPOCHSECONDS`, and without the module that parameter is simply unset, so the timer silently computed `0 - 0` on every prompt.
 
+**Startup cost — three settings, coupled, all added 2026-08-01.** They removed ~315 ms of per-shell work between them; an interactive shell now measures ~110 ms. Each is load-bearing on its own, and none fails loudly if you undo it.
+
+- **`programs.zsh.enableCompletion = false` in `hosts/thinkpad/default.nix`.** NixOS's `programs.zsh` and home-manager's both run `compinit`, so the completion system was being built **twice** per shell — 219 ms of the 450. Only home-manager's runs now. Note this leaves `programs.zsh.enable = true` alone: that is what makes zsh a valid login shell and is unrelated.
+- **`completionInit = "autoload -U compinit && compinit -C"`.** `-C` skips `compaudit`, which was 87 ms of a 120 ms `compinit` and is checking store paths that are read-only by construction.
+- **`home.activation.invalidateZcompdump`** deletes `~/.config/zsh/.zcompdump` on every rebuild. **This is the counterpart to `-C` and they must stay together**: `-C` also skips the staleness check, so without the invalidation a new or removed package's completions simply never appear — the dump is stale and nothing says so. A rebuild is the only moment completions can change here, so invalidating exactly then is equivalent to checking on every shell. The glob also clears the `.zcompdump.<host>.<pid>` temps a killed `compdump` leaves behind.
+
+**zoxide is initialised once, in `programs.zoxide` with `options = [ "--cmd" "cd" ]`.** `conf.d/10-aliases.zsh` was running `zoxide init --cmd cd zsh` on top of the module's own init — ~8 ms, and two sets of hooks. `--cmd cd` is what makes `cd` zoxide rather than builtin `cd`, so removing the init from one side without moving that flag to the other silently un-maps `cd` back to the builtin.
+
 Aliases that affect terminal work:
 
 - `cat` → `bat` (syntax-highlighted pager — use Read tool instead of Bash cat)

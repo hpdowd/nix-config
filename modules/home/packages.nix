@@ -1,13 +1,5 @@
-# Translated from `pacman -Qe` (282 explicit packages) on 2026-07-26.
-#
-# Packages that Arch pulls in as *dependencies* are deliberately omitted —
-# Nix handles those via closures. Likewise anything replaced by a NixOS module
-# (pipewire, tlp, keyd, cups, podman, steam, …) lives in modules/system/, not
-# here.
-#
-# Anything in the LAST section has no confirmed nixpkgs equivalent. Run
-# ./verify-packages.sh before your first rebuild; it will tell you exactly
-# which of these names resolve.
+# User packages. Anything replaced by a NixOS module (pipewire, tlp, keyd, cups,
+# podman, steam, …) lives in modules/system/ instead.
 { config, pkgs, lib, inputs, ... }:
 
 {
@@ -20,9 +12,9 @@
     fzf
     zoxide
     tree
-    bottom # `btm`
+    bottom # btm
     gdu
-    tealdeer # `tldr`
+    tealdeer # tldr
     sysstat
     powertop
     unzip
@@ -38,73 +30,69 @@
     # --- Git / forge --------------------------------------------------------
     git
     git-filter-repo
-    # lazygit has a home-manager module, but home/lazygit/config.yml was a
-    # zero-byte file — there is nothing to generate, so the package alone is
-    # the honest declaration. Add `programs.lazygit` if it ever gets settings.
     lazygit
-    gh # github-cli
+    gh
     glab
-    tea # gitea CLI
+    tea # gitea
 
     # --- Editors ------------------------------------------------------------
     neovim
     vis
-    # vscode and vscodium both install into lib/vscode and collide in the
-    # home-manager buildEnv (they coexist on Arch only because of separate
-    # prefixes). Keeping the MS build for marketplace/Copilot access.
-    vscode
-    code-cursor # cursor-bin
-    jetbrains.pycharm # attr is `pycharm`; `pycharm-professional` doesn't exist
+    vscode # vscodium collides over lib/vscode — pick one
+    code-cursor
+    jetbrains.pycharm
 
-    # --- Language servers ----------------------------------------------------
-    # Neither editor bundles these: nvim is mason-free and takes servers from
-    # $PATH, and helix only *configures* them. They came off Arch via pacman and
-    # were never re-declared, so from the migration until 2026-07-30 the only
-    # working server was rust-analyzer — `hx --health` showed ✘ against
-    # everything else. Nothing errors when one is missing; the feature is just
-    # silently absent, which is why it went unnoticed.
-    #
-    # Add a server here and both editors pick it up. Names below match what
-    # helix looks for by default — check `hx --health <lang>` after adding.
-    nil # Nix — the one that matters most in this repo
-    lua-language-server # nvim's own config
-    bash-language-server # home/mango/scripts/** is all bash
-    marksman # Markdown — CLAUDE.md, README, docs/
+    # --- Language servers ---------------------------------------------------
+    # nvim is mason-free and helix only *configures* servers, so both take them
+    # from $PATH. A missing one is skipped in silence — audit with `hx --health`.
+    nil # Nix
+    lua-language-server
+    bash-language-server
+    marksman # Markdown
     taplo # TOML
-    yaml-language-server # YAML
+    yaml-language-server
+    pyright # Python; nvim only, helix defaults to ty/ruff/jedi/pylsp
+    ruff # Python lint + format
+    clang-tools # C/C++ — clangd is here, not in `clang`
+    typescript-language-server
+    typescript # tsserver for the above; not bundled with it
+    gopls
+    golangci-lint-langserver
+    golangci-lint # required by the above
+    texlab # LaTeX
+    tinymist # Typst
+
+    # --- Formatters ---------------------------------------------------------
+    # Called by conform.nvim. rustfmt comes with rustup, ruff_format with ruff.
+    stylua
+    shfmt
 
     # --- AI / dev assistants ------------------------------------------------
     claude-code
     opencode
-    codex # openai-codex
+    codex
     cursor-cli
     github-copilot-cli
 
-    # --- Terminals / multiplexer -------------------------------------------
+    # --- Terminals / multiplexer --------------------------------------------
     ghostty
     tmux
 
-    # --- Languages / toolchains --------------------------------------------
+    # --- Languages / toolchains ---------------------------------------------
     rustup
-    # `gfortran` is a full GCC wrapper — it ships gcc/g++/cc/c++ as well as
-    # gfortran — so it collides with clang over the generic `cc` and `c++`
-    # driver names. buildEnv only errors when the two priorities are EQUAL,
-    # and `lowPrio` here did nothing: it moves clang to 10, which is where
-    # gfortran already sits. `hiPrio` (-10) breaks the tie from the other
-    # side and is what actually builds. Cost: `cc`/`c++` resolve to clang
-    # rather than gcc, unlike Arch. gcc/g++/gfortran are all still present
-    # from the GCC wrapper — priority only decides contested paths.
+    # gfortran ships its own cc/c++, colliding with clang. buildEnv only errors
+    # when priorities are EQUAL, so lowPrio on clang does nothing — hiPrio is
+    # what breaks the tie. Cost: cc/c++ resolve to clang, unlike Arch.
     (lib.hiPrio clang)
-    gfortran # gcc-fortran
+    gfortran
     python313
-    # Same collision: both pythons ship bin/python3, bin/pydoc3, bin/idle3 and
-    # share/man/man1/python3.1. 3.13 wins the unversioned names; python3.11
-    # is still on PATH under its own version-suffixed name.
-    (lib.lowPrio python311)
+    (lib.lowPrio python311) # 3.13 wins the unversioned python3/pydoc3/idle3
     python3Packages.pip
     lua5_1
     nodejs
     bun
+    go
+    delve # dlv — helix has built-in DAP and is preconfigured for it
 
     # --- Kubernetes / cloud -------------------------------------------------
     kubectl
@@ -112,32 +100,25 @@
     argocd
     kubeseal
 
-    # --- Networking / security ---------------------------------------------
+    # --- Networking / security ----------------------------------------------
     nmap
     masscan
     tcpdump
-    dnsutils # `bind` — dig, nslookup
-    netcat-openbsd # openbsd-netcat
+    dnsutils # dig, nslookup
+    netcat-openbsd
     wireguard-tools
     openresolv
     sshfs
     rclone
     restic
     lynx
-    # Replaces freedownloadmanager, which is not in nixpkgs (decided
-    # 2026-07-29). Its .desktop file declares exactly the two MIME types the
-    # old handler claimed, so xdg.mimeApps in ./default.nix now points at
-    # org.qbittorrent.qBittorrent.desktop. Note this covers the torrent half
-    # only — FDM's general HTTP download manager has no replacement here.
-    qbittorrent
+    qbittorrent # also the magnet/torrent handler — see xdg.mimeApps
 
     # --- Documents / writing ------------------------------------------------
     pandoc
     typst
     typstyle
-    # Matches your Arch set exactly: texlive-{latex,latexextra,xetex,
-    # fontsrecommended}. `texliveFull` would work but pulls in ~20 GiB of
-    # collections you don't have installed today.
+    # texliveFull would pull ~20 GiB of collections that aren't used here.
     (texlive.withPackages (ps: with ps; [
       scheme-basic
       collection-latex
@@ -152,8 +133,8 @@
     hyphen
     zathura
     pdftk
-    exiftool # perl-image-exiftool
-    ghostscript # your ~/.scripts/pdf_to_a4.sh needs `gs`
+    exiftool
+    ghostscript # ~/.scripts/pdf_to_a4 needs gs
 
     # --- Notes / PKM --------------------------------------------------------
     obsidian
@@ -173,26 +154,16 @@
     gst_all_1.gst-plugins-good
 
     # --- Browsers / comms ---------------------------------------------------
-    # NOTE: librewolf was dropped — it is not installed on your Arch system
-    # despite CLAUDE.md describing it as the default browser. Zen (a flake
-    # input, below) is the real default.
     firefox
     chromium
     vivaldi
-    tor-browser # torbrowser-launcher isn't packaged, but this is the browser itself
+    tor-browser
     equibop
     teams-for-linux
     bitwarden-desktop
     warpinator
-    # KDE Connect, not valent. The mango configs are written against KDE
-    # Connect: both autostart.conf files run `kdeconnectd`, and the Waybar
-    # phone module shells out to `kdeconnect-cli` and queries the
-    # `org.kde.kdeconnect` D-Bus name (scripts/kdeconnect/phone-status.sh).
-    # Valent is a separate implementation under `ca.andyholmes.Valent`, so it
-    # satisfies none of those. Firewall ports 1714-1764 are already open in
-    # modules/system/networking.nix and serve either one.
-    kdePackages.kdeconnect-kde
-    thunderbird # betterbird is NOT in nixpkgs; this is the upstream it forks
+    kdePackages.kdeconnect-kde # not valent — the mango configs call kdeconnect-cli
+    thunderbird # betterbird isn't packaged; this is its upstream
     proton-authenticator
     cloudflare-warp
     silverbullet
@@ -207,7 +178,7 @@
     itch
     nethack
     sl
-    wineWow64Packages.stable # `wineWowPackages` is deprecated upstream
+    wineWow64Packages.stable # wineWowPackages is deprecated upstream
     winetricks
     sidequest
     winboat
@@ -233,92 +204,29 @@
     wl-clipboard
     grim
     slurp
-    wlopm
-    # This comment used to say wlopm was deliberately omitted because mango
-    # advertised no `wl_output` global, so `wlopm --json` returned `[]` and
-    # every call was a silent no-op. **That is no longer true as of
-    # 2026-07-31**: `wlopm --json` reports eDP-1 and `--off`/`--on` genuinely
-    # power the display pipe down and back up. `mmsg get all-monitors` also
-    # returns eDP-1 now, where it used to return `{"monitors":[]}`. The mango
-    # 0.15.5 upgrade is the likely reason.
-    #
-    # That stale claim had real cost: it is why sleep blanking was built on the
-    # backlight, which cannot idle the DISPLAY IP block and so left the SoC
-    # unable to reach s0i3 — a ~4.1 W "suspend" that flattened the battery
-    # overnight. See modules/system/power.nix, which drives wlopm from the
-    # sleep hooks and references ${pkgs.wlopm} directly rather than PATH.
-    # It is listed here so the SUPER+SHIFT+p style manual use also works.
+    wlopm # power.nix drives it from the sleep hooks via ${pkgs.wlopm}
 
-    # --- Android / misc tooling --------------------------------------------
-    apktool # android-apktool
+    # --- Android / misc tooling ---------------------------------------------
+    apktool
     android-tools
   ]
-  # --- Third-party flakes (AUR replacements) --------------------------------
   ++ [
-    # `pkgs.system` is deprecated in favour of pkgs.stdenv.hostPlatform.system
     inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
   ];
 
-  # ==========================================================================
-  # NOT MIGRATED — verified against nixpkgs-unstable on 2026-07-27
-  # ==========================================================================
-  #
-  # This list is now short. Everything else your Arch system has is either in
-  # nixpkgs (see above), handled by a NixOS module, or in ../../pkgs.
-  #
-  # ABSENT from nixpkgs — all decided 2026-07-29, nothing here is open:
-  #
-  #   piavpn-bin          RESOLVED — and it needs no work, because you already
-  #                       run PIA through NetworkManager rather than only
-  #                       through the proprietary client. Checked 2026-07-29:
-  #                       8 OpenVPN profiles exist (algeria, ca_ontario,
-  #                       ireland, netherlands, us_chicago, us_east,
-  #                       us_houston, us_new_york), all of service-type
-  #                       org.freedesktop.NetworkManager.openvpn.
-  #
-  #                       All three pieces survive the migration already:
-  #                         - the profiles live in
-  #                           /etc/NetworkManager/system-connections, captured
-  #                           by capture-root-state.sh and restored in Part 10
-  #                         - `password-flags = 0`, so the passwords are in
-  #                           those same files rather than the keyring
-  #                         - the CA certs are at
-  #                           ~/.local/share/networkmanagement/certificates/,
-  #                           which survives via @home and is in the backup
-  #                       The absolute cert paths resolve unchanged because
-  #                       the uid and home path are pinned identical.
-  #
-  #                       What you lose is only PIA's own GUI — the kill
-  #                       switch and the port-forwarding toggle.
-  #
-  #   freedownloadmanager REPLACED by `qbittorrent`, above. Torrent half only;
-  #                       FDM's HTTP download manager has no equivalent here.
-  #
+  # Not in nixpkgs — all decided 2026-07-29, none of it open:
+  #   piavpn-bin           PIA already runs through NetworkManager (8 OpenVPN
+  #                        profiles, passwords inline, certs under @home). Only
+  #                        the GUI kill switch / port forwarding is lost.
+  #   freedownloadmanager  replaced by qbittorrent; torrent half only
+  #   torbrowser-launcher  tor-browser itself is packaged
+  #   betterbird-bin       thunderbird, the upstream it forks
   #   quickmedia, pipemixer, r-quick-share, haroopad, mdview, pdf-compress,
-  #   qrookie-vrp         DROPPED. `distrobox` is in the list above — run an
-  #                       Arch container for any you actually miss, rather
-  #                       than packaging seven things you might not use.
+  #   qrookie-vrp          dropped — use distrobox if any turn out to be missed
+  #   nerd-fonts-sf-mono   dropped, unreferenced (and not redistributable)
+  #   ttf-phosphor-icons   dropped, unreferenced — was a DankMaterialShell dep
   #
-  #   nerd-fonts-sf-mono  DROPPED, and confirmed unused: the only reference is
-  #                       a COMMENTED-OUT line in foot/foot.ini (line 7). Also
-  #                       not redistributable (Apple).
-  #   ttf-phosphor-icons  DROPPED, and confirmed unused: not referenced in any
-  #                       waybar, kitty, foot, zed or nvim config. It was a
-  #                       DankMaterialShell dependency, and DMS is gone.
-  #
-  #   torbrowser-launcher `tor-browser` itself is packaged and included.
-  #   betterbird-bin      `thunderbird`, the upstream it forks, is included.
-  #
-  # HANDLED IN ../../pkgs/default.nix:
-  #   fsel (version bump 3.1.0 -> 3.5.2), brother-mfc-l3740cdw, curseforge
-  #
-  # DROPPED — Arch-specific, no meaning on NixOS:
-  #   paru-git, pacman-contrib, cachyos-*-mirrorlist, cachyos-keyring
-  #   base, base-devel, linux, linux-firmware, amd-ucode, efibootmgr
-  #   zram-generator (-> zramSwap), ly (unused), lxsession (-> polkit_gnome)
-  #   tlpui (edit modules/system/power.nix instead)
-  #   electron37, electron40-bin, openssl-1.1, mbedtls2, gconf, libpng-apng,
-  #   python310, and the ~25 python-* / perl-* packages that are AUR
-  #   dependencies of markitdown et al — Nix resolves these automatically.
+  # Packaged locally in ../../pkgs/default.nix:
+  #   fsel (3.5.2), brother-mfc-l3740cdw, curseforge
 }

@@ -9,7 +9,7 @@ return {
     config = function()
       local servers = {
         "lua_ls", "rust_analyzer", "pyright", "ruff", "clangd",
-        "ts_ls", "bashls", "texlab", "tinymist", "marksman", "taplo", "yamlls",
+        "ts_ls", "bashls", "gopls", "texlab", "tinymist", "marksman", "taplo", "yamlls",
       }
 
       -- Defaults applied to every server (completion capabilities from blink).

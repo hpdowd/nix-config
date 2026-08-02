@@ -1,6 +1,12 @@
 # 0002 — Dotfiles a program rewrites stay out-of-store
 
-**Status:** Accepted (2026-07-30)
+**Status:** Accepted (2026-07-30). **Default superseded by
+[0009](0009-generated-config-over-linked-files.md) (2026-08-01)** — the
+question below is "store-based or out-of-store?", and the answer now is
+usually *neither*: where a native home-manager module exists, the config is
+**generated** and there is no file in this repo to link either way. The rule
+here still decides what to do with what is left, and the `recursive = true`
+hazard in Consequences is unchanged.
 
 ## Context
 

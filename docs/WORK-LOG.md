@@ -12,14 +12,19 @@ decisions; this file records what changed and what it cost.
 
 ---
 
-## Current state
+## State as of this entry (2026-07-31)
+
+> ⚠️ **A snapshot, not the current state.** This is a chronological log; later
+> entries below supersede it, and the 2026-08-01 pass in particular moved most
+> of these dotfile entries out of `dotfiles.nix` and into generated modules.
+> For where things stand now, read `docs/SYSTEM.md` §6.
 
 | | |
 |---|---|
 | Repo | `~/src/nix-config`, flake at the root, dotfiles under `home/` |
 | Remote | `origin` → `git.henrydowd.dev/henry/nix-config` only (GitHub mirrors removed) |
 | Working tree | clean, 0 typechanges, 0 unpushed |
-| Dotfile entries | **24 store-based, 1 out-of-store** (`corectrl`) |
+| Dotfile entries | **24 store-based, 1 out-of-store** (`corectrl`) — before the 2026-08-01 conversion to generated modules |
 | `nix flake check` | passes |
 | `/nix/store` | 47 GB (was 60 GB before `gc`) |
 | Booted vs current | **reboot pending** — see below |

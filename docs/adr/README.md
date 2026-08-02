@@ -15,7 +15,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0001](0001-flake-at-repo-root.md) | The flake lives at the repo root, dotfiles under `home/` | Accepted |
 | [0002](0002-out-of-store-dotfiles.md) | Dotfiles a program rewrites stay out-of-store | Accepted (default superseded by [0009](0009-generated-config-over-linked-files.md)) |
 | [0003](0003-state-outside-config-tree.md) | Runtime state and user data live outside the config tree | Accepted |
-| [0004](0004-mode-scripts-own-theming.md) | Mode scripts own theming; no `active-theme` indirection | Accepted |
+| [0004](0004-mode-scripts-own-theming.md) | Mode scripts own theming; no `active-theme` indirection | Accepted, **amended 2026-07-30 — Nix owns the GTK theme** |
 | [0005](0005-one-owner-per-daemon.md) | Exactly one owner per daemon | Accepted |
 | [0006](0006-start-limits-on-remote-units.md) | Any unit touching a remote API needs a start limit | Accepted |
 | [0007](0007-language-servers-declared.md) | Language servers are declared, not per-editor | Accepted |

@@ -11,7 +11,7 @@ different questions:
 | **`docs/SYSTEM.md`** (this file) | How is the system laid out, and how do I use it? |
 | `CLAUDE.md` | What has bitten us, and what must not be undone? |
 | `docs/adr/` | Why is it built this way rather than the obvious way? |
-| `docs/WORK-LOG.md` | What changed on 30–31 July 2026, and what state is it in? |
+| `docs/WORK-LOG.md` | What changed on 30 July – 1 August 2026, and what did it cost? |
 
 If something here contradicts `CLAUDE.md`, `CLAUDE.md` is the one kept current
 against failures — trust it and fix this file.
@@ -27,7 +27,7 @@ against failures — trust it and fix this file.
 | Hostname | `thinkpad` |
 | User | `henry` |
 | Disk | `nvme0n1` — 476 GB, btrfs |
-| RAM | 14 GiB, plus zram swap at 50% (zstd). No disk swap, so **no hibernation** |
+| RAM | 14 GiB. zram (zstd, 50%, priority 5) is the working swap; a 20 GiB btrfs swapfile on `@swap` exists only to hold a **hibernation** image |
 | Display | eDP-1, 1920×1200 |
 | WiFi | Qualcomm QCNFA765 (`wlp1s0`, `ath11k_pci`) |
 | Compositor | Mangowm (Wayland) — the only desktop |
@@ -39,7 +39,7 @@ no fallback to it.
 
 ### Filesystem layout
 
-One btrfs filesystem, four subvolumes, plus the EFI partition:
+One btrfs filesystem, five subvolumes, plus the EFI partition:
 
 | Mount | Subvolume | Notes |
 |---|---|---|
@@ -47,9 +47,13 @@ One btrfs filesystem, four subvolumes, plus the EFI partition:
 | `/nix` | `@nix` | The store. Separate so GC churn doesn't touch `/` snapshots |
 | `/home` | `@home` | **Carried across from Arch untouched.** Snapshotted by snapper |
 | `/var/log` | `@log` | Kept out of root snapshots |
+| `/swap` | `@swap` | The 20 GiB hibernation swapfile. **Mounted without compression** |
 | `/boot` | — | vfat ESP, 1 GB, shared with the (now removed) Arch entry |
 
-All btrfs mounts use `compress=zstd:3`, `noatime`, `discard=async`.
+All btrfs mounts use `compress=zstd:3`, `noatime`, `discard=async` — **except
+`@swap`**, which must not be compressed. btrfs refuses a compressed swapfile
+and `swapon` reports `Invalid argument`, which reads like file corruption
+rather than a wrong mount option. See §9.
 
 **`@home` is the important one.** It survived the migration in place, which is
 why your browser profile, credentials and pairings are all still there — and
@@ -64,15 +68,16 @@ Three layers, and almost every question is "which layer does this belong to?"
 ```
   ┌─────────────────────────────────────────────────────────────┐
   │ 1. THE FLAKE           ~/src/nix-config                      │
-  │    Declares the system: packages, services, kernel, users.   │
+  │    Declares the system: packages, services, kernel, users —  │
+  │    and now most of the dotfiles too, as Nix expressions.     │
   │    Changing it does nothing until you rebuild.               │
   └───────────────┬─────────────────────────────────────────────┘
                   │  nixos-rebuild switch
                   ▼
   ┌─────────────────────────────────────────────────────────────┐
   │ 2. THE ACTIVATED SYSTEM   /run/current-system, /nix/store    │
-  │    Read-only. /etc is generated. Home-manager links your     │
-  │    dotfiles into ~/.config from here.                        │
+  │    Read-only. /etc is generated. Home-manager GENERATES most │
+  │    of ~/.config and links the rest in from the store.        │
   └───────────────┬─────────────────────────────────────────────┘
                   │  programs write at runtime
                   ▼
@@ -118,21 +123,35 @@ Two rules follow from this and explain most of the surprises:
 ├── modules/home/              home-manager (user-level)
 │   ├── default.nix            imports + user units (wlsunset, swaync mask), xdg.mimeApps
 │   ├── options.nix            `local.checkout` — the path this repo lives at
-│   ├── packages.nix           every user package. THE list
+│   ├── packages.nix           user packages that no program module installs
 │   ├── shell.nix              zsh, aliases, PATH, env, git
+│   ├── programs.nix           GENERATED configs: kitty, foot, helix, zed, htop,
+│   │                          yazi, ncspot, imv, wlogout. No files in home/ for these
+│   ├── waybar.nix             GENERATED: the four waybar layouts, from one set
+│   │                          of module definitions
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
-│   └── dotfiles.nix           what gets linked into ~/.config, and how
-├── home/                      the dotfiles themselves
-│   ├── mango/                 compositor: modes, waybar, walker, wlogout, scripts
-│   ├── nvim/ helix/ zed/      editors
-│   ├── kitty/ foot/ ghostty/  terminals
+│   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
+├── home/                      the hand-written dotfiles that remain
+│   ├── mango/                 compositor: modes, waybar CSS, walker, fsel, scripts
+│   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
+│   ├── swaync/ glow/          apps with no module, or whose module is not adopted
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
-│   └── …                      yazi, lazygit, htop, imv, bottom, glow, …
+│   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
+│   ├── helix/ yazi/ wlogout/  ASSETS ONLY — theme, flavor and icons referenced
+│   │                          by programs.nix. No config files here
+│   └── corectrl/              the single out-of-store entry
 ├── pkgs/default.nix           the overlay — package overrides and local packages
-├── verify-packages.sh         checks the closure still evaluates
+├── verify-packages.sh         checks package names still resolve in nixpkgs
+├── verify-claims.sh           re-checks the assertions CLAUDE.md makes about the system
 └── docs/                      this file, ADRs, work log, migration archive
 ```
+
+**`home/` is shrinking by design.** Most configs are now generated by
+`modules/home/programs.nix` and have no file here at all — `home/kitty/`,
+`home/foot/`, `home/zed/`, `home/htop/`, `home/ncspot/`, `home/imv/` and
+`home/ghostty/` were all deleted on 2026-08-01. If you go looking for a config
+file and it is not in `home/`, it is generated: grep `modules/home/`. See §6.
 
 **Do not move `flake.nix` down a level.** With it at the root, `home/` is
 inside the flake and reachable by relative path — which is the only reason
@@ -198,18 +217,26 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Changed | Apply with |
 |---|---|
 | Anything under `home/mango/` | `rebuild`, **then** `mango-reload` |
-| Waybar config/CSS | `rebuild`, then `waybar-reload` |
+| Waybar layouts (`modules/home/waybar.nix`) or CSS | `rebuild`, then `waybar-reload` |
+| kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
+| foot | `rebuild`, then restart the terminal — no live reload |
+| helix, zed, htop, ncspot, imv, yazi | `rebuild`, then restart the app |
+| wlogout | `rebuild` only — it is spawned fresh on each invocation |
 | zsh config | `source ~/.config/zsh/conf.d/<file>.zsh`, or a new shell |
-| kitty | `kill -SIGUSR1 $KITTY_PID`, or Ctrl+Shift+F5 |
-| foot | Restart the terminal — no live reload |
 | Neovim plugins | `:Lazy sync` |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | Desktop mode | `~/.config/mango/scripts/modes/<mode>.sh` |
 | `autostart.conf` | **Log out and back in** — `exec-once` only fires at compositor startup |
 
-**`home/mango/` needs a rebuild now.** It became a store path on 2026-07-30, so
-editing the repo no longer takes effect immediately the way it did when it was
-a live symlink. This catches everyone once.
+⚠️ **Almost nothing is live-editable any more, and this catches everyone once.**
+`home/mango/` became a store path on 2026-07-30, and on 2026-08-01 the nine
+programs above stopped having a file in this repo at all — they are generated
+from Nix. So "edit the dotfile and reload" no longer works in either case:
+there is nothing to edit for the generated ones, and the store copy of the
+others does not change until you rebuild. **Reloading without rebuilding first
+looks exactly like the change having had no effect.**
+
+`corectrl` is the only entry where an edit is still live without a rebuild.
 
 **Never `sudo` the mango scripts.** Under sudo `~` is `/root`, so they fail with
 what looks like a broken install, and leave a root-owned elephant process your
@@ -225,10 +252,11 @@ The routing table. Find the row, edit the file, apply as in §4.
 
 | Want to change | Edit |
 |---|---|
-| Install/remove a package | `modules/home/packages.nix` (user) or `modules/system/*.nix` (`environment.systemPackages`) |
+| Install/remove a package | `modules/home/packages.nix` (user) or `modules/system/*.nix` (`environment.systemPackages`). **Not** for the nine in `programs.nix` — their module installs the package too |
 | A systemd service | `modules/system/<concern>.nix` — **never** `/etc/systemd/` |
 | Kernel or boot params | `modules/system/boot.nix` |
-| Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — **and** `full-at` in `waybar/config-focus.jsonc` |
+| Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — the waybar `full-at` follows automatically, see §9 |
+| Hibernation / lid behaviour | `modules/system/power.nix` (`services.logind`, `systemd.sleep`) |
 | Timezone, keymap, keyd | `modules/system/locale.nix` |
 | Firewall ports | `modules/system/networking.nix` |
 | Fonts | `modules/system/fonts.nix` |
@@ -242,9 +270,12 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell aliases | `home/zsh/conf.d/10-aliases.zsh` |
 | Shell options | `home/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
-| Default applications | `home/mimeapps.list` |
+| Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
+| Terminal colours | `modules/home/programs.nix` — one `gruvbox` `let` binding feeds both kitty and foot |
+| kitty, foot, helix, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
+| Helix colour scheme | `home/helix/themes/gruvbox.toml` — the one helix file that is still data |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
-| Which dotfiles get linked | `modules/home/dotfiles.nix` |
+| Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
 | Language servers | `modules/home/packages.nix` — shared by nvim **and** helix |
 
 ### Desktop
@@ -255,54 +286,127 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Window rules | `home/mango/universal/rule.conf` |
 | Per-workspace layout | `home/mango/universal/tag.conf` |
 | Startup programs | `home/mango/universal/autostart.conf`, or the per-mode one |
-| Waybar modules | `home/mango/waybar/config*.jsonc` (one per layout) |
-| Waybar appearance | `home/mango/waybar/style*.css` + `colors.css` |
-| Session menu | `home/mango/wlogout/` |
+| Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
+| Waybar appearance | `home/mango/waybar/style*.css` + `colors.css` — still hand-written |
+| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `home/wlogout/` holds only the five PNGs |
 | Launcher entries | `home/mango/walker/configs/`, `home/mango/fsel/config.toml` |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
 ---
 
-## 6. How dotfiles are linked
+## 6. How configuration reaches `~/.config`
 
-`modules/home/dotfiles.nix` is deliberately **mixed**. Which side an entry
-falls on is decided by one question:
+**There are three tiers, not two.** The 2026-08-01 pass moved most of the repo
+into the first one, so a lot of what used to be a "dotfile" is now a Nix
+expression with no file behind it. The tiers, best first:
 
-> *Does a running program rewrite a file that is tracked in this repo?*
+### Tier 1 — GENERATED, by a native home-manager module
 
-### Store-based — `source = ../../home/X`
+`modules/home/programs.nix` and `modules/home/waybar.nix`. Nix produces the
+file from typed options; **there is no config file in this repo at all.**
 
-Reproducible. A fresh clone plus a rebuild reproduces it exactly, and
-`~/.config/X` stops depending on this checkout existing at all. The files are
-**read-only**, so changes require a rebuild.
+| What | Module |
+|---|---|
+| kitty, foot | `programs.kitty`, `programs.foot` — both fed by one shared `gruvbox` palette |
+| helix | `programs.helix` (the theme stays a file — see below) |
+| zed | `programs.zed-editor` |
+| htop, ncspot, imv, yazi | `programs.htop`, `programs.ncspot`, `programs.imv`, `programs.yazi` |
+| wlogout | `programs.wlogout` |
+| The four waybar layouts | `modules/home/waybar.nix` |
 
-Currently: `mango`, `nvim`, `helix`, `kitty`, `foot`, `ghostty`, `zsh/conf.d`,
-`yazi`, `bottom`, `lazygit`, `glow`, `imv`, `~/.scripts`.
+This is where a config should end up unless there is a reason it cannot. The
+argument is not tidiness:
 
-`mango` and `nvim` got here by **moving the writer** rather than accepting a
-mutable directory — nvim's `lazy-lock.json` moved to `stdpath("state")`, and
-mango's runtime state moved to `~/.local/state/mango/`. That is the general
-technique.
+- **Typos become build failures.** This repo's signature bug is config that is
+  wrong in a way *nothing reports* — the dead `mmsg -s -d` flags, empty
+  `custom/*` modules, `appid:zen` matching nothing, six silently missing
+  language servers. Typed options are the only mechanism here that turns that
+  class of mistake into an error you cannot miss. `waybar.nix` goes further and
+  asserts on a module name with no definition.
+- **One owner for the package and its config.** `programs.kitty.enable`
+  installs the package *and* writes the config, so removing it removes both.
+  Previously `kitty` was in `packages.nix` while `kitty/` was in
+  `dotfiles.nix`, with nothing tying them together.
+- **Values can be shared.** The Gruvbox palette is one `let` binding instead of
+  sixteen hex codes transcribed into two files with nothing keeping them in
+  step. Likewise waybar's `full-at` is *read from* the TLP threshold rather
+  than copied.
 
-### File-level — `xdg.configFile."X/config".source`
+### Tier 2 — store-based, `source = ../../home/X`
 
-The one to reach for first. Home-manager links a *directory*-valued source as
-one symlink, but a *file*-valued one as a real directory containing a file
-symlink — so the config is read-only in the store while the directory stays
-writable for sibling runtime files.
+The file stays hand-written but lands read-only in the store. Reproducible;
+`~/.config/X` stops depending on this checkout existing. Changes need a
+rebuild.
 
-Currently: `htop`, `ncspot`, `zed`, `Kvantum`, `nwg-look`. The cost is that
-these can no longer be configured from inside the app.
+Currently: `mango` (with `recursive = true`), `nvim`, `swaync`, `glow`,
+`zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
+`nwg-look` and the `gtk-3.0`/`gtk-4.0` assets.
 
-### Out-of-store — `mkOutOfStoreSymlink`
+> **File-level is a variant of this tier, not a separate one.**
+> `xdg.configFile."X/config".source` pins the *file* read-only while leaving
+> the *directory* writable for sibling runtime files — home-manager links a
+> directory-valued source as one symlink, but a file-valued one as a real
+> directory containing a file symlink. `htop`, `ncspot` and `zed` used to need
+> this; their native modules now do exactly the same thing internally, so it
+> became upstream's problem. What is left is `Kvantum`, `nwg-look` and the GTK
+> asset directories.
+
+`mango` and `nvim` reached this tier by **moving the writer** rather than
+accepting a mutable directory — nvim's `lazy-lock.json` moved to
+`stdpath("state")`, and mango's runtime state to `~/.local/state/mango/`. That
+is the general technique.
+
+### Tier 3 — out-of-store, `mkOutOfStoreSymlink`
 
 A live symlink into this checkout: edits take effect with no rebuild, but a
 fresh clone gets a symlink pointing at nothing.
 
 Currently **`corectrl` only** — it writes its own `.ini` and profiles from its
-GUI, and that GUI is the entire point of the tool.
+GUI, and that GUI is the entire point of the tool. This is what an honest
+out-of-store entry looks like: not "not converted yet", but "converting it
+would remove functionality".
 
-### Two traps
+### Assets — a fourth thing that is not a tier
+
+`home/helix/`, `home/yazi/` and `home/wlogout/` still exist but contain **no
+config**. They hold data a *generated* config points at: helix's 264-line
+`themes/gruvbox.toml`, yazi's `noctalia.yazi` flavor, and wlogout's five PNGs.
+`programs.nix` references them by relative path, so they end up in the store as
+their own paths. Don't mistake these for unconverted configs.
+
+### What is deliberately NOT generated
+
+Do not "finish the job" without reading these:
+
+| Config | Why it stays a file |
+|---|---|
+| `nvim` | ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed plugins is a *rewrite*, trading `:Lazy sync` for a rebuild per plugin bump. The store path already gives reproducibility |
+| `mango` | No module exists, and the mode scripts genuinely need to `cp` into `config.conf` — hence `recursive = true` |
+| `swaync` | `services.swaync` exists and works, but declares the unit that is deliberately **masked**. `autostart.conf` owns swaync's lifecycle so restyles apply on mode switch. Adopting the module flips that ownership and needs its own decision. **Never run both** |
+| `helix/themes/gruvbox.toml` | A colour scheme is data, not settings. Transcribing 264 lines buys nothing but a chance of a silent typo |
+| waybar CSS | Same reasoning — hand-tuned presentation is data |
+| `glow`, `nwg-look` | No module at this pin |
+| `corectrl` | Writes its own config from the GUI, and that GUI is the program |
+
+### Four traps
+
+⚠️ **Two owners on one path is an activation failure, not a merge.** This is
+the one to internalise, because it is how every conversion goes wrong. A
+config must be generated *or* linked, never both — moving an entry into
+`programs.nix` means deleting it from `dotfiles.nix` **and** deleting the file
+from `home/` in the same change. `waybar.nix` writes into `~/.config/mango/`,
+which the recursive `mango` link also owns, and that only works because the
+four `.jsonc` files were deleted from `home/mango/waybar/`. `walker/config.toml`
+broke `rebuild` outright this way: tracked in git *and* written as a symlink by
+both autostart files.
+
+⚠️ **"Declarative" and "writable" are not actually in tension.** That was an
+artefact of only having symlinks. `programs.zed-editor` runs an activation
+script that **merges** the Nix-declared settings into the real, writable
+`settings.json` with `jq -n '$dynamic * $static'` — Zed keeps persisting its
+own state, and the declared keys win on every rebuild. Before assuming a config
+must be read-only to be declarative, check whether its module merges instead of
+links.
 
 ⚠️ **`recursive = true` can destroy the repo.** It creates files *inside*
 `~/.config/X` rather than one symlink. If `~/.config/X` is already an
@@ -350,6 +454,10 @@ Mode selects the compositor config, autostart set and waybar stylesheet
 (`tiling` → `style-solid.css`, otherwise `style.css`). Layout selects which
 waybar modules are shown. Position moves the bar between screen edges.
 
+There are **four** generated layout files but only **three** are selectable:
+`config-hud.jsonc` is chosen automatically whenever the desktop mode is `hud`,
+so `SUPER+/` offers `full`, `focus` and `minimal` only.
+
 The first two open a walker picker; position is a **straight toggle**, since
 with two options a menu costs more keystrokes than the thing it selects.
 `waybar-position.sh` also accepts an explicit `top`/`bottom` argument for
@@ -371,9 +479,11 @@ position toggle and `reload_config` all land on the same result.
 > window, so `window#waybar.bottom` in `style-solid.css` moves the separator
 > line to the top edge.
 
-> Only the `focus` layout carries `"full-at": 85` on the battery module, so it
+> Only the `focus` layout carries `full-at` on the battery module, so it
 > rescales the percentage to your charge limit. The other layouts show the raw
-> value — the number changes when you switch layout, and that is expected.
+> value — the number changes when you switch layout, and that is expected. The
+> value is **read from** `services.tlp.settings.STOP_CHARGE_THRESH_BAT0` via
+> `osConfig`, not copied, so it cannot drift from the real threshold.
 
 ### Keybinds
 
@@ -453,9 +563,15 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 
 ### Waybar
 
-Status bar, four layout files in `home/mango/waybar/`. Notable custom modules —
-each is a script under `home/mango/scripts/`, so if one is missing from the bar,
-**run its script by hand first**:
+Status bar. **The four layouts are generated by `modules/home/waybar.nix`** —
+there are no `config*.jsonc` files in this repo; they are written into
+`~/.config/mango/waybar/` alongside the hand-written CSS, which stays a file.
+Each module is defined once and a layout is a list of names, so a name with no
+definition is an **eval error** rather than an empty module. Per-layout
+divergences live in a `tweaks` attribute at the call site.
+
+Notable custom modules — each is a script under `home/mango/scripts/`, so if one
+is missing from the bar, **run its script by hand first**:
 
 | Module | Script | Refresh signal |
 |---|---|---|
@@ -476,7 +592,7 @@ each is a script under `home/mango/scripts/`, so if one is missing from the bar,
 | **fsel** | Primary launcher (`SUPER+Space`), floating foot terminal pinned right |
 | **walker** | Structured menus — bluetooth, clipboard, bitwarden, mode pickers |
 | **elephant** | Widget/provider backend behind walker |
-| **rofi** | Secondary menus |
+| **rofi** | Secondary menus. **No config in this repo** — there is no `rofi/` directory and never was on NixOS; it runs on its own defaults. Grepping for `rofi` is misleading, since it substring-matches `power-profile` |
 | **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit |
@@ -498,14 +614,28 @@ Aliases worth knowing: `cat`→`bat`, `ls`/`ll`/`la`→`eza`, `lf`→`yazi`,
 list of clutter directories; `ll`/`la` are the unfiltered escape hatches.
 
 **Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All Gruvbox Dark,
-Hack Nerd Font Mono 11. Each names its theme file directly — there is no
-`active-theme` indirection any more, and reintroducing one would block those
-directories from being store paths.
+Hack Nerd Font Mono 11.
+
+⚠️ **kitty and foot are generated** by `programs.kitty` / `programs.foot`, from
+a **single `gruvbox` palette** in `modules/home/programs.nix` — kitty takes
+`#rrggbb`, foot takes bare hex, both from the same `let` binding. There is no
+`home/kitty/` or `home/foot/` in this repo. Change the palette there, once.
+ghostty has no config at all: `home/ghostty/config.ghostty` was a zero-byte
+file and was deleted rather than converted; the package runs on its defaults,
+exactly as it already did.
+
+There is no `active-theme` indirection any more, and it is now *impossible* to
+reintroduce as it stood — there is no directory for a mode script to write a
+theme into.
 
 **Editors:** Neovim is `$EDITOR`/`$VISUAL`, so it is what git, `sudoedit`,
 `systemctl edit`, lazygit and yazi all open. It is a hand-rolled lazy.nvim
-config (~18 plugins) — see `home/nvim/README.md`. Helix is installed as a
-second option; **its binary is `hx`, not `helix`**.
+config (~18 plugins), and the one large config still hand-written — see
+`home/nvim/README.md`. Helix is a second option, generated by `programs.helix`
+down to a single setting (`theme = "gruvbox"`), with the theme itself left as a
+file. **Its binary is `hx`, not `helix`** — the desktop entry works while
+typing `helix` in a shell does not. Zed is generated too, but by a module that
+*merges* into a writable `settings.json` rather than linking it.
 
 ⚠️ **Neither ships language servers.** There is no mason; both take servers from
 `$PATH`, so every server must be declared in `modules/home/packages.nix`. A
@@ -521,11 +651,11 @@ Three things look like faults and are not.
 
 ### Battery stops below 100%
 
-TLP sets EC thresholds **START 40 / STOP 85** (`modules/system/power.nix`). On
-AC the battery parks wherever it is and only tops up below 40%. `status` then
-reads `Not charging`, which waybar renders as a **plug** icon rather than a
-lightning bolt. A plug with a static sub-100% reading is the hysteresis
-working.
+TLP sets EC thresholds **START 75 / STOP 85** (`modules/system/power.nix`,
+confirmed against live sysfs). On AC the battery parks wherever it is and only
+tops up below 75%. `status` then reads `Not charging`, which waybar renders as
+a **plug** icon rather than a lightning bolt. A plug with a static sub-100%
+reading is the hysteresis working.
 
 Raising STOP does not trigger a charge — the EC only starts below START. To
 force one: `sudo tlp setcharge 84 85 BAT0`.
@@ -533,31 +663,113 @@ force one: `sudo tlp setcharge 84 85 BAT0`.
 > `upower -i` reports `charge-start-threshold: 75%` regardless of the real
 > value. Trust `/sys/class/power_supply/BAT0/charge_control_*_threshold`.
 
-> **Coupled setting:** STOP must match `"full-at"` in
-> `waybar/config-focus.jsonc`. Waybar computes `shown = real / full-at × 100`,
-> so a mismatch makes the displayed percentage wrong. Change one, change the
-> other.
+> **This coupling used to be manual and is now enforced.** Waybar computes
+> `shown = real / full-at × 100`, so a `full-at` that disagreed with STOP made
+> the displayed percentage wrong — it once peaked at 94% and read 88% at a real
+> 75%, reported as "stuck at 88%". `modules/home/waybar.nix` now *reads*
+> `osConfig.services.tlp.settings.STOP_CHARGE_THRESH_BAT0`, so changing
+> `power.nix` changes the bar. Nothing to remember.
 
-### Suspend leaves the screen lit
+### Suspend costs ~3 W, and hibernation is the answer
 
 The firmware exposes only **s2idle** (`/sys/power/mem_sleep` → `[s2idle]`), not
-S3 — so `mem_sleep_default=deep` would achieve nothing. S3 cut power to the
-panel in hardware; under s2idle software must do it, and nothing did.
+S3 — so `mem_sleep_default=deep` would achieve nothing. Under s2idle the SoC
+only reaches its low-power state (**s0i3**) once every IP block reports idle.
+
+**A lit panel during suspend is a battery bug, not a cosmetic one.** The
+DISPLAY block tracks the display *pipe*, so a screen left on holds s0i3 off
+entirely and the machine idles at **~4.1 W** through what looks like sleep.
+That is how the laptop was found flat after a night closed on the desk.
 
 Fixed with `powerManagement.powerDownCommands`/`resumeCommands` in `power.nix`,
-which drive the backlight directly. Note **`brightnessctl set 0` is not enough**
-— on amdgpu that is the panel's minimum, not off. The hooks also write
-`/sys/class/backlight/amdgpu_bl1/bl_power` (4 = power down, 0 = unblank), and
-must clear `bl_power` *before* restoring brightness or the panel stays dark.
+running **`wlopm --off '*'`** / `--on` through the shared `setDisplayPower`
+helper. The resume hook is the load-bearing half: an output left in its off
+power-mode is not restored by input, so dropping it wakes the machine to a
+black screen no keypress fixes. `wlopm` needs the Wayland socket, so it cannot
+run as root directly — the helper loops over `/run/user/*/wayland-[0-9]` and
+`runuser`s to the owning user.
 
-> **Why not `wlopm` or DPMS:** mango advertises **no `wl_output` global at
-> all**. Every output-enumerating client sees nothing — `wlopm --json` returns
-> `[]`, `wlr-randr` prints nothing, `mmsg get all-monitors` returns an empty
-> list — while the compositor happily reports `eDP-1` elsewhere. The backlight
-> is used precisely because it needs no compositor connection. `wlopm` is
-> deliberately not installed.
+⚠️ **The backlight cannot do this job, and an older version of this file said
+the opposite.** `brightnessctl` and `bl_power` only drive PWM; the DISPLAY
+block tracks the CRTC, not the backlight. The original hooks wrote both values,
+succeeded, exited 0, and left the panel lit and the battery draining — a fix
+that logs clean and does nothing.
+
+⚠️ **This file also used to claim mango advertises no `wl_output` global, so
+DPMS was impossible. That is false** — `wlopm --json` returns `eDP-1` and
+`--off` genuinely works, verified 2026-07-31. Believing the stale claim is what
+sent the fix down the backlight path, and it cost a flat battery to discover.
+Re-test a "this protocol isn't available" claim before building around it; it
+is one command.
+
+**Result: helped, did not fix.** Blanking the display took an undisturbed
+suspend from 4.10 W to **~3.03 W**, but `last_hw_sleep` is still 0 and
+`amd_pmc` still logs `Last suspend didn't reach deepest state` — with *every*
+tracked IP block now reporting idle. WiFi, USB3 and the display were each ruled
+out by unloading and re-measuring. The cause is unknown, the remaining search
+space is unbounded, and **the decision was to stop hunting and hibernate
+instead.** See `docs/WORK-LOG.md`.
+
+> If suspend drain is ever suspected again, read
+> `/sys/kernel/debug/amd_pmc/smu_fw_info` **first** — it names the offending IP
+> block directly, in one command.
 
 There is no idle daemon, so the screen never blanks on idle either.
+
+### Hibernation
+
+`HandleLidSwitch = "suspend-then-hibernate"` on **battery**;
+`HandleLidSwitchExternalPower = "suspend"` on **AC** — deliberately different,
+since on AC the drain is irrelevant and instant resume is worth more.
+`HibernateDelaySec = 30m`: 30 minutes at ~3 W is ~1.5 Wh, so a short lid-close
+still resumes instantly and anything longer goes to disk.
+
+The image goes to the 20 GiB swapfile on `@swap` (§1). **zram remains the
+working swap** at priority 5 against the file's −1, so ordinary swapping never
+touches the disk — the file exists only to hold an image zram cannot, being
+itself in the RAM being saved.
+
+⚠️ **`resume_offset` is the fragile part, and getting it wrong fails silently.**
+Both `boot.resumeDevice` and `boot.kernelParams = [ "resume_offset=…" ]` are
+required: one names the filesystem, the other locates the image inside it. Get
+it wrong and the machine simply boots fresh and discards the session, which
+presents as "hibernate didn't work" rather than "resume was misconfigured". The
+number is valid only for the exact file that exists now — recreating, resizing,
+defragmenting or `balance`-ing it moves the image. Re-derive with:
+
+```
+sudo btrfs inspect-internal map-swapfile -r /swap/swapfile
+```
+
+⚠️ **A rebuild is not enough — you must REBOOT.** `resume=` is a kernel command
+line parameter, so `rebuild` writes the new logind and sleep config while the
+*running* kernel has neither. `systemctl hibernate` then snapshots memory,
+prepares S4 and returns **without writing an image or powering off** — and
+because the screen blanks and comes back, it reads as a fast, successful
+hibernate. It is not. This is dangerous while half-applied, because
+`suspend-then-hibernate` goes live at rebuild time: closing the lid then
+attempts the failed hibernate, thaws, and leaves the machine awake with the lid
+shut, draining *faster* than plain suspend. **Reboot promptly after the
+rebuild.**
+
+⚠️ **The kernel log cannot tell you whether a hibernate succeeded.** The memory
+image is snapshotted *before* the write and power-off, so a successful and a
+refused attempt leave byte-identical traces. Do not conclude from
+`Waking up from system sleep state S4` that anything worked, and in particular
+do not set `HibernateMode=shutdown` on that misreading — that was tried and
+reverted. What actually distinguishes them:
+
+| Check | Meaning |
+|---|---|
+| Machine physically powers off; firmware screen on the way back | It really hibernated. **This is the primary signal** |
+| `journalctl --list-boots` — boot ID unchanged across the cycle | Resume worked, session restored |
+| A new boot ID | Image written but resume failed — session discarded |
+| No power-off, journal continuous | Aborted. Check `grep -o 'resume[^ ]*' /proc/cmdline` shows **both** parameters |
+
+> **RTC trap:** `rtc0` here is `acpi-tad` and has no `wakealarm`, so `rtcwake`
+> fails with `not enabled for wakeup events` and looks like broken firmware.
+> The alarm actually comes from **`rtc1` (`rtc_cmos`)**. Don't point anything
+> at `rtc0` to "fix" it.
 
 ### WiFi dies after resume
 
@@ -615,9 +827,16 @@ What is running, and who owns it.
 |---|---|
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
 | `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp` |
-| `micmute-led` | Syncs the mic-mute LED with PipeWire |
+| `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages` |
 | `nextcloud-client` | Cloud sync |
+| `protonmail-bridge` | Needs a keyring, hence gnome-keyring in the host config |
+| `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` |
+| `mango-session.target` | A marker other units can hang off; started from `autostart.conf` |
 | `swaync.service` | **Masked** — autostart owns swaync instead |
+
+`~/.config/systemd/user/` now contains **only** home-manager symlinks into the
+store. Keep it that way: it overrides `/etc/systemd/user/`, so any hand-written
+file there silently shadows the unit the flake generates.
 
 ⚠️ **One owner per daemon.** nixpkgs packages ship user units that Arch's did
 not, and they auto-start. swaync raced its own autostart line for a week
@@ -640,16 +859,28 @@ migration by luck of the shared subvolume, and need separate backup:
 
 | What | Where | Size |
 |---|---|---|
-| Zen browser profile | `~/.config/zen/` | **859 MB** — 13 extensions, logins, history |
+| Zen browser profile | `~/.config/zen/` | **912 MB** — 13 extensions, logins, history. Growing |
 | NetworkManager profiles | `/etc/NetworkManager/system-connections` | 37 connections, root-only, mode 600 |
 | Bluetooth pairings | `/var/lib/bluetooth` | 7 devices |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` | 4.6 MB |
 | Runtime state | `~/.local/state/mango/` | incl. `pia-auth` (mode 600) |
-| CLI credentials | `~/.config/{gh,glab-cli,gpu-screen-recorder,opencode}` | gitignored by name |
+| CLI credentials | `~/.config/{gh,glab-cli,gpu-screen-recorder,opencode,rclone,rbw,tea}` | gitignored by name |
 | corectrl profiles | `~/.config/corectrl/` | written by its GUI |
 
 Snapper covers `/home` against accidental deletion, but snapshots are on the
 same disk — they are not a backup.
+
+⚠️ **Secrets are unmanaged, and this is the largest genuine gap in the repo.**
+`pia-auth` is plaintext at mode 600, the WireGuard key and the forge tokens are
+root-owned files restored by hand. Nothing here is encrypted, and none of it is
+reproduced by the flake — so a fresh install of this flake produces a machine
+that cannot reach the VPN or the Gitea host. `sops-nix` or `agenix` is the
+answer; neither is adopted yet.
+
+The NetworkManager profiles are a **decision, not a TODO** — but note
+`networking.networkmanager.ensureProfiles` does exist at this pin, so declaring
+them is possible once secrets are solved. Re-restoring them by hand
+reintroduces `autoconnect=yes` and kills DNS; see §9.
 
 > **Zen note:** there are two profiles in `~/.config/zen/` and only one is real
 > (`kxsz4wom.Default (release)`, 839 MB). Which is default is selected
@@ -688,22 +919,33 @@ invisible in logs and reported as "X is missing".
 
 ## 13. Known rough edges
 
-Things that are true today and worth knowing:
+Things that are true today and worth knowing. *(Reviewed 2026-08-02 — the
+previous list was entirely stale; every item on it had been fixed.)*
 
-- **`scripts/desktop-mode.sh` reads the old state path.** It still resolves
-  `current-mode` under `$MANGO_DIR/state`, which no longer exists — so the mode
-  picker always marks `tiling` as current, even in hud mode. Harmless (the
-  switch itself works, since `mode.sh` and the mode scripts use the new path),
-  but the `•` is wrong. One-line fix.
-- **Language servers are incomplete.** `pyright`, `ruff`, `texlab`, `tinymist`,
-  `stylua`, `shfmt` and `clangd` are still undeclared. `hx --health` shows the
-  gap.
-- **Suspend blanking is fixed but only lightly exercised.** Confirm across a few
-  more suspend cycles.
-- **`~/.config/nvim.bak.*` and `~/.local/share/nvim.bak.*`** are still around
-  from the Neovim rewrite and can be deleted once you're settled.
-- **`mimeapps.list` still lists `librewolf.desktop`** entries; LibreWolf is not
-  installed. Harmless, removable.
+- **Suspend never reaches s0i3, costing ~3 W.** Cause unknown after ruling out
+  the display, WiFi and USB3. Worked around with hibernation rather than
+  solved. See §9.
+- **Secrets are unmanaged.** Plaintext `pia-auth`, hand-restored tokens, no
+  `sops-nix`. The biggest gap in the repo — see §11.
+- **Helix has no Python type checking.** `pyright` is declared and serves nvim,
+  but helix's defaults are `ty`, `ruff`, `jedi-language-server` and `pylsp` —
+  none of which is pyright. It gets lint and format from `ruff`; `hx --health
+  python` still shows ✘ against three of its four. Deliberately not closed yet.
+  **Always confirm with `hx --health <lang>` rather than assuming a server
+  declared for nvim serves helix too.**
+- **Nothing gates a rebuild.** `verify-packages.sh` only evaluates, and by its
+  own admission cannot catch `buildEnv` collisions or a derivation that fails
+  to build — which is the failure mode most likely to occur when adding
+  packages. There is no `checks` output, so `nix flake check` does not build
+  the system.
+- **`nix fmt` uses `nixpkgs-fmt`, which is unmaintained.** `nixfmt-rfc-style`
+  is the current community standard and is available at this pin.
+- **The `.nix` files are comment-heavy** — 1,346 of 3,506 lines. `dotfiles.nix`
+  is 54 lines of code under 249 lines of prose. Much of it duplicates
+  `docs/adr/`, which is where the narrative belongs.
+- **`~/arch-residue-backup-2026-07-30/`** (2.1 MB) is still in the home
+  directory and can be deleted. Note the 2026-08-01 audit in `CLAUDE.md` claims
+  it is gone; it is not.
 
 ---
 
@@ -712,7 +954,7 @@ Things that are true today and worth knowing:
 | Document | Read it when |
 |---|---|
 | `CLAUDE.md` | Before changing anything — it records what has already failed |
-| `docs/adr/0001` … `0008` | Before undoing something that looks redundant |
+| `docs/adr/0001` … `0009` | Before undoing something that looks redundant |
 | `docs/WORK-LOG.md` | To see what the 30–31 July declarative pass covered |
 | `docs/archive/MIGRATION.md` | History of the Arch→NixOS install. Not instructions |
 | `home/nvim/README.md` | The Neovim config map |
@@ -730,3 +972,4 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0006 | Start limits on units that call remote APIs |
 | 0007 | Language servers are declared, not discovered |
 | 0008 | Arch was removed outright |
+| 0009 | Generate config from Nix where a module exists; link files only where one does not |

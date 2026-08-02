@@ -95,14 +95,23 @@ hdr "Couplings"
 
 # waybar rescales as shown = real / full-at * 100. A mismatch makes the bar peak
 # below 100% and read wrong everywhere — presented once as "stuck at 88%".
+#
+# The coupling is enforced in Nix as of 2026-08-01: waybar.nix reads
+# STOP_CHARGE_THRESH_BAT0 through osConfig rather than carrying a copy. So this
+# no longer checks two hand-maintained numbers against each other — it checks
+# that the enforcement actually reached the GENERATED config, which is the part
+# that can still silently break. Reading the repo's config-focus.jsonc would be
+# wrong twice over: that file was deleted, and a value read from source would
+# not prove anything about what waybar loads.
 stop=$(grep -oP 'STOP_CHARGE_THRESH_BAT0\s*=\s*\K[0-9]+' modules/system/power.nix 2>/dev/null | head -1)
-full=$(grep -oP '"full-at"\s*:\s*\K[0-9]+' home/mango/waybar/config-focus.jsonc 2>/dev/null | head -1)
+full=$(jq -r '.battery["full-at"] // empty' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/mango/waybar/config-focus.jsonc" 2>/dev/null)
 if [[ -z $stop || -z $full ]]; then
-    bad "could not read STOP_CHARGE_THRESH_BAT0 ($stop) or full-at ($full)"
+    bad "could not read STOP_CHARGE_THRESH_BAT0 ($stop) or generated full-at ($full)"
 elif [[ $stop == "$full" ]]; then
-    ok "battery STOP ($stop) == waybar full-at ($full)"
+    ok "battery STOP ($stop) == generated waybar full-at ($full)"
 else
-    bad "battery STOP ($stop) != waybar full-at ($full) — bar will misreport"
+    bad "battery STOP ($stop) != generated waybar full-at ($full) — rebuild, or osConfig wiring is broken"
 fi
 
 # --- Live session ----------------------------------------------------------

@@ -5,7 +5,10 @@
 # every Tier-1 blocker. What's left is genuinely absent upstream.
 { inputs }:
 
-final: prev: {
+# `_final` rather than `final`: the overlay signature is conventionally
+# `final: prev:` even when the fixpoint argument is unused, and the leading
+# underscore is how you tell deadnix that is deliberate.
+_final: prev: {
 
   # ==========================================================================
   # papirus-icon-theme — Gruvbox-yellow folders
@@ -52,7 +55,7 @@ final: prev: {
   #
   # Fixed by overriding with the GitHub *source* for the tag, and regenerating
   # cargoDeps to match. Both hashes were obtained by building.
-  fsel = prev.fsel.overrideAttrs (old: rec {
+  fsel = prev.fsel.overrideAttrs (_old: rec {
     version = "3.6.0";
     src = prev.fetchFromGitHub {
       owner = "Mjoyufull";

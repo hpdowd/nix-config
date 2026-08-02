@@ -3,7 +3,8 @@
 #
 # Every check here exists because a documented claim silently stopped being
 # true and cost real debugging time. Prose cannot be trusted to stay correct;
-# these can be run. Companion to verify-packages.sh, which checks the closure.
+# these can be run. Companion to `nix flake check`, which builds the closure —
+# this checks the things a build cannot see, i.e. the LIVE system.
 #
 #   ./verify-claims.sh          all checks
 #   ./verify-claims.sh -q       failures only

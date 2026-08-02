@@ -21,9 +21,23 @@ docs/SYSTEM.md     the operator's manual — start here to use the machine
 docs/adr/          numbered decision records
 docs/agents/       config for the engineering agent skills
 docs/archive/      the Arch→NixOS migration — history, not live instructions
-verify-packages.sh checks that package names still resolve in nixpkgs
+statix.toml        lint config (see the file for why `repeated_keys` is off)
 verify-claims.sh   re-checks the assertions CLAUDE.md makes about the system
 ```
+
+## Checking a change
+
+```
+nix flake check     # builds the system AND the home generation, + statix/deadnix
+nix fmt             # nixfmt (RFC 166)
+./verify-claims.sh  # assertions about the LIVE system that no build can see
+```
+
+**Run `nix flake check` before `rebuild`.** It builds `system.build.toplevel`
+and the home-manager activation package, so `buildEnv` collisions and failing
+derivations surface there rather than halfway through a `switch`. It replaced
+`verify-packages.sh` on 2026-08-03, which only *evaluated* and by its own
+admission could not catch either.
 
 **`home/` is shrinking by design.** kitty, foot, helix, zed, htop, ncspot, imv,
 yazi, wlogout and the four waybar layouts are now *generated* from

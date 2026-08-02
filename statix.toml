@@ -1,0 +1,18 @@
+# statix configuration.
+#
+# `repeated_keys` (W20) is disabled deliberately, and it is the only lint that
+# fires on this repo — all 69 findings, nothing else. It wants
+#
+#     nix.settings = { … };  nix.gc = { … };
+#
+# collapsed into a single nested `nix = { settings = …; gc = …; }`. That is
+# reasonable advice for general Nix code and wrong for NixOS module config,
+# where the flat dotted form is what the NixOS manual, nixpkgs and effectively
+# every published configuration use. Nesting would also break up the comment
+# blocks that explain each setting.
+#
+# Left enabled, W20 would make `nix flake check` fail permanently on day one,
+# which trains you to ignore it — worse than not running statix at all.
+disabled = [ "repeated_keys" ]
+
+ignore = [ ".direnv", "result" ]

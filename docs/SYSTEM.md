@@ -142,7 +142,8 @@ Two rules follow from this and explain most of the surprises:
 │   │                          by programs.nix. No config files here
 │   └── corectrl/              the single out-of-store entry
 ├── pkgs/default.nix           the overlay — package overrides and local packages
-├── verify-packages.sh         checks package names still resolve in nixpkgs
+├── statix.toml                lint config — `repeated_keys` is off, see the file
+├── .envrc                     `use flake`; needs direnv, otherwise `nix develop`
 ├── verify-claims.sh           re-checks the assertions CLAUDE.md makes about the system
 └── docs/                      this file, ADRs, work log, migration archive
 ```
@@ -933,13 +934,12 @@ previous list was entirely stale; every item on it had been fixed.)*
   python` still shows ✘ against three of its four. Deliberately not closed yet.
   **Always confirm with `hx --health <lang>` rather than assuming a server
   declared for nvim serves helix too.**
-- **Nothing gates a rebuild.** `verify-packages.sh` only evaluates, and by its
-  own admission cannot catch `buildEnv` collisions or a derivation that fails
-  to build — which is the failure mode most likely to occur when adding
-  packages. There is no `checks` output, so `nix flake check` does not build
-  the system.
-- **`nix fmt` uses `nixpkgs-fmt`, which is unmaintained.** `nixfmt-rfc-style`
-  is the current community standard and is available at this pin.
+- ~~Nothing gates a rebuild~~ — **closed 2026-08-03.** `nix flake check` now
+  builds `system.build.toplevel` and the home-manager activation package, so
+  `buildEnv` collisions and failing derivations surface before a `switch`.
+  `verify-packages.sh` was retired as a strict subset of it.
+- ~~`nix fmt` uses the unmaintained `nixpkgs-fmt`~~ — **closed 2026-08-03**,
+  now `nixfmt` (RFC 166).
 - **The `.nix` files are comment-heavy** — 1,346 of 3,506 lines. `dotfiles.nix`
   is 54 lines of code under 249 lines of prose. Much of it duplicates
   `docs/adr/`, which is where the narrative belongs.

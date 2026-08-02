@@ -434,3 +434,69 @@ grep compinit ~/.config/zsh/.zshrc   # exactly one, with -C
 grep -c compinit /etc/zshrc          # 0
 zsh -ic 'whence -w cd'               # "cd: function", not builtin
 ```
+
+---
+
+# Work log — a gate that runs before the rebuild does
+
+**2026-08-03.** Phase 0 of the idiomatic-Nix plan. Nothing verified a change
+before `nixos-rebuild switch` applied it; now `nix flake check` does. Full
+reasoning in [`docs/adr/0010`](adr/0010-flake-check-is-the-gate.md).
+
+## What was wrong
+
+`verify-packages.sh` **evaluated** the closure and said so itself — it "cannot
+catch profile collisions or a derivation that fails to build". `CLAUDE.md` names
+`buildEnv` collisions as *the* expected failure mode when adding packages, so
+the most likely break was the one thing structurally uncheckable. `nix fmt`
+pointed at `nixpkgs-fmt`, archived upstream.
+
+## What landed
+
+`checks.x86_64-linux` = `system` (`system.build.toplevel`), `home` (the
+home-manager activation package), `statix`, `deadnix`. The first two are real
+build products, so checking them builds the whole closure.
+`verify-packages.sh` deleted as a strict subset; `verify-claims.sh` kept, since
+it checks the **live** system, which no build can see.
+
+Formatter is `nixfmt` (RFC 166). devShell + `.envrc` pin the tooling.
+
+## Four things that did not go to plan
+
+| Expected | Actual |
+|---|---|
+| `formatter = pkgs.nixfmt`, one line | Doesn't work at all — nixfmt takes FILES. No args → reads stdin, dies on empty input with `unexpected end of input`. A directory → Haskell backtrace. Needs a `writeShellApplication` wrapper |
+| `nixfmt-rfc-style` is the attribute | Deprecated alias at this pin; same derivation, warns on every eval. Use `nixfmt` |
+| statix finds a handful of things | 69 findings, **all one lint** (`repeated_keys`), all wanting NixOS config nested against the standard flat style. Disabled in `statix.toml` |
+| deadnix finds a handful | 39 findings, **37 of them `{ config, lib, pkgs, ... }` module headers**. `--no-lambda-pattern-names` leaves the 2 real ones |
+
+The rule behind the last two: **a check that always fails is one you learn to
+ignore** — worse than no check. Tune until every finding is real.
+
+## The reformat, and how it was verified
+
+`nix fmt` touched all 21 `.nix` files, 618 lines, committed separately from the
+change that introduced the formatter.
+
+Treated as risky rather than routine: `waybar.nix` carries literal UTF-8 Nerd
+Font glyphs, and this repo has already lost four network icons to transcription
+once — invisible until you look at the bar. So instead of trusting the
+formatter, both build products were evaluated before and after:
+
+```
+system.build.toplevel   rwzmsmi770bchf6hwv5sybn77hb6d9m6   identical
+home activationPackage  szpavcxrkp673vaifwps2ivspf7pkf59   identical
+```
+
+Byte-identical derivations prove the diff is semantically a no-op, glyphs
+included — **and that no rebuild was needed**, since there is nothing new to
+switch to. The technique generalises to any change that should not alter the
+built system.
+
+## Checking it still holds
+
+```
+nix flake check       # builds system + home, runs both linters
+nix fmt               # idempotent — a second run must produce no diff
+./verify-claims.sh    # 8/8 against the live system
+```

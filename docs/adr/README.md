@@ -21,6 +21,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0007](0007-language-servers-declared.md) | Language servers are declared, not per-editor | Accepted |
 | [0008](0008-arch-removed.md) | Arch removed outright; no dual boot | Accepted |
 | [0009](0009-generated-config-over-linked-files.md) | Generate config from Nix where a module exists; link files only where one does not | Accepted |
+| [0010](0010-flake-check-is-the-gate.md) | `nix flake check` is the gate; lints tuned to fire only on real findings | Accepted (retires `verify-packages.sh`) |
 
 ## Format
 

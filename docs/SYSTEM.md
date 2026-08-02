@@ -11,7 +11,7 @@ different questions:
 | **`docs/SYSTEM.md`** (this file) | How is the system laid out, and how do I use it? |
 | `CLAUDE.md` | What has bitten us, and what must not be undone? |
 | `docs/adr/` | Why is it built this way rather than the obvious way? |
-| `docs/WORK-LOG.md` | What changed on 30 July – 1 August 2026, and what did it cost? |
+| `docs/WORK-LOG.md` | What changed since 30 July 2026, and what did it cost? |
 
 If something here contradicts `CLAUDE.md`, `CLAUDE.md` is the one kept current
 against failures — trust it and fix this file.
@@ -954,7 +954,7 @@ previous list was entirely stale; every item on it had been fixed.)*
 | Document | Read it when |
 |---|---|
 | `CLAUDE.md` | Before changing anything — it records what has already failed |
-| `docs/adr/0001` … `0009` | Before undoing something that looks redundant |
+| `docs/adr/0001` … `0010` | Before undoing something that looks redundant |
 | `docs/WORK-LOG.md` | To see what the 30–31 July declarative pass covered |
 | `docs/archive/MIGRATION.md` | History of the Arch→NixOS install. Not instructions |
 | `home/nvim/README.md` | The Neovim config map |
@@ -973,3 +973,4 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0007 | Language servers are declared, not discovered |
 | 0008 | Arch was removed outright |
 | 0009 | Generate config from Nix where a module exists; link files only where one does not |
+| 0010 | `nix flake check` is the gate; lints tuned to fire only on real findings |

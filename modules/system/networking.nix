@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   networking.networkmanager = {
@@ -18,9 +23,22 @@
   networking.firewall = {
     enable = true;
     # Warpinator (file transfer) and KDE Connect need these open.
-    allowedTCPPorts = [ 42000 42001 ];
-    allowedTCPPortRanges = [{ from = 1714; to = 1764; }]; # KDE Connect
-    allowedUDPPortRanges = [{ from = 1714; to = 1764; }];
+    allowedTCPPorts = [
+      42000
+      42001
+    ];
+    allowedTCPPortRanges = [
+      {
+        from = 1714;
+        to = 1764;
+      }
+    ]; # KDE Connect
+    allowedUDPPortRanges = [
+      {
+        from = 1714;
+        to = 1764;
+      }
+    ];
   };
 
   # mDNS — you run avahi for CUPS printer discovery.
@@ -43,8 +61,16 @@
   # WIFI_PWR_ON_{AC,BAT}=off half of the fix.
   systemd.services.wifi-resume = {
     description = "Cycle the WiFi radio after resume (ath11k_pci reassociation workaround)";
-    after = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" ];
-    wantedBy = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" ];
+    after = [
+      "suspend.target"
+      "hibernate.target"
+      "hybrid-sleep.target"
+    ];
+    wantedBy = [
+      "suspend.target"
+      "hibernate.target"
+      "hybrid-sleep.target"
+    ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = pkgs.writeShellScript "wifi-resume" ''

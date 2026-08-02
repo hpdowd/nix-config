@@ -42,7 +42,12 @@
 #   glow,    no module in nixpkgs' home-manager at this pin.
 #   nwg-look
 #   corectrl the honest holdout — see dotfiles.nix.
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   # Gruvbox Dark, medium contrast. Single source for the terminals; kitty and
@@ -246,10 +251,15 @@ in
         command = "pyright-langserver";
         args = [ "--stdio" ];
       };
-      language = [{
-        name = "python";
-        language-servers = [ "pyright" "ruff" ];
-      }];
+      language = [
+        {
+          name = "python";
+          language-servers = [
+            "pyright"
+            "ruff"
+          ];
+        }
+      ];
     };
   };
   xdg.configFile."helix/themes/gruvbox.toml".source = ../../home/helix/themes/gruvbox.toml;
@@ -398,17 +408,23 @@ in
     }
     # Meter modes: `bar` is htop mode 1, `text` is mode 2 — the old file's
     # `column_meter_modes_0=1 1 1` / `..._1=1 2 2 2`.
-    // (with config.lib.htop; leftMeters [
-      (bar "LeftCPUs2")
-      (bar "Memory")
-      (bar "Swap")
-    ])
-    // (with config.lib.htop; rightMeters [
-      (bar "RightCPUs2")
-      (text "Tasks")
-      (text "LoadAverage")
-      (text "Uptime")
-    ]);
+    // (
+      with config.lib.htop;
+      leftMeters [
+        (bar "LeftCPUs2")
+        (bar "Memory")
+        (bar "Swap")
+      ]
+    )
+    // (
+      with config.lib.htop;
+      rightMeters [
+        (bar "RightCPUs2")
+        (text "Tasks")
+        (text "LoadAverage")
+        (text "Uptime")
+      ]
+    );
   };
 
   # yazi. The noctalia flavor is kept as a directory — a `.yazi` flavor is a

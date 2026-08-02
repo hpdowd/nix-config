@@ -22,7 +22,12 @@
 # outside the flake root and unreachable by any relative path. The restructure
 # fixed that. What remains is a genuine trade-off about iteration speed (every
 # tweak becomes a rebuild), not an impossibility. See the `let` block below.
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   # Absolute path to your live dotfiles checkout.
@@ -289,13 +294,11 @@ in
       );
     in
     lib.hm.dag.entryBefore [ "checkLinkTargets" ] (
-      lib.concatMapStrings
-        (d: ''
-          if [ -L "${config.xdg.configHome}/${d}" ]; then
-            run rm $VERBOSE_ARG "${config.xdg.configHome}/${d}"
-          fi
-        '')
-        topLevel
+      lib.concatMapStrings (d: ''
+        if [ -L "${config.xdg.configHome}/${d}" ]; then
+          run rm $VERBOSE_ARG "${config.xdg.configHome}/${d}"
+        fi
+      '') topLevel
     );
 
   # ~/.hidden — the GTK file-manager clutter list from CLAUDE.md. Small and

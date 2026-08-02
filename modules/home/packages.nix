@@ -1,222 +1,232 @@
 # User packages. Anything replaced by a NixOS module (pipewire, tlp, keyd, cups,
 # podman, steam, …) lives in modules/system/ instead.
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
-  home.packages = with pkgs; [
-    # --- Shell / CLI core ---------------------------------------------------
-    bat
-    eza
-    fd
-    ripgrep
-    fzf
-    zoxide
-    tree
-    bottom # btm
-    gdu
-    tealdeer # tldr
-    sysstat
-    powertop
-    unzip
-    unrar
-    p7zip
-    jq
-    wget
-    curl
-    rsync
-    man-pages
-    man-pages-posix
+  home.packages =
+    with pkgs;
+    [
+      # --- Shell / CLI core ---------------------------------------------------
+      bat
+      eza
+      fd
+      ripgrep
+      fzf
+      zoxide
+      tree
+      bottom # btm
+      gdu
+      tealdeer # tldr
+      sysstat
+      powertop
+      unzip
+      unrar
+      p7zip
+      jq
+      wget
+      curl
+      rsync
+      man-pages
+      man-pages-posix
 
-    # --- Git / forge --------------------------------------------------------
-    git
-    git-filter-repo
-    lazygit
-    gh
-    glab
-    tea # gitea
+      # --- Git / forge --------------------------------------------------------
+      git
+      git-filter-repo
+      lazygit
+      gh
+      glab
+      tea # gitea
 
-    # --- Editors ------------------------------------------------------------
-    neovim
-    vis
-    vscode # vscodium collides over lib/vscode — pick one
-    code-cursor
-    jetbrains.pycharm
+      # --- Editors ------------------------------------------------------------
+      neovim
+      vis
+      vscode # vscodium collides over lib/vscode — pick one
+      code-cursor
+      jetbrains.pycharm
 
-    # --- Language servers ---------------------------------------------------
-    # nvim is mason-free and helix only *configures* servers, so both take them
-    # from $PATH. A missing one is skipped in silence — audit with `hx --health`.
-    nil # Nix
-    lua-language-server
-    bash-language-server
-    marksman # Markdown
-    taplo # TOML
-    yaml-language-server
-    pyright # Python; nvim only, helix defaults to ty/ruff/jedi/pylsp
-    ruff # Python lint + format
-    clang-tools # C/C++ — clangd is here, not in `clang`
-    typescript-language-server
-    typescript # tsserver for the above; not bundled with it
-    gopls
-    golangci-lint-langserver
-    golangci-lint # required by the above
-    texlab # LaTeX
-    tinymist # Typst
+      # --- Language servers ---------------------------------------------------
+      # nvim is mason-free and helix only *configures* servers, so both take them
+      # from $PATH. A missing one is skipped in silence — audit with `hx --health`.
+      nil # Nix
+      lua-language-server
+      bash-language-server
+      marksman # Markdown
+      taplo # TOML
+      yaml-language-server
+      pyright # Python; nvim only, helix defaults to ty/ruff/jedi/pylsp
+      ruff # Python lint + format
+      clang-tools # C/C++ — clangd is here, not in `clang`
+      typescript-language-server
+      typescript # tsserver for the above; not bundled with it
+      gopls
+      golangci-lint-langserver
+      golangci-lint # required by the above
+      texlab # LaTeX
+      tinymist # Typst
 
-    # --- Formatters ---------------------------------------------------------
-    # Called by conform.nvim. rustfmt comes with rustup, ruff_format with ruff.
-    stylua
-    shfmt
+      # --- Formatters ---------------------------------------------------------
+      # Called by conform.nvim. rustfmt comes with rustup, ruff_format with ruff.
+      stylua
+      shfmt
 
-    # --- AI / dev assistants ------------------------------------------------
-    claude-code
-    opencode
-    codex
-    cursor-cli
-    github-copilot-cli
+      # --- AI / dev assistants ------------------------------------------------
+      claude-code
+      opencode
+      codex
+      cursor-cli
+      github-copilot-cli
 
-    # --- Terminals / multiplexer --------------------------------------------
-    ghostty
-    tmux
+      # --- Terminals / multiplexer --------------------------------------------
+      ghostty
+      tmux
 
-    # --- Languages / toolchains ---------------------------------------------
-    rustup
-    # gfortran ships its own cc/c++, colliding with clang. buildEnv only errors
-    # when priorities are EQUAL, so lowPrio on clang does nothing — hiPrio is
-    # what breaks the tie. Cost: cc/c++ resolve to clang, unlike Arch.
-    (lib.hiPrio clang)
-    gfortran
-    python313
-    (lib.lowPrio python311) # 3.13 wins the unversioned python3/pydoc3/idle3
-    python3Packages.pip
-    lua5_1
-    nodejs
-    bun
-    go
-    delve # dlv — helix has built-in DAP and is preconfigured for it
+      # --- Languages / toolchains ---------------------------------------------
+      rustup
+      # gfortran ships its own cc/c++, colliding with clang. buildEnv only errors
+      # when priorities are EQUAL, so lowPrio on clang does nothing — hiPrio is
+      # what breaks the tie. Cost: cc/c++ resolve to clang, unlike Arch.
+      (lib.hiPrio clang)
+      gfortran
+      python313
+      (lib.lowPrio python311) # 3.13 wins the unversioned python3/pydoc3/idle3
+      python3Packages.pip
+      lua5_1
+      nodejs
+      bun
+      go
+      delve # dlv — helix has built-in DAP and is preconfigured for it
 
-    # --- Kubernetes / cloud -------------------------------------------------
-    kubectl
-    kubernetes-helm
-    argocd
-    kubeseal
+      # --- Kubernetes / cloud -------------------------------------------------
+      kubectl
+      kubernetes-helm
+      argocd
+      kubeseal
 
-    # --- Networking / security ----------------------------------------------
-    nmap
-    masscan
-    tcpdump
-    dnsutils # dig, nslookup
-    netcat-openbsd
-    wireguard-tools
-    openresolv
-    sshfs
-    rclone
-    restic
-    lynx
-    qbittorrent # also the magnet/torrent handler — see xdg.mimeApps
+      # --- Networking / security ----------------------------------------------
+      nmap
+      masscan
+      tcpdump
+      dnsutils # dig, nslookup
+      netcat-openbsd
+      wireguard-tools
+      openresolv
+      sshfs
+      rclone
+      restic
+      lynx
+      qbittorrent # also the magnet/torrent handler — see xdg.mimeApps
 
-    # --- Documents / writing ------------------------------------------------
-    pandoc
-    typst
-    typstyle
-    # texliveFull would pull ~20 GiB of collections that aren't used here.
-    (texlive.withPackages (ps: with ps; [
-      scheme-basic
-      collection-latex
-      collection-latexrecommended
-      collection-latexextra
-      collection-xetex
-      collection-fontsrecommended
-    ]))
-    glow
-    libreoffice-fresh
-    hunspellDicts.en_GB-ise
-    hyphen
-    zathura
-    pdftk
-    exiftool
-    ghostscript # ~/.scripts/pdf_to_a4 needs gs
+      # --- Documents / writing ------------------------------------------------
+      pandoc
+      typst
+      typstyle
+      # texliveFull would pull ~20 GiB of collections that aren't used here.
+      (texlive.withPackages (
+        ps: with ps; [
+          scheme-basic
+          collection-latex
+          collection-latexrecommended
+          collection-latexextra
+          collection-xetex
+          collection-fontsrecommended
+        ]
+      ))
+      glow
+      libreoffice-fresh
+      hunspellDicts.en_GB-ise
+      hyphen
+      zathura
+      pdftk
+      exiftool
+      ghostscript # ~/.scripts/pdf_to_a4 needs gs
 
-    # --- Notes / PKM --------------------------------------------------------
-    obsidian
-    logseq
-    anki
-    iotas
+      # --- Notes / PKM --------------------------------------------------------
+      obsidian
+      logseq
+      anki
+      iotas
 
-    # --- Media --------------------------------------------------------------
-    mpv
-    yt-dlp
-    gimp3
-    blender
-    spotify
-    spicetify-cli
-    gpu-screen-recorder
-    gst_all_1.gst-libav
-    gst_all_1.gst-plugins-good
+      # --- Media --------------------------------------------------------------
+      mpv
+      yt-dlp
+      gimp3
+      blender
+      spotify
+      spicetify-cli
+      gpu-screen-recorder
+      gst_all_1.gst-libav
+      gst_all_1.gst-plugins-good
 
-    # --- Browsers / comms ---------------------------------------------------
-    firefox
-    chromium
-    vivaldi
-    tor-browser
-    equibop
-    teams-for-linux
-    bitwarden-desktop
-    rbw # elephant's bitwarden provider shells out to this; without it the provider doesn't load
-    pinentry-qt # rbw's config.json asks for "pinentry", which every variant provides
-    warpinator
-    kdePackages.kdeconnect-kde # not valent — the mango configs call kdeconnect-cli
-    thunderbird # betterbird isn't packaged; this is its upstream
-    proton-authenticator
-    cloudflare-warp
-    silverbullet
-    rstudio
+      # --- Browsers / comms ---------------------------------------------------
+      firefox
+      chromium
+      vivaldi
+      tor-browser
+      equibop
+      teams-for-linux
+      bitwarden-desktop
+      rbw # elephant's bitwarden provider shells out to this; without it the provider doesn't load
+      pinentry-qt # rbw's config.json asks for "pinentry", which every variant provides
+      warpinator
+      kdePackages.kdeconnect-kde # not valent — the mango configs call kdeconnect-cli
+      thunderbird # betterbird isn't packaged; this is its upstream
+      proton-authenticator
+      cloudflare-warp
+      silverbullet
+      rstudio
 
-    # --- Games --------------------------------------------------------------
-    lutris
-    heroic
-    prismlauncher
-    dolphin-emu
-    luanti
-    itch
-    nethack
-    sl
-    wineWow64Packages.stable # wineWowPackages is deprecated upstream
-    winetricks
-    sidequest
-    winboat
+      # --- Games --------------------------------------------------------------
+      lutris
+      heroic
+      prismlauncher
+      dolphin-emu
+      luanti
+      itch
+      nethack
+      sl
+      wineWow64Packages.stable # wineWowPackages is deprecated upstream
+      winetricks
+      sidequest
+      winboat
 
-    # --- System / disk ------------------------------------------------------
-    btrfs-progs
-    btdu
-    snapper
-    ntfs3g
-    ddcutil
-    brightnessctl
-    fastfetch
-    eyedropper
-    libqalculate
-    distrobox
-    dsearch
-    weathr
-    efibootmgr
+      # --- System / disk ------------------------------------------------------
+      btrfs-progs
+      btdu
+      snapper
+      ntfs3g
+      ddcutil
+      brightnessctl
+      fastfetch
+      eyedropper
+      libqalculate
+      distrobox
+      dsearch
+      weathr
+      efibootmgr
 
-    # --- Desktop utilities --------------------------------------------------
-    pcmanfm
-    pavucontrol
-    wl-clipboard
-    wtype # elephant's bitwarden provider autotypes with this
-    grim
-    slurp
-    wlopm # power.nix drives it from the sleep hooks via ${pkgs.wlopm}
+      # --- Desktop utilities --------------------------------------------------
+      pcmanfm
+      pavucontrol
+      wl-clipboard
+      wtype # elephant's bitwarden provider autotypes with this
+      grim
+      slurp
+      wlopm # power.nix drives it from the sleep hooks via ${pkgs.wlopm}
 
-    # --- Android / misc tooling ---------------------------------------------
-    apktool
-    android-tools
-  ]
-  ++ [
-    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default
-    inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
-  ];
+      # --- Android / misc tooling ---------------------------------------------
+      apktool
+      android-tools
+    ]
+    ++ [
+      inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default
+      inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
+    ];
 
   # Not in nixpkgs — all decided 2026-07-29, none of it open:
   #   piavpn-bin           PIA already runs through NetworkManager (8 OpenVPN

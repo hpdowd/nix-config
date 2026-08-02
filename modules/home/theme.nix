@@ -37,7 +37,12 @@
 # stripped from `gtk-apply.sh` in the same change — never one without the
 # other. What is left of that script is the GTK_THEME environment variable for
 # systemd user services and the portal restart, which home-manager does not do.
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   qt = {

@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # --- Session / login ------------------------------------------------------
@@ -147,7 +153,10 @@
     extraPortals = with pkgs; [
       xdg-desktop-portal-gtk
     ];
-    config.common.default = [ "wlr" "gtk" ];
+    config.common.default = [
+      "wlr"
+      "gtk"
+    ];
   };
 
   # --- Bluetooth ------------------------------------------------------------
@@ -182,7 +191,10 @@
   programs.thunar = {
     enable = true;
     # These moved out of the `xfce` set to top level.
-    plugins = with pkgs; [ thunar-archive-plugin thunar-volman ];
+    plugins = with pkgs; [
+      thunar-archive-plugin
+      thunar-volman
+    ];
   };
   services.gvfs.enable = true;
   services.tumbler.enable = true;

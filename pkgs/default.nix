@@ -107,8 +107,17 @@ _final: prev: {
       hash = "sha256-3weoQ4jJJ9h2fIm0LCyW9yY8dvuGESI26/isdmhzBZY=";
     };
 
-    nativeBuildInputs = with prev; [ dpkg autoPatchelfHook makeWrapper ];
-    buildInputs = with prev; [ cups ghostscript perl bash ];
+    nativeBuildInputs = with prev; [
+      dpkg
+      autoPatchelfHook
+      makeWrapper
+    ];
+    buildInputs = with prev; [
+      cups
+      ghostscript
+      perl
+      bash
+    ];
 
     unpackPhase = "dpkg-deb -x $src .";
 

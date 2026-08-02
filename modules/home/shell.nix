@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   # --- zsh ------------------------------------------------------------------
@@ -58,17 +63,19 @@
 
   # Counterpart to `compinit -C`: a rebuild is the only time completions change,
   # so invalidate the dump then. Globs the .zcompdump.<host>.<pid> temps too.
-  home.activation.invalidateZcompdump =
-    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      run rm -f ${config.xdg.configHome}/zsh/.zcompdump ${config.xdg.configHome}/zsh/.zcompdump.*
-    '';
+  home.activation.invalidateZcompdump = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run rm -f ${config.xdg.configHome}/zsh/.zcompdump ${config.xdg.configHome}/zsh/.zcompdump.*
+  '';
 
   # --- Tools that hook the shell -------------------------------------------
   # `--cmd cd` moved here from conf.d/10-aliases.zsh, which duplicated the init.
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;
-    options = [ "--cmd" "cd" ];
+    options = [
+      "--cmd"
+      "cd"
+    ];
   };
 
   programs.fzf = {

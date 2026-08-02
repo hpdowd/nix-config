@@ -1,10 +1,22 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     auto-optimise-store = true; # hardlink identical files in /nix/store
-    trusted-users = [ "root" "henry" ];
+    trusted-users = [
+      "root"
+      "henry"
+    ];
 
     # Prebuilt binaries so you're not compiling Chromium locally.
     substituters = [

@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   fonts = {
@@ -50,9 +55,18 @@
       subpixel.rgba = "rgb";
 
       defaultFonts = {
-        monospace = [ "Hack Nerd Font Mono" "Noto Sans Mono" ];
-        sansSerif = [ "IBM Plex Sans" "Noto Sans" ];
-        serif = [ "Charis SIL" "Noto Serif" ];
+        monospace = [
+          "Hack Nerd Font Mono"
+          "Noto Sans Mono"
+        ];
+        sansSerif = [
+          "IBM Plex Sans"
+          "Noto Sans"
+        ];
+        serif = [
+          "Charis SIL"
+          "Noto Serif"
+        ];
         emoji = [ "Noto Color Emoji" ];
       };
     };

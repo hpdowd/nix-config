@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   imports = [
@@ -154,7 +160,13 @@
       # shebang is `#!/usr/bin/env bash` and NixOS has no /bin/bash, so env
       # would exit 127 without it.
       Environment = [
-        "PATH=${lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.wlsunset ]}"
+        "PATH=${
+          lib.makeBinPath [
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.wlsunset
+          ]
+        }"
         "NIGHT_LAT=53.35" # Dublin
         "NIGHT_LONG=-6.26"
         "NIGHT_DAY_TEMP=6500"

@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   # Replaces: pipewire, pipewire-alsa, pipewire-jack, pipewire-pulse,
@@ -36,7 +41,13 @@
     # `#!/usr/bin/env bash` (it has to be — NixOS has no /bin/bash), and this
     # `path` is the unit's *entire* PATH, so without bash here env exits 127
     # with `env: 'bash': No such file or directory` and systemd restart-loops.
-    path = with pkgs; [ bash pulseaudio coreutils gnugrep gawk ];
+    path = with pkgs; [
+      bash
+      pulseaudio
+      coreutils
+      gnugrep
+      gawk
+    ];
     serviceConfig = {
       # Points at the STORE, not %h/.scripts/micmute-led.
       #

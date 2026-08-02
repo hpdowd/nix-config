@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   services.printing = {
@@ -34,5 +39,8 @@
     enable = true;
     extraBackends = with pkgs; [ hplipWithPlugin ];
   };
-  users.users.henry.extraGroups = [ "scanner" "lp" ];
+  users.users.henry.extraGroups = [
+    "scanner"
+    "lp"
+  ];
 }

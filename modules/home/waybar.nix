@@ -19,7 +19,13 @@
 # reason helix/themes/gruvbox.toml does — they are hand-tuned presentation, not
 # settings, and transcribing them into Nix attrsets buys nothing but a chance
 # of a silent typo.
-{ config, lib, pkgs, osConfig, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  osConfig,
+  ...
+}:
 
 let
   s = "~/.config/mango/scripts";
@@ -47,8 +53,15 @@ let
       on-scroll-down = "mmsg dispatch viewtoright_have_client";
       sort-by-id = true;
       format-icons = {
-        "1" = "1"; "2" = "2"; "3" = "3"; "4" = "4"; "5" = "5";
-        "6" = "6"; "7" = "7"; "8" = "8"; "9" = "9";
+        "1" = "1";
+        "2" = "2";
+        "3" = "3";
+        "4" = "4";
+        "5" = "5";
+        "6" = "6";
+        "7" = "7";
+        "8" = "8";
+        "9" = "9";
         default = " ";
         urgent = " ";
       };
@@ -70,8 +83,15 @@ let
     mpris = {
       format = "{status_icon} {dynamic}";
       dynamic-len = 30;
-      dynamic-importance-order = [ "title" "artist" "album" ];
-      status-icons = { playing = " "; paused = " "; };
+      dynamic-importance-order = [
+        "title"
+        "artist"
+        "album"
+      ];
+      status-icons = {
+        playing = " ";
+        paused = " ";
+      };
       ignored-players = [ "firefox" ];
       on-click = "${s}/scratchpad/scratch-toggle.sh Spotify spotify";
       on-click-right = "playerctl play-pause";
@@ -108,7 +128,10 @@ let
       format = "  {usage}%";
       tooltip-format = "CPU: {usage}%\nLoad: {load}";
       interval = 2;
-      states = { warning = 70; critical = 90; };
+      states = {
+        warning = 70;
+        critical = 90;
+      };
       on-click-right = "${s}/scratchpad/scratch-toggle.sh sysmonitor ${s}/system/sysmonitor.sh";
     };
 
@@ -117,7 +140,10 @@ let
       format-alt = "  {used:0.1f}·{total:0.1f}G";
       tooltip-format = "{used:0.1f} / {total:0.1f} GiB";
       interval = 5;
-      states = { warning = 70; critical = 90; };
+      states = {
+        warning = 70;
+        critical = 90;
+      };
       on-click = "alt";
       on-click-right = "${s}/scratchpad/scratch-toggle.sh sysmonitor ${s}/system/sysmonitor.sh";
     };
@@ -189,13 +215,20 @@ let
       format-icons = {
         headphone = "";
         headset = "";
-        default = [ "" "" "" ];
+        default = [
+          ""
+          ""
+          ""
+        ];
       };
     };
 
     backlight = {
       format = "{icon}  {percent}%";
-      format-icons = [ "󰖔" "󰖨" ];
+      format-icons = [
+        "󰖔"
+        "󰖨"
+      ];
       on-scroll-up = "brightnessctl --class=backlight set 2%-";
       on-scroll-down = "brightnessctl --class=backlight set 2%+";
     };
@@ -233,20 +266,34 @@ let
     };
 
     battery = {
-      states = { warning = 30; critical = 15; };
+      states = {
+        warning = 30;
+        critical = 15;
+      };
       format = "{icon} {capacity}%";
       format-charging = "󰂄 {capacity}%";
       format-plugged = "󰁹 {capacity}%";
       format-alt = "{icon} {timeTo}";
       format-icons = [
-        "󰂎" "󰁺" "󰁻" "󰁼"
-        "󰁽" "󰁾" "󰁿" "󰂀"
-        "󰂁" "󰂂" "󰁹"
+        "󰂎"
+        "󰁺"
+        "󰁻"
+        "󰁼"
+        "󰁽"
+        "󰁾"
+        "󰁿"
+        "󰂀"
+        "󰂁"
+        "󰂂"
+        "󰁹"
       ];
       tooltip-format = "{timeTo}";
     };
 
-    tray = { icon-size = 14; spacing = 6; };
+    tray = {
+      icon-size = 14;
+      spacing = 6;
+    };
 
     # Glyph is nf-linux-nixos (U+F313), which not every Nerd Font carries — the
     # bar renders in 3270 Nerd Font, which does. `fc-list ':charset=f313'
@@ -275,11 +322,12 @@ let
   # Assemble a layout. `tweaks` patches a module for this layout only; every
   # such entry is a deliberate divergence and should say why at the call site.
   mkBar =
-    { left
-    , center ? [ "custom/window" ]
-    , right
-    , bar ? { }
-    , tweaks ? { }
+    {
+      left,
+      center ? [ "custom/window" ],
+      right,
+      bar ? { },
+      tweaks ? { },
     }:
     let
       used = left ++ center ++ right;
@@ -290,11 +338,16 @@ let
       deadTweaks = lib.subtractLists used (lib.attrNames tweaks);
       defs = lib.genAttrs used (n: modules.${n} // (tweaks.${n} or { }));
     in
-    assert lib.assertMsg (unknown == [ ])
-      "waybar: layout references undefined module(s): ${lib.concatStringsSep ", " unknown}";
-    assert lib.assertMsg (deadTweaks == [ ])
-      "waybar: tweaks for module(s) not in this layout: ${lib.concatStringsSep ", " deadTweaks}";
-    barBase // bar // defs // {
+    assert lib.assertMsg (
+      unknown == [ ]
+    ) "waybar: layout references undefined module(s): ${lib.concatStringsSep ", " unknown}";
+    assert lib.assertMsg (
+      deadTweaks == [ ]
+    ) "waybar: tweaks for module(s) not in this layout: ${lib.concatStringsSep ", " deadTweaks}";
+    barBase
+    // bar
+    // defs
+    // {
       modules-left = left;
       modules-center = center;
       modules-right = right;
@@ -308,21 +361,51 @@ let
   layouts = {
     # full — everything.
     "config.jsonc" = mkBar {
-      left = [ "clock" "ext/workspaces" "custom/layout" "mpris" "wlr/taskbar" ];
+      left = [
+        "clock"
+        "ext/workspaces"
+        "custom/layout"
+        "mpris"
+        "wlr/taskbar"
+      ];
       right = [
-        "custom/notification" "cpu" "memory" "network" "custom/vpn" "bluetooth"
-        "pulseaudio" "backlight" "custom/night-mode" "custom/power-profile"
-        "custom/phone" "battery" "tray" "custom/power"
+        "custom/notification"
+        "cpu"
+        "memory"
+        "network"
+        "custom/vpn"
+        "bluetooth"
+        "pulseaudio"
+        "backlight"
+        "custom/night-mode"
+        "custom/power-profile"
+        "custom/phone"
+        "battery"
+        "tray"
+        "custom/power"
       ];
     };
 
     # focus — drops the taskbar and the cpu/memory/phone readouts.
     "config-focus.jsonc" = mkBar {
-      left = [ "clock" "ext/workspaces" "custom/layout" "mpris" ];
+      left = [
+        "clock"
+        "ext/workspaces"
+        "custom/layout"
+        "mpris"
+      ];
       right = [
-        "custom/notification" "network" "custom/vpn" "bluetooth" "pulseaudio"
-        "backlight" "custom/night-mode" "custom/power-profile" "battery"
-        "tray" "custom/power"
+        "custom/notification"
+        "network"
+        "custom/vpn"
+        "bluetooth"
+        "pulseaudio"
+        "backlight"
+        "custom/night-mode"
+        "custom/power-profile"
+        "battery"
+        "tray"
+        "custom/power"
       ];
       # The only layout that rescales the battery reading, and the only one with
       # the richer power/health tooltip — the others show the raw percentage, so
@@ -338,8 +421,17 @@ let
 
     # minimal — battery, tray and power only.
     "config-minimal.jsonc" = mkBar {
-      left = [ "clock" "ext/workspaces" "custom/layout" "mpris" ];
-      right = [ "battery" "tray" "custom/power" ];
+      left = [
+        "clock"
+        "ext/workspaces"
+        "custom/layout"
+        "mpris"
+      ];
+      right = [
+        "battery"
+        "tray"
+        "custom/power"
+      ];
       # More room on the right, so the title gets more characters.
       tweaks."custom/window".max-length = 80;
     };
@@ -350,7 +442,12 @@ let
     "config-hud.jsonc" = mkBar {
       left = [ ];
       center = [ ];
-      right = [ "ext/workspaces" "custom/phone" "battery" "clock" ];
+      right = [
+        "ext/workspaces"
+        "custom/phone"
+        "battery"
+        "clock"
+      ];
       bar = {
         layer = "overlay";
         height = 28;
@@ -382,9 +479,10 @@ in
   # files individually and these coexist with it — but ONLY because the four
   # .jsonc files were deleted from home/mango/waybar/. Two owners for one path
   # is an activation failure, not a merge.
-  xdg.configFile = lib.mapAttrs'
-    (name: value: lib.nameValuePair "mango/waybar/${name}" {
+  xdg.configFile = lib.mapAttrs' (
+    name: value:
+    lib.nameValuePair "mango/waybar/${name}" {
       source = toWaybar (lib.replaceStrings [ "." ] [ "-" ] name) value;
-    })
-    layouts;
+    }
+  ) layouts;
 }

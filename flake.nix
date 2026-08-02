@@ -37,7 +37,14 @@
     claude-desktop.url = "github:k3d3/claude-desktop-linux-flake";
   };
 
-  outputs = { self, nixpkgs, home-manager, nixos-hardware, ... }@inputs:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      home-manager,
+      nixos-hardware,
+      ...
+    }@inputs:
     let
       system = "x86_64-linux";
 
@@ -114,13 +121,34 @@
         '';
       };
 
-      # Convenience: `nix fmt`.
+      # `nix fmt`.
       #
       # nixfmt (RFC 166), NOT nixpkgs-fmt — that project is archived upstream.
       # Plain `nixfmt`, not `nixfmt-rfc-style`: at this pin they are the same
       # derivation and the -rfc-style alias emits a deprecation warning on
       # every evaluation. (`nixfmt-classic` is the pre-RFC formatter.)
-      formatter.${system} = pkgs.nixfmt;
+      #
+      # WRAPPED, because `formatter = pkgs.nixfmt` does not work. nixfmt takes
+      # FILES: given no arguments it reads stdin and dies on the empty input
+      # with a bare "unexpected end of input", and given a directory it throws
+      # a Haskell backtrace. `nix fmt` passes no arguments at all, so the
+      # obvious one-line formatter output fails both ways — and neither error
+      # names the real problem.
+      #
+      # If this ever needs to format more than Nix (shell, markdown, TOML),
+      # replace the wrapper with treefmt-nix rather than growing it.
+      formatter.${system} = pkgs.writeShellApplication {
+        name = "fmt-nix";
+        runtimeInputs = [
+          pkgs.nixfmt
+          pkgs.findutils
+        ];
+        text = ''
+          find "''${1:-.}" -type f -name '*.nix' \
+            -not -path '*/.git/*' -not -path '*/.direnv/*' -print0 \
+            | xargs -0 -r nixfmt
+        '';
+      };
 
       # `nix develop`, or automatically via .envrc if you install direnv.
       # Pins the tooling so it is not an ad-hoc PATH dependency.

@@ -14,7 +14,13 @@
 # NixOS gets new subvolumes (@nixos, @nix) on the SAME btrfs filesystem, and
 # reuses your existing @home. Nothing in @ or @home is destroyed, so you can
 # boot back into Arch from the same ESP until you're happy.
-{ config, lib, pkgs, modulesPath, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}:
 
 let
   # Single source of truth for the btrfs filesystem.
@@ -59,7 +65,14 @@ in
     device = fsUUID;
     fsType = "btrfs";
     # noatime matters here: the store is read constantly and never needs atimes.
-    options = [ "subvol=@nix" "compress=zstd:3" "ssd" "discard=async" "space_cache=v2" "noatime" ];
+    options = [
+      "subvol=@nix"
+      "compress=zstd:3"
+      "ssd"
+      "discard=async"
+      "space_cache=v2"
+      "noatime"
+    ];
     neededForBoot = true;
   };
 
@@ -82,7 +95,11 @@ in
   fileSystems."/boot" = {
     device = espUUID;
     fsType = "vfat";
-    options = [ "fmask=0077" "dmask=0077" "errors=remount-ro" ];
+    options = [
+      "fmask=0077"
+      "dmask=0077"
+      "errors=remount-ro"
+    ];
   };
 
   # Hibernation swap, added 2026-07-31. Its own subvolume because a swapfile
@@ -95,7 +112,10 @@ in
   fileSystems."/swap" = {
     device = fsUUID;
     fsType = "btrfs";
-    options = [ "subvol=@swap" "noatime" ];
+    options = [
+      "subvol=@swap"
+      "noatime"
+    ];
   };
 
   # zram (power.nix) remains the *working* swap — it takes priority 5 against

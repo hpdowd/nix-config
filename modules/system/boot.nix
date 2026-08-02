@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   boot.loader.systemd-boot = {
@@ -19,7 +24,10 @@
   # use zram (see power.nix) — running both is counterproductive.
   boot.kernelParams = [ "zswap.enabled=0" ];
 
-  boot.supportedFilesystems = [ "btrfs" "ntfs" ];
+  boot.supportedFilesystems = [
+    "btrfs"
+    "ntfs"
+  ];
 
   # Arch's `linux-firmware` equivalent, plus the sof-firmware you have installed.
   hardware.enableAllFirmware = true;

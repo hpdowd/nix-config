@@ -12,6 +12,15 @@
     # Hardware quirks for ThinkPads / AMD laptops.
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
+    # Secrets. Until this landed, "reproducible" carried an asterisk: a fresh
+    # install of this flake produced a machine that could not reach the VPN or
+    # git.henrydowd.dev. `follows` is correct here — unlike claude-desktop
+    # below, sops-nix builds fine against our nixpkgs.
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # --- Third-party flakes replacing AUR packages ---------------------------
     # Only two are needed. Verified 2026-07-27 against nixpkgs-unstable:
     # mango, walker, elephant, fsel, dsearch, weathr, sidequest, winboat,
@@ -223,6 +232,12 @@
           pkgs.shellcheck
           pkgs.nix-tree # inspect closures
           pkgs.nvd # diff two generations
+
+          # Secrets. Here rather than in packages.nix because they are only
+          # ever used against this repo, and `sops` needs .sops.yaml to be the
+          # working directory's to pick the right recipients.
+          pkgs.sops
+          pkgs.age
         ];
       };
     };

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-MODE=$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/mango/current-mode" 2>/dev/null || echo "tiling")
+# walker wrapper: injects mode-appropriate sizing unless the caller set it.
+. "$HOME/.config/mango/scripts/lib.sh"
+
+MODE=$(current_mode)
 
 # Detect which sizing flags the caller already passed
 has_width=false; has_maxheight=false; has_minheight=false

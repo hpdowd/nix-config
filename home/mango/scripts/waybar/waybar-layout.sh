@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
-
-STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/mango/waybar-layout"
-MANGO_DIR="$HOME/.config/mango"
+# Pick the waybar layout (SUPER+/). `hud` is deliberately not offered: it is
+# selected by the desktop MODE, not here — see waybar-restart.sh.
+. "$HOME/.config/mango/scripts/lib.sh"
 
 LAYOUTS=("full" "focus" "minimal")
 
-current_name() {
-    [ -f "$STATE_FILE" ] && cat "$STATE_FILE" || echo "full"
-}
-
 menu_entries() {
     local current
-    current=$(current_name)
+    current=$(waybar_layout)
     for name in "${LAYOUTS[@]}"; do
         [ "$name" = "$current" ] && echo "$name  •" || echo "$name"
     done
@@ -28,5 +24,5 @@ valid=0
 for n in "${LAYOUTS[@]}"; do [ "$n" = "$name" ] && valid=1; done
 [ $valid -eq 0 ] && exit 0
 
-echo "$name" > "$STATE_FILE"
+state_write waybar-layout "$name"
 "$MANGO_DIR/scripts/waybar/waybar-restart.sh"

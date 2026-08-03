@@ -11,14 +11,20 @@
 # Location and day temperature come from the unit's Environment=, so they stay
 # declared in Nix; only the user-tunable night temperature lives in state.
 
-STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mango/night-temp"
+#
+# Sourcing lib.sh is safe from inside the unit: it only defines things, and the
+# unit's PATH (bash, coreutils, wlsunset) covers everything it runs at source
+# time. `install`/`jq` appear only inside apply_mode(), which is never called
+# here.
+. "$HOME/.config/mango/scripts/lib.sh"
+
 DEFAULT_NIGHT_TEMP=4000
 
 LAT="${NIGHT_LAT:-53.35}"
 LONG="${NIGHT_LONG:--6.26}"
 DAY_TEMP="${NIGHT_DAY_TEMP:-6500}"
 
-NIGHT_TEMP=$(cat "$STATE" 2>/dev/null)
+NIGHT_TEMP=$(state night-temp "$DEFAULT_NIGHT_TEMP")
 # Guard the state file: a stray value would make wlsunset exit and the unit
 # restart-loop. Must be numeric and no warmer-than-day.
 if ! [[ $NIGHT_TEMP =~ ^[0-9]+$ ]] || [ "$NIGHT_TEMP" -lt 1000 ] || [ "$NIGHT_TEMP" -gt "$DAY_TEMP" ]; then

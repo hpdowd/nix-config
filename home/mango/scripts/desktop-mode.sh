@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
-
-MANGO_DIR="$HOME/.config/mango"
-
-# Runtime state moved out of the config tree to ~/.local/state/mango on
-# 2026-07-30, but this script kept reading the old $MANGO_DIR/state path until
-# 2026-07-31. The failure was silent and asymmetric: current_mode() never found
-# the file, so it always returned its "tiling" fallback, the menu always marked
-# tiling as the active mode, and the `•` guard below then treated picking
-# tiling as "already there" and exited 0. Switching TO hud worked; switching
-# BACK was impossible, with nothing logged.
+# Pick the desktop mode (SUPER+CTRL+/).
 #
-# Resolve it exactly as scripts/modes/*.sh do — one expression, one location.
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/mango"
-STATE="$STATE_DIR/current-mode"
-WALKER_CONFIGS="$MANGO_DIR/walker/configs"
+# This script read the OLD `$MANGO_DIR/state/current-mode` path until
+# 2026-07-31, months after the state moved. The failure was silent and
+# asymmetric: current_mode() never found the file, so it always returned its
+# "tiling" fallback, the menu always marked tiling as active, and the `•` guard
+# below then read picking tiling as "already there" and exited 0. Switching TO
+# hud worked; switching BACK was impossible, with nothing logged.
+#
+# That is why the path and the fallback now come from lib.sh — one definition,
+# so a reader cannot disagree with a writer about either.
+. "$HOME/.config/mango/scripts/lib.sh"
 
 MODES=("tiling" "hud")
-
-current_mode() {
-    [ -f "$STATE" ] && cat "$STATE" || echo "tiling"
-}
 
 menu_entries() {
     local current

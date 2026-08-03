@@ -308,14 +308,20 @@ let
   };
 
   # ── Shared bar settings ───────────────────────────────────────────────────
+  #
+  # All margins are 0. They used to be `margin-top = 6; margin-left/right = 8`
+  # — a floating bar — but nothing ever rendered that: `waybar-restart.sh` zeroed
+  # all three with sed on every launch, because the only non-hud mode is
+  # `tiling` and tiling wants the bar flush. Those values were residue from the
+  # removed `dms` mode, unreachable for as long as it has been gone.
   barBase = {
     layer = "top";
     position = "top";
     height = 32;
-    margin-top = 6;
+    margin-top = 0;
     margin-bottom = 0;
-    margin-left = 8;
-    margin-right = 8;
+    margin-left = 0;
+    margin-right = 0;
     spacing = 0;
   };
 
@@ -358,9 +364,12 @@ let
   # ── The four layouts ──────────────────────────────────────────────────────
   # The clock leads modules-left in every non-hud layout and custom/window sits
   # in the centre, so switching layout with SUPER+/ never moves them.
-  layouts = {
+  #
+  # These are position-INDEPENDENT. The top/bottom variants are derived below
+  # rather than written out.
+  baseLayouts = {
     # full — everything.
-    "config.jsonc" = mkBar {
+    full = mkBar {
       left = [
         "clock"
         "ext/workspaces"
@@ -387,7 +396,7 @@ let
     };
 
     # focus — drops the taskbar and the cpu/memory/phone readouts.
-    "config-focus.jsonc" = mkBar {
+    focus = mkBar {
       left = [
         "clock"
         "ext/workspaces"
@@ -420,7 +429,7 @@ let
     };
 
     # minimal — battery, tray and power only.
-    "config-minimal.jsonc" = mkBar {
+    minimal = mkBar {
       left = [
         "clock"
         "ext/workspaces"
@@ -437,9 +446,10 @@ let
     };
 
     # hud — an overlay strip, not a bar. margin-bottom cancels the exclusive
-    # zone against the 28px height; waybar-position.sh mirrors it when the bar
-    # moves to the bottom edge.
-    "config-hud.jsonc" = mkBar {
+    # zone against the 28px height; `atBottom` below mirrors it for the bottom
+    # edge. This is the ONLY layout with a non-zero margin, so it is the only
+    # one that variant actually changes.
+    hud = mkBar {
       left = [ ];
       center = [ ];
       right = [
@@ -472,6 +482,39 @@ let
       # back, add "custom/power" to `right` and re-add the tweak here.
     };
   };
+
+  # ── Position variants, enumerated at BUILD time ───────────────────────────
+  #
+  # A bar at the bottom edge is the same bar with `position` flipped and the
+  # vertical margins mirrored. `position` cannot be passed on the command line
+  # — `waybar --help` offers only -c, -s and -b — so the value has to be in the
+  # file, and there are exactly two possible files per layout.
+  #
+  # This used to happen at RUNTIME: waybar-restart.sh rewrote the generated
+  # JSON with `sed -E` into ~/.local/state/mango/waybar-config.jsonc on every
+  # switch. That inverted the layering — regex substitution mutating typed
+  # output that Nix had just produced — and it cost a real workaround: sed
+  # applies each -e to the same line in sequence, so a plain top->bottom +
+  # bottom->top pair renamed the key and renamed it straight back, and the swap
+  # had to be routed through a `margin-swap` placeholder to survive.
+  #
+  # Enumerating instead: 4 layouts x 2 positions = 8 files, all statically
+  # known. The script now only picks a filename.
+  atBottom =
+    bar:
+    bar
+    // {
+      position = "bottom";
+      margin-top = bar.margin-bottom;
+      margin-bottom = bar.margin-top;
+    };
+
+  layouts = lib.listToAttrs (
+    lib.concatMap (name: [
+      (lib.nameValuePair "config-${name}-top.jsonc" baseLayouts.${name})
+      (lib.nameValuePair "config-${name}-bottom.jsonc" (atBottom baseLayouts.${name}))
+    ]) (lib.attrNames baseLayouts)
+  );
 in
 {
   # Generated into ~/.config/mango/waybar/ alongside the hand-written CSS. The

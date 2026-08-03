@@ -9,18 +9,17 @@
 # An explicit argument is still accepted (`waybar-position.sh bottom`) so the
 # position can be forced from a script without knowing the current value.
 #
-# This script owns nothing but the state file. The actual work — rewriting
-# `position` into the chosen layout config, since waybar has no --position
-# flag — is in waybar-restart.sh, so that every other caller of it (login
+# This script owns nothing but the state file. Selecting the matching config —
+# waybar has no --position flag, so each position is a separate generated file
+# — is waybar-restart.sh's job, so that every other caller of it (login
 # autostart, mode switch, layout switch, config reload) lands on the same
 # position without having to know this feature exists.
 
 set -u
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/mango"
-STATE="$STATE_DIR/waybar-position"
+. "$HOME/.config/mango/scripts/lib.sh"
 
-current=$(cat "$STATE" 2>/dev/null || echo "top")
+current=$(waybar_position)
 
 case "${1:-}" in
     top | bottom)
@@ -35,7 +34,6 @@ case "${1:-}" in
         ;;
 esac
 
-mkdir -p "$STATE_DIR"
-echo "$next" > "$STATE"
+state_write waybar-position "$next"
 
-exec "$HOME/.config/mango/scripts/waybar/waybar-restart.sh"
+exec "$MANGO_DIR/scripts/waybar/waybar-restart.sh"

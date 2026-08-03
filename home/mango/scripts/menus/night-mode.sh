@@ -7,8 +7,10 @@
 # declared in nixos/modules/home/default.nix; its ExecStart
 # (../system/night-light-run.sh) reads the temperature written here.
 
+. "$HOME/.config/mango/scripts/lib.sh"
+
 UNIT=wlsunset.service
-TEMP_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/mango/night-temp"
+TEMP_FILE="$STATE_DIR/night-temp"
 DEFAULT_TEMP=4000
 
 is_on() {

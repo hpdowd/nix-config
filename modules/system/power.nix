@@ -54,12 +54,14 @@ in
 
       # ThinkPad battery thresholds — longevity over runtime.
       #
-      # STOP must stay in sync with `"full-at"` in mango/waybar/config-focus.jsonc,
-      # which rescales the reading (`shown = real / full-at * 100`). full-at is 85,
-      # so a STOP of 80 capped the bar at 80/85*100 = 94% and never read 100%.
+      # STOP is the source of truth for waybar's `full-at`, which rescales the
+      # reading (`shown = real / full-at * 100`): modules/home/waybar.nix reads
+      # it from here via osConfig, so the two cannot drift. They were separate
+      # values until 2026-08-01, and a STOP of 80 against a full-at of 85 capped
+      # the bar at 80/85*100 = 94%, reported as "stuck at 88%".
       #
       # START is deliberately wide: on AC the battery parks wherever it is and
-      # only tops back up below 40%, so the bar normally sits *below* 100% —
+      # only tops back up below 75%, so the bar normally sits *below* 100% —
       # that is the hysteresis working, not a stuck reading.
       START_CHARGE_THRESH_BAT0 = 75;
       STOP_CHARGE_THRESH_BAT0 = 85;

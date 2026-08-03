@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
-MODE="${1:-$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/mango/current-mode" 2>/dev/null || echo "tiling")}"
-exec "$HOME/.config/mango/scripts/modes/$MODE.sh"
+# Apply a mode: `mode.sh [tiling|hud]`, defaulting to whatever is current.
+. "$HOME/.config/mango/scripts/lib.sh"
+
+MODE="${1:-$(current_mode)}"
+exec "$MANGO_DIR/scripts/modes/$MODE.sh"

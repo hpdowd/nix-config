@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # VPN menu — WireGuard + PIA OpenVPN server picker
 
-WALKER=(~/.config/mango/scripts/walker/walker.sh -d)
+. "$HOME/.config/mango/scripts/lib.sh"
+
+WALKER=("$MANGO_DIR/scripts/walker/walker.sh" -d)
 OVPN_DIR="$HOME/Downloads/openvpn"
-CREDS_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/mango/pia-auth"
+CREDS_FILE="$STATE_DIR/pia-auth"
 VPN_STATE="/run/user/$(id -u)/mango-vpn"
 
 SHIELD=$'\uf132 '

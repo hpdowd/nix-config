@@ -1,7 +1,9 @@
 # Plan — make `nix-config` more maintainable and reproducible
 
-**Temporary working file.** Scratchpad, not the repo. Delete when the work lands,
-or promote individual sections into `docs/adr/` if a decision comes out of them.
+**Live working file.** Moved into the repo on 2026-08-03 — it had been sitting in
+a session scratchpad under `/tmp`, one reboot from gone. Delete it when the work
+lands; promote individual sections into `docs/adr/` as decisions come out of
+them.
 
 Rewritten **2026-08-03** against `main` @ `2f45486`, after Phase 0 landed and
 after a complexity audit that changed the plan's shape. Every package attribute
@@ -22,7 +24,7 @@ Four gaps, in priority order:
 | Gap | Consequence | Phase |
 |---|---|---|
 | ~~Nothing verifies a change before you run it~~ | closed 2026-08-03 | 0 ✅ |
-| **Nothing verifies the SHELL** | 2,160 lines gated by nothing — and every failure in `CLAUDE.md` is a shell failure | 0.5 |
+| ~~Nothing verifies the SHELL~~ | closed 2026-08-03 | 0.5 ✅ |
 | **Secrets are not managed** | A fresh install produces a machine that cannot reach the VPN or the Gitea host | 1–2 |
 | **Dead code is indistinguishable from live code** | Three instances found so far, most recently 765 lines | 4 |
 | **Prose has swallowed the code** | 1,417 of 3,930 `.nix` lines are comments; `dotfiles.nix` is 57 lines of code under 249 of narrative | 5 |
@@ -89,11 +91,43 @@ site so it does not read as dodging the defaults.
 
 ---
 
-# Phase 0.5 — a gate for shell ⭐ DO NEXT
+# Phase 0.5 — a gate for shell ✅ DONE 2026-08-03
 
-The gap Phase 0 left open. Two steps, both an afternoon.
+Commits `74742c4` (shellcheck + the 24 fixes) and `62ee18b` (static assertions).
+Recorded in **ADR 0011**. `nix flake check` now runs 10 checks.
 
-## Step 1 — shellcheck in `checks`
+**Both steps landed as planned, with two deviations worth keeping:**
+
+1. **shellcheck went straight to default severity**, not the planned `-S
+   warning` → fix → drop. With only 24 findings, fixing them outright was
+   cheaper than staging the threshold and left no exemption to forget.
+2. **The static checks live in `checks/static.sh`, not inline in `flake.nix`** —
+   otherwise the gate would not lint its own gate. Shell embedded in a Nix
+   string is exactly the unchecked shell the phase existed to eliminate.
+
+Three things the plan did not anticipate:
+
+- **`cd ${self}` puts you in a read-only store path.** The first shellcheck
+  check wrote its file list into the working directory and died with
+  `Permission denied` plus a `find: write error`, which reads like a broken
+  find. Write to `$TMPDIR`.
+- **`head -1` on the repo's PNGs** made bash warn about null bytes in command
+  substitution, three times per build. `head -c 64 | tr -d '\0'` instead.
+- **The git-based checks could not move verbatim.** `git ls-files` and
+  `git check-ignore` have no git inside a derivation, so the symlink check
+  became `find -type l` and the tracked check consults git only when `.git`
+  exists. Running against `${self}` is *stronger* than the original: it sees
+  tracked files only, i.e. what a fresh clone gets.
+
+**The floor assertions are the part to keep.** Every scan fails when it matches
+nothing rather than passing — script count ≥30, waybar configs =8, waybar
+script references >0. Both gates were confirmed to fail on a planted defect,
+because a gate only ever observed passing has not been observed at all.
+
+Still ungated, deliberately: `home/zsh/conf.d/*.zsh`. No shebang, and
+shellcheck does not do zsh.
+
+## Step 1 — shellcheck in `checks` ✅
 
 **It can be turned on cleanly**, unlike statix. Measured against the 38 live
 scripts (excluding `docs/archive/`):
@@ -122,7 +156,7 @@ this audit `nix run nixpkgs#shellcheck -- … 2>/dev/null` swallowed the finding
 and reported **zero**, which looked like a clean bill of health. If a linter
 suddenly reports nothing, distrust the invocation before believing the result.
 
-## Step 2 — move the static half of `verify-claims.sh` into `checks`
+## Step 2 — move the static half of `verify-claims.sh` into `checks` ✅
 
 Six of its eight checks need **no live system** and are currently a manual step
 nobody is forced to run:
@@ -387,8 +421,8 @@ which reads exactly like a catastrophic regression. Use
 
 | # | Phase | Shape |
 |---|---|---|
-| 1 | **0.5** shell gate | one branch; shellcheck at `-S warning`, then the SC2015 fixes |
-| 2 | **1** sops-nix | own branch — touches secrets |
+| ~~1~~ | ~~**0.5** shell gate~~ | ✅ done 2026-08-03 |
+| 2 | **1** sops-nix ⭐ **DO NEXT** | own branch — touches secrets |
 | 3 | **2** ensureProfiles | follows 1 |
 | 4 | **4** dead-code sweep | small; the reachability check depends on 0.5 |
 | 5 | **3** mango config selection | own session, needs a logout |

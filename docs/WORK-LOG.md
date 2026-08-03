@@ -500,3 +500,76 @@ nix flake check       # builds system + home, runs both linters
 nix fmt               # idempotent — a second run must produce no diff
 ./verify-claims.sh    # 8/8 against the live system
 ```
+
+---
+
+# Work log — gating the layer that was actually breaking
+
+**2026-08-03.** Phase 0.5 of the idiomatic-Nix plan, which now lives at
+[`docs/PLAN-idiomatic-nix.md`](PLAN-idiomatic-nix.md) rather than in a session
+scratchpad under `/tmp`. Full reasoning in
+[`docs/adr/0011`](adr/0011-shell-is-gated-too.md).
+
+## What was wrong
+
+Phase 0 built a careful gate and pointed it at the wrong layer.
+
+| | Lines | Files | Gated by |
+|---|---|---|---|
+| Nix | 3,930 | 22 | full closure build + statix + deadnix |
+| **Shell** | **2,100** | **39** | **nothing** |
+
+Every failure this log and `CLAUDE.md` record is a shell failure — the
+`#!/bin/bash` exit-127s, the `mmsg -s -d` flags that return 0, `pkill -x`
+against a wrapper, the state path one reader disagreed about. Not one was a Nix
+error.
+
+`verify-claims.sh` had the same shape of problem from the other side: six of
+its eight checks needed no live system, so they were a manual step nobody was
+obliged to run — and the battery/`full-at` coupling check had already rotted to
+"could not read" after the config it read was renamed.
+
+## What landed
+
+`checks.shellcheck` (default severity, `SC1091` excluded) and `checks.static`
+(`checks/static.sh`, 11 assertions). `nix flake check` now runs 10 checks.
+`verify-claims.sh` keeps the two that need a compositor.
+
+The 24 shellcheck findings were fixed rather than staged behind a raised
+threshold. 16 were SC2015 — `A && B || C` is not if-then-else, and every one
+was `<action> && notify success || notify failure`, so a working action with a
+failed notification reported failure. `bluetooth-menu.sh`'s power toggle turned
+the radio back **on** if the off command failed.
+
+## Four things that did not go to plan
+
+| Expected | Actual |
+|---|---|
+| `cd ${self}` then write a file list | `${self}` is a read-only store path — `Permission denied` plus `find: write error`, which reads as a broken find. Use `$TMPDIR` |
+| `head -1` to read shebangs | bash warns about null bytes on the repo's PNGs, three times per build. `head -c 64 \| tr -d '\0'` |
+| The git checks move verbatim | No git inside a derivation. `git ls-files` → `find -type l`; the tracked check consults git only when `.git` exists |
+| Inline the static checks in `flake.nix` | That shell would be the only unchecked shell left. It goes in a file so the new gate lints it |
+
+## The rule this phase adds
+
+**A scan that stops matching passes by finding nothing** — the shape of every
+bug above. So every scan asserts a floor: script count ≥30, waybar configs =8,
+waybar script references >0. The motivating incident is concrete:
+`nix run nixpkgs#shellcheck -- … 2>/dev/null` swallowed all 24 findings and
+reported zero during the audit, which reads exactly like a clean bill of health.
+Use `nix shell nixpkgs#shellcheck -c …`.
+
+Corollary: **verify a gate by breaking something.** Both were confirmed to fail
+on a planted defect — an unquoted `rm -rf $var`, and an `mmsg -s -d` call.
+
+## Checking it still holds
+
+```
+nix flake check       # 10 checks
+./verify-claims.sh    # 2/2 against the live session
+checks/static.sh . "$(nix eval --raw \
+  '.#nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage')"
+```
+
+Not covered: `home/zsh/conf.d/*.zsh` (no shebang, and shellcheck does not do
+zsh), and any script not yet `git add`ed — the flake source is the tracked tree.

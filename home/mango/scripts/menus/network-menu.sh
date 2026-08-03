@@ -19,7 +19,7 @@ CHECK=$' '  # fa-check
 build_menu() {
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" RETURN
+  trap 'rm -rf "$tmpdir"' RETURN
 
   nmcli radio wifi >"$tmpdir/wifi_state" 2>/dev/null &
   nmcli -t -f ACTIVE,SSID dev wifi >"$tmpdir/current_ssid" 2>/dev/null &
@@ -128,14 +128,14 @@ extract_ssid_from_entry() {
   local entry="$1"
   entry="${entry#* }"   # strip signal bars
   entry="${entry# }"    # strip leading spaces
-  entry="${entry%  ${CHECK}}"  # strip trailing check mark if present
+  entry="${entry%"  ${CHECK}"}"  # strip trailing check mark if present
   printf '%s' "$entry"
 }
 
 extract_vpn_name() {
   # entry format: "${SHIELD}  ${name}" or "${SHIELD}  ${name}  ·  on"
   local entry="$1"
-  entry="${entry#${SHIELD}  }"
+  entry="${entry#"${SHIELD}  "}"
   entry="${entry%  ·  on}"
   printf '%s' "$entry"
 }
@@ -145,13 +145,17 @@ case "$choice" in
   *"WiFi (on)"|*"WiFi (off)")
     state=$(nmcli radio wifi 2>/dev/null)
     if [ "$state" = "enabled" ]; then
-      nmcli radio wifi off &&
-        notify-send "Network" "WiFi turned off" ||
+      if nmcli radio wifi off; then
+        notify-send "Network" "WiFi turned off"
+      else
         notify-send -u critical "Network" "Failed to turn off WiFi"
+      fi
     else
-      nmcli radio wifi on &&
-        notify-send "Network" "WiFi turned on" ||
+      if nmcli radio wifi on; then
+        notify-send "Network" "WiFi turned on"
+      else
         notify-send -u critical "Network" "Failed to turn on WiFi"
+      fi
     fi
     ;;
   *"  Scan")
@@ -160,9 +164,11 @@ case "$choice" in
     ;;
   *"Disconnect  ·  "*)
     ssid="${choice##*Disconnect  ·  }"
-    nmcli con down "$ssid" &&
-      notify-send "Network" "Disconnected from ${ssid}" ||
+    if nmcli con down "$ssid"; then
+      notify-send "Network" "Disconnected from ${ssid}"
+    else
       notify-send -u critical "Network" "Disconnect failed"
+    fi
     ;;
   "$SEP")
     exit 0
@@ -173,13 +179,17 @@ case "$choice" in
   "${SHIELD}  "*)
     name=$(extract_vpn_name "$choice")
     if nmcli -t -f NAME,TYPE con show --active | grep -qE "^${name}:(vpn|wireguard)$"; then
-      nmcli con down "$name" &&
-        notify-send "Network" "VPN off: ${name}" ||
+      if nmcli con down "$name"; then
+        notify-send "Network" "VPN off: ${name}"
+      else
         notify-send -u critical "Network" "VPN disconnect failed"
+      fi
     else
-      nmcli con up "$name" &&
-        notify-send "Network" "VPN on: ${name}" ||
+      if nmcli con up "$name"; then
+        notify-send "Network" "VPN on: ${name}"
+      else
         notify-send -u critical "Network" "VPN connect failed"
+      fi
     fi
     ;;
   *)
@@ -190,9 +200,11 @@ case "$choice" in
       # Saved network — try to connect, retry once on failure
       if ! nmcli connection up "$ssid" 2>/dev/null; then
         sleep 0.5
-        nmcli connection up "$ssid" &&
-          notify-send "Network" "Connected to ${ssid}" ||
+        if nmcli connection up "$ssid"; then
+          notify-send "Network" "Connected to ${ssid}"
+        else
           notify-send -u critical "Network" "Failed to connect to ${ssid}"
+        fi
       else
         notify-send "Network" "Connected to ${ssid}"
       fi
@@ -202,9 +214,11 @@ case "$choice" in
       [ -z "$pass" ] && exit 0
       if ! nmcli dev wifi connect "$ssid" password "$pass" 2>/dev/null; then
         sleep 0.5
-        nmcli dev wifi connect "$ssid" password "$pass" &&
-          notify-send "Network" "Connected to ${ssid}" ||
+        if nmcli dev wifi connect "$ssid" password "$pass"; then
+          notify-send "Network" "Connected to ${ssid}"
+        else
           notify-send -u critical "Network" "Failed to connect to ${ssid}"
+        fi
       else
         notify-send "Network" "Connected to ${ssid}"
       fi

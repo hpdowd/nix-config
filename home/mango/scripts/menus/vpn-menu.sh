@@ -11,7 +11,6 @@ VPN_STATE="/run/user/$(id -u)/mango-vpn"
 SHIELD=$'\uf132 '
 GLOBE=$'\uf0ac  '
 KEY=$'\uf084 '
-DISC=$'\uf127 '
 SEP=$'────────────────────────'
 
 # ── Collect state ──────────────────────────────────────────────────────
@@ -113,14 +112,19 @@ case "$choice" in
   if [ -n "${vpn_entry_map[$choice]+x}" ]; then
     name="${vpn_entry_map[$choice]}"
     if [ "${active_vpn[$name]:-0}" = "1" ]; then
-      nmcli con down "$name" &&
-        notify-send "VPN" "Disconnected: ${name}" ||
+      if nmcli con down "$name"; then
+        notify-send "VPN" "Disconnected: ${name}"
+      else
         notify-send -u critical "VPN" "Disconnect failed"
+      fi
     else
       disconnect_all
-      nmcli con up "$name" &&
-        { echo "$name" > "$VPN_STATE"; notify-send "VPN" "Connected: ${name}"; } ||
+      if nmcli con up "$name"; then
+        echo "$name" > "$VPN_STATE"
+        notify-send "VPN" "Connected: ${name}"
+      else
         notify-send -u critical "VPN" "Connection failed"
+      fi
     fi
     pkill -RTMIN+10 waybar
 
@@ -150,9 +154,12 @@ case "$choice" in
     nmcli con modify "$conn_name" vpn.secrets "password=${pass}" &>/dev/null
 
     notify-send "VPN" "Connecting to ${conn_name}…"
-    nmcli con up "$conn_name" &&
-      { echo "$conn_name" > "$VPN_STATE"; notify-send "VPN" "Connected: ${conn_name}"; } ||
+    if nmcli con up "$conn_name"; then
+      echo "$conn_name" > "$VPN_STATE"
+      notify-send "VPN" "Connected: ${conn_name}"
+    else
       notify-send -u critical "VPN" "Connection failed: ${conn_name}"
+    fi
     pkill -RTMIN+10 waybar
   fi
   ;;

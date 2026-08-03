@@ -26,11 +26,8 @@ else
 fi
 
 # ── Sink list ──────────────────────────────────────────────────────────
-declare -A sink_id_map
+declare -A sink_id_map sink_name_map
 sink_list=""
-default_sink_id=$(wpctl status 2>/dev/null | awk '/Audio/,/Video/' | awk '/\*/{found=1} found && /Sinks:/{in_sinks=1; next} in_sinks && /\*/{match($0,/[0-9]+/,a); print a[0]; exit}')
-# Simpler: parse `wpctl inspect @DEFAULT_AUDIO_SINK@` for the id
-default_sink_id=$(wpctl status 2>/dev/null | grep -A30 'Sinks:' | grep '^\s*\*' | grep -oP '^\s*\*\s*\K[0-9]+' | head -1)
 
 while IFS= read -r line; do
     id=$(echo "$line" | grep -oP '^\s*\*?\s*\K[0-9]+')
@@ -44,6 +41,7 @@ while IFS= read -r line; do
         entry="${VOL}  ${name}"
     fi
     sink_id_map["$entry"]="$id"
+    sink_name_map["$entry"]="$name"
     sink_list+="${entry}"$'\n'
 done < <(wpctl status 2>/dev/null | awk '/Sinks:/{found=1; next} found && /^\s*(Sources:|Sink endpoints:)/{exit} found && /^\s*[\*]?\s*[0-9]+\./{print}')
 
@@ -91,7 +89,7 @@ case "$choice" in
         # Sink switch
         if [ -n "${sink_id_map[$choice]+x}" ]; then
             wpctl set-default "${sink_id_map[$choice]}" &&
-                notify-send -t 2000 "Audio" "Output: $(echo "$choice" | sed 's/^[^ ]* *//')"
+                notify-send -t 2000 "Audio" "Output: ${sink_name_map[$choice]}"
         fi
         ;;
 esac

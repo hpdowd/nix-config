@@ -39,4 +39,4 @@ CLASS="connected"
 [ "$CHARGE" -le 15 ] && CLASS="critical"
 [ "$CHARGE" -le 30 ] && [ "$CLASS" != "critical" ] && CLASS="warning"
 
-echo "{\"text\":\" $ICON $CHARGE%\",\"tooltip\":\"Galaxy S22+\\nBattery: $CHARGE%\",\"class\":\"$CLASS\"}"
+printf '%s\n' "{\"text\":\" $ICON $CHARGE%\",\"tooltip\":\"Galaxy S22+\\nBattery: $CHARGE%\",\"class\":\"$CLASS\"}"

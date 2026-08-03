@@ -119,6 +119,48 @@
           deadnix --fail --no-lambda-pattern-names ${self}
           touch $out
         '';
+
+        # Shell is the layer that actually breaks here. Every failure
+        # catalogued in CLAUDE.md is a shell failure, not a Nix one — the
+        # #!/bin/bash exit-127s, the `mmsg -s -d` flags that return 0, `pkill
+        # -x` against a wrapped binary, the state path one reader disagreed
+        # about. Until 2026-08-03 those 2,100 lines were gated by nothing while
+        # the Nix was gated by a full build and two linters.
+        #
+        # SC1091 is excluded permanently: shellcheck cannot resolve a
+        # `. "$HOME/.config/…"` source path statically, and that will not
+        # change. Everything else runs at default severity.
+        shellcheck =
+          pkgs.runCommandLocal "shellcheck-check"
+            {
+              nativeBuildInputs = [
+                pkgs.shellcheck
+                pkgs.findutils
+              ];
+            }
+            ''
+              cd ${self}
+              find . -type f -not -path './docs/archive/*' -print0 \
+                | while IFS= read -r -d "" f; do
+                    # tr strips the null bytes binary files would otherwise
+                    # feed to the substitution, which bash warns about.
+                    case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
+                      '#!'*bash*) printf '%s\0' "$f" ;;
+                    esac
+                  done > "$TMPDIR/scripts"
+
+              # A pattern that stops matching would make this pass by finding
+              # nothing, which is the failure this repo keeps having.
+              found=$(tr -cd '\0' < "$TMPDIR/scripts" | wc -c)
+              if [ "$found" -lt 30 ]; then
+                echo "shellcheck: only $found scripts found — the shebang scan is broken" >&2
+                exit 1
+              fi
+
+              xargs -0 -r shellcheck -e SC1091 < "$TMPDIR/scripts"
+              echo "shellcheck: $found scripts clean"
+              touch $out
+            '';
       };
 
       # `nix fmt`.
@@ -157,6 +199,7 @@
           pkgs.nixfmt
           pkgs.statix
           pkgs.deadnix
+          pkgs.shellcheck
           pkgs.nix-tree # inspect closures
           pkgs.nvd # diff two generations
         ];

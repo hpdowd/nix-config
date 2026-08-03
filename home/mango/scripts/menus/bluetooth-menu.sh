@@ -45,8 +45,11 @@ if [ "$power" = "yes" ]; then
     done < <(bluetoothctl devices Connected 2>/dev/null)
 
     # Paired devices — read from cache; fall back to live query
-    paired_src="$( [ -s "$BT_PAIRED_CACHE" ] && cat "$BT_PAIRED_CACHE" \
-                   || bluetoothctl devices Paired 2>/dev/null )"
+    if [ -s "$BT_PAIRED_CACHE" ]; then
+        paired_src=$(cat "$BT_PAIRED_CACHE")
+    else
+        paired_src=$(bluetoothctl devices Paired 2>/dev/null)
+    fi
     while IFS= read -r line; do
         mac=$(awk '{print $2}' <<< "$line")
         name=$(cut -d' ' -f3- <<< "$line")
@@ -56,9 +59,11 @@ if [ "$power" = "yes" ]; then
         if [ "${connected_macs[$mac]:-0}" = "1" ]; then
             batt=$(bluetoothctl info "$mac" 2>/dev/null | \
                 awk '/Battery Percentage:/{gsub(/[^0-9]/,"",$NF); print $NF}')
-            [ -n "$batt" ] \
-                && entry="${CHECK}  ${name}  ·  ${batt}%" \
-                || entry="${CHECK}  ${name}  ·  connected"
+            if [ -n "$batt" ]; then
+                entry="${CHECK}  ${name}  ·  ${batt}%"
+            else
+                entry="${CHECK}  ${name}  ·  connected"
+            fi
             entry_to_mac["$entry"]="${mac}|${name}"
             connected_list+="${entry}"$'\n'
         else
@@ -69,8 +74,11 @@ if [ "$power" = "yes" ]; then
     done <<< "$paired_src"
 
     # Available — discovered but not paired; read from cache
-    all_src="$( [ -s "$BT_ALL_CACHE" ] && cat "$BT_ALL_CACHE" \
-                || bluetoothctl devices 2>/dev/null )"
+    if [ -s "$BT_ALL_CACHE" ]; then
+        all_src=$(cat "$BT_ALL_CACHE")
+    else
+        all_src=$(bluetoothctl devices 2>/dev/null)
+    fi
     while IFS= read -r line; do
         mac=$(awk '{print $2}' <<< "$line")
         name=$(cut -d' ' -f3- <<< "$line")
@@ -99,7 +107,11 @@ choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "$BT")
 # ── Handle ─────────────────────────────────────────────────────────────
 case "$choice" in
     "$toggle_entry")
-        [ "$power" = "yes" ] && bluetoothctl power off || bluetoothctl power on
+        if [ "$power" = "yes" ]; then
+            bluetoothctl power off
+        else
+            bluetoothctl power on
+        fi
         ;;
     "$scan_entry")
         notify-send -t 2000 "Bluetooth" "Scanning for 10 seconds…"
@@ -116,20 +128,26 @@ case "$choice" in
         [ -z "$mac" ] && exit 0
 
         if [ "${connected_macs[$mac]:-0}" = "1" ]; then
-            bluetoothctl disconnect "$mac" && \
-                notify-send "Bluetooth" "Disconnected from ${dev_name}" || \
+            if bluetoothctl disconnect "$mac"; then
+                notify-send "Bluetooth" "Disconnected from ${dev_name}"
+            else
                 notify-send -u critical "Bluetooth" "Disconnect failed"
+            fi
         elif [ "$is_new" = "new" ]; then
             notify-send -t 3000 "Bluetooth" "Pairing with ${dev_name}…"
-            bluetoothctl pair "$mac" && \
-            bluetoothctl trust "$mac" && \
-            bluetoothctl connect "$mac" && \
-                notify-send "Bluetooth" "Paired and connected to ${dev_name}" || \
+            if bluetoothctl pair "$mac" \
+                && bluetoothctl trust "$mac" \
+                && bluetoothctl connect "$mac"; then
+                notify-send "Bluetooth" "Paired and connected to ${dev_name}"
+            else
                 notify-send -u critical "Bluetooth" "Failed to pair with ${dev_name}"
+            fi
         else
-            bluetoothctl connect "$mac" && \
-                notify-send "Bluetooth" "Connected to ${dev_name}" || \
+            if bluetoothctl connect "$mac"; then
+                notify-send "Bluetooth" "Connected to ${dev_name}"
+            else
                 notify-send -u critical "Bluetooth" "Failed to connect to ${dev_name}"
+            fi
         fi
         ;;
 esac

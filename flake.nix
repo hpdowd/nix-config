@@ -161,6 +161,27 @@
               echo "shellcheck: $found scripts clean"
               touch $out
             '';
+
+        # The assertions CLAUDE.md makes, minus the two that need a running
+        # compositor. Each exists because a documented claim silently stopped
+        # being true and cost real debugging time; until now re-checking them
+        # was a manual step nobody was forced to run. verify-claims.sh keeps
+        # the live ones and says so in its header.
+        static =
+          pkgs.runCommandLocal "static-check"
+            {
+              nativeBuildInputs = [
+                pkgs.bash
+                pkgs.jq
+                pkgs.findutils
+                pkgs.gnugrep
+              ];
+            }
+            ''
+              bash ${self}/checks/static.sh ${self} \
+                ${self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage}
+              touch $out
+            '';
       };
 
       # `nix fmt`.

@@ -134,6 +134,37 @@ else
 	bad "'pkill -x' against a nixpkgs wrapper never matches" "$(echo "$pk_bad" | head -4)"
 fi
 
+printf '\nSecrets\n'
+
+# An unencrypted secrets file committed to git reads exactly like an encrypted
+# one at a glance, and the mistake is unrecoverable once pushed. sops always
+# writes the `sops:` metadata block, so its absence means plaintext.
+mapfile -t SECRET_FILES < <(find "$SRC/secrets" -type f -name '*.yaml' 2>/dev/null | sort)
+if [[ ${#SECRET_FILES[@]} -eq 0 ]]; then
+	bad "no secrets/*.yaml found — the scan is broken, not the repo"
+else
+	plain=""
+	for f in "${SECRET_FILES[@]}"; do
+		if ! grep -q '^sops:' "$f" || ! grep -q 'age:' "$f"; then
+			plain+="  ${f#"$SRC"/}"$'\n'
+		fi
+	done
+	if [[ -z $plain ]]; then
+		ok "all ${#SECRET_FILES[@]} secrets/*.yaml are sops-encrypted"
+	else
+		bad "UNENCRYPTED file under secrets/" "$plain"
+	fi
+fi
+
+# The plaintext credential file is gone. A script still reading that path would
+# find nothing and fall through without saying so.
+pia_stale=$(grep -rn 'pia-auth' "$SRC/home" "$SRC/modules" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
+if [[ -z $pia_stale ]]; then
+	ok "no script reads the old plaintext pia-auth path"
+else
+	bad "script still reads the old plaintext pia-auth path" "$(echo "$pia_stale" | head -3)"
+fi
+
 printf '\nGenerated waybar configs\n'
 
 mapfile -t CONFIGS < <(find "$WAYBAR_DIR" -name 'config-*.jsonc' | sort)

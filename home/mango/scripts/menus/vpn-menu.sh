@@ -5,12 +5,15 @@
 
 WALKER=("$MANGO_DIR/scripts/walker/walker.sh" -d)
 OVPN_DIR="$HOME/Downloads/openvpn"
-CREDS_FILE="$STATE_DIR/pia-auth"
 VPN_STATE="/run/user/$(id -u)/mango-vpn"
+
+# sops installs these mode 0400, so there is no in-session setter any more —
+# credentials change in secrets/secrets.yaml. See docs/adr/0012.
+PIA_USER_FILE=/run/secrets/pia/username
+PIA_PASS_FILE=/run/secrets/pia/password
 
 SHIELD=$'\uf132 '
 GLOBE=$'\uf0ac  '
-KEY=$'\uf084 '
 SEP=$'────────────────────────'
 
 # ── Collect state ──────────────────────────────────────────────────────
@@ -61,9 +64,12 @@ fi
 
 # ── Build menu ─────────────────────────────────────────────────────────
 menu=""
-[ -n "$vpn_list" ] && menu+="${vpn_list}${SEP}"$'\n'
-[ -n "$pia_list" ] && menu+="${pia_list}${SEP}"$'\n'
-menu+="${KEY} Set PIA credentials"
+[ -n "$vpn_list" ] && menu+="$vpn_list"
+if [ -n "$vpn_list" ] && [ -n "$pia_list" ]; then
+  menu+="${SEP}"$'\n'
+fi
+menu+="$pia_list"
+menu="${menu%$'\n'}"
 
 # ── Show ───────────────────────────────────────────────────────────────
 choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "${SHIELD}")
@@ -71,15 +77,11 @@ choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "${SHIELD}")
 
 # ── Helpers ────────────────────────────────────────────────────────────
 ensure_credentials() {
-  [ -f "$CREDS_FILE" ] && return 0
-  notify-send "VPN" "Enter PIA credentials (visible in walker)"
-  user=$(printf '' | "${WALKER[@]}" -I -p "${KEY} PIA username")
-  [ -z "$user" ] && return 1
-  pass=$(printf '' | "${WALKER[@]}" -I -p "${KEY} PIA password")
-  [ -z "$pass" ] && return 1
-  mkdir -p "$(dirname "$CREDS_FILE")"
-  printf '%s\n%s\n' "$user" "$pass" >"$CREDS_FILE"
-  chmod 600 "$CREDS_FILE"
+  if [ -r "$PIA_USER_FILE" ] && [ -r "$PIA_PASS_FILE" ]; then
+    return 0
+  fi
+  notify-send -u critical "VPN" "PIA credentials missing — add them to secrets/secrets.yaml and rebuild"
+  return 1
 }
 
 disconnect_all() {
@@ -90,18 +92,6 @@ disconnect_all() {
 
 # ── Handle ─────────────────────────────────────────────────────────────
 case "$choice" in
-
-"${KEY} Set PIA credentials")
-  notify-send "VPN" "Enter PIA credentials (visible in walker)"
-  user=$(printf '' | "${WALKER[@]}" -I -p "${KEY} PIA username")
-  [ -z "$user" ] && exit 0
-  pass=$(printf '' | "${WALKER[@]}" -I -p "${KEY} PIA password")
-  [ -z "$pass" ] && exit 0
-  mkdir -p "$(dirname "$CREDS_FILE")"
-  printf '%s\n%s\n' "$user" "$pass" >"$CREDS_FILE"
-  chmod 600 "$CREDS_FILE"
-  notify-send "VPN" "PIA credentials saved"
-  ;;
 
 "$SEP")
   exit 0
@@ -134,8 +124,8 @@ case "$choice" in
     conn_name=$(basename "$ovpn_file" .ovpn)
 
     ensure_credentials || exit 0
-    user=$(head -1 "$CREDS_FILE")
-    pass=$(tail -1 "$CREDS_FILE")
+    user=$(<"$PIA_USER_FILE")
+    pass=$(<"$PIA_PASS_FILE")
 
     disconnect_all
 

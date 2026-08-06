@@ -894,23 +894,26 @@ migration by luck of the shared subvolume, and need separate backup:
 | NetworkManager profiles | `/etc/NetworkManager/system-connections` | 37 connections, root-only, mode 600 |
 | Bluetooth pairings | `/var/lib/bluetooth` | 7 devices |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` | 4.6 MB |
-| Runtime state | `~/.local/state/mango/` | incl. `pia-auth` (mode 600) |
+| Runtime state | `~/.local/state/mango/` | mode, layout, night-temp, last-vpn |
+| **age private key** | `/var/lib/sops-nix/key.txt` | **189 bytes, in no repo — losing it makes `secrets/secrets.yaml` unreadable** |
 | CLI credentials | `~/.config/{gh,glab-cli,gpu-screen-recorder,opencode,rclone,rbw,tea}` | gitignored by name |
 | corectrl profiles | `~/.config/corectrl/` | written by its GUI |
 
 Snapper covers `/home` against accidental deletion, but snapshots are on the
 same disk — they are not a backup.
 
-⚠️ **Secrets are unmanaged, and this is the largest genuine gap in the repo.**
-`pia-auth` is plaintext at mode 600, the WireGuard key and the forge tokens are
-root-owned files restored by hand. Nothing here is encrypted, and none of it is
-reproduced by the flake — so a fresh install of this flake produces a machine
-that cannot reach the VPN or the Gitea host. `sops-nix` or `agenix` is the
-answer; neither is adopted yet.
+**Secrets moved into sops-nix on 2026-08-06** (ADR 0012). `secrets/secrets.yaml`
+is encrypted and tracked; the PIA credentials, the `homelab` WireGuard key and
+the `gh`/`glab`/`tea` tokens all live there. Edit with
+`nix develop -c sops secrets/secrets.yaml` **from the repo root**.
+
+⚠️ What replaced that gap is a smaller, sharper one: **the age key at
+`/var/lib/sops-nix/key.txt` is a single point of failure in no backup.** Keep a
+copy in Bitwarden and on the offline drive.
 
 The NetworkManager profiles are a **decision, not a TODO** — but note
-`networking.networkmanager.ensureProfiles` does exist at this pin, so declaring
-them is possible once secrets are solved. Re-restoring them by hand
+`networking.networkmanager.ensureProfiles` does exist at this pin, and secrets
+are no longer the blocker. Re-restoring them by hand
 reintroduces `autoconnect=yes` and kills DNS; see §9.
 
 > **Zen note:** there are two profiles in `~/.config/zen/` and only one is real
@@ -956,8 +959,9 @@ previous list was entirely stale; every item on it had been fixed.)*
 - **Suspend never reaches s0i3, costing ~3 W.** Cause unknown after ruling out
   the display, WiFi and USB3. Worked around with hibernation rather than
   solved. See §9.
-- **Secrets are unmanaged.** Plaintext `pia-auth`, hand-restored tokens, no
-  `sops-nix`. The biggest gap in the repo — see §11.
+- **The age key is a single point of failure.** `/var/lib/sops-nix/key.txt` is
+  in no repo and no backup; without it `secrets/secrets.yaml` is unreadable.
+  See §11.
 - **Helix has no Python type checking.** `pyright` is declared and serves nvim,
   but helix's defaults are `ty`, `ruff`, `jedi-language-server` and `pylsp` —
   none of which is pyright. It gets lint and format from `ruff`; `hx --health

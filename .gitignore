@@ -62,6 +62,15 @@
 /home/rbw/
 /home/tea/
 
+# --- Secrets ----------------------------------------------------------------
+# secrets/*.yaml is sops-ENCRYPTED and deliberately tracked — that is the whole
+# point. What must never land here is an age private key. The real one lives at
+# /var/lib/sops-nix/key.txt, outside the repo; these rules only catch a stray
+# copy. checks/static.sh asserts every secrets/*.yaml carries sops metadata.
+*.age
+key.txt
+keys.txt
+
 # --- Caches, history, scratch ----------------------------------------------
 /home/zsh/.zsh_history
 /home/zsh/.zcompdump*

@@ -573,3 +573,72 @@ checks/static.sh . "$(nix eval --raw \
 
 Not covered: `home/zsh/conf.d/*.zsh` (no shebang, and shellcheck does not do
 zsh), and any script not yet `git add`ed — the flake source is the tracked tree.
+
+---
+
+# Work log — secrets into sops (2026-08-06)
+
+Phase 1 of `docs/PLAN-idiomatic-nix.md`. Recorded as **ADR 0012**. The flake
+input landed earlier in `c6df2e9`; this entry is the key, the file and the
+wiring.
+
+## What was unmanaged
+
+| Secret | Lived in | Survived via |
+|---|---|---|
+| PIA username + password | `~/.local/state/mango/pia-auth`, plaintext mode 600 | `@home` |
+| `homelab` WireGuard key | `/etc/NetworkManager/system-connections/` | hand restore |
+| `gh` / `glab` / `tea` tokens | `~/.config/{gh,glab-cli,tea}/` | `@home` |
+
+All three now in `secrets/secrets.yaml`, sops-encrypted and tracked.
+
+## What the plan got wrong
+
+- **`ssh-to-age` was impossible.** `services.openssh` is off, so `/etc/ssh` has
+  no host keys. Standalone `age-keygen` instead.
+- **Only the NixOS module was needed.** The plan assumed the home-manager
+  surface too, because a *user* script reads `pia-auth` — but
+  `owner = "henry"` handles that, and the HM module would have wanted a second
+  age key readable by the user.
+- **`pia-auth` was written, not just read.** `vpn-menu.sh` had a "Set PIA
+  credentials" entry that prompted through walker and wrote the file. A sops
+  secret is mode 0400, so it had to go. Deleted rather than kept as a fallback:
+  a fallback leaves "no plaintext secret outside sops" unenforceable, and this
+  repo's failures are all unenforceable invariants that had already drifted.
+
+## What cost time
+
+**`sops <path>` on a nonexistent file opens its `hello: Welcome to SOPS!`
+template for a new file rather than erroring.** Run from inside `secrets/`,
+`sops secrets/secrets.yaml` resolves to `secrets/secrets/secrets.yaml`, opens
+the sample, and on exit reports `File has not changed, exiting`. Two round
+trips before the tell was spotted. Same genre as everything else here: the
+failure output is indistinguishable from a success.
+
+**The key must be readable by whoever edits.** `age-keygen` writes it
+root-owned mode 600, so `sops` as henry cannot decrypt. The alternatives were a
+second admin key, or `sudo sops` — which writes the file back root-owned inside
+a git repo. Chose chown to henry plus `SOPS_AGE_KEY_FILE` in the devShell.
+
+## Stored vs declared
+
+`sops.secrets.<name>` decrypts to `/run/secrets/<name>` on every boot, so a
+declared secret with no consumer is plaintext on a running system for nothing.
+
+- **Declared:** `pia/username`, `pia/password` — `vpn-menu.sh` reads them.
+- **Stored only:** the WireGuard key (declared in Phase 2, when
+  `ensureProfiles` consumes it) and the three forge tokens (permanent — all
+  three CLIs rewrite their own config, the `corectrl` fight from ADR 0002).
+
+## Checking it still holds
+
+```
+nix flake check       # 13 checks
+nix develop -c sops -d secrets/secrets.yaml | grep -c REPLACE_ME   # must be 0
+sudo ls -l /run/secrets/pia/                                       # henry, 0400
+```
+
+The static check asserts every `secrets/*.yaml` carries the `sops:` metadata
+block — confirmed against a planted plaintext file. It does **not** check the
+values are real: a file full of `REPLACE_ME` encrypts and passes, which is
+exactly what happened twice before the edit took.

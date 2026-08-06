@@ -19,6 +19,7 @@
     ../../modules/system/printing.nix
     ../../modules/system/virtualisation.nix
     ../../modules/system/nix-settings.nix
+    ../../modules/system/secrets.nix
   ];
 
   # Renamed from "arch" on 2026-07-30, once Arch was actually deleted. The old

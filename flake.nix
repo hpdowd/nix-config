@@ -239,6 +239,11 @@
           pkgs.sops
           pkgs.age
         ];
+
+        # sops looks here instead of ~/.config/sops/age/keys.txt, so there is
+        # one key rather than an editing key and a host key. It is henry-owned
+        # mode 600 for that reason; root reads it at activation regardless.
+        SOPS_AGE_KEY_FILE = "/var/lib/sops-nix/key.txt";
       };
     };
 }

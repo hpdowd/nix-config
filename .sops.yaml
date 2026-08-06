@@ -1,0 +1,10 @@
+# Recipients for `sops`. Resolved from the working directory, which is why sops
+# and age are devShell-only — see docs/adr/0012.
+keys:
+  - &thinkpad age1svy8tu7ycjwc3hjng2j9kq2ufhmnrk906k4uc9j3gs77yny4z4jqvx6l9y
+
+creation_rules:
+  - path_regex: secrets/[^/]+\.yaml$
+    key_groups:
+      - age:
+          - *thinkpad

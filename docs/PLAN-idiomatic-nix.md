@@ -25,7 +25,7 @@ Four gaps, in priority order:
 |---|---|---|
 | ~~Nothing verifies a change before you run it~~ | closed 2026-08-03 | 0 ✅ |
 | ~~Nothing verifies the SHELL~~ | closed 2026-08-03 | 0.5 ✅ |
-| **Secrets are not managed** | A fresh install produces a machine that cannot reach the VPN or the Gitea host | 1–2 |
+| ~~Secrets are not managed~~ | closed 2026-08-06 (Phase 2 still open) | 1 ✅ |
 | **Dead code is indistinguishable from live code** | Three instances found so far, most recently 765 lines | 4 |
 | **Prose has swallowed the code** | 1,417 of 3,930 `.nix` lines are comments; `dotfiles.nix` is 57 lines of code under 249 of narrative | 5 |
 
@@ -190,32 +190,50 @@ shell script has a shellcheck warning, a `/bin/bash` shebang, or a dash-flag
 
 ---
 
-# Phase 1 — secrets (`sops-nix`) ⭐ biggest reproducibility gap
+# Phase 1 — secrets (`sops-nix`) ✅ DONE 2026-08-06
 
-Unmanaged today: `pia-auth` (plaintext, mode 600, in `~/.local/state/mango/`),
-the WireGuard key, and the forge tokens in `~/.config/{gh,glab-cli,tea}`. Until
-this lands, "reproducible" carries an asterisk — a fresh install of this flake
-produces a machine that cannot reach the VPN or `git.henrydowd.dev`.
+Recorded in **ADR 0012**. `nix flake check` now runs 13 checks. The input
+landed separately in `c6df2e9`; this is steps 2–5.
 
-1. Add the flake input with `inputs.nixpkgs.follows = "nixpkgs"` — unlike
-   `claude-desktop`, which must keep its own pin.
-2. Derive an age key (usually from the host SSH key via `ssh-to-age`). **The
-   private key must live outside the repo** — `/var/lib/sops-nix/key.txt` is
-   the convention.
-3. `.sops.yaml` at the repo root with the age recipients.
-4. `secrets/secrets.yaml`, encrypted. Encrypted files **are** committed.
-5. Declare `sops.secrets.<name>` with `owner`/`mode` where a non-root process
-   reads it. Consume via `config.sops.secrets.<name>.path` — never inline a
-   value into a store path, which is world-readable.
+**Five things the plan got wrong or did not anticipate:**
 
-⚠️ **Check option names against the sops-nix README at the pinned revision, not
-from memory.** The NixOS and home-manager module surfaces differ, and this repo
-needs both: `pia-auth` is read by a user-level script, the WireGuard key is
-root-owned.
+1. **`ssh-to-age` was impossible here.** `services.openssh` is not enabled, so
+   `/etc/ssh` holds `ssh_config` and `ssh_known_hosts` and no host keys at all.
+   Generated standalone with `age-keygen` instead. Step 2 above is corrected.
+2. **Only the NixOS module surface was needed, not both.** The plan assumed the
+   home-manager module for `pia-auth` because a user script reads it — but
+   `sops.secrets.<name>.owner = "henry"` covers that, and the HM module would
+   have wanted a *second* age key readable by the user. One key, one surface.
+3. **The key must be readable by the editing user, and that is a real choice.**
+   `age-keygen` writes it root-owned mode 600, at which point `sops` as henry
+   cannot decrypt and the only paths are a second admin key or `sudo sops` —
+   which writes the file back root-owned inside a git repo. Chosen: chown to
+   henry, and `SOPS_AGE_KEY_FILE` in the devShell so there is no env var to
+   remember. Root still reads it at activation.
+4. **`pia-auth` was WRITTEN by `vpn-menu.sh`, not just read.** A "Set PIA
+   credentials" entry prompted through walker and wrote the file. A sops secret
+   is root-installed mode 0400, so that path could not survive; the setter was
+   deleted rather than kept as a fallback, because a fallback leaves "no
+   plaintext secret outside sops" unenforceable.
+5. **`sops <path>` on a file that does not exist opens its `hello: Welcome to
+   SOPS!` template for a NEW file** rather than erroring. Running it from
+   inside `secrets/` therefore silently edits `secrets/secrets/secrets.yaml`
+   and reports `File has not changed, exiting`. Cost two round trips. The
+   template is the tell; run from the repo root.
 
-**Verify:** the decrypted files appear at their declared paths with the right
-owner and mode; `nmcli connection up homelab` still works; the plaintext
-originals can be deleted.
+**Stored vs declared is the part to keep.** `sops.secrets.<name>` decrypts to
+`/run/secrets/<name>` on every boot, so a declared secret with no consumer is
+plaintext on a running system for nothing. Declared: `pia/username`,
+`pia/password`. Stored-only, retrieved with `sops -d --extract`: the WireGuard
+key (declared in Phase 2, when `ensureProfiles` gives it a consumer) and the
+three forge tokens (stored-only permanently — `gh`, `glab` and `tea` each
+rewrite their own config, which is the `corectrl` fight from ADR 0002).
+
+**The new static check asserts encryption, and was confirmed against a plant.**
+An unencrypted `secrets.yaml` looks exactly like an encrypted one unless you
+open it, and the mistake is unrecoverable once pushed. It does **not** check
+the values are real — a file full of `REPLACE_ME` encrypts and passes, which
+happened twice during this work before the edit took.
 
 ---
 
@@ -422,8 +440,8 @@ which reads exactly like a catastrophic regression. Use
 | # | Phase | Shape |
 |---|---|---|
 | ~~1~~ | ~~**0.5** shell gate~~ | ✅ done 2026-08-03 |
-| 2 | **1** sops-nix ⭐ **DO NEXT** | own branch — touches secrets |
-| 3 | **2** ensureProfiles | follows 1 |
+| ~~2~~ | ~~**1** sops-nix~~ | ✅ done 2026-08-06 |
+| 3 | **2** ensureProfiles ⭐ **DO NEXT** | follows 1, now unblocked |
 | 4 | **4** dead-code sweep | small; the reachability check depends on 0.5 |
 | 5 | **3** mango config selection | own session, needs a logout |
 | 6 | **5a–5c, 5f** | one commit each, independent |

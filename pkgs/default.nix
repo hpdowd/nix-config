@@ -1,60 +1,32 @@
-# Overlay for packages that aren't in nixpkgs, plus any overrides.
-#
-# This file got a lot smaller after the 2026-07-27 verification pass. Most of
-# what looked like it would need packaging is already in nixpkgs — including
-# every Tier-1 blocker. What's left is genuinely absent upstream.
+# Overlay for packages absent from nixpkgs, plus overrides.
 { inputs }:
 
-# `_final` rather than `final`: the overlay signature is conventionally
-# `final: prev:` even when the fixpoint argument is unused, and the leading
-# underscore is how you tell deadnix that is deliberate.
+# `_final` rather than `final`: the overlay signature is `final: prev:` even
+# when the fixpoint argument is unused, and the underscore tells deadnix so.
 _final: prev: {
 
   # ==========================================================================
   # papirus-icon-theme — Gruvbox-yellow folders
   # ==========================================================================
-  # Stock Papirus folders are BLUE, which clashes badly with Gruvbox — the
-  # symptom is Thunar looking themed apart from every folder icon.
+  # Stock Papirus folders are blue, which reads as broken against Gruvbox. The
+  # usual `papirus-folders` CLI recolours the theme IN PLACE and so cannot work
+  # on a read-only store path; nixpkgs exposes the same thing as `color`.
   #
-  # The usual fix is the `papirus-folders` CLI, which recolours the theme
-  # **in place**. That cannot work here: the icon theme is a read-only
-  # /nix/store path, so the tool has nothing it is allowed to write to. It is
-  # in systemPackages and is a no-op on this system.
-  #
-  # nixpkgs exposes the same thing as a build input instead — `color` runs
-  # `papirus-folders -t $theme -o -C <color>` inside the derivation, producing
-  # a recoloured copy. `yellow` to match `Gruvbox-Yellow-Dark`; `orange` is the
-  # other reasonable choice, matching the terminals' gruvbox-orange palette.
-  # Full set: adwaita black blue bluegrey breeze brown carmine cyan darkcyan
-  # deeporange green grey indigo magenta nordic orange palebrown paleorange
-  # pink red teal violet white yaru yellow.
-  #
-  # Done as an overlay, not at the two call sites, deliberately: the theme is
-  # referenced by both `gtk.iconTheme.package` (theme.nix) and systemPackages
-  # (desktop.nix), and overriding only one would put two different Papirus
-  # derivations on XDG_DATA_DIRS with the folder colour decided by lookup
-  # order.
+  # An overlay rather than an override at the call sites: both
+  # `gtk.iconTheme.package` and systemPackages reference the theme, and
+  # overriding one would put two Papirus derivations on XDG_DATA_DIRS with the
+  # folder colour decided by lookup order.
   papirus-icon-theme = prev.papirus-icon-theme.override { color = "yellow"; };
 
   # ==========================================================================
   # fsel — version override
   # ==========================================================================
-  # nixpkgs has fsel 3.1.0; Arch runs 3.6.0 (`fsel --version`, 2026-07-29).
-  # This bumps it to match. fsel is your SUPER+Space launcher and its
-  # config.toml is written for the current release, so the version matters.
+  # nixpkgs has 3.1.0; the SUPER+Space launcher's config.toml is written for
+  # 3.6.0. Delete this block once nixpkgs catches up.
   #
-  # If 3.1.0 turns out to be fine, DELETE this block — one less thing to
-  # maintain when nixpkgs catches up.
-  #
-  # The previous version of this override was broken and would have aborted
-  # `nixos-install` partway through. It replaced `src` with the release
-  # *binary* tarball (fsel-x86_64-unknown-linux-gnu.tar.xz), but nixpkgs builds
-  # fsel with `rustPlatform.buildRustPackage` from source — so the cargo vendor
-  # step had no Cargo.lock to read and died. Evaluation never caught it,
-  # because a build failure is not an evaluation failure.
-  #
-  # Fixed by overriding with the GitHub *source* for the tag, and regenerating
-  # cargoDeps to match. Both hashes were obtained by building.
+  # Must override the GitHub SOURCE, not the release binary tarball — nixpkgs
+  # builds this with buildRustPackage, so a binary src leaves the cargo vendor
+  # step with no Cargo.lock. Evaluation does not catch that; only a build does.
   fsel = prev.fsel.overrideAttrs (_old: rec {
     version = "3.6.0";
     src = prev.fetchFromGitHub {
@@ -72,19 +44,10 @@ _final: prev: {
   # ==========================================================================
   # gruvbox-gtk-theme — build the variant you actually use
   # ==========================================================================
-  # Your GTK theme is `Gruvbox-Yellow-Dark`, named in seven places:
-  # gtk-{3,4}.0/settings.ini, the two settings-tiling.ini files,
-  # xsettingsd.conf, environment.d/gtk.conf and
-  # mango/scripts/system/gtk-apply.sh line 9.
-  #
-  # The default nixpkgs build produces ONLY Gruvbox-Dark and Gruvbox-Light —
-  # verified by building it and listing share/themes. On Arch the yellow
-  # variant comes from the AUR build, which passes `-t yellow` to install.sh.
-  # Without this override every GTK app silently falls back to Adwaita,
-  # because the theme name your config asks for does not exist.
-  #
-  # The upstream derivation takes the install.sh flags as arguments, so this
-  # is a plain override rather than a fork.
+  # theme.nix and gtk-apply.sh both ask for `Gruvbox-Yellow-Dark`, but the
+  # default nixpkgs build produces only Gruvbox-Dark and Gruvbox-Light. Without
+  # this the theme name does not exist and every GTK app silently falls back to
+  # Adwaita.
   gruvbox-gtk-theme = prev.gruvbox-gtk-theme.override {
     colorVariants = [ "dark" ];
     themeVariants = [ "yellow" ];
@@ -93,11 +56,8 @@ _final: prev: {
   # ==========================================================================
   # Brother MFC-L3740CDW printer driver
   # ==========================================================================
-  # Try driverless IPP Everywhere FIRST (see modules/system/printing.nix) —
-  # this model supports it and `brlaser` (which IS in nixpkgs) covers most
-  # Brother lasers. Only fall back to this if neither works.
-  #
-  # NOTE: 32-bit (i386) deb, so the CUPS filter binary needs 32-bit libs.
+  # Unused — driverless IPP Everywhere works for this model (printing.nix).
+  # Kept as the fallback. 32-bit deb, so the CUPS filter needs 32-bit libs.
   brother-mfc-l3740cdw = prev.stdenv.mkDerivation rec {
     pname = "brother-mfc-l3740cdw";
     version = "3.5.1-1";
@@ -150,19 +110,12 @@ _final: prev: {
   };
 
   # ==========================================================================
-  # Still unpackaged — verified absent from nixpkgs on 2026-07-27
+  # Still unpackaged — absent from nixpkgs as of 2026-07-27
   # ==========================================================================
-  #   piavpn-bin          Private Internet Access (proprietary + systemd svc)
-  #   freedownloadmanager your torrent/magnet handler
-  #   torbrowser-launcher (but `tor-browser` itself IS in nixpkgs — use that)
-  #   betterbird          (`thunderbird` 153.0 is in nixpkgs — use that)
+  #   piavpn-bin, freedownloadmanager, betterbird, torbrowser-launcher,
   #   quickmedia, pipemixer, r-quick-share, haroopad, mdview, pdf-compress,
   #   qrookie-vrp, phosphor-icons, nerd-fonts-sf-mono
   #
-  # PKGBUILDs for several of these are cached in ~/.cache/paru/clone/.
-  # Convert a PKGBUILD sha256 to the SRI hash Nix wants with:
-  #   echo <hex> | xxd -r -p | base64 -w0
-  # then prefix with "sha256-".
-  #
-  # For the rest: https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=<pkg>
+  # `tor-browser` and `thunderbird` ARE in nixpkgs — prefer those over the
+  # launcher/Betterbird if you ever package these.
 }

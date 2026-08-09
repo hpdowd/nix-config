@@ -837,8 +837,7 @@ What is running, and who owns it.
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
 | `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp` |
 | `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages` |
-| `nextcloud-client` | Cloud sync |
-| `protonmail-bridge` | Needs a keyring, hence gnome-keyring in the host config |
+| `nextcloud-client` | Cloud sync — stores its credentials in gnome-keyring |
 | `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` |
 | `mango-session.target` | A marker other units can hang off; started from `autostart.conf` |
 | `swaync.service` | **Masked** — autostart owns swaync instead |

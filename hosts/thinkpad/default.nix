@@ -86,7 +86,7 @@
   security.polkit.enable = true;
   security.rtkit.enable = true; # PipeWire realtime priority
 
-  # gnome-keyring, as on Arch.
+  # Credential store for the nextcloud-client unit and the browsers.
   services.gnome.gnome-keyring.enable = true;
 
   # Writes `user_allow_other` into /etc/fuse.conf. Without it the `--allow-other`

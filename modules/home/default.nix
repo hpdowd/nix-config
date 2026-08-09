@@ -151,9 +151,6 @@
     startInBackground = true;
   };
 
-  # protonmail-bridge — needs a keyring, hence gnome-keyring in the host config.
-  services.protonmail-bridge.enable = true;
-
   # --- Session environment --------------------------------------------------
   # `systemd.user.sessionVariables`, not `home.sessionVariables`: the latter
   # writes hm-session-vars.sh, which interactive shells source and systemd user

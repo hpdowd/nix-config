@@ -35,6 +35,19 @@ if [ ! -f "$CONFIG" ]; then
     CONFIG="$WAYBAR_DIR/config-full-top.jsonc"
 fi
 
+# stderr is KEPT. waybar catches any exception thrown by a module's update()
+# and logs it with spdlog::error, then leaves that module's label at its last
+# value — so a module freezes while its CSS classes keep tracking reality, and
+# the one line naming the cause went to /dev/null. That is what made the
+# battery module reading 81% against a real 27% undiagnosable on 2026-08-08 and
+# again on 08-09. One generation is kept so restarting the bar before reading
+# the log does not destroy the evidence. stdout stays discarded: 0.15.0 has a
+# stray puts() in Battery::update() that would otherwise spam a line every
+# `interval`.
+mkdir -p "$STATE_DIR"
+LOG="$STATE_DIR/waybar.log"
+[ -f "$LOG" ] && mv -f "$LOG" "$LOG.1"
+
 pkill waybar
 sleep 0.1
-nohup waybar -c "$CONFIG" -s "$STYLE" >/dev/null 2>&1 &
+nohup waybar -c "$CONFIG" -s "$STYLE" >/dev/null 2>"$LOG" &

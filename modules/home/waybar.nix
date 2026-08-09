@@ -23,18 +23,11 @@
   config,
   lib,
   pkgs,
-  osConfig,
   ...
 }:
 
 let
   s = "~/.config/mango/scripts";
-
-  # `full-at` rescales the reading as `shown = real / full-at * 100`, so it MUST
-  # equal TLP's charge-stop threshold or the bar misreports: at STOP 80 against
-  # full-at 85 it peaked at 94% and showed 88% at a real 75%, reported as "stuck
-  # at 88%". Read from power.nix rather than copied, so the two cannot diverge.
-  fullAt = osConfig.services.tlp.settings.STOP_CHARGE_THRESH_BAT0;
 
   # ── Module definitions — one copy each ────────────────────────────────────
   modules = {
@@ -210,6 +203,10 @@ let
       tooltip = false;
       on-click = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
       on-click-right = "${s}/walker/walker.sh -m wireplumber";
+      # Reads backwards on purpose. `trackpad_natural_scrolling=1` in
+      # mango/universal/settings.conf inverts the axis before waybar sees it,
+      # so fingers-UP arrives as on-scroll-DOWN — this is what makes swiping up
+      # raise the volume. `-l 1.5` is a ceiling and belongs on the increase.
       on-scroll-up = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-";
       on-scroll-down = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.5";
       format-icons = {
@@ -229,6 +226,8 @@ let
         "󰖔"
         "󰖨"
       ];
+      # Inverted for the same reason as pulseaudio above — natural scrolling
+      # delivers fingers-up as on-scroll-down.
       on-scroll-up = "brightnessctl --class=backlight set 2%-";
       on-scroll-down = "brightnessctl --class=backlight set 2%+";
     };
@@ -265,7 +264,29 @@ let
       on-click-right = "kdeconnect-cli --refresh";
     };
 
+    # `bat`/`adapter` are named rather than left to waybar's auto-detection,
+    # which walks /sys/class/power_supply in readdir order and keeps the LAST
+    # entry carrying `online` or `status` as the adapter. This machine exposes
+    # four supplies — AC, BAT0 and two ucsi-source-psy-USBC000:00* — and the
+    # ucsi pair carry both attributes, so the adapter is currently AC only
+    # because AC happens to sort last. Whichever one wins decides Plugged vs
+    # Discharging when TLP's stop threshold parks BAT0 at `Not charging`.
+    #
+    # `interval` is explicit because waybar's default is 60s: the module is
+    # otherwise event-driven (udev power_supply + an inotify watch on
+    # BAT0/uevent) and falls back to a once-a-minute poll, so an unplug could
+    # sit unreflected for a minute even when nothing is wrong.
+    #
+    # There is deliberately NO `full-at`. It rescaled the reading as
+    # `shown = real / full-at * 100` to make TLP's 85% charge stop read as
+    # 100%, at the cost of the bar permanently disagreeing with every other
+    # reading on the machine — 27% real showed as 32% against fastfetch's 27%,
+    # which is how a frozen module got misdiagnosed as a rescale bug twice.
+    # Showing the raw percentage costs only that the bar parks at 85% on AC.
     battery = {
+      bat = "BAT0";
+      adapter = "AC";
+      interval = 5;
       states = {
         warning = 30;
         critical = 15;
@@ -273,7 +294,6 @@ let
       format = "{icon} {capacity}%";
       format-charging = "󰂄 {capacity}%";
       format-plugged = "󰁹 {capacity}%";
-      format-alt = "{icon} {timeTo}";
       format-icons = [
         "󰂎"
         "󰁺"
@@ -287,7 +307,19 @@ let
         "󰂂"
         "󰁹"
       ];
-      tooltip-format = "{timeTo}";
+      # Left click swaps to draw/time; the tooltip carries health and cycles.
+      # Both were a `focus` tweak until 2026-08-09, so the same click gave a
+      # different answer depending on the layout.
+      #
+      # The toggle only bites while DISCHARGING. update() overrides whatever
+      # the click selected with `format-{status}` when one exists, so on AC
+      # `format-plugged` wins and clicking does nothing (battery.cpp:730). The
+      # focus tweak carried a `format-alt-charging` to patch that; waybar reads
+      # only `format-alt` and `format-alt-click`, never a per-status alt, so it
+      # was dead config and is not carried over.
+      format-alt = "{power}W · {time}";
+      format-time = "{H}:{m}";
+      tooltip-format = "{time}\n{health} · {cycles}";
     };
 
     tray = {
@@ -416,16 +448,6 @@ let
         "tray"
         "custom/power"
       ];
-      # The only layout that rescales the battery reading, and the only one with
-      # the richer power/health tooltip — the others show the raw percentage, so
-      # SUPER+/ changes the number you see. That is longstanding behaviour.
-      tweaks.battery = {
-        full-at = fullAt;
-        format-alt = "{power}W · {time}";
-        format-alt-charging = "{power}W · {time}";
-        format-time = "{H}:{m}";
-        tooltip-format = "{time}\n{health} · {cycles}";
-      };
     };
 
     # minimal — battery, tray and power only.

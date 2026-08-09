@@ -195,21 +195,27 @@ else
 	bad "waybar references a missing or non-executable script" "$(echo "$missing" | sort -u | head -4)"
 fi
 
-printf '\nCouplings\n'
+printf '\nBattery\n'
 
-# waybar rescales as shown = real / full-at * 100, so a mismatch makes the bar
-# peak below 100%. waybar.nix reads the threshold through osConfig, so this
-# checks the enforcement reached the GENERATED output — the part that can still
-# break — rather than comparing two hand-maintained numbers.
-stop=$(grep -oE 'STOP_CHARGE_THRESH_BAT0[[:space:]]*=[[:space:]]*[0-9]+' "$SRC/modules/system/power.nix" \
-	| grep -oE '[0-9]+$' | head -1)
-full=$(jq -r '.battery["full-at"] // empty' "$WAYBAR_DIR/config-focus-top.jsonc" 2>/dev/null)
-if [[ -z $stop || -z $full ]]; then
-	bad "could not read STOP_CHARGE_THRESH_BAT0 ($stop) or generated full-at ($full)"
-elif [[ $stop == "$full" ]]; then
-	ok "battery STOP ($stop) == generated waybar full-at ($full)"
+# `full-at` rescales the reading as shown = real / full-at * 100, so the bar
+# disagrees with fastfetch, upower and sysfs by a constant factor. Dropped on
+# 2026-08-09 because that mismatch masked a frozen module twice. Reintroducing
+# it is silent, hence the assertion.
+checked=0
+rescaled=""
+for cfg in "${CONFIGS[@]}"; do
+	jq -e 'has("battery")' "$cfg" >/dev/null || continue
+	checked=$((checked + 1))
+	full=$(jq -r '.battery["full-at"] // empty' "$cfg")
+	[[ -z $full ]] || rescaled+="  $(basename "$cfg"): full-at=$full"$'\n'
+done
+
+if [[ $checked -eq 0 ]]; then
+	bad "no generated config carries a battery module — the scan is broken"
+elif [[ -z $rescaled ]]; then
+	ok "battery shows the raw percentage in all $checked configs (no full-at)"
 else
-	bad "battery STOP ($stop) != generated waybar full-at ($full) — osConfig wiring is broken"
+	bad "generated waybar config rescales the battery reading" "$rescaled"
 fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

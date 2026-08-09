@@ -455,8 +455,24 @@ backup with `autoconnect=yes`; `homelab` auto-activated, claimed the default
 route, and pushed DNS `192.168.1.5` onto every link — so away from the home LAN
 **all** name resolution failed. Nothing identifies itself as a VPN problem at
 that point; it presents as total DNS death. Check `resolvectl status` for a
-tunnel holding `Default Route: yes` before suspecting anything else. The profiles
-are root-owned and not in git, so re-restoring reintroduces this.
+tunnel holding `Default Route: yes` before suspecting anything else. Since
+2026-08-09 the nine are declared in `networking.nix` and `checks/static.sh`
+fails the build on a missing `autoconnect=false`, so this is enforced rather
+than remembered (`docs/adr/0013`).
+
+**Editing one of the nine from a GUI silently un-declares it.** All three
+keyfile directories are read — `/etc`, `/run`, `/usr/lib` — and `ensureProfiles`
+writes to `/run`. An `nmcli con modify` writes a *new* file into `/etc` with the
+same UUID, and one of the two is then ignored, so the profile you edit and the
+profile Nix generates stop being the same thing with no error either way. The
+tell is `nmcli -f NAME,FILENAME con show`: the nine must report a `/run/...`
+path. This is why the hand-restored `/etc` copies had to be moved aside when
+they were declared — leaving them made the declaration a no-op.
+
+**The other 29 profiles are deliberately not declared.** `ensureProfiles`
+deletes nothing, so a subset is the supported shape. Don't "finish the job" by
+adding the ordinary access points: it moves 29 hotel WiFi passwords into sops to
+buy nothing.
 
 > `git.henrydowd.dev` is `192.168.1.200`, a LAN address — on `192.168.1.0/24` it
 > is reachable directly and the tunnel is not involved. Bring it up by hand only

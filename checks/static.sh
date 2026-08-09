@@ -3,15 +3,17 @@
 # build outputs, with no live session. Run by `nix flake check`; the checks
 # that need a running compositor stay in verify-claims.sh.
 #
-#   checks/static.sh <source-root> <home-manager-generation>
+#   checks/static.sh <source-root> <home-manager-generation> <system-toplevel>
 #
-# Both arguments are required. Nothing here is allowed to skip: a check that
-# quietly finds nothing is this repo's recurring failure, not a pass.
+# All three arguments are required. Nothing here is allowed to skip: a check
+# that quietly finds nothing is this repo's recurring failure, not a pass.
 
 set -uo pipefail
 
-SRC=${1:?usage: static.sh <source-root> <home-manager-generation>}
-GEN=${2:?usage: static.sh <source-root> <home-manager-generation>}
+usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel>"
+SRC=${1:?$usage}
+GEN=${2:?$usage}
+SYS=${3:?$usage}
 
 WAYBAR_DIR="$GEN/home-files/.config/mango/waybar"
 PROFILE="$GEN/home-path/bin"
@@ -91,7 +93,7 @@ fi
 
 # mmsg takes verbs. The dwl-era dash-flags return {"error":...} AND exit 0, so
 # a script using them reports success while doing nothing.
-if mmsg_flags=$(grep -rn 'mmsg[[:space:]]\+-' "$SRC/home" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#'); then
+if mmsg_flags=$(grep -rn 'mmsg[[:space:]]\+-' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#'); then
 	bad "mmsg called with dash-flags (unknown command, exit 0)" "$(echo "$mmsg_flags" | head -3)"
 else
 	ok "no script calls mmsg with dash-flags"
@@ -126,7 +128,7 @@ while read -r line; do
 	real=$(readlink -f "$PROFILE/$name")
 	[[ -e "$(dirname "$real")/.${name}-wrapped" ]] \
 		&& pk_bad+="  $name is wrapped — pkill -x will never match: ${line%%:*}"$'\n'
-done < <(grep -rn 'pkill -x' "$SRC/home" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
+done < <(grep -rn 'pkill -x' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
 
 if [[ -z $pk_bad ]]; then
 	ok "all $pk_n 'pkill -x' targets are unwrapped binaries"
@@ -158,11 +160,60 @@ fi
 
 # The plaintext credential file is gone. A script still reading that path would
 # find nothing and fall through without saying so.
-pia_stale=$(grep -rn 'pia-auth' "$SRC/home" "$SRC/modules" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
+pia_stale=$(grep -rn 'pia-auth' "$SRC/dotfiles" "$SRC/modules" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
 if [[ -z $pia_stale ]]; then
 	ok "no script reads the old plaintext pia-auth path"
 else
 	bad "script still reads the old plaintext pia-auth path" "$(echo "$pia_stale" | head -3)"
+fi
+
+printf '\nNetworkManager profiles\n'
+
+# Read the keyfiles the unit will actually write, not the option that produced
+# them — the envsubst placeholders only survive to /run if they survive here.
+NM_UNIT="$SYS/etc/systemd/system/NetworkManager-ensure-profiles.service"
+mapfile -t NM_PROFILES < <(
+	if [[ -f $NM_UNIT ]]; then
+		exec=$(grep -m1 '^ExecStart=' "$NM_UNIT" | cut -d= -f2- | awk '{print $1}')
+		[[ -f $exec ]] && grep -o 'envsubst -i [^ ]*' "$exec" | cut -d' ' -f3
+	fi
+)
+
+if [[ ${#NM_PROFILES[@]} -lt 9 ]]; then
+	bad "expected 9 declared NM profiles (8 PIA exits + homelab), found ${#NM_PROFILES[@]}"
+else
+	ok "${#NM_PROFILES[@]} declared NM profiles"
+
+	# A VPN that autoconnects grabs the default route and pushes a nameserver
+	# onto every link, which presents as total DNS failure naming nothing.
+	on=""
+	for p in "${NM_PROFILES[@]}"; do
+		grep -q '^autoconnect=false$' "$p" || on+="  $(basename "$p")"$'\n'
+	done
+	if [[ -z $on ]]; then
+		ok "every declared profile sets autoconnect=false"
+	else
+		bad "declared profile without autoconnect=false" "$on"
+	fi
+
+	# /nix/store is world-readable, so an inlined credential is a leak that
+	# looks identical to a working profile. Every one must be an envsubst
+	# placeholder resolved at runtime from the sops-rendered env file.
+	leaked=""
+	creds=0
+	for p in "${NM_PROFILES[@]}"; do
+		while IFS= read -r line; do
+			creds=$((creds + 1))
+			[[ ${line#*=} == \$* ]] || leaked+="  $(basename "$p"): ${line%%=*}"$'\n'
+		done < <(grep -E '^(password|private-key|psk|preshared-key)=' "$p")
+	done
+	if [[ $creds -eq 0 ]]; then
+		bad "no credential fields found in the profiles — the scan is broken"
+	elif [[ -z $leaked ]]; then
+		ok "all $creds profile credentials are \$-placeholders, not literals"
+	else
+		bad "PLAINTEXT credential in a world-readable store path" "$leaked"
+	fi
 fi
 
 printf '\nGenerated waybar configs\n'

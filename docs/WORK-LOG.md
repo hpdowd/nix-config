@@ -642,3 +642,82 @@ The static check asserts every `secrets/*.yaml` carries the `sops:` metadata
 block — confirmed against a planted plaintext file. It does **not** check the
 values are real: a file full of `REPLACE_ME` encrypts and passes, which is
 exactly what happened twice before the edit took.
+
+---
+
+# 2026-08-09 · Phase 2 — the NetworkManager profiles are declared
+
+Recorded in **ADR 0013**. The nine that carry a credential or can hijack the
+default route — `homelab` plus eight PIA exits — are generated from
+`modules/system/networking.nix`. The ~29 ordinary access points stay in
+NetworkManager's own state. `nix flake check` now runs 16 static assertions.
+
+## What the plan did not anticipate
+
+**`ensureProfiles` writes to `/run/NetworkManager/system-connections/`, not
+`/etc`** — and NetworkManager reads `/etc`, `/run` and `/usr/lib` alike. The
+hand-restored `/etc` copies carry the same UUIDs, so leaving them in place makes
+the entire declaration a **silent no-op**: the system looks converted, `nmcli`
+lists nine profiles with `autoconnect no`, and not one of them is the generated
+file. That is this repo's signature failure appearing inside the change meant to
+end it. `nmcli -f NAME,FILENAME con show` is the only thing that distinguishes
+the two states.
+
+The same property is what makes declaring a *subset* safe rather than a
+compromise: the unit writes what it is given and deletes nothing.
+
+**The PIA CA lived in `$HOME`.** Every profile pointed at
+`~/.local/share/networkmanagement/certificates/nm-openvpn/<name>-ca.pem`, left
+behind by `nmcli connection import` — a root daemon reading a user's home
+directory. All eight files are byte-identical. Vendored as one
+`modules/system/pia-ca.pem`; it is PIA's public self-signed CA, valid to 2034,
+so plaintext in git is correct.
+
+**`pkgs.formats.ini` handles the WireGuard peer section unchanged.** The section
+name is `[wireguard-peer.<base64 pubkey>]` and contains `.`, `/` and `=`; it
+round-trips verbatim. Verified by reading the generated keyfile out of the
+store, not by assuming.
+
+## Two dead things found on the way
+
+**`vpn-menu.sh`'s `.ovpn` importer is unreachable.** Its second path enumerates
+`~/Downloads/openvpn/*.ovpn` to build a PIA server list and injects credentials
+from sops on import. That directory does not exist, so the list is always empty
+and the branch never runs — the nine NM profiles are the entire menu. Phase 4
+material; not removed here.
+
+**Three checks in `checks/static.sh` had been scanning `$SRC/home`** since
+`859895a` renamed `home/` to `dotfiles/`, and had therefore been passing by
+finding nothing for six days: the `mmsg` dash-flag check, the `pkill -x` check
+and the `pia-auth` check. Fixed in the same commit. The `pkill -x` check went
+from silently examining 0 targets to 2 — its own floor assertion did not cover
+zero, which is now the fourth instance of a scan that stopped matching and
+reported success.
+
+## The two new assertions
+
+Both read the keyfiles the unit will actually write, parsed out of the built
+unit script, rather than the option that produced them — the question is what
+lands in `/run`.
+
+- **No declared profile may omit `autoconnect=false`.** The failure this whole
+  phase exists to prevent.
+- **Every `password` / `private-key` / `psk` must be a `$`-placeholder.**
+  `/nix/store` is world-readable, and an inlined credential produces a profile
+  that works perfectly while leaking.
+
+Confirmed by planting both defects at once and watching the build fail with
+`14 passed, 2 failed`. A gate only ever observed passing has not been observed.
+
+## Checking it still holds
+
+```
+nix flake check                                 # 16 static assertions
+nmcli -f NAME,FILENAME,AUTOCONNECT con show     # the nine: /run/... and `no`
+resolvectl status                               # no tunnel holds Default Route: yes
+sudo ls -l /run/secrets/rendered/               # networkmanager.env, root, 0400
+```
+
+`FILENAME` is the load-bearing column. A `/etc/...` path against any of the nine
+means something wrote through the declaration — most likely an `nmcli con
+modify`, which is now the two-owners trap from ADR 0002 in a different medium.

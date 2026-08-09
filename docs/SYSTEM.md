@@ -869,7 +869,7 @@ migration by luck of the shared subvolume, and need separate backup:
 | What | Where | Size |
 |---|---|---|
 | Zen browser profile | `~/.config/zen/` | **912 MB** — 13 extensions, logins, history. Growing |
-| NetworkManager profiles | `/etc/NetworkManager/system-connections` | 37 connections, root-only, mode 600 |
+| NetworkManager profiles | `/etc/NetworkManager/system-connections` | the ~29 ordinary APs, root-only, mode 600. The nine credential-bearing ones are declared — ADR 0013 |
 | Bluetooth pairings | `/var/lib/bluetooth` | 7 devices |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` | 4.6 MB |
 | Runtime state | `~/.local/state/mango/` | mode, layout, night-temp, last-vpn |
@@ -889,10 +889,11 @@ the `gh`/`glab`/`tea` tokens all live there. Edit with
 `/var/lib/sops-nix/key.txt` is a single point of failure in no backup.** Keep a
 copy in Bitwarden and on the offline drive.
 
-The NetworkManager profiles are a **decision, not a TODO** — but note
-`networking.networkmanager.ensureProfiles` does exist at this pin, and secrets
-are no longer the blocker. Re-restoring them by hand
-reintroduces `autoconnect=yes` and kills DNS; see §9.
+**The nine credential-bearing NetworkManager profiles moved into the flake on
+2026-08-09** (ADR 0013) — `homelab` plus the eight PIA exits, with credentials
+substituted from a sops template at activation. The ~29 ordinary access points
+stay in NetworkManager's own state, which is a decision rather than a TODO:
+`ensureProfiles` deletes nothing, so declaring a subset is supported.
 
 > **Zen note:** there are two profiles in `~/.config/zen/` and only one is real
 > (`kxsz4wom.Default (release)`, 839 MB). Which is default is selected

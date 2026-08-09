@@ -237,25 +237,43 @@ happened twice during this work before the edit took.
 
 ---
 
-# Phase 2 — declare the NetworkManager profiles (needs Phase 1)
+# Phase 2 — declare the NetworkManager profiles ✅ DONE 2026-08-09
 
-`networking.networkmanager.ensureProfiles` **exists at this pin** (verified).
-PSKs and certs come from Phase 1 via `ensureProfiles.environmentFiles`.
+Recorded in **ADR 0013**. The 9 that carry a credential or can hijack the
+default route (`homelab` + 8 PIA exits) are generated from `networking.nix`,
+with credentials substituted by `envsubst` from a sops template. The ~29
+ordinary APs stay in NetworkManager's own state. `checks/static.sh` now runs 16
+assertions.
 
-This is the gap that has **actually bitten**: 37 root-owned profiles restored
-by hand, where re-restoring reintroduces `autoconnect=yes`, `homelab` grabs the
-default route, pushes an unreachable nameserver onto every link, and *all* DNS
-dies — presenting as total name-resolution failure with nothing identifying
-itself as a VPN problem. Declaring them turns `autoconnect=no` from
-*remembered* into *enforced*.
+**Four things the plan did not anticipate:**
 
-**Scope:** the 9 that carry secrets and the landmine (`homelab` + 8 PIA exits).
-Leave the ~28 ordinary APs to NetworkManager's own state, and say so in a
-comment so the split reads as a decision.
+1. **`ensureProfiles` writes to `/run`, not `/etc`** — and NetworkManager reads
+   both. The hand-restored `/etc` copies had to be moved aside or the whole
+   declaration would have been a **silent no-op**, in the change meant to end
+   silent no-ops. `nmcli -f NAME,FILENAME con show` is the tell. This also
+   turns out to be *why* declaring a subset is safe: the unit deletes nothing.
+2. **The PIA CA lived in `$HOME`.** All eight profiles referenced
+   `~/.local/share/networkmanagement/certificates/nm-openvpn/<name>-ca.pem`,
+   left by `nmcli connection import`, and all eight files are byte-identical.
+   Vendored as one `modules/system/pia-ca.pem` — it is PIA's public CA.
+3. **`vpn-menu.sh`'s importer branch is dead.** It builds a PIA server list from
+   `~/Downloads/openvpn/*.ovpn`; that directory does not exist, so the list is
+   always empty and the credential-injection path is unreachable. Phase 4
+   material, not fixed here.
+4. **Three checks in `static.sh` had been scanning `$SRC/home`** since the
+   `home/` → `dotfiles/` rename in `859895a`, and so had been passing by
+   finding nothing. Fixed in the same commit; the `pkill -x` check went from 0
+   targets to 2.
 
-**Verify:** `nmcli -f NAME,AUTOCONNECT connection show` — every VPN profile
-reports `no`. `resolvectl status` — no link holds `Default Route: yes` except
-the active physical one.
+**The two new assertions are the part to keep**, and both were confirmed against
+a planted defect: no profile may omit `autoconnect=false`, and every
+`password` / `private-key` / `psk` must be a `$`-placeholder rather than a
+literal, because `/nix/store` is world-readable and an inlined credential looks
+identical to a working profile.
+
+**Verify:** `nmcli -f NAME,FILENAME,AUTOCONNECT connection show` — the nine
+report a `/run/...` filename and `no`. `resolvectl status` — no link holds
+`Default Route: yes` except the active physical one.
 
 ---
 
@@ -315,6 +333,8 @@ cannot move out of `~/.config/mango/` until those are absolute. Full sequence:
 | 2026-07-30 | `kitty/active-theme.conf`, `foot/active-theme.ini` | symlinks selecting nothing |
 | 2026-07-30 | `gtk-*-tiling` variants, `gtk-apply.sh $MODE` | byte-identical to their targets |
 | 2026-08-03 | `waybar/style.css`, `walker/configs/default.toml`, `walker/themes/mango/` | **765 lines** |
+| 2026-08-09 | `vpn-menu.sh`'s `.ovpn` importer — `~/Downloads/openvpn` does not exist, so the list is always empty | ~35 lines |
+| 2026-08-09 | three `static.sh` checks scanning `$SRC/home` after the `dotfiles/` rename | 3 gates, silently disarmed |
 
 Every one *looked maintained*, and the last was documented as the default in
 both `CLAUDE.md` and `SYSTEM.md`. The shared mechanism: **a file selected by a
@@ -441,8 +461,8 @@ which reads exactly like a catastrophic regression. Use
 |---|---|---|
 | ~~1~~ | ~~**0.5** shell gate~~ | ✅ done 2026-08-03 |
 | ~~2~~ | ~~**1** sops-nix~~ | ✅ done 2026-08-06 |
-| 3 | **2** ensureProfiles ⭐ **DO NEXT** | follows 1, now unblocked |
-| 4 | **4** dead-code sweep | small; the reachability check depends on 0.5 |
+| ~~3~~ | ~~**2** ensureProfiles~~ | ✅ done 2026-08-09 |
+| 4 | **4** dead-code sweep ⭐ **DO NEXT** | small; Phase 2 found two more instances |
 | 5 | **3** mango config selection | own session, needs a logout |
 | 6 | **5a–5c, 5f** | one commit each, independent |
 | 7 | **5e** treefmt | after 0.5 |

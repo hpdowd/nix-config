@@ -25,8 +25,14 @@ sops-nix decrypts it to `/run/secrets/<name>` at boot:
 
 | Key | Path | Read by |
 |---|---|---|
-| `pia/username` | `/run/secrets/pia/username` | `home/mango/scripts/menus/vpn-menu.sh` |
+| `pia/username` | `/run/secrets/pia/username` | `dotfiles/mango/scripts/menus/vpn-menu.sh` |
 | `pia/password` | `/run/secrets/pia/password` | same |
+| `wireguard/homelab` | `/run/secrets/wireguard/homelab` | the template below |
+
+All three are also rendered into `/run/secrets/rendered/networkmanager.env`,
+which `networking.networkmanager.ensureProfiles` feeds to `envsubst`. That is
+what keeps the credentials out of the world-readable store — see
+`docs/adr/0013`.
 
 **Stored only** — kept here so a disk failure cannot lose them, but nothing
 declares them, because a declared secret with no consumer is a plaintext file
@@ -34,15 +40,13 @@ sitting in `/run/secrets` at every boot for no reason:
 
 | Key | Retrieve with |
 |---|---|
-| `wireguard/homelab` | `sops -d --extract '["wireguard"]["homelab"]' secrets/secrets.yaml` |
 | `forge/gh` | `sops -d --extract '["forge"]["gh"]' secrets/secrets.yaml` |
 | `forge/glab` | `sops -d --extract '["forge"]["glab"]' secrets/secrets.yaml` |
 | `forge/tea` | `sops -d --extract '["forge"]["tea"]' secrets/secrets.yaml` |
 
-`wireguard/homelab` becomes declared in Phase 2, when
-`networking.networkmanager.ensureProfiles` gives it a consumer. The forge
-tokens stay stored-only on purpose — `gh`, `glab` and `tea` each rewrite their
-own config file, so handing them a read-only symlink is the `corectrl` fight.
-On a fresh install, extract and run `gh auth login` / `tea login add`.
+The forge tokens stay stored-only on purpose — `gh`, `glab` and `tea` each
+rewrite their own config file, so handing them a read-only symlink is the
+`corectrl` fight. On a fresh install, extract and run `gh auth login` /
+`tea login add`.
 
 See `docs/adr/0012`.

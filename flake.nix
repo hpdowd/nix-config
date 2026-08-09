@@ -188,7 +188,8 @@
             }
             ''
               bash ${self}/checks/static.sh ${self} \
-                ${self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage}
+                ${self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage} \
+                ${self.nixosConfigurations.thinkpad.config.system.build.toplevel}
               touch $out
             '';
       };

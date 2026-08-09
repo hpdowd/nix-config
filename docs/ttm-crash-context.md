@@ -1,8 +1,9 @@
 # amdgpu/TTM freeze — investigation context
 
 Handoff note for picking this up in a fresh session. Written 2026-08-06.
-Live detail lives in `CLAUDE.md` ("The amdgpu/TTM freeze") and `bisect/README.md`;
-this file is the narrative and the open questions.
+**This file is the primary record** — the narrative, the evidence and the open
+questions. `docs/gotchas.md` §Power carries the two-sentence version, and
+`bisect/README.md` the report tooling.
 
 ## The reported symptom
 

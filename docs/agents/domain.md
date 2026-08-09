@@ -1,70 +1,44 @@
-# Domain Docs
+# Domain docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+How the engineering skills should consume this repo's documentation.
 
-This repo is **single-context**: one `CONTEXT.md` and one `docs/adr/` at the root.
+This repo is **single-context**: one `docs/adr/` at the root, no `CONTEXT.md`.
 
-## Before exploring, read these
+## Read before exploring
 
-- **`CLAUDE.md`** at the repo root — for this repo it is the primary standing
-  description of the system (shell environment, theming architecture, desktop
-  layout, networking, the NixOS migration). Read it first; the skills' generic
-  advice to start at `CONTEXT.md` assumes a codebase, and here the equivalent
-  knowledge already lives in `CLAUDE.md`.
-- **`CONTEXT.md`** at the repo root, if it exists — glossary and ubiquitous
-  language.
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in.
+- **`CLAUDE.md`** — the rules that apply to every change here, and the routing
+  table to everything else. Read it first. The skills' generic advice to start at
+  `CONTEXT.md` assumes a codebase; here that knowledge lives in `CLAUDE.md`.
+- **`docs/gotchas.md`** — the failure catalogue. Read the section for the area
+  you are about to touch.
+- **`docs/adr/`** — read the ADRs covering that area before changing it.
+- **`docs/SYSTEM.md`** — layout, keybinds, services, troubleshooting.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+`CONTEXT.md` does not exist and is created lazily by `/domain-modeling`, if terms
+ever need resolving. **Proceed silently when a file is absent** — don't flag it,
+don't suggest creating it upfront.
 
-## File structure
+## The code is not in `src/`
 
-Single-context repo (this one):
+There is none. The "code" is the Nix under `hosts/`, `modules/` and `pkgs/`, plus
+~2,100 lines of shell under `dotfiles/` — and `dotfiles/mango/scripts/` is where
+most of the real logic lives. Every failure this repo has catalogued is a shell
+failure, so weight exploration accordingly.
 
-```
-/
-├── CLAUDE.md                       ← the standing system description
-├── CONTEXT.md                      ← glossary, once one exists
-├── flake.nix                       ← the system, at the repo root
-├── hosts/  modules/  pkgs/         ← the Nix that builds it
-├── home/                           ← the dotfiles (mango, nvim, kitty, zsh, …)
-└── docs/
-    ├── adr/
-    │   ├── 0001-....md
-    │   └── 0002-....md
-    ├── agents/                     ← these files
-    └── archive/                    ← the Arch→NixOS migration, history only
-```
+> The repo was restructured on 2026-07-30. Until then it was `arch-config`, its
+> root *was* `~/.config`, the dotfiles sat at the top level and the flake lived in
+> `nixos/`. Anything still describing that layout — or a top-level `home/` — is
+> stale.
 
-Restructured 2026-07-30. Until then the repo was `arch-config`, its root *was*
-`~/.config`, the dotfiles sat at the top level and the flake was in a `nixos/`
-subdirectory. Anything still describing that layout is stale.
+## Where decisions already live
 
-There is no `src/`. The "code" is the Nix under `hosts/`, `modules/` and
-`pkgs/`, plus the shell scripts under `home/` — `home/mango/scripts/` is where
-most of the real logic lives.
+Some long-lived decisions are written as prose rather than as ADRs — the
+mode-script theming architecture, and the migration rationale in
+`docs/archive/MIGRATION.md`. **Treat those as binding in the same way an ADR
+would be.** If `/domain-modeling` converts one into a numbered ADR, link back to
+the prose rather than duplicating it.
 
-Multi-context (a root `CONTEXT-MAP.md` pointing at per-context `CONTEXT.md`
-files) does not apply here and shouldn't be introduced without a reason.
+If your output contradicts an ADR, surface it rather than silently overriding:
 
-## Note on where decisions already live
-
-Several long-lived architectural decisions are already written down as prose
-rather than as ADRs — the mode-script theming architecture in `CLAUDE.md`, and
-the migration rationale in `docs/archive/MIGRATION.md` (side-by-side install,
-`mkOutOfStoreSymlink` for writable dotfiles, dropping DankMaterialShell).
-Treat those as binding in the same way an ADR would be. If `/domain-modeling`
-converts any of them into a numbered ADR, link back to the prose rather than
-duplicating it.
-
-## Use the glossary's vocabulary
-
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
-
-If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
-
-## Flag ADR conflicts
-
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
-
-> _Contradicts ADR-0007 (event-sourced orders) — but worth reopening because…_
+> _Contradicts ADR-0009 (generate config from Nix) — but worth reopening
+> because…_

@@ -15,7 +15,7 @@ hosts/thinkpad/    host config + hardware-configuration.nix
 modules/system/    boot, locale, networking, audio, desktop, fonts, power, …
 modules/home/      home-manager: packages, shell, theme, dotfiles, and —
                    programs.nix + waybar.nix — the configs GENERATED from Nix
-home/              the hand-written dotfiles that remain (mango, nvim, zsh, …)
+dotfiles/          the hand-written dotfiles that remain (mango, nvim, zsh, …)
 pkgs/              overlay for anything not in nixpkgs
 docs/SYSTEM.md     the operator's manual — start here to use the machine
 docs/adr/          numbered decision records
@@ -35,20 +35,12 @@ nix fmt             # nixfmt (RFC 166)
 
 **Run `nix flake check` before `rebuild`.** It builds `system.build.toplevel`
 and the home-manager activation package, so `buildEnv` collisions and failing
-derivations surface there rather than halfway through a `switch`. It replaced
-`verify-packages.sh` on 2026-08-03, which only *evaluated* and by its own
-admission could not catch either.
+derivations surface there rather than halfway through a `switch`.
 
-**`home/` is shrinking by design.** kitty, foot, helix, zed, htop, ncspot, imv,
-yazi, wlogout and the four waybar layouts are now *generated* from
-`modules/home/` and have no file in this repo. If a config file is not under
-`home/`, that is why — grep `modules/home/` for it.
-
-`docs/adr/` holds numbered architecture decision records — the decisions that
-were expensive to learn, written down so they don't get quietly undone. Start
-at [`docs/adr/README.md`](docs/adr/README.md). `CONTEXT.md` still does not
-exist; per `docs/agents/domain.md` it gets created lazily, once there is
-vocabulary worth pinning down.
+**`dotfiles/` is shrinking by design.** kitty, foot, helix, zed, htop, ncspot,
+imv, yazi, wlogout and the waybar layouts are *generated* from `modules/home/`
+and have no file in this repo. If a config is not under `dotfiles/`, that is
+why — grep `modules/home/` for it.
 
 ## Rebuilding
 
@@ -76,7 +68,9 @@ is globbed, matches nothing, and fails with `zsh: no matches found:` before
 
 | I want to… | Read |
 |---|---|
-| Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the standing description of how this machine is put together |
+| Work on the configs themselves | [`CLAUDE.md`](CLAUDE.md) — the rules that apply to every change here |
+| Change one area without stepping on a known trap | [`docs/gotchas.md`](docs/gotchas.md) — the failure catalogue, by area |
+| Learn how the system is laid out | [`docs/SYSTEM.md`](docs/SYSTEM.md) — the operator's manual |
 | Understand why something is the way it is | [`docs/adr/`](docs/adr/) — numbered decision records, each with the failure that motivated it |
 | See what changed recently, and what broke | [`docs/WORK-LOG.md`](docs/WORK-LOG.md) — the declarative pass (2026-07-30/31), plus a current-state snapshot |
 | Know how agents should use this repo | [`docs/agents/`](docs/agents/) — domain docs, issue tracker, triage labels |
@@ -92,54 +86,38 @@ reasoning; the short version:
 | Tier | Mechanism | Where |
 |---|---|---|
 | **Generated** | a native home-manager module writes the file from typed options | `modules/home/programs.nix`, `modules/home/waybar.nix` |
-| **Store-based** | the file stays hand-written but lands read-only in the store | `modules/home/dotfiles.nix` → `home/` |
+| **Store-based** | the file stays hand-written but lands read-only in the store | `modules/home/dotfiles.nix` → `dotfiles/` |
 | **Out-of-store** | a live symlink into this checkout | `corectrl` **only** |
 
 Generated is the default. Typed options are the only mechanism here that turns
 a config typo into an error you cannot miss — this repo's signature bug is
 config that is wrong in a way *nothing reports*.
 
-The flake sits at the repo root specifically so it can reference `home/` — when
-it lived in a `nixos/` subdirectory the dotfiles were outside the flake root and
-unreachable by any relative path.
-
-⚠️ **Almost nothing is live-editable.** Out-of-store symlinks used to make edits
-take effect immediately; that is now true for `corectrl` alone. Everything else
-needs a `rebuild` before a reload, and the generated configs have no file to
-edit at all.
+⚠️ **Almost nothing is live-editable.** That is `corectrl` alone. Everything
+else needs a `rebuild` before a reload, and the generated configs have no file
+to edit at all.
 
 `nixos-rebuild` reads this checkout directly. The repo is expected at
-**`~/src/nix-config`** — declared once as `local.checkout` in
-`modules/home/options.nix`, not hardcoded in `dotfiles.nix`. It cannot be
-`~/.config` itself, since that is where the links are written *to*.
+**`~/src/nix-config`**, declared once as `local.checkout` in
+`modules/home/options.nix`. It cannot be `~/.config` itself, since that is where
+the links are written *to*.
 
 ---
 
 ## The `.gitignore` is an ordinary denylist
 
-It was an **allowlist** until 2026-07-30, and it had to be: the repo root was
-literally `~/.config`, ~9.6 GB of browser profiles, Electron app data, caches
-and real credentials. Ignoring everything with `/*` and un-ignoring 38 known
-paths was the only safe rule — and the cost was that any new directory stayed
-invisible to git until someone added a `!/name/` line. That is how
-`rclone.conf`, `gh/hosts.yml` and the user systemd units all fell through both
-git *and* the backups at once.
+It was an allowlist until 2026-07-30, when the repo root was `~/.config` itself
+and a new directory stayed invisible to git until someone un-ignored it by name.
+The root is an ordinary project root now — add a config directory by adding it.
 
-The restructure moved the dotfiles under `home/`, so the root is now an ordinary
-project root. Add a new config directory by just adding it.
+What is still ignored is specific: generated files (`dotfiles/mango/config.conf`,
+`dotfiles/mango/walker/config.toml`), runtime state, zsh's compdump, and the
+credential directories (`gh`, `glab-cli`, `opencode`, `gpu-screen-recorder`,
+`rclone`, `rbw`, `tea`). Those are not linked by the flake either.
 
-What is still ignored is specific and intentional: generated files
-(`home/mango/config.conf`, `home/mango/walker/config.toml`), runtime state,
-zsh's compdump/cache, and the credential directories (`gh`, `glab-cli`,
-`opencode`, `gpu-screen-recorder`, `rclone`, `rbw`, `tea`). Those credential
-dirs are **not** linked by the flake either — see `docs/archive/WORK-LOG.md` §1
-for why linking them would have been worse than not having them.
-
-One consequence worth knowing: **flakes copy only git-tracked files**. A file
-that is ignored, or merely untracked, does not exist as far as the build is
-concerned. That is what forced the wallpaper out of the config tree — a 4.6 MB
-ignored PNG simply would not exist under a read-only `~/.config/mango`, so it
-now lives at `~/.local/share/mango/wallpaper.png` and is in no repo at all.
+⚠️ **Flakes copy only git-tracked files.** An ignored or merely untracked file
+does not exist as far as the build is concerned — which is why the wallpaper
+lives at `~/.local/share/mango/wallpaper.png` and is in no repo at all.
 
 ---
 
@@ -161,7 +139,6 @@ Everything below assumes you have already run `rebuild`.
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | `autostart.conf` | log out and back in — `exec-once` fires only at startup |
 
-⚠️ **Edits under `home/` need a rebuild too.** They used to be live, when every
-entry was an out-of-store symlink; they are store paths now. Reloading without
-rebuilding first restarts against the config that was already there, which is
-indistinguishable from the change having had no effect.
+⚠️ **Edits under `dotfiles/` need a rebuild too** — they are store paths, not
+live symlinks. Reloading without rebuilding restarts against the config that was
+already there, which is indistinguishable from the change having had no effect.

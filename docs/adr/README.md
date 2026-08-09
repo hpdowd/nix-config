@@ -25,6 +25,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0011](0011-shell-is-gated-too.md) | Shell is gated too; static assertions run inside the build | Accepted (extends [0010](0010-flake-check-is-the-gate.md)) |
 | [0012](0012-secrets-in-sops.md) | Secrets live in sops-nix; only what is read is declared | Accepted |
 | [0013](0013-networkmanager-profiles-declared.md) | The nine credential-bearing NetworkManager profiles are declared | Accepted (follows [0012](0012-secrets-in-sops.md)) |
+| [0014](0014-declare-the-namer-not-just-the-file.md) | Declaring a file is not declaring the config — declare what names it | Accepted (extends [0009](0009-generated-config-over-linked-files.md), [0011](0011-shell-is-gated-too.md)) |
 
 ## Format
 

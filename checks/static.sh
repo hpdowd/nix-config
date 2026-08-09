@@ -167,6 +167,79 @@ else
 	bad "script still reads the old plaintext pia-auth path" "$(echo "$pia_stale" | head -3)"
 fi
 
+printf '\nRuntime-selected files\n'
+
+# A file chosen by a shell conditional is never evaluated, so an unreachable
+# branch is invisible — four instances so far, the largest 765 lines, every one
+# looking maintained and two of them documented as the default. Checked BOTH
+# ways per selector: every value the selector can take must have a file, and
+# every file must be a value the selector can take. One direction alone misses
+# half the class — a missing file is a runtime fallback, a surplus file is dead
+# weight that still looks maintained.
+MANGO="$SRC/dotfiles/mango"
+
+# Desktop mode. desktop-mode.sh validates against this list, so it is the
+# complete set of values current-mode can hold.
+mapfile -t MODES < <(
+	sed -n 's/^MODES=(\(.*\))$/\1/p' "$MANGO/scripts/desktop-mode.sh" | tr -d '"' | tr ' ' '\n' | sed '/^$/d'
+)
+if [[ ${#MODES[@]} -eq 0 ]]; then
+	bad "could not read MODES from desktop-mode.sh — the scan is broken, not the repo"
+else
+	missing=""
+	for m in "${MODES[@]}"; do
+		[[ -f "$MANGO/$m/$m.conf" ]] || missing+="  $m/$m.conf"$'\n'
+		[[ -f "$MANGO/scripts/modes/$m.sh" ]] || missing+="  scripts/modes/$m.sh"$'\n'
+		[[ -f "$MANGO/walker/configs/$m.toml" ]] || missing+="  walker/configs/$m.toml"$'\n'
+	done
+	# And nothing surplus: a walker config for a mode that no longer exists.
+	for c in "$MANGO"/walker/configs/*.toml; do
+		[[ -e $c ]] || continue
+		n=$(basename "$c" .toml)
+		printf '%s\n' "${MODES[@]}" | grep -qxF "$n" || missing+="  walker/configs/$n.toml names no mode"$'\n'
+	done
+	if [[ -z $missing ]]; then
+		ok "each of the ${#MODES[@]} modes has its conf, script and walker config, and no others exist"
+	else
+		bad "mode/file mismatch" "$missing"
+	fi
+fi
+
+# Walker themes are selected by name from inside the walker configs, which is
+# what made walker/themes/mango/ survive as 765 lines of dead CSS.
+mapfile -t THEMES < <(
+	sed -n 's/^theme = "\([^"]*\)".*/\1/p' "$MANGO"/walker/configs/*.toml 2>/dev/null | sort -u
+)
+if [[ ${#THEMES[@]} -eq 0 ]]; then
+	bad "no theme= line found in any walker config — the scan is broken, not the repo"
+else
+	themerr=""
+	for t in "${THEMES[@]}"; do
+		[[ -d "$MANGO/walker/themes/$t" ]] || themerr+="  themes/$t named but absent"$'\n'
+	done
+	for d in "$MANGO"/walker/themes/*/; do
+		[[ -d $d ]] || continue
+		n=$(basename "$d")
+		printf '%s\n' "${THEMES[@]}" | grep -qxF "$n" || themerr+="  themes/$n exists but no config names it"$'\n'
+	done
+	if [[ -z $themerr ]]; then
+		ok "all ${#THEMES[@]} walker themes are named by a config, and no others exist"
+	else
+		bad "walker theme mismatch" "$themerr"
+	fi
+fi
+
+# elephant reads its menu path from ~/.config/elephant/menus.toml, which lives
+# in a different tree — the .lua landing on disk says nothing about it loading.
+menus_decl=$(grep -rh 'elephant/menus' "$SRC/modules/home/dotfiles.nix" 2>/dev/null)
+if [[ -z $menus_decl ]]; then
+	bad "nothing declares elephant's menus.toml — the .lua files are unreachable"
+elif ! find "$MANGO/elephant/menus" -name '*.lua' -print -quit 2>/dev/null | grep -q .; then
+	bad "menus.toml is declared but no .lua menu exists — the scan is broken"
+else
+	ok "elephant's menu path is declared and has menus"
+fi
+
 printf '\nNetworkManager profiles\n'
 
 # Read the keyfiles the unit will actually write, not the option that produced

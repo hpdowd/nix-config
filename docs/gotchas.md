@@ -132,6 +132,20 @@ don't re-add it — Proton blocks rclone's access method.)
 
 ## Desktop
 
+### A tracked, linked file can still be inert
+
+**The program has to be told where it is, and that pointer is config too.**
+Three cases found on 2026-08-09, all of which looked fully converted:
+`elephant` reads `~/.config/elephant/menus.toml` for its menu path, not the
+mango tree the menus live in; `fsel` reads `~/.config/fsel`, reached only by a
+hand-made symlink; the bitwarden provider reads
+`~/.config/elephant/bitwarden.toml`. Every bridge was in `@home` and in no
+repo, so all three worked here and on no other machine. All three are declared
+now (ADR 0014), and `checks/static.sh` asserts the menu path.
+
+The tell is never the filesystem — the file is present and linked either way.
+Ask the program: `elephant listproviders` must name `menus:connectivity`.
+
 ### mango
 
 **`mmsg` takes verbs, not flags:** `get`, `dispatch`, `watch`. Anything else

@@ -48,6 +48,24 @@ in
     # --- Store-based ---------------------------------------------------------
     "glow".source = ../../dotfiles/glow; # no home-manager module at this pin
 
+    # SUPER+Space launcher. Lived under dotfiles/mango/ and was reached only by
+    # a hand-made ~/.config/fsel symlink, so a fresh clone got the stock theme
+    # with nothing to say the config had been skipped.
+    "fsel".source = ../../dotfiles/fsel;
+
+    # elephant reads ~/.config/elephant, not the mango tree — these two files
+    # are the only thing that connects the two, and neither was declared. A
+    # fresh clone had connectivity.lua on disk and no menus.toml naming it, so
+    # the provider simply did not exist. Managed as FILES so elephant keeps a
+    # writable directory for its caches.
+    #
+    # `.text`, not `.source`: the path has to be derived rather than carry a
+    # hardcoded /home/henry.
+    "elephant/menus.toml".text = ''
+      paths = ["${config.xdg.configHome}/mango/elephant/menus"]
+    '';
+    "elephant/bitwarden.toml".source = ../../dotfiles/elephant/bitwarden.toml;
+
     # Stays here rather than using `services.swaync`, which declares the
     # systemd unit masked in default.nix. autostart.conf owns swaync's
     # lifecycle so a restyle applies on mode switch; adopting the module hands

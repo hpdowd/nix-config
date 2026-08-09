@@ -134,7 +134,8 @@ Two rules follow from this and explain most of the surprises:
 ├── dotfiles/                  the hand-written dotfiles that remain
 │   ├── mango/                 compositor: modes, waybar CSS, walker, fsel, scripts
 │   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
-│   ├── swaync/ glow/          apps with no module, or whose module is not adopted
+│   ├── swaync/ glow/ fsel/    apps with no module, or whose module is not adopted
+│   ├── elephant/              bitwarden.toml; menus.toml is generated (ADR 0014)
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
 │   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
@@ -339,9 +340,16 @@ The file stays hand-written but lands read-only in the store. Reproducible;
 `~/.config/X` stops depending on this checkout existing. Changes need a
 rebuild.
 
-Currently: `mango` (with `recursive = true`), `nvim`, `swaync`, `glow`,
+Currently: `mango` (with `recursive = true`), `nvim`, `swaync`, `glow`, `fsel`,
 `zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
-`nwg-look` and the `gtk-3.0`/`gtk-4.0` assets.
+`nwg-look`, `elephant/{menus,bitwarden}.toml` and the `gtk-3.0`/`gtk-4.0`
+assets.
+
+> **`elephant/menus.toml` is generated, not linked.** It names an absolute path
+> into the mango tree, which must be derived from `config.xdg.configHome`
+> rather than carry a hardcoded `/home/henry` — so it uses `.text`. It is the
+> only thing connecting elephant to `mango/elephant/menus/`, and until
+> 2026-08-09 it was hand-written and in no repo. See ADR 0014.
 
 > **File-level is a variant of this tier, not a separate one.**
 > `xdg.configFile."X/config".source` pins the *file* read-only while leaving

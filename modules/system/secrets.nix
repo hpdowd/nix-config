@@ -15,11 +15,11 @@
     # stored in secrets.yaml for recovery and retrieved with `sops -d`;
     # declaring them would decrypt them into /run/secrets on every boot for no
     # consumer. See secrets/README.md.
+    # All three are root-owned: since vpn-menu.sh stopped importing .ovpn files
+    # the only reader is the template below, rendered by root at activation.
     secrets = {
-      "pia/username".owner = "henry";
-      "pia/password".owner = "henry";
-      # Gained a consumer with ensureProfiles (docs/adr/0013). Root-owned: the
-      # only reader is the profile template below.
+      "pia/username" = { };
+      "pia/password" = { };
       "wireguard/homelab" = { };
     };
 

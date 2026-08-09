@@ -25,8 +25,8 @@ Four gaps, in priority order:
 |---|---|---|
 | ~~Nothing verifies a change before you run it~~ | closed 2026-08-03 | 0 ✅ |
 | ~~Nothing verifies the SHELL~~ | closed 2026-08-03 | 0.5 ✅ |
-| ~~Secrets are not managed~~ | closed 2026-08-06 (Phase 2 still open) | 1 ✅ |
-| **Dead code is indistinguishable from live code** | Three instances found so far, most recently 765 lines | 4 |
+| ~~Secrets are not managed~~ | closed 2026-08-06; profiles followed 2026-08-09 | 1 ✅, 2 ✅ |
+| ~~Dead code is indistinguishable from live code~~ | closed 2026-08-09 — and the sweep found the inverse problem was bigger | 4 ✅ |
 | **Prose has swallowed the code** | 1,417 of 3,930 `.nix` lines are comments; `dotfiles.nix` is 57 lines of code under 249 of narrative | 5 |
 
 ### The correction that reshaped this plan
@@ -324,7 +324,32 @@ cannot move out of `~/.config/mango/` until those are absolute. Full sequence:
 
 ---
 
-# Phase 4 — the dead-code class
+# Phase 4 — the dead-code class ✅ DONE 2026-08-09
+
+Recorded in **ADR 0014**. `checks/static.sh` now runs 19 assertions.
+
+**The sweep found the inverse problem, and it was the bigger one.** Only one
+genuinely dead thing turned up — `vpn-menu.sh`'s `.ovpn` importer, 156 → 78
+lines, which after ADR 0013 was not merely unreachable but actively wrong, since
+its `nmcli con modify` would have persisted a shadowing `/etc` copy over a
+declared profile. Everything else in the runtime-selected directories was
+reachable.
+
+What was *not* reachable on any machine but this one: three declared files whose
+**namer** was hand-written and in no repo — elephant's `menus.toml`, fsel's
+`~/.config/fsel` symlink, and `bitwarden.toml`. Declared now; `fsel` moved out
+of `dotfiles/mango/` to the path fsel actually reads.
+
+Also removed: the `archlinuxpkgs` action blocks from both walker configs — a
+pacman install/remove UI, live in the launcher on a machine with no pacman.
+
+**Step 2's check is per-selector and bidirectional**, not generic string
+matching. The first attempt concatenated every other tracked file and grepped
+for basenames; it flagged both live walker themes, because the strings naming
+them live in the directory the scan excluded to avoid self-matches. Enumerating
+the selector's values from its writers — `MODES` out of `desktop-mode.sh`,
+`theme =` out of the walker configs — expresses what string matching could not.
+All three new assertions were confirmed against planted defects.
 
 **Three instances so far**, which makes it a class rather than a coincidence:
 
@@ -462,8 +487,8 @@ which reads exactly like a catastrophic regression. Use
 | ~~1~~ | ~~**0.5** shell gate~~ | ✅ done 2026-08-03 |
 | ~~2~~ | ~~**1** sops-nix~~ | ✅ done 2026-08-06 |
 | ~~3~~ | ~~**2** ensureProfiles~~ | ✅ done 2026-08-09 |
-| 4 | **4** dead-code sweep ⭐ **DO NEXT** | small; Phase 2 found two more instances |
-| 5 | **3** mango config selection | own session, needs a logout |
+| ~~4~~ | ~~**4** dead-code sweep~~ | ✅ done 2026-08-09 |
+| 5 | **3** mango config selection ⭐ **DO NEXT** | own session, needs a logout |
 | 6 | **5a–5c, 5f** | one commit each, independent |
 | 7 | **5e** treefmt | after 0.5 |
 | 8 | **5d** comments → ADRs | one commit per file, reviewed |

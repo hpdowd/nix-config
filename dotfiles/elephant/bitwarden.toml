@@ -1,0 +1,3 @@
+clear_after      = 10   # seconds before clipboard is cleared after copying
+autotype_support = true # enables autotype via wtype
+autotype_delay   = 300  # ms delay before autotyping (gives time to focus the target field)

@@ -721,3 +721,77 @@ sudo ls -l /run/secrets/rendered/               # networkmanager.env, root, 0400
 `FILENAME` is the load-bearing column. A `/etc/...` path against any of the nine
 means something wrote through the declaration — most likely an `nmcli con
 modify`, which is now the two-owners trap from ADR 0002 in a different medium.
+
+---
+
+# 2026-08-09 · Phase 4 — the dead-code sweep, which found the opposite
+
+Recorded in **ADR 0014**. `nix flake check` now runs 19 static assertions.
+
+## The sweep found one dead thing and three inert ones
+
+Only one directory entry was genuinely unreachable: `vpn-menu.sh`'s `.ovpn`
+importer, which built a PIA server list from `~/Downloads/openvpn` — a directory
+that does not exist, so the list was always empty and the whole
+import-and-inject-credentials branch never ran. After ADR 0013 it was worse than
+dead: its `nmcli con modify` would have written a shadowing `/etc` copy over a
+declared profile, silently un-declaring it. 156 → 78 lines.
+
+The bigger finding was the inverse. **Three declared files were reachable only
+through a namer that was itself in no repo:**
+
+| Declared | Bridged by | On a fresh clone |
+|---|---|---|
+| `elephant/menus/connectivity/connectivity.lua` | `~/.config/elephant/menus.toml` | provider does not exist |
+| `mango/fsel/config.toml` | `~/.config/fsel`, a hand-made symlink | stock colours |
+| elephant's bitwarden provider | `~/.config/elephant/bitwarden.toml` | upstream defaults |
+
+All three worked here because `@home` carried the bridges across the migration,
+and all three were invisible from inside the repo — the file was tracked, in the
+store, and linked into `~/.config`. The only thing that distinguished "declared
+and working" from "declared and inert" was asking the program:
+`elephant listproviders` naming `menus:connectivity`.
+
+`fsel` moved out of `dotfiles/mango/` to `dotfiles/fsel/`, since it is not a
+mango program and was only there because the symlink made it work.
+
+Also gone: the `archlinuxpkgs` action blocks in both walker configs — a pacman
+install/remove UI, still offered by the launcher on a machine with no pacman.
+
+## The check that could not be written generically
+
+The obvious implementation — concatenate every other tracked file and grep for
+each basename — **flagged both live walker themes on its first run**. The
+strings that name them (`theme = "mango-tiling"`) live in `walker/configs/`,
+which the scan excluded to stop files matching themselves. Loosening the
+exclusion would have made `tiling` match `current_mode()`'s fallback and pass on
+nothing at all, which is the failure mode the check exists to catch.
+
+Rewritten per-selector and bidirectional, enumerating values from the writers:
+`MODES` out of `desktop-mode.sh`, `theme =` out of the walker configs. Every
+value must have a file **and** every file must be a value — one direction alone
+misses half the class, because a missing file is a runtime fallback that mostly
+looks fine while a surplus file is dead weight that still looks maintained.
+`walker/themes/mango/` was the second kind: 765 lines, documented in two places
+as the default, reachable from nothing.
+
+All three new assertions confirmed against planted defects — a surplus theme
+directory, a walker config naming no mode, and a declared menu path with no
+`.lua` behind it — producing `16 passed, 3 failed`.
+
+## A tightening that fell out of it
+
+With the importer gone, nothing in user space reads the PIA credentials; the
+only consumer is the sops template rendered by root at activation. Both secrets
+dropped `owner = "henry"` and are root-only again.
+
+## Checking it still holds
+
+```
+nix flake check                      # 19 static assertions
+elephant listproviders               # must name menus:connectivity
+ls ~/.config/fsel/config.toml        # a store symlink, not a hand-made one
+```
+
+The middle one is the only real test. The other two prove the files are
+declared, which is what this entry is about not being sufficient.

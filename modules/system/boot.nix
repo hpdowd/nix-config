@@ -20,7 +20,7 @@
   # Tracks mainline closely — currently 7.1.5. Do NOT "fix" the amdgpu/TTM crash
   # by dropping to `pkgs.linuxPackages` (6.18.40): the Arch install that preceded
   # this ran the same 7.1.5 and never crashed, so the version is not the variable
-  # — Overdrive was, and it is off in power.nix. See bisect/README.md.
+  # — Overdrive was, and it is off in power.nix. See docs/gotchas.md → Power.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Carried over from your systemd-boot entry. zswap is disabled because you

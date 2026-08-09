@@ -345,9 +345,6 @@ and the WiFi resume fix. The traps worth carrying in your head:
 
 ### The amdgpu/TTM freeze
 
-Full context in **`docs/ttm-crash-context.md`**; tooling in `bisect/README.md`.
-The two-sentence version:
-
 A GPF in `ttm_lru_bulk_move_tail` kills the faulting task **while it still holds
 the TTM `lru_lock`**, so every later GPU touch deadlocks and one oops becomes a
 total hang. Power-cycling mid-freeze then **latches the i8042**, so the next boot
@@ -359,6 +356,13 @@ variable vs Arch), `kernel.panic_on_oops = 1` + `kernel.panic = 10` (which is wh
 breaks the double-hard-reset chain), `kernel.sysrq = 1`. **No kernel version
 change will fix this** — the code has been unchanged since 2021, so there is
 nothing to bisect. Don't drop to `pkgs.linuxPackages` hoping otherwise.
+
+**Reading an old journal as `henry` greps to zero exactly like a clean history.**
+`system@*.journal` is ACL'd to a GID this user is not in, so an unprivileged
+`journalctl -D <dir>` silently reads only the `user-1000@` session files, which
+carry no kernel messages. This produced a confident "zero crashes on Arch" that
+was an artefact of the read. Confirm the `Linux version` lines are non-empty
+before believing any zero.
 
 ---
 

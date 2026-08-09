@@ -12,7 +12,6 @@ dotfiles/          hand-written app config (mango, nvim, zsh, swaync, scripts, �
 pkgs/              overlay for anything not in nixpkgs
 checks/            assertions run by `nix flake check`
 secrets/           sops-encrypted, tracked in git (docs/adr/0012)
-bisect/            kernel tooling for the GPU freeze — NOT imported, impure on purpose
 docs/archive/      the Arch→NixOS migration — history, not instructions
 ```
 
@@ -156,7 +155,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
 | about to undo something that looks redundant | `docs/adr/` — twelve records, each carrying the failure that motivated it |
-| investigating the GPU freeze, suspend drain or hibernation | `docs/ttm-crash-context.md`, then `bisect/README.md` |
+| hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |
 | planning the next structural change | `docs/PLAN-idiomatic-nix.md` |
 | filing or triaging an issue | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md` |

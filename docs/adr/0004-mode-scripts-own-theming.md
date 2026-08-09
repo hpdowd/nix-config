@@ -5,7 +5,7 @@
 ## Context
 
 Theming is driven by the Mangowm mode scripts in
-`home/mango/scripts/modes/`. Terminals used to reach their palette through an
+`dotfiles/mango/scripts/modes/`. Terminals used to reach their palette through an
 indirection: `kitty/active-theme.conf` and `foot/active-theme.ini` were symlinks
 that each mode script rewrote on every switch.
 

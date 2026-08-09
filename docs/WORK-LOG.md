@@ -60,7 +60,7 @@ entry was an out-of-store symlink. Moving the flake up and the dotfiles into
 119-line allowlist. See [ADR-0001](adr/0001-flake-at-repo-root.md).
 
 Then: `~/src/arch-config` and `~/.config/.git` deleted (both verified to hold
-nothing unique), the GitHub remotes removed, `home/fish/` dropped (the shell is
+nothing unique), the GitHub remotes removed, `dotfiles/fish/` dropped (the shell is
 not installed), 20 committed `.zsh_tmp_git_*` junk files removed, and a
 `gtk-4.0/assets` symlink into `/usr/share` that resolved to nothing.
 
@@ -255,7 +255,7 @@ Both were reported to the user as findings before being disproven. The lesson is
 the same one as the `wl_output` note: verify the claim, don't reason from the
 artifact that merely accompanies it.
 
-## Structural change — flattening `home/mango/`
+## Structural change — flattening `dotfiles/mango/`
 
 The nesting existed because the config tree doubled as the **backup** unit: only
 directories worth keeping lived under `mango/`. Once everything became
@@ -264,8 +264,8 @@ neither app sat at the XDG path it looks in by default, so **eight** call sites
 had to name the config explicitly.
 
 ```
-home/mango/wlogout/  →  home/wlogout/     (7 files)
-home/mango/swaync/   →  home/swaync/      (1 file)
+dotfiles/mango/wlogout/  →  dotfiles/wlogout/     (7 files)
+dotfiles/mango/swaync/   →  dotfiles/swaync/      (1 file)
 ```
 
 Both are now plain store paths **without `recursive = true`**; under `mango/`
@@ -571,7 +571,7 @@ checks/static.sh . "$(nix eval --raw \
   '.#nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage')"
 ```
 
-Not covered: `home/zsh/conf.d/*.zsh` (no shebang, and shellcheck does not do
+Not covered: `dotfiles/zsh/conf.d/*.zsh` (no shebang, and shellcheck does not do
 zsh), and any script not yet `git add`ed — the flake source is the tracked tree.
 
 ---

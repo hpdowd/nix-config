@@ -61,7 +61,7 @@
       # The `#!/usr/bin/env bash` shebang still resolves: NixOS does provide
       # /usr/bin/env, and `path` above supplies bash. Note: no .sh extension —
       # the real filename is `micmute-led`.
-      ExecStart = "${../../home/scripts/micmute-led}";
+      ExecStart = "${../../dotfiles/scripts/micmute-led}";
       Restart = "on-failure";
       RestartSec = 3;
     };

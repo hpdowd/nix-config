@@ -103,6 +103,6 @@ that once cost a flat battery overnight.
   on a planted defect — an unquoted `rm -rf $var` for shellcheck, an
   `mmsg -s -d` call for static. A gate only ever observed passing has not been
   observed at all.
-- **This does not cover `home/zsh/conf.d/*.zsh`.** They have no shebang and
+- **This does not cover `dotfiles/zsh/conf.d/*.zsh`.** They have no shebang and
   shellcheck does not do zsh. Still ungated, deliberately, and worth
   remembering before assuming all shell here is checked.

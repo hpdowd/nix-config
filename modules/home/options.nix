@@ -17,7 +17,7 @@
       This CANNOT be derived, which is worth understanding before trying to
       remove it. A flake always evaluates from a *copy of itself* in
       /nix/store, so `./.` and `self` both yield a store path. That is exactly
-      right for `source = ../../home/kitty`, and useless for an out-of-store
+      right for `source = ../../dotfiles/kitty`, and useless for an out-of-store
       symlink, which by definition must point at a mutable path outside the
       store. `builtins.getEnv "PWD"` is not an escape hatch either: it returns
       "" under pure evaluation. Nix genuinely cannot discover where you cloned

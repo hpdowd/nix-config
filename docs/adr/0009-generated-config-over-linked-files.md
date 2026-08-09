@@ -49,8 +49,8 @@ What that cost, concretely:
   hex codes in two spellings, with nothing to keep them in step.
 - **Dead weight that reads as live.** Because a linked file is never evaluated,
   an *empty* one is indistinguishable from a correct one.
-  `home/lazygit/config.yml` was zero bytes; `home/ghostty/config.ghostty` was
-  zero bytes; `home/bottom/bottom.toml` was the upstream sample with every line
+  `dotfiles/lazygit/config.yml` was zero bytes; `dotfiles/ghostty/config.ghostty` was
+  zero bytes; `dotfiles/bottom/bottom.toml` was the upstream sample with every line
   commented out. All three were listed in `dotfiles.nix` as though they
   configured something. Eleven further files were tracked and referenced by
   nothing at all.
@@ -61,7 +61,7 @@ What that cost, concretely:
 
 1. **Generated** — a native home-manager module produces the file from typed
    Nix options. No config file exists in the repo. This is the default.
-2. **Store-based file** (`source = ../../home/X`) — where no module exists, or
+2. **Store-based file** (`source = ../../dotfiles/X`) — where no module exists, or
    where the content is *data* rather than settings.
 3. **Out-of-store** (`mkOutOfStoreSymlink`) — only where a program rewrites a
    tracked file and the writer cannot be relocated. `corectrl` alone.
@@ -100,7 +100,7 @@ owner, or none.
   central trade-off — reproducibility *or* a writable config — turns out to
   have been an artefact of only having symlinks available. Check for a merging
   module before accepting it.
-- **One conversion nearly introduced a silent bug.** `home/wlogout/style.css`
+- **One conversion nearly introduced a silent bug.** `dotfiles/wlogout/style.css`
   referenced its PNGs relatively (`url("icons/lock.png")`), which worked only
   because the whole directory was linked. `programs.wlogout` renders
   `style.css` as a standalone store file, so a relative reference would resolve

@@ -12,7 +12,7 @@ hazard in Consequences is unchanged.
 
 `home-manager` can install a config directory two ways:
 
-- **Store-based** — `source = ../../home/kitty`. Nix copies the files into
+- **Store-based** — `source = ../../dotfiles/kitty`. Nix copies the files into
   `/nix/store` and links there. Read-only, reproducible, carried by the flake.
 - **Out-of-store** — `mkOutOfStoreSymlink`. `~/.config/kitty` points at the
   working checkout. Editable with no rebuild, but the flake carries *the
@@ -86,9 +86,9 @@ to create `config.conf`, and that file is gitignored.
 It is not, when the directory is *already* an out-of-store symlink. `recursive`
 does not replace the directory; it writes files **inside** it — straight through
 the existing symlink and into the checkout. Converting `mango` this way on
-2026-07-30 **replaced 65 tracked files in `home/mango/` with symlinks**, showing
+2026-07-30 **replaced 65 tracked files in `dotfiles/mango/` with symlinks**, showing
 in `git status` as typechanges (` T `), with targets that resolved in a loop, so
-the live config broke too. Recovered with `git checkout -- home/mango`.
+the live config broke too. Recovered with `git checkout -- dotfiles/mango`.
 
 `nixos-rebuild test` compounds it: it activates **without creating a profile
 generation**, so the new store path has no GC root and a later

@@ -262,7 +262,7 @@ in
       ];
     };
   };
-  xdg.configFile."helix/themes/gruvbox.toml".source = ../../home/helix/themes/gruvbox.toml;
+  xdg.configFile."helix/themes/gruvbox.toml".source = ../../dotfiles/helix/themes/gruvbox.toml;
 
   # zed. This one is a straight WIN over the file it replaces, and the reason is
   # worth knowing because it is the technique to reach for elsewhere.
@@ -443,7 +443,7 @@ in
     # Set explicitly, and deleted from 10-aliases.zsh — one owner.
     shellWrapperName = "y";
 
-    flavors.noctalia = ../../home/yazi/flavors/noctalia.yazi;
+    flavors.noctalia = ../../dotfiles/yazi/flavors/noctalia.yazi;
     theme.flavor = {
       dark = "noctalia";
       light = "noctalia";
@@ -591,23 +591,23 @@ in
       }
 
       #lock {
-          background-image: image(url("${../../home/wlogout/icons/lock.png}"));
+          background-image: image(url("${../../dotfiles/wlogout/icons/lock.png}"));
       }
 
       #logout {
-          background-image: image(url("${../../home/wlogout/icons/logout.png}"));
+          background-image: image(url("${../../dotfiles/wlogout/icons/logout.png}"));
       }
 
       #suspend {
-          background-image: image(url("${../../home/wlogout/icons/suspend.png}"));
+          background-image: image(url("${../../dotfiles/wlogout/icons/suspend.png}"));
       }
 
       #reboot {
-          background-image: image(url("${../../home/wlogout/icons/reboot.png}"));
+          background-image: image(url("${../../dotfiles/wlogout/icons/reboot.png}"));
       }
 
       #shutdown {
-          background-image: image(url("${../../home/wlogout/icons/shutdown.png}"));
+          background-image: image(url("${../../dotfiles/wlogout/icons/shutdown.png}"));
       }
     '';
   };

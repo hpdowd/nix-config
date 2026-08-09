@@ -69,7 +69,7 @@ else
 fi
 
 # Generated at runtime, so tracking them means two owners for one path.
-for f in home/mango/config.conf home/mango/walker/config.toml; do
+for f in dotfiles/mango/config.conf dotfiles/mango/walker/config.toml; do
 	if is_tracked "$f"; then
 		bad "$f is tracked but is generated at runtime"
 	elif grep -qF "$f" "$SRC/.gitignore"; then
@@ -99,7 +99,7 @@ fi
 
 # desktop-mode.sh kept reading $MANGO_DIR/state after the move and the mode
 # switch silently became one-way.
-stale=$(grep -rn 'MANGO[_A-Z]*/state\|config/mango/state' "$SRC/home/mango/scripts/" 2>/dev/null \
+stale=$(grep -rn 'MANGO[_A-Z]*/state\|config/mango/state' "$SRC/dotfiles/mango/scripts/" 2>/dev/null \
 	| grep -vE ':[0-9]+:[[:space:]]*#')
 if [[ -z $stale ]]; then
 	ok "no script reads the old state path"
@@ -182,7 +182,7 @@ for cfg in "${CONFIGS[@]}"; do
 	while read -r ref; do
 		[[ -z $ref ]] && continue
 		refs=$((refs + 1))
-		script="$SRC/home/mango/scripts/${ref#*mango/scripts/}"
+		script="$SRC/dotfiles/mango/scripts/${ref#*mango/scripts/}"
 		[[ -x $script ]] || missing+="  $(basename "$cfg"): $ref"$'\n'
 	done < <(jq -r '..|strings' "$cfg" | grep -o '[~]/\.config/mango/scripts/[^ "]*' | sort -u)
 done

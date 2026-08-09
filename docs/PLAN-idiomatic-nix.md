@@ -124,7 +124,7 @@ nothing rather than passing — script count ≥30, waybar configs =8, waybar
 script references >0. Both gates were confirmed to fail on a planted defect,
 because a gate only ever observed passing has not been observed at all.
 
-Still ungated, deliberately: `home/zsh/conf.d/*.zsh`. No shebang, and
+Still ungated, deliberately: `dotfiles/zsh/conf.d/*.zsh`. No shebang, and
 shellcheck does not do zsh.
 
 ## Step 1 — shellcheck in `checks` ✅
@@ -262,7 +262,7 @@ the active physical one.
 # Phase 3 — the desktop layer 🔶 PARTLY DONE
 
 **This is where the complexity actually lives**, and the original plan missed
-it entirely by being Nix-centric. `home/mango/` is 19 directories, 30 scripts
+it entirely by being Nix-centric. `dotfiles/mango/` is 19 directories, 30 scripts
 and four stacked config layers. Governing principle:
 
 > **Push variation to build time; let runtime only *select*.**

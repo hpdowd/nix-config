@@ -394,6 +394,13 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `HandleLidSwitch` suspends, it does not lock, so a closed lid resumed straight
   to the desktop. See the swaylock section for why the lock handler cannot be a
   `powerManagement` hook.
+- **upower's critical-battery percentages fail silently as a set**: give
+  `percentageLow`/`Critical`/`Action` values that aren't strictly descending and
+  it discards all three for its own defaults, unlogged — the action fires at a
+  charge nobody chose. Check `/etc/UPower/UPower.conf`, not the Nix.
+- **`HybridSleep` on a critical battery is not hibernation here** — it writes the
+  image and then holds s2idle at ~3 W, flattening the cell to 0% within minutes.
+  That is the NixOS default; this host sets `Hibernate`.
 - **Hibernation's `resume_offset` fails silently**: the machine boots fresh and
   discards the session, presenting as "hibernate didn't work". It is valid only
   for the exact swapfile that exists now.

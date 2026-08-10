@@ -140,6 +140,24 @@ in
   # an upstream amdgpu report dismissed unread. Nothing here used it. Re-enabling
   # restores corectrl's clock/voltage control and the taint with it.
 
-  services.upower.enable = true;
+  # --- Critical battery -----------------------------------------------------
+  # `Hibernate`, not the NixOS default `HybridSleep`: hybrid sleep writes the
+  # image and then stays in s2idle at ~3 W, which on this machine flattens the
+  # cell to 0% within minutes of triggering. The session survives either way;
+  # the battery does not.
+  #
+  # 3% rather than upower's 2%: one point of slack for the poll interval, since
+  # at the 38 W peak this battery has recorded, 1% is only ~40 s. The write
+  # itself needs far less — ~30 s against the ~60 s that 1% buys under load.
+  # The gauge is trustworthy this low; it has reported 1% repeatedly.
+  #
+  # percentageLow/Critical/Action must stay strictly descending (20 > 5 > 3) —
+  # upower silently reverts to ITS OWN defaults for all three otherwise.
+  services.upower = {
+    enable = true;
+    criticalPowerAction = "Hibernate";
+    percentageAction = 3;
+  };
+
   services.fwupd.enable = true; # firmware updates — worth having on a ThinkPad
 }

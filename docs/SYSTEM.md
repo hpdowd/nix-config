@@ -259,6 +259,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Kernel or boot params | `modules/system/boot.nix` |
 | Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — the waybar `full-at` follows automatically, see §9 |
 | Hibernation / lid behaviour | `modules/system/power.nix` (`services.logind`, `systemd.sleep`) |
+| What a dying battery does | `modules/system/power.nix` (`services.upower`) — not logind |
 | Timezone, keymap, keyd | `modules/system/locale.nix` |
 | Firewall ports | `modules/system/networking.nix` |
 | Fonts | `modules/system/fonts.nix` |
@@ -792,6 +793,24 @@ working swap** at priority 5 against the file's −1, so ordinary swapping never
 touches the disk — the file exists only to hold an image zram cannot, being
 itself in the RAM being saved.
 
+**A dying battery hibernates too**, via upower rather than logind:
+`criticalPowerAction = "Hibernate"` at `percentageAction = 3`. NixOS defaults to
+`HybridSleep`, which writes the image and then *stays in s2idle at ~3 W* — on
+this machine that drains the cell to 0% within minutes of triggering, so the
+session survives but the battery is abused every time.
+
+3% is one point above upower's default, not a safety cushion: 1% is 0.42 Wh
+here, worth ~60 s at the ~25 W a hibernate write draws, against a write that
+takes ~30 s. The extra point covers the poll interval at this battery's 38 W
+recorded peak. **The gauge is accurate this low** — it has logged 1% repeatedly,
+so there is no firmware cliff to stay clear of, and a larger margin only costs
+runtime.
+
+⚠️ **`percentageLow`/`Critical`/`Action` must stay strictly descending** (20 >
+5 > 3). Out of order or otherwise invalid, upower discards all three and uses
+its own defaults — the action still fires, just at a charge nobody chose, and
+nothing logs. Read back `/etc/UPower/UPower.conf`, not the Nix.
+
 ⚠️ **`resume_offset` is the fragile part, and getting it wrong fails silently.**
 Both `boot.resumeDevice` and `boot.kernelParams = [ "resume_offset=…" ]` are
 required: one names the filesystem, the other locates the image inside it. Get
@@ -874,7 +893,7 @@ What is running, and who owns it.
 | `systemd-resolved` | DNS |
 | `avahi` | mDNS, for CUPS printer discovery |
 | `tlp` | Power tuning + battery thresholds |
-| `thermald`, `fwupd`, `upower` | Thermals, firmware updates, battery reporting |
+| `thermald`, `fwupd`, `upower` | Thermals, firmware updates, battery reporting + the critical-battery hibernate (§9) |
 | `pipewire` (+ pulse/jack) | Audio. PulseAudio proper is off |
 | `cups` + `sane` | Brother MFC-L3740CDW, driverless IPP |
 | `bluetooth` + blueman | Bluetooth |

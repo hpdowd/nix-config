@@ -334,7 +334,12 @@ let
     "custom/power" = {
       format = " ";
       tooltip = false;
-      on-click = "wlogout -b 5 -c 20 -T 320 -B 320 --protocol layer-shell";
+      # `-b` is a column count: keep it equal to the wlogout entry count in
+      # programs.nix, or the overflow wraps into a row the margins leave no
+      # room for. The margins are absolute pixels sized for eDP-1's 1920x1200
+      # (§1) — they set the button size, and at -T/-B 320 the buttons were
+      # 320x560 boxes holding a 52px icon.
+      on-click = "wlogout -b 6 -c 12 -r 12 -T 505 -B 505 -L 290 -R 290 --protocol layer-shell";
       on-click-right = "sleep 0.1s && swaync-client -t -sw";
     };
   };

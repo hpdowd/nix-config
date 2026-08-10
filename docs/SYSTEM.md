@@ -290,7 +290,8 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
 | Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
 | Waybar appearance | `dotfiles/mango/waybar/style*.css` + `colors.css` — still hand-written |
-| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the five PNGs |
+| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
+| When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | `dotfiles/mango/walker/configs/`, `dotfiles/mango/fsel/config.toml` |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
@@ -314,6 +315,7 @@ file from typed options; **there is no config file in this repo at all.**
 | zed | `programs.zed-editor` |
 | htop, ncspot, imv, yazi | `programs.htop`, `programs.ncspot`, `programs.imv`, `programs.yazi` |
 | wlogout | `programs.wlogout` |
+| swaylock | `programs.swaylock` — **`package = null`**, see §9 |
 | The four waybar layouts | `modules/home/waybar.nix` |
 
 This is where a config should end up unless there is a reason it cannot. The
@@ -379,7 +381,7 @@ would remove functionality".
 
 `dotfiles/helix/`, `dotfiles/yazi/` and `dotfiles/wlogout/` still exist but contain **no
 config**. They hold data a *generated* config points at: helix's 264-line
-`themes/gruvbox.toml`, yazi's `noctalia.yazi` flavor, and wlogout's five PNGs.
+`themes/gruvbox.toml`, yazi's `noctalia.yazi` flavor, and wlogout's six PNGs.
 `programs.nix` references them by relative path, so they end up in the store as
 their own paths. Don't mistake these for unconverted configs.
 
@@ -623,8 +625,9 @@ is missing from the bar, **run its script by hand first**:
 | **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit |
-| **wlogout** | Session menu behind the waybar power icon |
-| **swaylock** | Screen lock. Needs the hand-declared PAM service in `desktop.nix` |
+| **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
+| **swaylock** | Screen lock (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
+| **swayidle** | Lock handler, **no idle timeouts** — runs swaylock on `before-sleep` and `loginctl lock-session` (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
 
 ---
@@ -731,7 +734,50 @@ instead.** See `docs/WORK-LOG.md`.
 > `/sys/kernel/debug/amd_pmc/smu_fw_info` **first** — it names the offending IP
 > block directly, in one command.
 
-There is no idle daemon, so the screen never blanks on idle either.
+Nothing acts on idleness, so the screen never blanks on idle either — swayidle
+runs here with **no timeouts at all** (below), purely as a lock handler.
+
+### Locking
+
+`services.swayidle` in `modules/home/default.nix` runs `swaylock -f` on
+`before-sleep` and on `lock`. Before it existed, swaylock was reachable only by
+hand (`SUPER+Delete`, `SUPER+SHIFT+s`, the wlogout button) and **every lid-close
+resumed straight to the unlocked desktop**.
+
+swayidle rather than another `powerManagement` hook, for two reasons:
+
+- It holds a **logind sleep inhibitor** — `-w` makes it wait for `swaylock -f`
+  to fork, and swaylock forks only once the lock surface is up. So the lock is
+  guaranteed present before the suspend, not racing it.
+- A root sleep hook runs inside `sleep-actions.service`, whose cgroup is
+  **killed when the unit stops on resume** — taking the swaylock it just
+  started with it. That leaves the compositor locked with no client, which
+  `ext-session-lock-v1` makes unrecoverable (§13).
+
+Ordering falls out of this: swayidle's inhibitor puts the lock up first, then
+`sleep-actions` powers the panel down.
+
+`lock`/`unlock` mean `loginctl lock-session` works too.
+
+#### What it looks like, and why
+
+`programs.swaylock` generates `~/.config/swaylock/config`, which **every lock
+path reads** — all of them run bare `swaylock -f` and pass no `--config`.
+
+`clock` + `indicator` are the point of it: a swaylock screen with nothing drawn
+on it is indistinguishable from a machine that is off or hung, so the lock now
+shows a **ticking clock inside a permanently visible indicator ring**. The clock
+is the proof of life; the ring is where typing lands. `indicator-idle-visible`
+keeps the ring up rather than fading it out.
+
+Both options are **swaylock-effects extensions**, which is why the module sets
+`package = null` — see the trap in `docs/gotchas.md`.
+
+This replaced three separate copies of the same theme: `mango/tiling/swaylock.conf`,
+`mango/hud/swaylock.conf`, and an **untracked** hand-written
+`~/.config/swaylock/config` that had been quietly supplying the theme to every
+bare `swaylock -f` all along. The per-mode files are deleted and both
+`SUPER+Delete` binds now run bare `swaylock -f`; there is one lock screen.
 
 ### Hibernation
 

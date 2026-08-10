@@ -492,6 +492,75 @@ in
   };
 
   # ==========================================================================
+  # Lock screen
+  # ==========================================================================
+
+  # The ONE swaylock config. Every hands-off lock path uses bare `swaylock -f`
+  # — swayidle on sleep, wlogout, the binds — so they all read this file. It
+  # replaces the per-mode mango/{tiling,hud}/swaylock.conf pair, and an
+  # untracked hand-written ~/.config/swaylock/config that had been quietly
+  # supplying the theme all along.
+  #
+  # `package = null` is load-bearing: desktop.nix installs swaylock-EFFECTS
+  # system-wide and PAM is declared for it. Plain `swaylock` from home-manager
+  # would shadow it in PATH and does not have `clock` — which it reports by
+  # dumping usage and exiting 0. See docs/gotchas.md for the parse check.
+  programs.swaylock = {
+    enable = true;
+    package = null;
+
+    settings = {
+      # A swaylock screen with nothing drawn on it is indistinguishable from a
+      # machine that is off or hung. The clock ticks, which is the proof of
+      # life; the ring is where typing shows up. Both are swaylock-effects
+      # extensions — plain swaylock has neither.
+      clock = true;
+      indicator = true;
+      indicator-idle-visible = true;
+      timestr = "%H:%M";
+      datestr = "%a %e %b";
+
+      indicator-caps-lock = true;
+      show-failed-attempts = true;
+
+      color = "282828ff";
+      font = "Hack Nerd Font Mono";
+      # Sized to the indicator, not to the screen: this is also the "Verifying"
+      # and "Wrong" text, which has to fit inside the ring.
+      font-size = 20;
+      indicator-radius = 100;
+      indicator-thickness = 7;
+
+      inside-color = "28282855";
+      inside-clear-color = "28282855";
+      inside-ver-color = "45858855";
+      inside-wrong-color = "fb493455";
+
+      ring-color = "d65d0eff";
+      ring-clear-color = "b8bb26ff";
+      ring-ver-color = "458588ff";
+      ring-wrong-color = "fb4934ff";
+
+      key-hl-color = "fe8019ff";
+      bs-hl-color = "fb4934ff";
+
+      text-color = "ebdbb2ff";
+      text-clear-color = "ebdbb2ff";
+      text-ver-color = "83a598ff";
+      text-wrong-color = "fb4934ff";
+      text-caps-lock-color = "fe8019ff";
+
+      # Fully transparent — the ring carries the state, the lines only add
+      # edges to it.
+      line-color = "00000000";
+      line-clear-color = "00000000";
+      line-ver-color = "00000000";
+      line-wrong-color = "00000000";
+      separator-color = "00000000";
+    };
+  };
+
+  # ==========================================================================
   # Session menu
   # ==========================================================================
 
@@ -539,6 +608,14 @@ in
         text = "Suspend";
         keybind = "u";
       }
+      # Straight to S4, without the 30 min of suspend-then-hibernate a lid-close
+      # on battery goes through.
+      {
+        label = "hibernate";
+        action = "systemctl hibernate";
+        text = "Hibernate";
+        keybind = "h";
+      }
       {
         label = "reboot";
         action = "systemctl reboot";
@@ -565,16 +642,18 @@ in
           background-color: rgba(32, 27, 20, 0.88);
       }
 
+      /* padding/margin are deliberately small — the button is sized by the
+         wlogout margins in waybar.nix, and these only add dead space to it. */
       button {
-          font-size: 25px;
+          font-size: 20px;
           color: #7a6a50;
           background-color: rgba(46, 39, 32, 0.8);
           border: 2px solid rgba(61, 53, 44, 1.0);
           border-radius: 10px;
-          margin: 10px;
-          padding: 20px 10px 16px 10px;
+          margin: 8px;
+          padding: 8px;
           background-repeat: no-repeat;
-          background-position: center 28%;
+          background-position: center 30%;
           background-size: 52px 52px;
           transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
       }
@@ -600,6 +679,10 @@ in
 
       #suspend {
           background-image: image(url("${../../dotfiles/wlogout/icons/suspend.png}"));
+      }
+
+      #hibernate {
+          background-image: image(url("${../../dotfiles/wlogout/icons/hibernate.png}"));
       }
 
       #reboot {

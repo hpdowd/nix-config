@@ -123,8 +123,9 @@ in
   # leave DISPLAY active, so that fix logs clean and achieves nothing. Only the
   # compositor can do it. See the Suspend section in CLAUDE.md.
   #
-  # There is no idle daemon here, so these hooks are the only thing that ever
-  # turns the panel off.
+  # Nothing here acts on idleness — swayidle has no timeouts — so these hooks
+  # are the only thing that turns the panel off. They run after swayidle's sleep
+  # inhibitor has put swaylock up.
   powerManagement.powerDownCommands = setDisplayPower "off";
 
   # Load-bearing: an output left in its off power-mode is not restored by input,

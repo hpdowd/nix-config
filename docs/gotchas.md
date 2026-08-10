@@ -87,6 +87,13 @@ matches `comm` exactly, so it silently matches nothing — every mango reload
 leaked another elephant, and every swaync restyle hit an instance that never
 died. Match the command line: `pkill -f 'bin/elephant$'`, `pkill -f '^swaync( |$)'`.
 
+> **The `$` anchor only holds for a process invoked with no arguments.**
+> `pkill -f 'bin/wlogout$'` matches nothing against
+> `…/bin/wlogout -b 6 -c 12 …`, because `-f` matches the *whole* command line
+> and the arguments come after the path. It exits 1 and leaves the process
+> running — which, for a fullscreen layer-shell overlay, means it stays on
+> screen. Drop the anchor when the process takes arguments.
+
 **`buildEnv` collisions abort the whole generation.** Two packages owning one
 file path is the failure to expect when adding packages. If one supersedes the
 other, drop it; if they merely contend, use `lib.hiPrio` on the **winner** —
@@ -226,6 +233,39 @@ permanently blank surface with the session still locked, and `mmsg` has no unloc
 command. The ways out are relaunching swaylock on the same `WAYLAND_DISPLAY` to
 take over the abandoned lock, or restarting the session.
 
+**That is why lock-on-sleep is swayidle and not a `powerManagement` hook.** A
+root sleep hook runs inside `sleep-actions.service`, which is
+`RemainAfterExit` and **stopped on resume** — systemd then kills its cgroup,
+including the `swaylock -f` the hook forked into it. The result is the
+permanently blank locked surface above, arriving every single resume. swayidle
+runs in the user session instead, and its `-w` sleep inhibitor also guarantees
+the lock is up *before* the suspend rather than racing it.
+
+**`programs.swaylock.package` must be `null` here.** `desktop.nix` installs
+**swaylock-effects** system-wide and declares PAM for it, but the home-manager
+module defaults to installing plain `pkgs.swaylock`, which lands *earlier* in
+PATH and would shadow it. Measured against swaylock 1.8.6: it **lacks
+`clock`, `timestr` and `datestr`** (though it does have `indicator` and
+`indicator-idle-visible`), so the clock — the entire reason the lock screen is
+configured this way — just stops appearing.
+
+⚠️ **swaylock exits 0 on an unrecognised config key.** It prints
+`unrecognized option '--clock'` and a full usage dump, and the exit status is
+`0` for a good config and a bad one alike. Only the output tells them apart.
+
+> **Validating the config without locking yourself in**: swaylock parses its
+> config *before* it connects to the compositor, so
+> ```
+> env -u WAYLAND_DISPLAY swaylock --config ~/.config/swaylock/config -f
+> ```
+> exercises the parse and then fails to find a display, locking nothing.
+> **Silence means it parsed.** Any usage dump means a key was rejected.
+
+That config is also the *only* one now: `~/.config/swaylock/config` used to be
+an **untracked** hand-written file that quietly supplied the theme to every bare
+`swaylock -f`, alongside two more copies at `mango/{tiling,hud}/swaylock.conf`
+for the `--config` binds. All three are gone.
+
 ### walker / elephant
 
 **An elephant provider whose backing CLI is missing does not load, and says
@@ -280,6 +320,11 @@ module gets *wider* when fixed, since the real advance was understated.
 **`#taskbar button` must keep `min-width` ≤ `icon-size`.** waybar `pack_start`s
 the icon, so any width beyond the icon becomes empty space on the **right only**.
 The two numbers are coupled — change both together.
+
+**`custom/power`'s `wlogout -b N` must equal the wlogout entry count**, which is
+declared in a different file (`programs.nix`). `-b` is a column count, not a
+maximum: leave it at 5 after adding a sixth entry and the extra button wraps
+onto a second row that `-T 320 -B 320` has left no height for.
 
 **Do not reintroduce `dwl/window`.** mango 0.15.5 dropped the `zdwl_ipc_manager_v2`
 protocol that module binds, and its absence makes waybar **SIGSEGV on startup**.
@@ -345,6 +390,10 @@ and the WiFi resume fix. The traps worth carrying in your head:
   search space unbounded, hunt abandoned in favour of hibernation. If suspend
   drain is suspected again, read `/sys/kernel/debug/amd_pmc/smu_fw_info` **first**
   — it names the offending IP block in one command.
+- **Nothing locked the screen on sleep until swayidle** — logind's
+  `HandleLidSwitch` suspends, it does not lock, so a closed lid resumed straight
+  to the desktop. See the swaylock section for why the lock handler cannot be a
+  `powerManagement` hook.
 - **Hibernation's `resume_offset` fails silently**: the machine boots fresh and
   discards the session, presenting as "hibernate didn't work". It is valid only
   for the exact swapfile that exists now.

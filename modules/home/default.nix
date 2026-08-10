@@ -97,6 +97,19 @@
   # --- Services -------------------------------------------------------------
   services.cliphist.enable = true; # replaces your cliphist autostart
 
+  # The only thing that locks the screen on sleep. NOT a power.nix sleep hook:
+  # that cgroup is killed on resume, taking swaylock with it — SYSTEM.md §9.
+  #
+  # No `timeouts`: a lock handler, not an idle daemon. Absolute path because the
+  # unit's PATH is bash and nothing else.
+  services.swayidle = {
+    enable = true;
+    events = {
+      before-sleep = "${pkgs.swaylock-effects}/bin/swaylock -f";
+      lock = "${pkgs.swaylock-effects}/bin/swaylock -f";
+    };
+  };
+
   # nixpkgs' swaync ships a user unit wanted by graphical-session.target, which
   # races the `exec=` line in autostart.conf. The autostart copy wins the bus
   # name and the unit sits permanently failed — invisible, because notifications

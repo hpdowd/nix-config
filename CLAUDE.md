@@ -123,7 +123,8 @@ not do zsh). See `docs/adr/0011`.
 - `#!/usr/bin/env bash` — there is no `/bin/bash`; the symptom is exit 127 and
   silence.
 - `pkill -f 'bin/foo$'`, never `pkill -x foo` — nixpkgs wraps binaries, so `comm`
-  is `.foo-wrapped`, truncated to 15 chars.
+  is `.foo-wrapped`, truncated to 15 chars. Drop the `$` if the process takes
+  arguments: `-f` matches the whole command line, so the anchor misses.
 - `mmsg` takes verbs (`get`, `dispatch`, `watch`). The dwl-era `-s -d` flags
   return an error object and **exit 0**.
 - Runtime state is `${XDG_STATE_HOME:-$HOME/.local/state}/mango`. Every reader

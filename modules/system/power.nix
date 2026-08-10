@@ -87,12 +87,15 @@ in
   # /etc/systemd/logind.conf in place, which is a read-only store path here, so
   # it fails with "Permission denied" and sudo does not help.
   #
-  # The two power sources differ deliberately: this machine never reaches s0i3
-  # and idles at ~3 W asleep, so on battery a lid-close must eventually hit
-  # disk. On AC the drain is irrelevant and instant resume is worth more.
+  # Both sources hibernate. AC was `suspend` until a lid-close parked the machine
+  # in s2idle for two hours and amdgpu never came back — see the Power section of
+  # docs/gotchas.md. It also matters that a spurious wake *ends* the
+  # suspend-then-hibernate cycle: with both sources set, the re-suspend that
+  # follows re-arms a fresh timer instead of falling through to a plain suspend
+  # that never hibernates at all.
   services.logind.settings.Login = {
     HandleLidSwitch = "suspend-then-hibernate";
-    HandleLidSwitchExternalPower = "suspend";
+    HandleLidSwitchExternalPower = "suspend-then-hibernate";
     HandleLidSwitchDocked = "ignore";
   };
 

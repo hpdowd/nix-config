@@ -401,6 +401,23 @@ and the WiFi resume fix. The traps worth carrying in your head:
 - **`HybridSleep` on a critical battery is not hibernation here** — it writes the
   image and then holds s2idle at ~3 W, flattening the cell to 0% within minutes.
   That is the NixOS default; this host sets `Hibernate`.
+- **A spurious wake ends the `suspend-then-hibernate` cycle outright** — it does
+  not resume the countdown. logind then re-suspends the still-closed lid using
+  whichever handler matches the *current* power source, so `HibernateDelaySec`
+  restarts from zero. With AC set to a plain `suspend` this was a one-way trip:
+  observed as lid-close → s-t-h → wake at 2m32s → plain `suspend` → **2h05m in
+  s2idle**, never hibernating. Both lid handlers are `suspend-then-hibernate`
+  now, so every re-suspend re-arms the timer. Each wake coincides with the
+  Synaptics fingerprint reader (`06cb:00f9`) dropping off USB bus 1; the wakeup
+  counters reset per boot, so it has not been confirmed as the source.
+- **Long s2idle sometimes never resumes, and it looks like a dead machine.** The
+  panel is off (`wlopm --off` in `sleep-actions.service`'s `ExecStart`) and is
+  only restored by `resumeCommands` in that unit's `ExecStop` — so a resume that
+  hangs before then leaves a black screen and dead input, indistinguishable from
+  a machine that is merely asleep. The tell is in the journal, not on the screen:
+  a good wake logs `amdgpu … PCIE GART … enabled` and `SMU is resuming…`; the
+  failing one logs neither and the boot's journal simply **stops**. Compare two
+  wakes before blaming the display hooks.
 - **Hibernation's `resume_offset` fails silently**: the machine boots fresh and
   discards the session, presenting as "hibernate didn't work". It is valid only
   for the exact swapfile that exists now.

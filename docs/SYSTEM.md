@@ -782,11 +782,15 @@ bare `swaylock -f` all along. The per-mode files are deleted and both
 
 ### Hibernation
 
-`HandleLidSwitch = "suspend-then-hibernate"` on **battery**;
-`HandleLidSwitchExternalPower = "suspend"` on **AC** — deliberately different,
-since on AC the drain is irrelevant and instant resume is worth more.
+`suspend-then-hibernate` on **both** power sources, with
 `HibernateDelaySec = 30m`: 30 minutes at ~3 W is ~1.5 Wh, so a short lid-close
-still resumes instantly and anything longer goes to disk.
+still resumes instantly from s2idle and anything longer goes to disk.
+
+AC used to be a plain `suspend`, on the reasoning that its drain is irrelevant
+and instant resume is worth more. That was wrong twice over — long s2idle is
+where resume hangs on this machine, and a plain `suspend` gave the re-suspend
+after a spurious wake nowhere to land, so the lid-close never hibernated at all.
+Both failures are in `docs/gotchas.md` → Power.
 
 The image goes to the 20 GiB swapfile on `@swap` (§1). **zram remains the
 working swap** at priority 5 against the file's −1, so ordinary swapping never

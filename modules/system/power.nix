@@ -97,6 +97,18 @@ in
     HandleLidSwitchDocked = "ignore";
   };
 
+  # Without this a logind.conf-only change never reaches the running logind: the
+  # nixpkgs module sets `reloadIfChanged` but leaves the matching trigger
+  # commented out, so `switch` rewrites /etc and the lid keeps the *previous*
+  # action until reboot, unlogged. See the Power section of docs/gotchas.md.
+  #
+  # `restartTriggers`, not `reloadTriggers`: the module already sets
+  # `reloadIfChanged`, which turns this into a reload — and setting both warns.
+  # Restarting logind would drop the session; reloading does not.
+  systemd.services.systemd-logind.restartTriggers = [
+    config.environment.etc."systemd/logind.conf".source
+  ];
+
   # --- Power the display down across sleep ----------------------------------
   # This machine only offers s2idle, where the SoC reaches its low-power state
   # only once every IP block is idle — and the DISPLAY block tracks the display

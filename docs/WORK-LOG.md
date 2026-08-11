@@ -836,3 +836,48 @@ grep ^auth /etc/pam.d/sudo            # must show timeout=10
 fprintd-verify                        # must match, not just exit 0
 ```
 
+
+---
+
+## The lid setting that was never live (2026-08-11)
+
+A lid-close at 03:52 suspended for 9h37m instead of hibernating, and so did the
+retry at 13:30 — with `HandleLidSwitch=hibernate` sitting correctly in
+`/etc/systemd/logind.conf` the whole time. The file was right; the daemon was
+running the config it read at boot.
+
+**nixpkgs never wires the reload.** `nixos/modules/system/boot/systemd/logind.nix`
+sets `reloadIfChanged = true` but leaves the matching `restartTriggers` line
+**commented out** (restarting logind used to break X11 sessions). So a
+`logind.conf`-only change alters no unit, `switch-to-configuration` sees nothing
+to act on, and the running logind keeps the old handler with nothing logged
+either way. `power.nix` now declares `reloadTriggers` against that file;
+`nix flake check` builds an `X-Reload-Triggers-systemd-logind` derivation, which
+is the evidence it took.
+
+The tell is that `/etc/` and the daemon disagree, so only the daemon can be
+asked:
+
+```
+busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager HandleLidSwitch     # not the .conf
+systemctl reload systemd-logind                       # Type=notify-reload
+```
+
+Reload, never restart — `Type=notify-reload` re-reads config in place; a restart
+takes the session with it.
+
+Two things fall out of the 9h37m the machine spent asleep instead:
+
+- **s0i3 is reached.** 58% → 54% of a 42.4 Wh cell is ~0.15 W, not the ~3 W this
+  repo had recorded as an unsolved floor. That figure came from short
+  instrumented measurements which are now retracted; a long sleep measured by
+  battery percentage either side is the test that matches reality. `docs/SYSTEM.md`
+  §9 and the Power section of `docs/gotchas.md` are corrected.
+- **`suspend-then-hibernate` has a second failure mode**, distinct from the
+  documented degrade-to-plain-suspend: this run logged `Suspending, then
+  hibernating...` cleanly and the 30-minute wake never fired at all. Unproven
+  but suspicious: `rtc0` is `acpi-tad` with no `wakealarm` attribute, and only
+  `rtc1` (`rtc_cmos`) reports "RTC can wake from S4". Not investigated further —
+  s-t-h is off the table for the wake-source reason anyway.
+

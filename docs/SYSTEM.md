@@ -700,7 +700,7 @@ force one: `sudo tlp setcharge 84 85 BAT0`.
 > module freezing. `checks/static.sh` asserts no generated config carries it.
 > Consequence: on AC the bar parks at 85% and never reads 100%.
 
-### Suspend costs ~3 W, and hibernation is the answer
+### Suspend and s0i3
 
 The firmware exposes only **s2idle** (`/sys/power/mem_sleep` → `[s2idle]`), not
 S3 — so `mem_sleep_default=deep` would achieve nothing. Under s2idle the SoC
@@ -723,13 +723,17 @@ run as root directly — the helper loops over `/run/user/*/wayland-[0-9]` and
 drive PWM; the DISPLAY block tracks the CRTC. Hooks written that way succeed,
 exit 0, and leave the panel lit and the battery draining.
 
-**Result: helped, did not fix.** Blanking the display took an undisturbed
-suspend from 4.10 W to **~3.03 W**, but `last_hw_sleep` is still 0 and
-`amd_pmc` still logs `Last suspend didn't reach deepest state` — with *every*
-tracked IP block now reporting idle. WiFi, USB3 and the display were each ruled
-out by unloading and re-measuring. The cause is unknown, the remaining search
-space is unbounded, and **the decision was to stop hunting and hibernate
-instead.** See `docs/WORK-LOG.md`.
+**Result: fixed.** A 9h37m lid-closed suspend on battery cost **4 percentage
+points** (58% → 54% of a 42.4 Wh cell) — about **0.15 W**, which is s0i3. That
+retracts the earlier reading here: blanking the display was measured as taking
+suspend from 4.10 W only to ~3.03 W, with `last_hw_sleep` still 0, and this
+section concluded s0i3 was unreachable for unknown reasons. It is reachable.
+The short instrumented measurements were the unreliable part, not the fix — a
+long sleep measured by battery percentage either side is the honest test, and
+the only one that matched what the machine actually does overnight.
+
+Hibernation on the lid stays regardless: it is there for the resume hang and the
+spurious wake (§below), not for the drain.
 
 > If suspend drain is ever suspected again, read
 > `/sys/kernel/debug/amd_pmc/smu_fw_info` **first** — it names the offending IP
@@ -799,9 +803,11 @@ itself in the RAM being saved.
 
 **A dying battery hibernates too**, via upower rather than logind:
 `criticalPowerAction = "Hibernate"` at `percentageAction = 3`. NixOS defaults to
-`HybridSleep`, which writes the image and then *stays in s2idle at ~3 W* — on
-this machine that drains the cell to 0% within minutes of triggering, so the
-session survives but the battery is abused every time.
+`HybridSleep`, which writes the image and then *stays in s2idle* — the session
+survives, but the machine is still drawing at the one moment it must not. The
+~3 W once measured for that state came from the same short-measurement batch as
+the retracted s0i3 figure and should not be quoted; the argument does not need
+it, since any suspend at 3% is the wrong state to be in.
 
 3% is one point above upower's default, not a safety cushion: 1% is 0.42 Wh
 here, worth ~60 s at the ~25 W a hibernate write draws, against a write that
@@ -1008,12 +1014,12 @@ invisible in logs and reported as "X is missing".
 
 ## 13. Known rough edges
 
-Things that are true today and worth knowing. *(Reviewed 2026-08-02 — the
-previous list was entirely stale; every item on it had been fixed.)*
+Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 
-- **Suspend never reaches s0i3, costing ~3 W.** Cause unknown after ruling out
-  the display, WiFi and USB3. Worked around with hibernation rather than
-  solved. See §9.
+- **The spurious s2idle wake source is still unidentified.** The lid hibernates
+  outright, so nothing suspends and nothing can wake — but that sidesteps it
+  rather than closing it, and it is what keeps `suspend-then-hibernate` off the
+  table. Standing suspect: the Synaptics fingerprint reader. See §9.
 - **The age key is a single point of failure.** `/var/lib/sops-nix/key.txt` is
   in no repo and no backup; without it `secrets/secrets.yaml` is unreadable.
   See §11.

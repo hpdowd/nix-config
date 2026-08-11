@@ -426,15 +426,30 @@ glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
 `docs/SYSTEM.md` §9 is the reference for battery thresholds, suspend, hibernation
 and the WiFi resume fix. The traps worth carrying in your head:
 
+- ⚠️ **A `services.logind` change is not live after `switch` — logind is never
+  reloaded, so the lid keeps the previous action until you reboot.** nixpkgs sets
+  `systemd.services.systemd-logind.reloadIfChanged` but leaves the matching
+  `restartTriggers` line **commented out** (`nixos/modules/system/boot/systemd/
+  logind.nix`), so a `logind.conf`-only change marks no unit as changed and
+  `switch-to-configuration` reloads nothing. `/etc/systemd/logind.conf` reads
+  correctly the whole time; only the daemon disagrees. Cost a whole overnight
+  lid-close that suspended under the *old* handler. `power.nix` now declares the
+  trigger. **Check the daemon, not the file:**
+  `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch`.
+  To apply by hand: `systemctl reload systemd-logind` — `Type=notify-reload`, so
+  it re-reads config without dropping sessions. A *restart* would kill them.
 - **A lit panel during suspend is a battery bug, not a cosmetic one** — the
   DISPLAY block tracks the CRTC, so it holds s0i3 off and the machine idles at
   ~4 W through what looks like sleep. **The backlight cannot fix it**;
   `brightnessctl` and `bl_power` only drive PWM, and hooks written that way
   succeed, exit 0, and change nothing. `wlopm --off '*'` is the mechanism.
-- **s0i3 is never reached even so** (~3 W, every IP block idle). Cause unknown,
-  search space unbounded, hunt abandoned in favour of hibernation. If suspend
-  drain is suspected again, read `/sys/kernel/debug/amd_pmc/smu_fw_info` **first**
-  — it names the offending IP block in one command.
+- **s0i3 *is* reached now** — measured at ~0.15 W over a 9h37m lid-closed
+  suspend (58% → 54%), against the ~3–4 W this file recorded when the panel
+  stayed lit. The earlier "s0i3 is never reached even so, cause unknown" was
+  written before the `wlopm` hooks landed and is retracted. Measure it the same
+  way — battery percentage either side of a long sleep — rather than by eye; if
+  the figure regresses, read `/sys/kernel/debug/amd_pmc/smu_fw_info` **first**,
+  it names the offending IP block in one command.
 - **Nothing locked the screen on sleep until swayidle** — logind's
   `HandleLidSwitch` suspends, it does not lock, so a closed lid resumed straight
   to the desktop. See the swaylock section for why the lock handler cannot be a
@@ -444,17 +459,36 @@ and the WiFi resume fix. The traps worth carrying in your head:
   it discards all three for its own defaults, unlogged — the action fires at a
   charge nobody chose. Check `/etc/UPower/UPower.conf`, not the Nix.
 - **`HybridSleep` on a critical battery is not hibernation here** — it writes the
-  image and then holds s2idle at ~3 W, flattening the cell to 0% within minutes.
-  That is the NixOS default; this host sets `Hibernate`.
-- **A spurious wake ends the `suspend-then-hibernate` cycle outright** — it does
-  not resume the countdown. logind then re-suspends the still-closed lid using
-  whichever handler matches the *current* power source, so `HibernateDelaySec`
-  restarts from zero. With AC set to a plain `suspend` this was a one-way trip:
-  observed as lid-close → s-t-h → wake at 2m32s → plain `suspend` → **2h05m in
-  s2idle**, never hibernating. Both lid handlers are `suspend-then-hibernate`
-  now, so every re-suspend re-arms the timer. Each wake coincides with the
-  Synaptics fingerprint reader (`06cb:00f9`) dropping off USB bus 1; the wakeup
-  counters reset per boot, so it has not been confirmed as the source.
+  image and then *stays in s2idle*, which at 3% charge is the one moment the
+  machine must draw nothing. That is the NixOS default; this host sets
+  `Hibernate`. (The ~3 W once recorded for that s2idle is from the same batch of
+  short measurements as the retracted s0i3 figure above, and is not to be
+  trusted. The decision does not rest on it: any suspend at 3% is wrong.)
+- **`suspend-then-hibernate` on the lid was abandoned — logind's re-check
+  degrades it to a plain `suspend`.** A spurious wake ends the s-t-h cycle
+  outright; ~30 s later (`HoldoffTimeoutSec`) logind re-handles the still-closed
+  lid and logs a bare `Suspending...`, *not* `Suspending, then hibernating...`.
+  That is an unbounded s2idle with no hibernate timer behind it, which is where
+  the resume hang below lives. Setting **both** lid handlers to s-t-h does not
+  help — it was tried, and the re-check still degraded. Observed identically on
+  three consecutive boots; every lid close ended in a power cycle. The lid now
+  hibernates outright.
+  - **Read the operation name, not the fact that it suspended.** logind logs a
+    D-Bus request as `suspend requested from client PID … ('systemctl')`; the
+    bare `Suspending...` with no such line is logind's *own* handler. That one
+    distinction is what separates "a script did this" from "logind chose this".
+  - Each wake coincides with the Synaptics fingerprint reader (`06cb:00f9`)
+    dropping off USB bus 1; the wakeup counters reset per boot, so it is still
+    unconfirmed as the source. Hibernating on the lid sidesteps it rather than
+    fixing it — nothing suspends, so nothing can spuriously wake.
+  - **It also fails the other way: no spurious wake, and no hibernate either.**
+    A 2026-08-11 lid-close logged `Suspending, then hibernating...` cleanly and
+    then sat in s2idle for **9h37m** with `HibernateDelaySec=30m` set — the timed
+    wake simply never fired, and nothing logged its absence. Suspect the alarm
+    RTC: `rtc0` is `acpi-tad` with **no `wakealarm` attribute at all**, and only
+    `rtc1` (`rtc_cmos`) reports "RTC can wake from S4". Unproven; two independent
+    ways for s-t-h to end in an unbounded s2idle is the argument for not
+    returning to it, whatever the wake source turns out to be.
 - **Long s2idle sometimes never resumes, and it looks like a dead machine.** The
   panel is off (`wlopm --off` in `sleep-actions.service`'s `ExecStart`) and is
   only restored by `resumeCommands` in that unit's `ExecStop` — so a resume that

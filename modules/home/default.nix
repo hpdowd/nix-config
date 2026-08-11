@@ -9,15 +9,29 @@
 let
   lockCmd = "${pkgs.swaylock-effects}/bin/swaylock -f";
 
-  # Idle-hibernate on battery only — plugged in, locked and blanked is enough.
-  # A missing AC node counts as on-battery, so the sleep still happens.
+  # The last rung of the idle ladder, with the two exceptions worth making.
   idleHibernate = pkgs.writeShellApplication {
     name = "idle-hibernate";
-    runtimeInputs = [ pkgs.systemd ];
+    runtimeInputs = [
+      pkgs.systemd
+      pkgs.playerctl
+    ];
     text = ''
-      if [ "$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)" = 0 ]; then
-        systemctl hibernate
+      # On AC, locked and blanked is enough. A missing AC node counts as
+      # on-battery, so the sleep still happens.
+      if [ "$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)" != 0 ]; then
+        exit 0
       fi
+
+      # Music with the lid open should not hibernate. Only this rung checks:
+      # dimming and locking over an album is right, and video needs no check at
+      # all — mpv and Firefox hold a zwp_idle_inhibit surface, which stops the
+      # ladder before it starts. `-x` so "Paused" does not match.
+      if playerctl --all-players status 2>/dev/null | grep -qx Playing; then
+        exit 0
+      fi
+
+      systemctl hibernate
     '';
   };
 in

@@ -342,5 +342,75 @@ else
 	bad "generated waybar config rescales the battery reading" "$rescaled"
 fi
 
+# upower is what acts on a low battery; waybar only recolours. The two drifted —
+# waybar warned at 30/15 while upower acted at 20/5 — so the colour change marked
+# nothing in particular. Read from the built /etc, not from the Nix.
+UPOWER_CONF="$SYS/etc/UPower/UPower.conf"
+low="" crit=""
+if [[ -f $UPOWER_CONF ]]; then
+	while IFS='=' read -r key value; do
+		case $key in
+		PercentageLow) low=$value ;;
+		PercentageCritical) crit=$value ;;
+		esac
+	done <"$UPOWER_CONF"
+fi
+
+checked=0
+drifted=""
+for cfg in "${CONFIGS[@]}"; do
+	jq -e 'has("battery")' "$cfg" >/dev/null || continue
+	warn=$(jq -r '.battery.states.warning // empty' "$cfg")
+	critical=$(jq -r '.battery.states.critical // empty' "$cfg")
+	if [[ -z $warn || -z $critical ]]; then
+		drifted+="  $(basename "$cfg"): battery module has no states"$'\n'
+		continue
+	fi
+	checked=$((checked + 1))
+	[[ $warn == "$low" && $critical == "$crit" ]] ||
+		drifted+="  $(basename "$cfg"): waybar $warn/$critical, upower $low/$crit"$'\n'
+done
+
+if [[ -z $low || -z $crit ]]; then
+	bad "no PercentageLow/Critical in the built UPower.conf — the scan is broken" "$UPOWER_CONF"
+elif [[ $checked -eq 0 ]]; then
+	bad "no generated config carries battery states — the scan is broken"
+elif [[ -z $drifted ]]; then
+	ok "waybar's battery states match upower's $low/$crit in all $checked configs"
+else
+	bad "waybar's battery states have drifted from upower" "$drifted"
+fi
+
+printf '\nIdle\n'
+
+# swayidle carried no timeouts at all until 2026-08-11 while the docs described
+# an idle ladder, so this is the floor for the reverse: with none, nothing dims,
+# locks or sleeps on idle and an open lid costs ~7 W until the 3% hibernate.
+IDLE_UNIT="$GEN/home-files/.config/systemd/user/swayidle.service"
+if [[ ! -f $IDLE_UNIT ]]; then
+	bad "no generated swayidle.service — the scan is broken" "$IDLE_UNIT"
+else
+	# -o then `wc -l`, not `grep -c`: the whole ExecStart is ONE line, so `grep -c`
+	# reports 1 however many timeouts are on it, and a ladder cut to a single
+	# timeout would still pass.
+	timeouts=$(grep -o ' timeout ' "$IDLE_UNIT" | wc -l)
+	if [[ $timeouts -eq 0 ]]; then
+		bad "swayidle carries no idle timeouts — nothing dims, locks or sleeps on idle"
+	else
+		ok "swayidle carries $timeouts idle timeouts"
+	fi
+
+	# `&&` skips the blank whenever swaylock exits non-zero, which is every time
+	# the screen was already locked by hand — only one client may hold an
+	# ext-session-lock-v1 lock. docs/gotchas.md → swaylock.
+	if ! grep -q 'wlopm' "$IDLE_UNIT"; then
+		bad "swayidle never calls wlopm — the panel stays lit through the idle blank"
+	elif grep -qE 'swaylock[^;]*&&[^;]*wlopm' "$IDLE_UNIT"; then
+		bad "swayidle chains swaylock to wlopm with && — a manual lock leaves the panel lit"
+	else
+		ok "swayidle's idle blank is not gated on swaylock's exit status"
+	fi
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

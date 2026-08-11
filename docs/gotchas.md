@@ -450,6 +450,11 @@ and the WiFi resume fix. The traps worth carrying in your head:
   machine had no dim, no idle lock and no idle sleep at all, and the only visible
   symptom was a battery that "seemed to go quickly". Check
   `services.swayidle.timeouts`, not TLP, when idle drain is the complaint.
+- **The idle hibernate's media check sees MPRIS only.** `playerctl` reports what
+  publishes an MPRIS interface — ncspot, Spotify, browsers, mpv. A game, or a
+  call in an app that publishes none, plays audio into a machine that hibernates
+  under it. Video is unaffected either way: mpv and Firefox hold a
+  `zwp_idle_inhibit` surface, which stops the ladder before any rung runs.
 - **`poweralertd` alerts on every UPower device, headphones included.** `-S`
   restricts it to power supplies and `-s` drops the burst of current-state
   notifications at login. Without both, it reads as broken rather than noisy.

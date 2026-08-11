@@ -920,3 +920,51 @@ Two measurement notes worth keeping:
   ordinary background work swamps the signal. Only long sleeps measured by
   battery percentage either side are trustworthy, which is exactly what the
   retracted ~3 W s0i3 figure got wrong.
+
+---
+
+## Gating the idle ladder, and two new floors (2026-08-11)
+
+**Media.** The 30-minute hibernate now bails if any MPRIS player reports
+`Playing`. Only that rung checks: dimming and locking over an album is correct,
+so gating the whole ladder would be wrong. Video needed nothing — mpv and
+Firefox hold a `zwp_idle_inhibit` surface, which stops the ladder before the
+first rung, which is why this is three lines rather than a caffeine daemon.
+
+`playerctl` rather than a PipeWire stream check: `pactl` is not installed here,
+`playerctl` already is (the media keys use it), and "is a media player playing"
+is the actual question. The cost is that it sees MPRIS only — a game or a
+non-MPRIS call still gets hibernated under. Recorded in gotchas rather than
+worked around.
+
+Exercised every branch against the *built* script with `systemctl hibernate`
+stubbed and `playerctl`/`AC/online` faked, because the live state at the time
+(on AC, player paused) would have exercised exactly one:
+
+```
+AC=0 Playing        -> stays awake      AC=1 Paused              -> stays awake
+AC=0 Paused         -> HIBERNATE        AC=0 two, one Playing    -> stays awake
+AC=0 Stopped        -> HIBERNATE        AC=0 playerctl fails     -> HIBERNATE
+```
+
+That last one is the deliberate direction to fail in: a broken `playerctl` lets
+the machine sleep rather than keeping it awake forever.
+
+**Two floors in `checks/static.sh`.** The failure this week was documentation
+describing an idle ladder that did not exist, so: swayidle must carry at least
+one `timeout`, and it must not chain swaylock to wlopm with `&&`. Plus waybar's
+battery `states` must equal upower's `PercentageLow`/`Critical`, read from the
+built `/etc`, since those two silently drifted to 30/15 against 20/5.
+
+Both were mutation-tested — strip the timeouts, bump one config's threshold, and
+confirm the run fails naming the file. A check nobody has watched fail is a
+check nobody has tested.
+
+⚠️ `grep -c -o` counts *lines*, not occurrences. The whole swayidle `ExecStart`
+is one line, so the first version reported "1 timeout" for three and would have
+passed a ladder cut to a single rung. It is `grep -o … | wc -l` now.
+
+**ADR 0015** records hibernate-on-the-lid, because the 0.15 W measurement
+removes the battery argument for it while leaving the real ones — the resume
+hang and the unidentified wake source — intact. Without that written down, the
+next reader finds "s2idle is cheap" and reasonably undoes it.

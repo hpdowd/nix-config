@@ -757,7 +757,7 @@ The ladder now, all in `services.swayidle`:
 |---|---|---|
 | 4 min | `brightnessctl -s set 10%` — dim, as the warning | `brightnessctl -r` on activity |
 | 5 min | `swaylock -f`, then `wlopm --off '*'` | `wlopm --on '*'` on activity |
-| 30 min | `idle-hibernate` — hibernates **only if `AC/online` is 0** | — |
+| 30 min | `idle-hibernate` — hibernates only on battery, and only if no MPRIS player reports `Playing` | — |
 
 Three things make it safe rather than annoying:
 
@@ -770,12 +770,23 @@ Three things make it safe rather than annoying:
 
 On AC the ladder stops after the blank: locked, dark, and still up.
 
-⚠️ **`systemd-inhibit --what=idle` does not hold this off.** swayidle takes its
-idle signal from `ext_idle_notifier_v1`, i.e. from the compositor, and mango does
-not bridge logind's inhibitors into it — only a Wayland `zwp_idle_inhibit`
-surface (what mpv and Firefox take) counts. So an unattended long build on
-battery *will* hit the 30-minute hibernate. It resumes where it left off, but
-network connections will not. The escape hatch is
+Playback is handled at two different levels, deliberately:
+
+- **Video** needs nothing from us. mpv and Firefox hold a `zwp_idle_inhibit`
+  surface while playing, which stops the ladder before the first rung — no dim,
+  no lock, no sleep.
+- **Audio-only** (ncspot, Spotify, a music tab) usually takes no inhibitor, so
+  the ladder runs. That is wanted for the first two rungs — dimming and locking
+  over an album is correct — but not for the last, so `idle-hibernate` alone
+  checks `playerctl --all-players status` and bails on `Playing`. `Paused` and
+  `Stopped` hibernate.
+
+⚠️ **`systemd-inhibit --what=idle` does not hold any of this off.** swayidle
+takes its idle signal from `ext_idle_notifier_v1`, i.e. from the compositor, and
+mango does not bridge logind's inhibitors into it. So an unattended long build on
+battery still hits the 30-minute hibernate — it resumes where it left off, but
+network connections will not. Same for anything playing audio without an MPRIS
+interface: a game, a call in an app that publishes none. The escape hatch is
 `systemctl --user stop swayidle`, and `start` after. A caffeine toggle in waybar
 would be the tidy fix; there isn't one yet.
 

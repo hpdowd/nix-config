@@ -42,7 +42,28 @@
   # portals and displayManager.sessionPackages — so on mango it has to be
   # declared by hand. Applies to swaylock-effects too; the PAM service name
   # is still `swaylock`.
-  security.pam.services.swaylock = { };
+  security.pam.services.swaylock = {
+    # Off deliberately. swaylock cannot render pam_fprintd's prompt, so with the
+    # sensor ahead of pam_unix the first seconds of every unlock swallow your
+    # typing. docs/gotchas.md → swaylock.
+    fprintAuth = false;
+  };
+
+  # --- Fingerprint ----------------------------------------------------------
+  # Synaptics 06cb:00f9. Enrol with `fprintd-enroll`, confirm with
+  # `fprintd-verify`.
+  #
+  # `fprintAuth` defaults to `services.fprintd.enable`, so this turns the sensor
+  # on for EVERY pam service, not just the ones named here. The password-first
+  # UIs are switched back off individually.
+  services.fprintd.enable = true;
+
+  # greetd substacks `login`, so this covers the greeter and TTY login both.
+  security.pam.services.login.fprintAuth = false;
+
+  # How long an untouched sensor stalls before the password prompt; upstream
+  # defaults to 30 s. `settings`, not `args` — args is computed from it.
+  security.pam.services.sudo.rules.auth.fprintd.settings.timeout = 10;
 
   # Everything mango's config, scripts and keybinds shell out to.
   environment.systemPackages = with pkgs; [

@@ -266,6 +266,51 @@ an **untracked** hand-written file that quietly supplied the theme to every bare
 `swaylock -f`, alongside two more copies at `mango/{tiling,hud}/swaylock.conf`
 for the `--config` binds. All three are gone.
 
+⚠️ **`services.fprintd.enable` switches the sensor on for EVERY pam service, not
+just the ones you name.** `security.pam.services.<x>.fprintAuth` defaults to
+`config.services.fprintd.enable`, so one `enable = true` put `pam_fprintd` into
+all 23 stacks — `swaylock` and `login` included. Setting it explicitly on `sudo`
+looks like scoping and is pure no-op; only an explicit `fprintAuth = false`
+removes it. This was written into this file as "sudo only, deliberately" while
+the opposite was live. **Verify with
+`grep -l pam_fprintd /etc/pam.d/*`, never from the Nix.**
+
+That matters because `pam_fprintd` is `sufficient` at order 11400, *ahead* of
+`pam_unix` at 11700, and a password-first UI cannot survive that ordering.
+swaylock has no way to render the sensor's prompt, so the first `timeout`
+seconds of every unlock swallow your typing with no indication why — 30 s at the
+default. Inverting the order is not a fix either: it only polls the sensor after
+you submit an *empty* password, making the gesture "press Enter, then touch"
+([swaylock#61](https://github.com/swaywm/swaylock/issues/61)). `greetd` inherits
+the problem by substacking `login`, so it needs `login.fprintAuth = false` rather
+than a rule of its own.
+
+`fprintAuth` is therefore off on `swaylock` and `login`, and left on everywhere
+else — `sudo`, `su` and the rest are terminal prompts, where the order reads
+correctly and Ctrl-C falls through. Doing it properly on the lock screen means a
+different locker (hyprlock has native fprintd support) or the third-party
+`swaylock-fprintd` wrapper, which is not in nixpkgs — both judged more churn than
+the feature is worth.
+
+**Ctrl-C at the fingerprint prompt drops to the password prompt** rather than
+killing `sudo` — the module catches SIGINT and returns `PAM_AUTHINFO_UNAVAIL`,
+which a `sufficient` control passes through to `pam_unix`. Confirmed by hand on
+2026-08-11. It is not guaranteed by the code: `signalfd` only receives *blocked*
+signals and the module never calls `sigprocmask`, so this works because `sudo`
+happens to block SIGINT across the PAM call. Re-test it if the fall-through ever
+stops working; don't assume the module owns the behaviour.
+
+**`pam_fprintd`'s `timeout` fires once; `max-tries` is a different counter.** A
+timeout returns `PAM_AUTHINFO_UNAVAIL` immediately rather than consuming a try,
+so an *untouched* sensor costs `timeout` seconds and no more — upstream's default
+30 s is the whole of the stall people mistake for a hang. `max-tries` (default 3)
+only counts real `verify-no-match` results, i.e. a finger that was read and
+rejected, each getting a fresh `timeout` window. Set via
+`rules.auth.fprintd.settings`, **not** `args` — `args` is computed from
+`settings` by the NixOS module, so defining it directly collides. Confirm the
+result with `grep ^auth /etc/pam.d/sudo`; the tokens are `timeout=` and
+`max-tries=` (hyphen, not underscore, despite the log text saying `max_tries`).
+
 ### walker / elephant
 
 **An elephant provider whose backing CLI is missing does not load, and says

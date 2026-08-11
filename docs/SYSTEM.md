@@ -893,6 +893,7 @@ What is running, and who owns it.
 | Service | Purpose |
 |---|---|
 | `greetd` + tuigreet | Login, launches mango |
+| `fprintd` | Fingerprint (Synaptics `06cb:00f9`). Enabling it turns `fprintAuth` on for **every** pam service; `swaylock` and `login` are switched back off — see `docs/gotchas.md` → swaylock |
 | `NetworkManager` | Networking (**not** networkd) |
 | `systemd-resolved` | DNS |
 | `avahi` | mDNS, for CUPS printer discovery |

@@ -795,3 +795,44 @@ ls ~/.config/fsel/config.toml        # a store symlink, not a hand-made one
 
 The middle one is the only real test. The other two prove the files are
 declared, which is what this entry is about not being sufficient.
+
+---
+
+## Fingerprint reader (2026-08-11)
+
+Synaptics `06cb:00f9`, on USB bus 1. Confirmed supported by checking libfprint's
+own modalias list rather than the web — it sits with the other `06cb` IDs.
+`services.fprintd.enable` plus `fprintd-enroll`; nothing needed in `pkgs/`.
+
+**Enabling it is not scoped.** `security.pam.services.<x>.fprintAuth` defaults to
+`config.services.fprintd.enable`, so one `enable = true` put `pam_fprintd` into
+all 23 pam stacks. Naming `sudo` explicitly reads like scoping and is a no-op;
+only `fprintAuth = false` removes it. `swaylock` and `login` are switched back
+off — a password-first UI cannot render the sensor's prompt, so the first
+`timeout` seconds of every unlock silently swallow typing. `greetd` needed no
+rule of its own: it substacks `login`. Shipped wrong for one rebuild and caught
+by reading `/etc/pam.d/`, which is the only place this is visible.
+
+Left on for the terminal services, where the ordering reads correctly: the
+prompt appears, and **Ctrl-C falls through to the password** — `pam_fprintd`
+returns `PAM_AUTHINFO_UNAVAIL` on SIGINT, which a `sufficient` control passes to
+`pam_unix`. Not guaranteed by the module (it never blocks SIGINT, and `signalfd`
+only receives blocked signals); it works because `sudo` blocks it. `timeout` cut
+30 s → 10 s on `sudo`; it fires once, and `max-tries` counts only real
+mismatches, so an ignored sensor costs 10 s flat rather than 3 × 30.
+
+Auth reaches `sudo` as *your* password, not root's — root's is for bare `su` and
+for `emergency.service`'s sulogin prompt, which is the recovery path if the
+system ever fails to reach greetd.
+
+Still open: the reader is the standing suspect for the spurious s2idle wake that
+made lid-close freeze the machine (its controller `0000:74:00.3` has wakeup
+enabled, though the device itself does not). The lid hibernates outright for now;
+confirming the wake source is what would let `suspend-then-hibernate` return.
+
+```
+grep -l pam_fprintd /etc/pam.d/*      # the only honest scope check
+grep ^auth /etc/pam.d/sudo            # must show timeout=10
+fprintd-verify                        # must match, not just exit 0
+```
+

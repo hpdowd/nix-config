@@ -87,33 +87,14 @@ in
   # /etc/systemd/logind.conf in place, which is a read-only store path here, so
   # it fails with "Permission denied" and sudo does not help.
   #
-  # Both sources hibernate. AC was `suspend` until a lid-close parked the machine
-  # in s2idle for two hours and amdgpu never came back — see the Power section of
-  # docs/gotchas.md. It also matters that a spurious wake *ends* the
-  # suspend-then-hibernate cycle: with both sources set, the re-suspend that
-  # follows re-arms a fresh timer instead of falling through to a plain suspend
-  # that never hibernates at all.
+  # Straight to hibernate, not `suspend-then-hibernate`: a spurious wake ends the
+  # s-t-h cycle, and logind's lid re-check ~30 s later degrades to a *plain*
+  # suspend that never hibernates, parking the machine in the s2idle amdgpu
+  # sometimes never resumes from. See the Power section of docs/gotchas.md.
   services.logind.settings.Login = {
-    HandleLidSwitch = "suspend-then-hibernate";
-    HandleLidSwitchExternalPower = "suspend-then-hibernate";
+    HandleLidSwitch = "hibernate";
+    HandleLidSwitchExternalPower = "hibernate";
     HandleLidSwitchDocked = "ignore";
-  };
-
-  # 30 min at ~3 W is ~1.5 Wh, so a short lid-close still resumes instantly.
-  #
-  # `settings.Sleep`, not `extraConfig` — the latter is now a hard assertion
-  # failure rather than a warning.
-  #
-  # The triggering wake comes from rtc1 (rtc_cmos), not rtc0 (acpi-tad, which
-  # has no wakealarm) — don't point anything at rtc0 to satisfy an `rtcwake`
-  # complaint.
-  systemd.sleep.settings.Sleep = {
-    HibernateDelaySec = "30m";
-
-    # HibernateMode stays at the default `platform` (ACPI S4), which works.
-    # Do NOT switch it to `shutdown` because the journal looks like an aborted
-    # S4 — success and failure log identically, since the memory image is
-    # snapshotted before the write. CLAUDE.md has the real checks.
   };
 
   # --- Power the display down across sleep ----------------------------------

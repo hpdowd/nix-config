@@ -832,11 +832,10 @@ line parameter, so `rebuild` writes the new logind and sleep config while the
 *running* kernel has neither. `systemctl hibernate` then snapshots memory,
 prepares S4 and returns **without writing an image or powering off** — and
 because the screen blanks and comes back, it reads as a fast, successful
-hibernate. It is not. This is dangerous while half-applied, because
-`suspend-then-hibernate` goes live at rebuild time: closing the lid then
-attempts the failed hibernate, thaws, and leaves the machine awake with the lid
-shut, draining *faster* than plain suspend. **Reboot promptly after the
-rebuild.**
+hibernate. It is not. This is dangerous while half-applied, because the lid
+handler goes live at rebuild time: closing the lid then attempts the failed
+hibernate, thaws, and leaves the machine awake with the lid shut, draining
+*faster* than plain suspend. **Reboot promptly after the rebuild.**
 
 ⚠️ **The kernel log cannot tell you whether a hibernate succeeded.** The memory
 image is snapshotted *before* the write and power-off, so a successful and a

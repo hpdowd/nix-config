@@ -287,9 +287,11 @@ let
       bat = "BAT0";
       adapter = "AC";
       interval = 5;
+      # Matched to upower's PercentageLow/Critical in power.nix, so the colour
+      # change marks a point the system actually acts on. Was 30/15.
       states = {
-        warning = 30;
-        critical = 15;
+        warning = 20;
+        critical = 5;
       };
       format = "{icon} {capacity}%";
       format-charging = "󰂄 {capacity}%";

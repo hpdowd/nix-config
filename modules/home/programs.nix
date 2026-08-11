@@ -608,8 +608,7 @@ in
         text = "Suspend";
         keybind = "u";
       }
-      # Straight to S4, without the 30 min of suspend-then-hibernate a lid-close
-      # on battery goes through.
+      # Same S4 the lid and the power key reach; here for discoverability.
       {
         label = "hibernate";
         action = "systemctl hibernate";

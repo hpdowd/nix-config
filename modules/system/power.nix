@@ -95,6 +95,13 @@ in
     HandleLidSwitch = "hibernate";
     HandleLidSwitchExternalPower = "hibernate";
     HandleLidSwitchDocked = "ignore";
+
+    # A tap matches the lid; the long press is the hard stop. The default was
+    # `poweroff` on tap and `ignore` on hold — i.e. a brushed button ended the
+    # session with no prompt, and the gesture people use deliberately did
+    # nothing.
+    HandlePowerKey = "hibernate";
+    HandlePowerKeyLongPress = "poweroff";
   };
 
   # Without this a logind.conf-only change never reaches the running logind: the
@@ -119,9 +126,9 @@ in
   # leave DISPLAY active, so that fix logs clean and achieves nothing. Only the
   # compositor can do it. See the Suspend section in CLAUDE.md.
   #
-  # Nothing here acts on idleness — swayidle has no timeouts — so these hooks
-  # are the only thing that turns the panel off. They run after swayidle's sleep
-  # inhibitor has put swaylock up.
+  # These cover sleep. swayidle's own `wlopm` timeout covers idleness, and the
+  # two overlap harmlessly — `--off` on an already-off output is a no-op. They
+  # run after swayidle's sleep inhibitor has put swaylock up.
   powerManagement.powerDownCommands = setDisplayPower "off";
 
   # Load-bearing: an output left in its off power-mode is not restored by input,

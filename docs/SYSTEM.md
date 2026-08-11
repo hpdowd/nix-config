@@ -121,7 +121,8 @@ Two rules follow from this and explain most of the surprises:
 │   ├── virtualisation.nix     podman, libvirt, steam, gamescope
 │   └── nix-settings.nix       flakes, GC, substituters
 ├── modules/home/              home-manager (user-level)
-│   ├── default.nix            imports + user units (wlsunset, swaync mask), xdg.mimeApps
+│   ├── default.nix            imports, idle ladder, user units (wlsunset,
+│   │                          poweralertd, swaync mask), xdg.mimeApps
 │   ├── options.nix            `local.checkout` — the path this repo lives at
 │   ├── packages.nix           user packages that no program module installs
 │   ├── shell.nix              zsh, aliases, PATH, env, git
@@ -258,7 +259,8 @@ The routing table. Find the row, edit the file, apply as in §4.
 | A systemd service | `modules/system/<concern>.nix` — **never** `/etc/systemd/` |
 | Kernel or boot params | `modules/system/boot.nix` |
 | Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — the waybar `full-at` follows automatically, see §9 |
-| Hibernation / lid behaviour | `modules/system/power.nix` (`services.logind`, `systemd.sleep`) |
+| Hibernation, lid and power key | `modules/system/power.nix` (`services.logind`) — no `systemd.sleep`, there is no suspend phase to configure |
+| When the machine dims, locks or idle-sleeps | `modules/home/default.nix` (`services.swayidle.timeouts`) |
 | What a dying battery does | `modules/system/power.nix` (`services.upower`) — not logind |
 | Timezone, keymap, keyd | `modules/system/locale.nix` |
 | Firewall ports | `modules/system/networking.nix` |
@@ -584,6 +586,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
 | Media & brightness keys | Volume, playback, backlight (via wpctl / playerctl / brightnessctl) |
+| Power button | Tap hibernates, hold powers off — logind, not a mango bind (§9) |
 
 ### Waybar
 
@@ -628,7 +631,8 @@ is missing from the bar, **run its script by hand first**:
 | **wlsunset** | Night light, owned by a systemd user unit |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
 | **swaylock** | Screen lock (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
-| **swayidle** | Lock handler, **no idle timeouts** — runs swaylock on `before-sleep` and `loginctl lock-session` (§9) |
+| **swayidle** | Lock handler *and* idle daemon — swaylock on `before-sleep`/`lock-session`, plus the dim → lock+blank → hibernate ladder (§9) |
+| **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
 
 ---
@@ -739,15 +743,49 @@ spurious wake (§below), not for the drain.
 > `/sys/kernel/debug/amd_pmc/smu_fw_info` **first** — it names the offending IP
 > block directly, in one command.
 
-Nothing acts on idleness, so the screen never blanks on idle either — swayidle
-runs here with **no timeouts at all** (below), purely as a lock handler.
+### Idle
+
+Until 2026-08-11 nothing acted on idleness at all: swayidle carried **no
+timeouts**, so with the lid open the machine never dimmed, never locked and
+never slept — 6.9 W until the 3% hibernate, roughly six hours, with the desktop
+unlocked the whole time. That gap dwarfed every other power setting on this
+machine.
+
+The ladder now, all in `services.swayidle`:
+
+| Idle | What happens | Undone by |
+|---|---|---|
+| 4 min | `brightnessctl -s set 10%` — dim, as the warning | `brightnessctl -r` on activity |
+| 5 min | `swaylock -f`, then `wlopm --off '*'` | `wlopm --on '*'` on activity |
+| 30 min | `idle-hibernate` — hibernates **only if `AC/online` is 0** | — |
+
+Three things make it safe rather than annoying:
+
+- mango advertises `zwp_idle_inhibit_manager_v1`, so mpv and Firefox suppress
+  the whole ladder during playback. Check with `wayland-info | grep inhibit`
+  before assuming that of any compositor.
+- The lock/blank step is joined with `;`, **not `&&`** — see `docs/gotchas.md`.
+- `idle-hibernate` is a `writeShellApplication`, so it is shellchecked at build
+  time rather than being an inline string nothing gates.
+
+On AC the ladder stops after the blank: locked, dark, and still up.
+
+⚠️ **`systemd-inhibit --what=idle` does not hold this off.** swayidle takes its
+idle signal from `ext_idle_notifier_v1`, i.e. from the compositor, and mango does
+not bridge logind's inhibitors into it — only a Wayland `zwp_idle_inhibit`
+surface (what mpv and Firefox take) counts. So an unattended long build on
+battery *will* hit the 30-minute hibernate. It resumes where it left off, but
+network connections will not. The escape hatch is
+`systemctl --user stop swayidle`, and `start` after. A caffeine toggle in waybar
+would be the tidy fix; there isn't one yet.
 
 ### Locking
 
 `services.swayidle` in `modules/home/default.nix` runs `swaylock -f` on
-`before-sleep` and on `lock`. Before it existed, swaylock was reachable only by
-hand (`SUPER+Delete`, `SUPER+SHIFT+s`, the wlogout button) and **every lid-close
-resumed straight to the unlocked desktop**.
+`before-sleep`, on `lock`, and on the 5-minute idle timeout above. Before it
+existed, swaylock was reachable only by hand (`SUPER+Delete`, `SUPER+SHIFT+s`,
+the wlogout button) and **every lid-close resumed straight to the unlocked
+desktop**.
 
 swayidle rather than another `powerManagement` hook, for two reasons:
 
@@ -786,15 +824,25 @@ bare `swaylock -f` all along. The per-mode files are deleted and both
 
 ### Hibernation
 
-`suspend-then-hibernate` on **both** power sources, with
-`HibernateDelaySec = 30m`: 30 minutes at ~3 W is ~1.5 Wh, so a short lid-close
-still resumes instantly from s2idle and anything longer goes to disk.
+A closed lid **hibernates**, on both power sources. There is no suspend phase
+and no `HibernateDelaySec`, so a short lid-close costs a ~6 GiB write and a
+~10–30 s resume rather than returning instantly.
 
-AC used to be a plain `suspend`, on the reasoning that its drain is irrelevant
-and instant resume is worth more. That was wrong twice over — long s2idle is
-where resume hangs on this machine, and a plain `suspend` gave the re-suspend
-after a spurious wake nowhere to land, so the lid-close never hibernated at all.
-Both failures are in `docs/gotchas.md` → Power.
+**So does a tap on the power key**, with a long press left as `poweroff`. The
+systemd defaults are the other way round — a brushed button ended the session
+with no prompt, and holding it did nothing — which is the one power-management
+default on this machine that could lose work.
+
+Three routes into hibernation, then: the lid, the power key, and 30 minutes idle
+on battery (§Idle). Plus upower at 3%, below.
+
+That instant resume is what `suspend-then-hibernate` bought, and it was tried
+twice — first with AC on a plain `suspend`, then with s-t-h on both sources. Both
+lost the same way: a spurious wake ends the s-t-h cycle, and logind's lid
+re-check ~30 s later degrades to a plain `suspend` with no hibernate timer
+behind it, leaving the machine in the long s2idle its resume hangs from. Removing
+the suspend phase removes the wake that starts it. `docs/gotchas.md` → Power has
+the journal signature.
 
 The image goes to the 20 GiB swapfile on `@swap` (§1). **zram remains the
 working swap** at priority 5 against the file's −1, so ordinary swapping never
@@ -1016,6 +1064,10 @@ invisible in logs and reported as "X is missing".
 
 Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 
+- **Nothing here can hold off the idle ladder except a Wayland idle inhibitor.**
+  `systemd-inhibit --what=idle` does not reach swayidle, so unattended work on
+  battery meets the 30-minute hibernate; the escape hatch is
+  `systemctl --user stop swayidle`. A caffeine toggle would close this. See §9.
 - **The spurious s2idle wake source is still unidentified.** The lid hibernates
   outright, so nothing suspends and nothing can wake — but that sidesteps it
   rather than closing it, and it is what keeps `suspend-then-hibernate` off the

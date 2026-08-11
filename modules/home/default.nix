@@ -6,6 +6,21 @@
   ...
 }:
 
+let
+  lockCmd = "${pkgs.swaylock-effects}/bin/swaylock -f";
+
+  # Idle-hibernate on battery only — plugged in, locked and blanked is enough.
+  # A missing AC node counts as on-battery, so the sleep still happens.
+  idleHibernate = pkgs.writeShellApplication {
+    name = "idle-hibernate";
+    runtimeInputs = [ pkgs.systemd ];
+    text = ''
+      if [ "$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)" = 0 ]; then
+        systemctl hibernate
+      fi
+    '';
+  };
+in
 {
   imports = [
     ./options.nix
@@ -100,14 +115,60 @@
   # The only thing that locks the screen on sleep. NOT a power.nix sleep hook:
   # that cgroup is killed on resume, taking swaylock with it — SYSTEM.md §9.
   #
-  # No `timeouts`: a lock handler, not an idle daemon. Absolute path because the
-  # unit's PATH is bash and nothing else.
+  # Absolute paths throughout: swayidle runs commands via `sh -c` with a PATH of
+  # bash and nothing else.
+  #
+  # Safe to lock on idle because mango advertises zwp_idle_inhibit_manager_v1 —
+  # mpv and Firefox suppress the whole ladder during playback. Confirm with
+  # `wayland-info | grep inhibit` before assuming that of another compositor.
   services.swayidle = {
     enable = true;
     events = {
-      before-sleep = "${pkgs.swaylock-effects}/bin/swaylock -f";
-      lock = "${pkgs.swaylock-effects}/bin/swaylock -f";
+      before-sleep = lockCmd;
+      lock = lockCmd;
     };
+    timeouts = [
+      # Dim as the warning that the lock is coming. -s/-r save and restore
+      # whatever level you were on, in $XDG_RUNTIME_DIR.
+      {
+        timeout = 240;
+        command = "${pkgs.brightnessctl}/bin/brightnessctl -s set 10%";
+        resumeCommand = "${pkgs.brightnessctl}/bin/brightnessctl -r";
+      }
+      # Lock, THEN kill the display pipe — `-f` forks only once the lock is up,
+      # so this order cannot flash the desktop. wlopm is the panel-off the
+      # backlight cannot do (SYSTEM.md §9), and an output left in its off
+      # power-mode is not restored by input, hence the resume.
+      #
+      # `;` not `&&`: only one client may hold the session lock, so a swaylock
+      # started over a manual lock exits non-zero, and `&&` would leave the panel
+      # lit for the rest of the idle period. Blanking is right either way.
+      {
+        timeout = 300;
+        command = "${lockCmd}; ${pkgs.wlopm}/bin/wlopm --off '*'";
+        resumeCommand = "${pkgs.wlopm}/bin/wlopm --on '*'";
+      }
+      # Idle with the panel dead is still ~3 W, which is a flat battery
+      # overnight; suspended it is 0.15 W.
+      {
+        timeout = 1800;
+        command = "${idleHibernate}/bin/idle-hibernate";
+      }
+    ];
+  };
+
+  # Nothing else warns about a low battery: upower's percentages are policy
+  # inputs, and waybar only recolours. Without this the first unmissable signal
+  # is the machine hibernating at 3%.
+  #
+  # -S limits it to power supplies (else the headphones alert too); -s drops the
+  # burst of current-state events at startup.
+  services.poweralertd = {
+    enable = true;
+    extraArgs = [
+      "-s"
+      "-S"
+    ];
   };
 
   # nixpkgs' swaync ships a user unit wanted by graphical-session.target, which

@@ -836,7 +836,6 @@ grep ^auth /etc/pam.d/sudo            # must show timeout=10
 fprintd-verify                        # must match, not just exit 0
 ```
 
-
 ---
 
 ## The lid setting that was never live (2026-08-11)
@@ -881,3 +880,43 @@ Two things fall out of the 9h37m the machine spent asleep instead:
   `rtc1` (`rtc_cmos`) reports "RTC can wake from S4". Not investigated further —
   s-t-h is off the table for the wake-source reason anyway.
 
+---
+
+## Idle behaviour, and the power key (2026-08-11)
+
+Measured first: 6.9 W idle with the lid open against 0.15 W suspended. swayidle
+carried **no timeouts** — a lock handler only — so walking away from an open lid
+cost 6.9 W until the 3% hibernate about six hours later, with the desktop
+unlocked throughout. Nothing else on this machine is worth that much: TLP's
+runtime PM, USB autosuspend, `nmi_watchdog=0`, `power_save=1` and amd-pstate-epp
+were all already correct, and there was nothing left in TLP to turn.
+
+Ladder added: dim at 4 min, lock + `wlopm --off` at 5, hibernate at 30 **on
+battery only** via a `writeShellApplication` that reads `AC/online` (so it is
+shellchecked at build time rather than being an inline string nothing gates).
+Safe because mango advertises `zwp_idle_inhibit_manager_v1` — checked with
+`wayland-info`, not assumed — so playback suppresses it.
+
+The lock and the blank are joined with `;`. `&&` was written first and is wrong:
+a second swaylock over a manual lock exits non-zero, and the panel would then
+stay lit for the rest of the idle period, logging nothing.
+
+Also: `HandlePowerKey` was systemd's default `poweroff` with
+`HandlePowerKeyLongPress=ignore` — a brushed button ended the session with no
+prompt, and holding it did nothing. Now hibernate on tap (matching the lid),
+poweroff on long press. And `services.poweralertd` (`-s -S`), because nothing
+warned about a low battery at all: upower's percentages are policy inputs and
+waybar only recolours, so the first unmissable signal was the machine
+hibernating. waybar's thresholds moved 30/15 → 20/5 to match upower.
+
+Two measurement notes worth keeping:
+
+- **`nix flake check` did not surface an eval warning that plain `nix eval`
+  did** — `reloadTriggers` on a unit that already sets `reloadIfChanged` makes
+  the two equivalent. Switched to `restartTriggers`, which is what the
+  commented-out nixpkgs line uses. Green checks are not silence.
+- **Short instrumented power measurements on this machine are worthless.** A
+  six-sample median at 100% backlight read 6.88 W and at 10% read 7.43 W —
+  ordinary background work swamps the signal. Only long sleeps measured by
+  battery percentage either side are trustworthy, which is exactly what the
+  retracted ~3 W s0i3 figure got wrong.

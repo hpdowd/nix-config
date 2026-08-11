@@ -241,6 +241,13 @@ permanently blank locked surface above, arriving every single resume. swayidle
 runs in the user session instead, and its `-w` sleep inhibitor also guarantees
 the lock is up *before* the suspend rather than racing it.
 
+**Chain the idle lock with `;`, never `&&`.** Only one client may hold an
+`ext-session-lock-v1` lock, so the `swaylock -f` on the 5-minute timeout exits
+non-zero whenever you had already locked by hand — and with `&&` the
+`wlopm --off` after it never runs, leaving the panel lit for the rest of the
+idle period. It costs battery and logs nothing. `;` blanks either way, which is
+correct in both cases: already locked, or newly locked.
+
 **`programs.swaylock.package` must be `null` here.** `desktop.nix` installs
 **swaylock-effects** system-wide and declares PAM for it, but the home-manager
 module defaults to installing plain `pkgs.swaylock`, which lands *earlier* in
@@ -438,6 +445,14 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch`.
   To apply by hand: `systemctl reload systemd-logind` — `Type=notify-reload`, so
   it re-reads config without dropping sessions. A *restart* would kill them.
+- **Idle behaviour is not a power-management default — nothing supplies it.**
+  There is no desktop environment here, so until swayidle got `timeouts` the
+  machine had no dim, no idle lock and no idle sleep at all, and the only visible
+  symptom was a battery that "seemed to go quickly". Check
+  `services.swayidle.timeouts`, not TLP, when idle drain is the complaint.
+- **`poweralertd` alerts on every UPower device, headphones included.** `-S`
+  restricts it to power supplies and `-s` drops the burst of current-state
+  notifications at login. Without both, it reads as broken rather than noisy.
 - **A lit panel during suspend is a battery bug, not a cosmetic one** — the
   DISPLAY block tracks the CRTC, so it holds s0i3 off and the machine idles at
   ~4 W through what looks like sleep. **The backlight cannot fix it**;

@@ -417,6 +417,21 @@ system, so invalidating the dump exactly then is equivalent to checking on every
 shell, at zero per-shell cost. The glob also clears the
 `.zcompdump.<host>.<pid>` temps a killed `compdump` leaves behind.
 
+> **Reverted 2026-08-11 — 2 and 3 were both removed; 1 stands.** Two of the
+> premises above did not hold. The `87 ms` for `compaudit` was measured while
+> `compinit` still ran twice; re-measured alone it is **~10 ms** — so `-C` was
+> buying a tenth of what the table claims. And "zero per-shell cost" ignored
+> where the work went: the activation `rm` runs at every **boot** too, not only
+> at rebuilds (`home-manager-henry.service` is `WantedBy=multi-user.target`), so
+> the first shell of every session paid ~290 ms to rebuild the dump — 330 ms to
+> a prompt against 40 ms for every shell after it.
+>
+> Plain `compinit` does natively what the pair was hand-rolling: it leaves the
+> dump alone when `fpath` is unchanged and regenerates it when a new generation
+> changes those store paths. Verified both directions before removing them.
+> The trade is +10 ms on every shell against −290 ms once per boot, and one
+> option plus one activation block deleted. Simplicity, at this size, wins.
+
 ## zoxide
 
 The init moved to `programs.zoxide` with `options = [ "--cmd" "cd" ]` and was

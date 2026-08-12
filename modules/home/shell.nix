@@ -1,32 +1,21 @@
 {
   config,
   pkgs,
-  lib,
   ...
 }:
 
 {
   # --- zsh ------------------------------------------------------------------
-  # Your login shell. On Arch, ~/.zshenv sets ZDOTDIR=~/.config/zsh and the
-  # real config lives in ~/.config/zsh/conf.d/{10-aliases,20-path,30-bindings,
-  # 40-prompt}.zsh.
-  #
-  # home-manager owns ~/.zshrc, so rather than duplicating those four files in
-  # Nix, we keep sourcing them. dotfiles.nix symlinks ~/.config/zsh through as
-  # a live (editable) directory.
+  # The login shell. home-manager owns ~/.zshrc, so the hand-written conf.d
+  # files are sourced from initContent rather than re-expressed in Nix.
   programs.zsh = {
     enable = true;
-    # Absolute path — relative dotDir is deprecated.
-    dotDir = "${config.xdg.configHome}/zsh";
+    dotDir = "${config.xdg.configHome}/zsh"; # relative dotDir is deprecated
 
     autosuggestion.enable = true; # zsh-autosuggestions
     syntaxHighlighting.enable = true; # zsh-syntax-highlighting
     enableCompletion = true; # zsh-completions
     historySubstringSearch.enable = true; # zsh-history-substring-search
-
-    # -C skips compaudit (87 ms of 120 ms) and the staleness check. Only safe
-    # paired with the dump invalidation below.
-    completionInit = "autoload -U compinit && compinit -C";
 
     history = {
       size = 50000;
@@ -38,37 +27,17 @@
     };
 
     initContent = ''
-      # Source the hand-written config, exactly as on Arch.
       for f in "$ZDOTDIR"/conf.d/*.zsh(N); do
         source "$f"
       done
     '';
   };
 
-  # --- fish -----------------------------------------------------------------
-  # Dropped 2026-07-28. CLAUDE.md described fish as the primary shell, but
-  # /etc/passwd says zsh and always did, so fish was only ever a secondary
-  # interactive shell.
-  #
-  # It also could not have worked as written: dotfiles.nix linked the whole
-  # ~/.config/fish directory out-of-store while `programs.fish.enable` writes
-  # ~/.config/fish/config.fish, putting two owners on one path — activation
-  # would have failed. The same collision class as the old `gtk` block.
-  #
-  # The config files were deleted from the repo on 2026-07-30, once Arch was
-  # gone and `command -v fish` confirmed the shell is not installed here at
-  # all — they were config for a program that does not exist. They remain in
-  # git history if wanted. To bring fish back, add the package and restore
-  # EITHER `programs.fish.enable` OR a dotfiles link, never both.
-
-  # Counterpart to `compinit -C`: a rebuild is the only time completions change,
-  # so invalidate the dump then. Globs the .zcompdump.<host>.<pid> temps too.
-  home.activation.invalidateZcompdump = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    run rm -f ${config.xdg.configHome}/zsh/.zcompdump ${config.xdg.configHome}/zsh/.zcompdump.*
-  '';
+  # fish was dropped 2026-07-28 — see docs/WORK-LOG.md. If it comes back, use
+  # EITHER programs.fish.enable OR a dotfiles link, never both.
 
   # --- Tools that hook the shell -------------------------------------------
-  # `--cmd cd` moved here from conf.d/10-aliases.zsh, which duplicated the init.
+  # `--cmd cd` here rather than in conf.d/10-aliases.zsh, which duplicated it.
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;

@@ -412,6 +412,21 @@ else
 	fi
 fi
 
+# The only in-session way to hold the ladder off: swayidle takes its idle signal
+# from the compositor, so `systemd-inhibit --what=idle` does not reach it and a
+# long build on battery hits the 30-minute suspend regardless. Dropping the
+# module from every layout is silent — the bar is just one icon shorter.
+inhibitor=0
+for cfg in "${CONFIGS[@]}"; do
+	jq -e '.["modules-right"] | index("idle_inhibitor")' "$cfg" >/dev/null 2>&1 &&
+		inhibitor=$((inhibitor + 1))
+done
+if [[ $inhibitor -eq 0 ]]; then
+	bad "no generated waybar config carries idle_inhibitor — nothing can hold the idle ladder off"
+else
+	ok "idle_inhibitor is on the bar in $inhibitor of ${#CONFIGS[@]} layouts"
+fi
+
 printf '\nFonts\n'
 
 # A font family that resolves to nothing renders as a silent fallback: bold text

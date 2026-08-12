@@ -1,6 +1,10 @@
 # 0015 — The lid hibernates; there is no suspend phase
 
-**Status:** Accepted (2026-08-11)
+**Status:** Accepted (2026-08-11) — the lid half stands; **the title's "there is
+no suspend phase" is amended by [0016](0016-idle-suspends-the-lid-hibernates.md)
+(2026-08-12)**, which returns the 30-minute idle rung to `systemctl suspend`.
+Every observation below is of a *closed lid*; none of it transfers to a rung
+that fires with the lid open.
 
 ## Context
 
@@ -54,11 +58,14 @@ it**, and the cheap s2idle is not grounds to revisit this.
 **Every automatic sleep on this machine goes straight to hibernate. There is no
 suspend phase anywhere.**
 
+> ⚠️ Amended by [0016](0016-idle-suspends-the-lid-hibernates.md): the idle rung
+> now suspends. The three lid/button/battery rows below are unchanged.
+
 | Trigger | Setting |
 |---|---|
 | Lid closed, either power source | `HandleLidSwitch` / `HandleLidSwitchExternalPower = "hibernate"` |
 | Power key tapped | `HandlePowerKey = "hibernate"` (long press stays `poweroff`) |
-| 30 minutes idle **on battery**, nothing playing | `idle-hibernate` from `services.swayidle.timeouts` |
+| 30 minutes idle **on battery**, nothing playing | ~~`idle-hibernate`~~ — now `idle-suspend`, see [0016](0016-idle-suspends-the-lid-hibernates.md) |
 | Battery at 3% | `services.upower.criticalPowerAction = "Hibernate"` |
 
 `systemd.sleep.settings.Sleep` is deliberately absent — with no suspend phase

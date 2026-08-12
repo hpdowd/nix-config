@@ -258,6 +258,21 @@ window#waybar.bottom {
 
 #custom-night-mode.on { color: @yellow; }
 
+/* ── Idle inhibitor ───────────────────────────────────────────────── */
+
+/* No font-family override, unlike #custom-power-profile below: the two glyphs
+   are Material Design (nf-md-sleep / nf-md-sleep_off), whose ink spans exactly
+   the 1080/2000 advance 3270 gives them, so nothing overflows the cell. */
+#idle_inhibitor {
+    font-size: 13px;
+    padding: 0 8px;
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+/* The two glyphs differ only by a slash, so the colour carries the state. */
+#idle_inhibitor.activated { color: @yellow; }
+
 /* ── Power profile ────────────────────────────────────────────────── */
 
 /* font-family is NOT cosmetic here. 3270 patches the Font Awesome icons in at

@@ -26,7 +26,8 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0012](0012-secrets-in-sops.md) | Secrets live in sops-nix; only what is read is declared | Accepted |
 | [0013](0013-networkmanager-profiles-declared.md) | The nine credential-bearing NetworkManager profiles are declared | Accepted (follows [0012](0012-secrets-in-sops.md)) |
 | [0014](0014-declare-the-namer-not-just-the-file.md) | Declaring a file is not declaring the config — declare what names it | Accepted (extends [0009](0009-generated-config-over-linked-files.md), [0011](0011-shell-is-gated-too.md)) |
-| [0015](0015-hibernate-not-suspend-on-the-lid.md) | The lid hibernates; there is no suspend phase | Accepted |
+| [0015](0015-hibernate-not-suspend-on-the-lid.md) | The lid hibernates; there is no suspend phase | Accepted (the lid half; amended by [0016](0016-idle-suspends-the-lid-hibernates.md)) |
+| [0016](0016-idle-suspends-the-lid-hibernates.md) | The idle rung suspends; the lid still hibernates | Accepted (amends [0015](0015-hibernate-not-suspend-on-the-lid.md)) |
 
 ## Format
 

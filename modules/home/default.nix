@@ -10,8 +10,12 @@ let
   lockCmd = "${pkgs.swaylock-effects}/bin/swaylock -f";
 
   # The last rung of the idle ladder, with the two exceptions worth making.
-  idleHibernate = pkgs.writeShellApplication {
-    name = "idle-hibernate";
+  #
+  # `suspend`, not `hibernate` (ADR 0016): s0i3 is 0.15 W measured, so the rung
+  # costs no image write and returns instantly. The lid is the other decision
+  # and stays on hibernate — see the ADR for which evidence applies to which.
+  idleSuspend = pkgs.writeShellApplication {
+    name = "idle-suspend";
     runtimeInputs = [
       pkgs.systemd
       pkgs.playerctl
@@ -23,7 +27,7 @@ let
         exit 0
       fi
 
-      # Music with the lid open should not hibernate. Only this rung checks:
+      # Music with the lid open should not sleep. Only this rung checks:
       # dimming and locking over an album is right, and video needs no check at
       # all — mpv and Firefox hold a zwp_idle_inhibit surface, which stops the
       # ladder before it starts. `-x` so "Paused" does not match.
@@ -31,7 +35,7 @@ let
         exit 0
       fi
 
-      systemctl hibernate
+      systemctl suspend
     '';
   };
 in
@@ -142,41 +146,34 @@ in
       lock = lockCmd;
     };
     timeouts = [
-      # Dim as the warning that the lock is coming. -s/-r save and restore
-      # whatever level you were on, in $XDG_RUNTIME_DIR.
+      # Dim as the warning that the lock is coming; -s/-r save and restore.
       {
         timeout = 240;
         command = "${pkgs.brightnessctl}/bin/brightnessctl -s set 10%";
         resumeCommand = "${pkgs.brightnessctl}/bin/brightnessctl -r";
       }
-      # Lock, THEN kill the display pipe — `-f` forks only once the lock is up,
-      # so this order cannot flash the desktop. wlopm is the panel-off the
-      # backlight cannot do (SYSTEM.md §9), and an output left in its off
-      # power-mode is not restored by input, hence the resume.
-      #
-      # `;` not `&&`: only one client may hold the session lock, so a swaylock
-      # started over a manual lock exits non-zero, and `&&` would leave the panel
-      # lit for the rest of the idle period. Blanking is right either way.
+      # Lock, THEN blank: `-f` forks only once the lock is up, so this order
+      # cannot flash the desktop. `;` not `&&` — a swaylock started over a
+      # manual lock exits non-zero, and `&&` would leave the panel lit for the
+      # rest of the idle period.
       {
         timeout = 300;
         command = "${lockCmd}; ${pkgs.wlopm}/bin/wlopm --off '*'";
         resumeCommand = "${pkgs.wlopm}/bin/wlopm --on '*'";
       }
-      # Idle with the panel dead is still ~3 W, which is a flat battery
-      # overnight; suspended it is 0.15 W.
+      # Idle with the panel dead is still several watts, which is a flat battery
+      # overnight; suspended it is 0.15 W. upower's 3% hibernate is the backstop
+      # under it, so an unattended suspend cannot end in a lost session.
       {
         timeout = 1800;
-        command = "${idleHibernate}/bin/idle-hibernate";
+        command = "${idleSuspend}/bin/idle-suspend";
       }
     ];
   };
 
-  # Nothing else warns about a low battery: upower's percentages are policy
-  # inputs, and waybar only recolours. Without this the first unmissable signal
-  # is the machine hibernating at 3%.
-  #
-  # -S limits it to power supplies (else the headphones alert too); -s drops the
-  # burst of current-state events at startup.
+  # The only low-battery warning: upower's percentages are policy inputs and
+  # waybar only recolours. -S limits it to power supplies (else the headphones
+  # alert too); -s drops the startup burst of current-state events.
   services.poweralertd = {
     enable = true;
     extraArgs = [

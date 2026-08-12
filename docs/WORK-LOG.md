@@ -983,3 +983,73 @@ passed a ladder cut to a single rung. It is `grep -o … | wc -l` now.
 removes the battery argument for it while leaving the real ones — the resume
 hang and the unidentified wake source — intact. Without that written down, the
 next reader finds "s2idle is cheap" and reasonably undoes it.
+
+---
+
+## A "do not sleep" toggle on the bar (2026-08-12)
+
+The idle ladder had no in-session escape: `systemd-inhibit --what=idle` does not
+reach swayidle, which takes its signal from the compositor, so the documented
+workaround was `systemctl --user stop swayidle`.
+
+waybar's **built-in `idle_inhibitor`**, not a `custom/*` script, because the
+built-in takes a real `zwp_idle_inhibit_manager_v1` inhibitor on the bar's layer
+surface — the mechanism mpv and Firefox already use. A script could only have
+stopped the unit.
+
+Three things checked rather than assumed, since each fails as "the module just
+isn't there":
+
+- **mango honours an inhibitor on a layer surface.** `checkidleinhibitor` gets
+  `c = NULL` for one, and with `idleinhibit_ignore_visible=0` the `!c` arm sets
+  `inhibited = 1`. `wayland-info` confirms the manager is advertised.
+- **The module is compiled in** — unconditional in waybar's `src_files`, behind
+  no meson feature. Its constructor throws and the module vanishes when the
+  manager is absent, so this was worth confirming against the 0.15.0 source.
+- **Both glyphs exist at the right advance.** 󰒳/󰒲 are `md-sleep_off`/`md-sleep`;
+  3270 gives them ink spanning exactly their 1080/2000 advance, so unlike
+  `#custom-power-profile` they need no `Symbols Nerd Font Mono` override.
+
+No `timeout` — waybar can auto-release after N minutes, which is the silent
+expiry the toggle exists to prevent.
+
+**The state does not survive a waybar restart.** It is a process-lifetime bool
+on a surface that dies with the bar, so `waybar-reload`, a mode switch and
+`SUPER+/` all release it; `minimal`/`hud` do not carry it at all. Persisting it
+would mean state a crash could strand in the "on" position, which is worse.
+
+**A fourth floor in `checks/static.sh`**: at least one layout must list
+`idle_inhibitor`. Dropping it from all eight is otherwise invisible.
+
+---
+
+## The idle rung suspends again (2026-08-12)
+
+ADR 0015 carried two decisions and had evidence for one. All of it is about a
+**closed lid** — logind re-handling a lid that is still shut is the mechanism,
+and there is none when the rung fires with the lid open. Folded in by symmetry,
+it paid a multi-GiB write and a 10–30 s resume every 30 idle minutes for the gap
+between 0.15 W and 0 W.
+
+It calls `systemctl suspend` now (`idle-hibernate` → `idle-suspend`), both gates
+unchanged. **ADR 0016** records it and amends 0015 in place; the lid half stands.
+
+**Endurance was not the reason.** Samsung MZVL2512HCJQ, ~300 TBW; four
+hibernates a day at ~6 GiB is ~8.8 TB/year, ~34 years of headroom. The cost is
+latency. Recording the wrong reason would have left the decision resting on a
+number that does not support it.
+
+**upower's 3% `Hibernate` is what makes it safe**, and why it does not extend to
+the lid: an idle suspend nobody returns to hibernates on the way down, so the
+worst case is a slow resume. The lid's failure is not resuming to *reach* 3%.
+
+**The rung is now the instrument for closing 0015** — nothing suspended
+automatically before, so neither failure could be observed at all. Both of
+0015's observations also predate the `wlopm` hooks and describe a machine that
+never reached s0i3; the one long s2idle since was clean.
+
+**A lead on the wake source.** The Synaptics reader is the only device on USB
+bus 1. Its own `power/wakeup` reads `disabled` — which is why checking the
+device looked like a dead end — but its parent XHCI controller `0000:74:00.3` is
+`enabled`, and that is how a device leaving the bus raises a PME. Untried on
+purpose: 0015 wants the source confirmed, and the fix removes the symptom.

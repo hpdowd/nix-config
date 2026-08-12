@@ -243,6 +243,24 @@ let
       tooltip = true;
     };
 
+    # "Do not sleep". waybar's built-in module, which holds a real
+    # zwp_idle_inhibit surface — the same mechanism mpv and Firefox use, and the
+    # only one mango's ext_idle_notifier honours. `systemd-inhibit --what=idle`
+    # does not reach swayidle at all (SYSTEM.md §9), so this is the escape hatch
+    # for a long build on battery.
+    #
+    # Deliberately no `timeout`: an inhibitor that silently expires part-way
+    # through is the failure it exists to prevent.
+    idle_inhibitor = {
+      format = "{icon}";
+      format-icons = {
+        activated = "󰒳";
+        deactivated = "󰒲";
+      };
+      tooltip-format-activated = "Idle inhibited — nothing dims, locks or sleeps";
+      tooltip-format-deactivated = "Idle ladder live — dim 4m, lock 5m, sleep 30m on battery";
+    };
+
     # Reads the ACPI platform profile directly. Replaced waybar's built-in
     # power-profiles-daemon module, which bound a D-Bus API nothing here
     # implements — ppd is disabled because it conflicts with TLP, so the module
@@ -426,6 +444,7 @@ let
         "pulseaudio"
         "backlight"
         "custom/night-mode"
+        "idle_inhibitor"
         "custom/power-profile"
         "custom/phone"
         "battery"
@@ -450,6 +469,7 @@ let
         "pulseaudio"
         "backlight"
         "custom/night-mode"
+        "idle_inhibitor"
         "custom/power-profile"
         "battery"
         "tray"

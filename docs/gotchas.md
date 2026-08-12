@@ -420,6 +420,14 @@ survived two rounds.
 > readdir order — this machine has four supplies and it resolved to `AC` only by
 > luck.
 
+**`idle_inhibitor` is process state — a waybar restart releases it.** The
+toggle is a static bool on a surface that dies with the bar, so `waybar-reload`,
+a mode switch and `SUPER+/` all hand the machine back to the idle ladder, glyph
+included. `minimal` and `hud` do not carry the module, so switching to either
+releases it with nothing to re-arm. Use `systemctl --user stop swayidle` for
+anything that must not be interrupted. `checks/static.sh` asserts at least one
+layout still carries it — dropping it from all eight just shortens the bar.
+
 **When a `custom/*` module is missing from the bar, run its exec by hand and
 check the `text` field is non-empty** — not just that the script succeeds. An
 empty custom module is indistinguishable from an absent one. `custom/power-profile`
@@ -450,9 +458,9 @@ and the WiFi resume fix. The traps worth carrying in your head:
   machine had no dim, no idle lock and no idle sleep at all, and the only visible
   symptom was a battery that "seemed to go quickly". Check
   `services.swayidle.timeouts`, not TLP, when idle drain is the complaint.
-- **The idle hibernate's media check sees MPRIS only.** `playerctl` reports what
+- **The idle suspend's media check sees MPRIS only.** `playerctl` reports what
   publishes an MPRIS interface — ncspot, Spotify, browsers, mpv. A game, or a
-  call in an app that publishes none, plays audio into a machine that hibernates
+  call in an app that publishes none, plays audio into a machine that sleeps
   under it. Video is unaffected either way: mpv and Firefox hold a
   `zwp_idle_inhibit` surface, which stops the ladder before any rung runs.
 - **`poweralertd` alerts on every UPower device, headphones included.** `-S`
@@ -492,15 +500,23 @@ and the WiFi resume fix. The traps worth carrying in your head:
   the resume hang below lives. Setting **both** lid handlers to s-t-h does not
   help — it was tried, and the re-check still degraded. Observed identically on
   three consecutive boots; every lid close ended in a power cycle. The lid now
-  hibernates outright.
+  hibernates outright — the *lid* does. The 30-minute idle rung suspends
+  (`docs/adr/0016`): every failure in this bullet is logind re-handling a lid
+  that is still shut, and there is no lid switch to re-handle when the rung fires
+  with the lid open. Do not generalise one to the other in either direction.
   - **Read the operation name, not the fact that it suspended.** logind logs a
     D-Bus request as `suspend requested from client PID … ('systemctl')`; the
     bare `Suspending...` with no such line is logind's *own* handler. That one
     distinction is what separates "a script did this" from "logind chose this".
-  - Each wake coincides with the Synaptics fingerprint reader (`06cb:00f9`)
-    dropping off USB bus 1; the wakeup counters reset per boot, so it is still
-    unconfirmed as the source. Hibernating on the lid sidesteps it rather than
-    fixing it — nothing suspends, so nothing can spuriously wake.
+  - Each wake coincides with the Synaptics reader (`06cb:00f9`) dropping off
+    USB bus 1; the counters reset per boot, so it is unconfirmed. **The path is
+    the parent, not the device** — `1-3` reads `power/wakeup` = `disabled`, but
+    its XHCI controller `0000:74:00.3` is `enabled`, which is how a device
+    leaving the bus raises a PME. Checking the device alone says "wakeup is off"
+    and is not the answer. The reader is the only device on bus 1, so
+    `echo disabled > /sys/bus/pci/devices/0000:74:00.3/power/wakeup` costs
+    nothing. Untried on purpose: it would remove the confirming symptom. The
+    idle rung's suspend (`docs/adr/0016`) is what produces samples.
   - **It also fails the other way: no spurious wake, and no hibernate either.**
     A 2026-08-11 lid-close logged `Suspending, then hibernating...` cleanly and
     then sat in s2idle for **9h37m** with `HibernateDelaySec=30m` set — the timed

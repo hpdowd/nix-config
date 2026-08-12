@@ -631,7 +631,7 @@ is missing from the bar, **run its script by hand first**:
 | **wlsunset** | Night light, owned by a systemd user unit |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
 | **swaylock** | Screen lock (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
-| **swayidle** | Lock handler *and* idle daemon — swaylock on `before-sleep`/`lock-session`, plus the dim → lock+blank → hibernate ladder (§9) |
+| **swayidle** | Lock handler *and* idle daemon — swaylock on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
 | **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
 
@@ -759,7 +759,7 @@ The ladder now, all in `services.swayidle`:
 |---|---|---|
 | 4 min | `brightnessctl -s set 10%` — dim, as the warning | `brightnessctl -r` on activity |
 | 5 min | `swaylock -f`, then `wlopm --off '*'` | `wlopm --on '*'` on activity |
-| 30 min | `idle-hibernate` — hibernates only on battery, and only if no MPRIS player reports `Playing` | — |
+| 30 min | `idle-suspend` — suspends only on battery, and only if no MPRIS player reports `Playing` | any input, instantly |
 
 Three things make it safe rather than annoying:
 
@@ -767,7 +767,7 @@ Three things make it safe rather than annoying:
   the whole ladder during playback. Check with `wayland-info | grep inhibit`
   before assuming that of any compositor.
 - The lock/blank step is joined with `;`, **not `&&`** — see `docs/gotchas.md`.
-- `idle-hibernate` is a `writeShellApplication`, so it is shellchecked at build
+- `idle-suspend` is a `writeShellApplication`, so it is shellchecked at build
   time rather than being an inline string nothing gates.
 
 On AC the ladder stops after the blank: locked, dark, and still up.
@@ -779,18 +779,36 @@ Playback is handled at two different levels, deliberately:
   no lock, no sleep.
 - **Audio-only** (ncspot, Spotify, a music tab) usually takes no inhibitor, so
   the ladder runs. That is wanted for the first two rungs — dimming and locking
-  over an album is correct — but not for the last, so `idle-hibernate` alone
+  over an album is correct — but not for the last, so `idle-suspend` alone
   checks `playerctl --all-players status` and bails on `Playing`. `Paused` and
-  `Stopped` hibernate.
+  `Stopped` sleep.
 
 ⚠️ **`systemd-inhibit --what=idle` does not hold any of this off.** swayidle
 takes its idle signal from `ext_idle_notifier_v1`, i.e. from the compositor, and
 mango does not bridge logind's inhibitors into it. So an unattended long build on
-battery still hits the 30-minute hibernate — it resumes where it left off, but
+battery still hits the 30-minute suspend — it resumes where it left off, but
 network connections will not. Same for anything playing audio without an MPRIS
-interface: a game, a call in an app that publishes none. The escape hatch is
-`systemctl --user stop swayidle`, and `start` after. A caffeine toggle in waybar
-would be the tidy fix; there isn't one yet.
+interface: a game, a call in an app that publishes none.
+
+#### Holding the ladder off — `idle_inhibitor`
+
+The bar carries waybar's **built-in `idle_inhibitor`** (`full` and `focus`
+layouts, between night mode and the power profile). Click to toggle: 󰒲 means the
+ladder is live, 󰒳 in yellow means nothing dims, locks or sleeps.
+
+It works where `systemd-inhibit` does not because it holds a
+`zwp_idle_inhibit_manager_v1` inhibitor on waybar's layer surface — the
+mechanism mpv and Firefox use, and the one mango feeds into
+`wlr_idle_notifier_v1_set_inhibited`. **No `timeout`**: an inhibitor that
+silently expires part-way through is the failure it exists to prevent.
+
+⚠️ **The state does not survive a waybar restart** — it is a process-lifetime
+bool, and the inhibitor dies with the surface. `waybar-reload`, a mode switch
+and `SUPER+/` all drop it back to "sleep allowed"; `minimal` and `hud` do not
+carry the module at all.
+
+`systemctl --user stop swayidle` (and `start` after) is the escape hatch nothing
+in the desktop can undo behind your back.
 
 ### Locking
 
@@ -846,8 +864,10 @@ systemd defaults are the other way round — a brushed button ended the session
 with no prompt, and holding it did nothing — which is the one power-management
 default on this machine that could lose work.
 
-Three routes into hibernation, then: the lid, the power key, and 30 minutes idle
-on battery (§Idle). Plus upower at 3%, below.
+Three routes into hibernation, then: the lid, the power key, and upower at 3%
+(below). The 30-minute idle rung used to be a fourth and **suspends** now —
+`docs/adr/0016` has why the lid evidence does not transfer to it, and why
+upower's 3% action is what makes an unattended idle suspend safe.
 
 That instant resume is what `suspend-then-hibernate` bought, and it was tried
 twice — first with AC on a plain `suspend`, then with s-t-h on both sources. Both
@@ -1079,12 +1099,17 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 
 - **Nothing here can hold off the idle ladder except a Wayland idle inhibitor.**
   `systemd-inhibit --what=idle` does not reach swayidle, so unattended work on
-  battery meets the 30-minute hibernate; the escape hatch is
-  `systemctl --user stop swayidle`. A caffeine toggle would close this. See §9.
-- **The spurious s2idle wake source is still unidentified.** The lid hibernates
-  outright, so nothing suspends and nothing can wake — but that sidesteps it
-  rather than closing it, and it is what keeps `suspend-then-hibernate` off the
-  table. Standing suspect: the Synaptics fingerprint reader. See §9.
+  battery meets the 30-minute suspend. The bar's `idle_inhibitor` toggle is the
+  in-session answer, but it is released by any waybar restart; the one nothing
+  can undo behind you is `systemctl --user stop swayidle`. See §9.
+- **The spurious s2idle wake source is still unidentified**, and it is what keeps
+  `suspend-then-hibernate` off the lid. Standing suspect: the Synaptics
+  fingerprint reader — at `1-3`, the *only* device on USB bus 1, with its own
+  `power/wakeup` disabled but its parent XHCI controller `0000:74:00.3`
+  `enabled`. Disabling wakeup on that controller costs nothing (there is nothing
+  else behind it) and is untried. Since 2026-08-12 the idle rung suspends, so
+  the machine finally produces samples to test it against — see
+  `docs/adr/0016`.
 - **The age key is a single point of failure.** `/var/lib/sops-nix/key.txt` is
   in no repo and no backup; without it `secrets/secrets.yaml` is unreadable.
   See §11.

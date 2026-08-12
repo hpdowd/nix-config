@@ -260,10 +260,14 @@ window#waybar.bottom {
 
 /* ── Idle inhibitor ───────────────────────────────────────────────── */
 
-/* No font-family override, unlike #custom-power-profile below: the two glyphs
-   are Material Design (nf-md-sleep / nf-md-sleep_off), whose ink spans exactly
-   the 1080/2000 advance 3270 gives them, so nothing overflows the cell. */
+/* Same override, and for the same reason as #custom-power-profile below —
+   measured, not assumed. In 3270 nf-md-sleep/sleep_off (U+F04B2/F04B3) carry a
+   1080/2000 advance around ink spanning 0..1836, so 756 units hang out of the
+   cell to the right and no symmetric padding can centre them. Symbols Nerd
+   Font Mono gives both a full 2048/2048 advance with the ink inside it. The
+   comment that used to sit here claimed the opposite. */
 #idle_inhibitor {
+    font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
     padding: 0 8px;
     color: @subtext;
@@ -290,9 +294,16 @@ window#waybar.bottom {
     border-left: 1px solid @overlay;
 }
 
+/* These names come from the `class` field of power-profile.sh, which reports
+   TLP's profile — `fanless` replaced `low-power` when the toggle stopped
+   writing the ACPI attribute (docs/adr/0017). A class the script emits and the
+   sheet does not style renders in @subtext and reads as "the mode did nothing",
+   so the last two are deliberate rather than decorative. */
 #custom-power-profile.performance { color: @red; }
 #custom-power-profile.balanced    { color: @accent; }
-#custom-power-profile.low-power { color: @green; }
+#custom-power-profile.fanless     { color: @green; }
+#custom-power-profile.unknown     { color: @yellow; }
+#custom-power-profile.unavailable { color: @yellow; }
 
 /* ── Battery ──────────────────────────────────────────────────────── */
 

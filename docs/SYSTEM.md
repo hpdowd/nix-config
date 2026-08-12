@@ -686,6 +686,54 @@ one line per language, `✘` against anything it cannot find. See
 
 Three things look like faults and are not.
 
+### Power modes
+
+Three TLP profiles. `SUPER+SHIFT+p` and a left-click on the waybar
+leaf/bolt/adjust glyph toggle **balanced ↔ performance** — the two everyday
+modes. **Fanless is right-click only**, and left-clicking out of it lands in
+balanced. It is kept off the left-click path deliberately: a 1.1 GHz cap with
+the iGPU pinned to 200 MHz is too large a penalty to reach by clicking one time
+too many.
+
+Right-click returns to whatever the current supply implies — performance on
+mains, balanced on battery. It names that explicitly because
+`TLP_AUTO_SWITCH=2` holds fanless across a charger change by design, so nothing
+reverts it on its own.
+
+| Profile | TLP | Governor / EPP | Max freq | Boost | iGPU | ABM |
+|---|---|---|---|---|---|---|
+| performance | `_ON_AC` | performance / performance | 4.63 GHz | on | auto | 0 |
+| balanced | `_ON_BAT` | powersave / power | 4.63 GHz | **off** | auto | 1 |
+| fanless | `_ON_SAV` | powersave / power | **1.12 GHz** | off | **low** | 3 |
+
+`fanless` is TLP's `power-saver` (`SAV`). `TLP_AUTO_SWITCH=2` keeps it across a
+charger transition, so it holds on mains — that is deliberate, and the tooltip
+says so rather than looking like a bug.
+
+⚠️ **"Fanless" is aspirational under sustained all-core load, and measurably
+so.** Two `fan-calibrate` runs put the EC trip at ~47–48 °C against an idle
+plateau of 40–46 °C depending on ambient; twelve threads cross that even at
+418 MHz, the hardware minimum. There is no cap that makes sustained load
+silent on this chassis, so the mode targets **bursty** desktop use, where it is
+genuinely quiet.
+
+The cap is therefore `lowest_nonlinear` (1115770) — the highest clock still at
+minimum core voltage, i.e. the best perf-per-watt point. Efficiency is the
+objective only because the thermal one proved unreachable; a lower cap buys
+silence it cannot deliver and costs real speed. Details in `docs/adr/0017`.
+
+> The everyday win is **balanced**, not fanless. With boost off and the 2.9 GHz
+> base ceiling it idles fan-free at ~40 °C, where the old low-power mode ran at
+> 2340 rpm. That is what fixed the original complaint.
+
+> `platform_profile` moves with the profile but is not what does the work — it
+> is a firmware hint and is identical across all three for everything the
+> scheduler reads. Don't diagnose from it.
+
+ABM 3 visibly shifts panel contrast; that is the mode working, not a display
+fault. The iGPU pin costs compositor smoothness — 200 MHz against a 1899 MHz top
+state — and is the first thing to relax if fanless feels sluggish.
+
 ### Battery stops below 100%
 
 TLP sets EC thresholds **START 75 / STOP 85** (`modules/system/power.nix`,

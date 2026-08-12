@@ -441,6 +441,55 @@ glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
 `docs/SYSTEM.md` §9 is the reference for battery thresholds, suspend, hibernation
 and the WiFi resume fix. The traps worth carrying in your head:
 
+- ⚠️ **`/sys/firmware/acpi/platform_profile` changes nothing the scheduler
+  sees.** It is a `thinkpad_acpi` DYTC hint to the firmware's power budget.
+  Diffed across `low-power`/`balanced`/`performance`, the governor, EPP,
+  `scaling_min_freq`, `scaling_max_freq` and `boost` are byte-identical. The
+  waybar toggle cycled it for a year and moved a glyph and nothing else — and
+  TLP rewrote it on every charger transition anyway. **Power modes are TLP
+  profiles** (`docs/adr/0017`). If you are about to reach for this attribute to
+  change CPU behaviour, you are about to ship a placebo.
+- **`EPP=power` is not a cap.** It biases how eagerly the governor ramps; it
+  sets no ceiling. With `boost=1` and no `scaling_max_freq`, a keystroke-sized
+  task still hits 4.63 GHz and spikes the package to ~30 W. **The fan on this
+  chassis tracks bursts, not averages**, which is why "low-power" idled at
+  ~2340 RPM and 45–52 °C. Only `CPU_SCALING_MAX_FREQ_*` and `CPU_BOOST_*` stop
+  it.
+- ⚠️ **An unset TLP bound does not mean "no limit" — it means "don't write".**
+  `set_cpu_scaling_min_max_freq` skips the write when
+  `CPU_SCALING_MAX_FREQ_ON_<profile>` is empty, so the **previous** profile's cap
+  survives the switch. Leaving fanless left every core pinned at its ceiling
+  while waybar reported `performance`; caught only by reading `scaling_max_freq`
+  directly. Every profile in `power.nix` now states both ends, including the two
+  that want the full range. Check with
+  `tlp-stat -p | grep scaling_m`, not with the bar.
+- **A TLP setting the version does not read is accepted silently.** TLP 1.9.1's
+  amdgpu branch folds `PP_BAL` and `PP_SAV` into one arm reading only
+  `RADEON_DPM_PERF_LEVEL_ON_BAT` — there is **no** `_ON_SAV`. Written into
+  `tlp.conf` it is inert and unlogged, which is why the iGPU pin lives in the
+  `power-mode` wrapper instead. **Grep the installed TLP's `func.d/` for a
+  setting before trusting it**, rather than the manpage: 1.9.1 also ships a
+  `tlpctl(1)` page for a binary it does not install.
+- ⚠️ **A sudoers rule naming a package's store path does not match the same
+  binary reached through `$PATH`.** sudo-rs resolves the *directory* symlinks of
+  the command it is handed and stops, so `sudo -n power-mode` canonicalises to
+  `$system-path/bin/power-mode` — not to the `power-mode` package that
+  `/run/current-system/sw/bin/power-mode` links to. The rule silently does not
+  apply and the only symptom is `sudo: interactive authentication is required`,
+  which reads like a missing rule rather than a mismatched one. `power.nix`
+  lists **both** `${powerMode}/bin/power-mode` and
+  `"${config.system.path}/bin/power-mode"`.
+  **`sudo -l <cmd>` cannot detect this** — it exits 0 for anything wheel may run
+  *with* a password, so it says "permitted" for a rule that will still prompt.
+  Test with `sudo -n <cmd>` and read the exit code, and do not put a pipe
+  between the two: `sudo -n … | tail` reports `tail`'s status, which is how this
+  was first mis-verified as working.
+- **`tlp` needs root and `sudo -n` fails loudly — let it.** The old cycle script
+  redirected its own errors to `/dev/null`; the same habit hid 24 shellcheck
+  findings once, and hid every failed sysfs write during the fan investigation.
+  A write to `scaling_max_freq` as a non-root user fails and the shell carries
+  on, so the sweep "ran" and measured the unmodified machine.
+
 - ⚠️ **A `services.logind` change is not live after `switch` — logind is never
   reloaded, so the lid keeps the previous action until you reboot.** nixpkgs sets
   `systemd.services.systemd-logind.reloadIfChanged` but leaves the matching

@@ -23,6 +23,45 @@ let
           ${pkgs.wlopm}/bin/wlopm --${mode} '*' || true
     done
   '';
+  # One command for a mode switch, because TLP cannot do all of it. Its amdgpu
+  # branch folds PP_BAL and PP_SAV together and reads only
+  # RADEON_DPM_PERF_LEVEL_ON_BAT — a `_ON_SAV` variant is accepted into
+  # tlp.conf and never read, so the iGPU pin has to happen here. docs/adr/0017.
+  powerMode = pkgs.writeShellApplication {
+    name = "power-mode";
+    runtimeInputs = [ config.services.tlp.package ];
+    text = ''
+      case "''${1:-}" in
+        performance | balanced | power-saver) ;;
+        *)
+          echo "usage: power-mode <performance|balanced|power-saver>" >&2
+          exit 2
+          ;;
+      esac
+
+      tlp "$1" >/dev/null
+
+      # 200 MHz vs the 1899 MHz top state. Only the fanless mode pays the
+      # compositor latency for it.
+      case "$1" in
+        power-saver) level=low ;;
+        *) level=auto ;;
+      esac
+      # `if`, not `[ -w … ] && …`: writeShellApplication sets -e, so the AND-list
+      # form exits 1 on the first card without the node. Counted because pinning
+      # nothing is the failure that looks like success.
+      pinned=0
+      for gpu in /sys/class/drm/card[0-9]/device/power_dpm_force_performance_level; do
+        if [ -w "$gpu" ]; then
+          echo "$level" > "$gpu"
+          pinned=$((pinned + 1))
+        fi
+      done
+      [ "$pinned" -gt 0 ] || echo "power-mode: no writable amdgpu DPM node, iGPU not pinned" >&2
+
+      exit 0
+    '';
+  };
 in
 {
   # --- TLP ------------------------------------------------------------------
@@ -37,11 +76,55 @@ in
 
       CPU_SCALING_GOVERNOR_ON_AC = "performance";
       CPU_SCALING_GOVERNOR_ON_BAT = "powersave";
+      CPU_SCALING_GOVERNOR_ON_SAV = "powersave";
       CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
       CPU_ENERGY_PERF_POLICY_ON_BAT = "power";
+      CPU_ENERGY_PERF_POLICY_ON_SAV = "power";
 
       PLATFORM_PROFILE_ON_AC = "performance";
       PLATFORM_PROFILE_ON_BAT = "low-power";
+      PLATFORM_PROFILE_ON_SAV = "low-power";
+
+      # The fan responds to bursts, not to averages: EPP only biases how eagerly
+      # the governor ramps, so with boost on, a keystroke-sized task still hits
+      # 4.63 GHz and spikes the package to ~30 W. Capping is the only thing that
+      # stops it. docs/adr/0017.
+      CPU_BOOST_ON_AC = 1;
+      CPU_BOOST_ON_BAT = 0;
+      CPU_BOOST_ON_SAV = 0;
+
+      # Every profile states both ends, including the two that want the full
+      # range. An unset bound is not "no limit" to TLP — set_cpu_scaling_min_max_freq
+      # skips the write entirely and the *previous* profile's cap survives, so
+      # leaving fanless left the cores pinned at its ceiling while the bar
+      # reported performance. Observed live. docs/gotchas.md → Power.
+      #
+      # 418414 is cpuinfo_min_freq; the driver's own floor is lowest_nonlinear
+      # (1115770), 2.7x higher than the hardware allows. 4630443 is
+      # cpuinfo_max_freq — with boost off the driver clamps it to the 2901000
+      # nominal, which is the intent rather than a surprise.
+      CPU_SCALING_MIN_FREQ_ON_AC = 418414;
+      CPU_SCALING_MAX_FREQ_ON_AC = 4630443;
+      CPU_SCALING_MIN_FREQ_ON_BAT = 418414;
+      CPU_SCALING_MAX_FREQ_ON_BAT = 4630443;
+      CPU_SCALING_MIN_FREQ_ON_SAV = 418414;
+
+      # amd_pstate_lowest_nonlinear_freq: the highest clock still at minimum core
+      # voltage, so the best perf-per-watt point on the curve.
+      #
+      # Efficiency is the objective here only because the thermal one turned out
+      # to be unreachable. Two fan-calibrate runs put the EC trip at ~47-48 °C
+      # against a 40-46 °C idle, and twelve threads cross that even at 418 MHz —
+      # sustained all-core work cannot be fanless on this chassis at any clock,
+      # so a lower cap buys silence it cannot deliver and costs real speed.
+      # docs/adr/0017.
+      CPU_SCALING_MAX_FREQ_ON_SAV = 1115770;
+
+      # Panel self-dimming, 0-3. Visibly shifts contrast at 3, which is why the
+      # everyday profile stays at 1.
+      AMDGPU_ABM_LEVEL_ON_AC = 0;
+      AMDGPU_ABM_LEVEL_ON_BAT = 1;
+      AMDGPU_ABM_LEVEL_ON_SAV = 3;
 
       # Longevity over runtime. On AC the battery parks where it is and only
       # tops up below START, so a static sub-100% reading is correct — see
@@ -51,12 +134,27 @@ in
     };
   };
 
-  # waybar's custom/power-profile reads this ACPI attribute directly (nothing
-  # here implements the PowerProfiles D-Bus API) and needs group write. A udev
-  # rule cannot do it — not a device attribute. `z` sets the mode without
-  # creating the path. docs/gotchas.md → Waybar.
-  systemd.tmpfiles.rules = [
-    "z /sys/firmware/acpi/platform_profile 0664 root wheel -"
+  # The waybar toggle needs root for `tlp`. Scoped to this one wrapper rather
+  # than the tlp binary, which also carries discharge/setcharge/recalibrate.
+  # sudo-rs, not sudo — hosts/thinkpad disables the latter.
+  environment.systemPackages = [ powerMode ];
+
+  # Both paths, because sudo-rs resolves the *directory* symlinks of the command
+  # it is given and stops: `power-mode` off $PATH canonicalises to
+  # $system-path/bin/power-mode, not to the package it links to, and a rule
+  # naming only the package silently does not match — the toggle just reports
+  # "interactive authentication is required". docs/gotchas.md → Power.
+  security.sudo-rs.extraRules = [
+    {
+      groups = [ "wheel" ];
+      commands = map (c: {
+        command = c;
+        options = [ "NOPASSWD" ];
+      }) [
+        "${powerMode}/bin/power-mode"
+        "${config.system.path}/bin/power-mode"
+      ];
+    }
   ];
 
   services.thermald.enable = false; # Intel-only

@@ -1,42 +1,53 @@
 #!/usr/bin/env bash
-# Waybar module: current ACPI platform profile. Prints one JSON object.
+# Waybar module: the active TLP power profile. Prints one JSON object.
 #
-# Replaces waybar's built-in `power-profiles-daemon` module, which was dead on
-# this system: that module binds the net.hadess.PowerProfiles D-Bus API, and
-# power-profiles-daemon is deliberately disabled in modules/system/power.nix
-# because it conflicts with TLP. `busctl --system list` shows nothing
-# implementing that API, so the module had nothing to talk to and rendered
-# empty — which reads as "the module is missing from the bar".
-#
-# The ThinkPad exposes the same three states through the kernel directly:
-#   /sys/firmware/acpi/platform_profile_choices -> low-power balanced performance
-# so this reads that instead and needs no daemon at all. Note the ACPI name is
-# `low-power`, not power-profiles-daemon's `power-saver`.
+# Reads TLP's own state file rather than /sys/firmware/acpi/platform_profile,
+# which this used to poll. That attribute is a thinkpad_acpi DYTC hint and is
+# identical across all three profiles for every value the scheduler sees —
+# governor, EPP, min, max and boost do not move with it. It reported a mode
+# that did not exist. docs/adr/0017.
 
-PROFILE_FILE=/sys/firmware/acpi/platform_profile
+PWRFILE=/run/tlp/last_pwr
 
-if [ ! -r "$PROFILE_FILE" ]; then
-    printf '{"text":"","tooltip":"No ACPI platform profile on this machine","class":"unavailable"}\n'
+if [ ! -r "$PWRFILE" ]; then
+    printf '{"text":"?","tooltip":"TLP is not running — no active power profile","class":"unavailable"}\n'
     exit 0
 fi
 
-profile=$(cat "$PROFILE_FILE")
+# "<profile> <power-source>", from tlp-func-base: PP_PRF=0 PP_BAL=1 PP_SAV=2,
+# PS_AC=0 PS_BAT=1. Verified live against `tlp-stat -s` on both mains and
+# battery. Anything else must render visibly rather than blank — an empty
+# custom module is indistinguishable from an absent one.
+read -r pp ps < "$PWRFILE"
 
 # Escapes, not literal glyphs. Written literally on 2026-07-31 the characters
-# were lost in transit and every branch ended up assigning the empty string —
-# so the module emitted {"text":""} and waybar drew nothing. An empty custom
-# module is indistinguishable from an absent one, which is exactly how this was
-# reported: "I still don't see a power mode module". $'\uXXXX' keeps the source
-# pure ASCII, so it cannot happen again.
-#
-# All four are present in 3270 Nerd Font, which is what the bar renders in —
-# check with `fc-list ':charset=f0e7' family` before swapping any of them.
-case "$profile" in
-    performance) icon=$'\uf0e7' ;;  # nf-fa-bolt
-    balanced)    icon=$'\uf042' ;;  # nf-fa-adjust
-    low-power)   icon=$'\uf06c' ;;  # nf-fa-leaf
-    *)           icon=$'\uf128' ;;  # nf-fa-question
+# were lost in transit and every branch assigned the empty string, so the module
+# emitted {"text":""} and waybar drew nothing -- which is how it was reported:
+# "I still don't see a power mode module". $'\uXXXX' keeps the source ASCII.
+# All four are in 3270 Nerd Font; check `fc-list ':charset=f0e7' family` before
+# swapping any of them.
+# `class` must stay a single word: waybar splits it on whitespace, so
+# "unknown (9)" becomes the two classes `unknown` and `(9)` and matches no rule
+# in style-solid.css. The code goes in the tooltip instead.
+case "$pp" in
+    0) name=performance class=performance icon=$'\uf0e7' ;;  # nf-fa-bolt
+    1) name=balanced    class=balanced    icon=$'\uf042' ;;  # nf-fa-adjust
+    2) name=fanless     class=fanless     icon=$'\uf06c' ;;  # nf-fa-leaf
+    *) name="unknown (profile code ${pp:-none})" class=unknown icon=$'\uf128' ;;  # nf-fa-question
 esac
 
-printf '{"text":"%s","tooltip":"Power profile: %s","class":"%s"}\n' \
-    "$icon" "$profile" "$profile"
+case "$ps" in
+    0) src="mains" ;;
+    1) src="battery" ;;
+    *) src="unknown supply" ;;
+esac
+
+# The fanless profile is the one that overrides the charger, so say what it is
+# holding — "power-saver on mains" otherwise reads like a bug.
+if [ "$pp" = 2 ]; then
+    tip="Power profile: fanless — 1.1 GHz cap, no boost, iGPU pinned low (on $src)"
+else
+    tip="Power profile: $name (on $src)"
+fi
+
+printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$icon" "$tip" "$class"

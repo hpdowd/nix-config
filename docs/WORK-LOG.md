@@ -1080,3 +1080,38 @@ and nothing else.
 
 ⚠️ A comment inside `''...''` is data. The ratio scan below counts it as a
 comment and the no-op check counts it as output; only the second is right.
+
+---
+
+## Power modes were a placebo (2026-08-12)
+
+The waybar toggle and `SUPER+SHIFT+p` cycled
+`/sys/firmware/acpi/platform_profile`. Diffed across all three settings, every
+value the scheduler reads — governor, EPP, `scaling_min_freq`,
+`scaling_max_freq`, `boost` — is byte-identical. It is a `thinkpad_acpi` DYTC
+hint to the firmware, TLP owned the real settings keyed on AC-vs-battery alone,
+and TLP rewrote the attribute on every charger transition. A year of a toggle
+that moved a glyph.
+
+Found while chasing why the fan runs at ~2340 RPM idle at 45–52 °C on battery in
+"low-power": nothing in that mode caps anything. `EPP=power` biases the ramp and
+sets no ceiling, so with `boost=1` every keystroke-sized task reaches 4.63 GHz.
+The fan here tracks bursts, not averages.
+
+Rebuilt on TLP's third profile (`SAV`, `tlp power-saver`), which 1.9 supports for
+every setting and `TLP_AUTO_SWITCH=2` holds across a charger transition.
+`docs/adr/0017`.
+
+**Two things that only looked like they worked.** `RADEON_DPM_PERF_LEVEL_ON_SAV`
+does not exist in 1.9.1 — the amdgpu branch folds `PP_BAL`/`PP_SAV` and reads
+`_ON_BAT` — so it would have been written into `tlp.conf` and never read; the
+iGPU pin moved into the `power-mode` wrapper. And `tlpctl`, whose manpage 1.9.1
+ships in full, has no binary in the package.
+
+**The calibration sweep is unrun.** It needs root, and the first attempt wrote
+`scaling_max_freq` as a normal user with `2>/dev/null` on the writes — so it
+completed, reported, and had measured the unmodified machine the whole time.
+Exactly the failure this repo is named for. `dotfiles/scripts/fan-calibrate` is
+the corrected version; it refuses to start as non-root. The shipped
+`CPU_SCALING_MAX_FREQ_ON_SAV = 1115770` is `lowest_nonlinear` reasoned from the
+V/f curve, not a measurement.

@@ -261,17 +261,19 @@ let
       tooltip-format-deactivated = "Idle ladder live — dim 4m, lock 5m, sleep 30m on battery";
     };
 
-    # Reads the ACPI platform profile directly. Replaced waybar's built-in
-    # power-profiles-daemon module, which bound a D-Bus API nothing here
-    # implements — ppd is disabled because it conflicts with TLP, so the module
-    # rendered empty and read as missing from the bar.
+    # Reads TLP's active profile from /run/tlp/last_pwr. Replaced waybar's
+    # built-in power-profiles-daemon module, which bound a D-Bus API nothing
+    # here implements — ppd is disabled because it conflicts with TLP, so the
+    # module rendered empty and read as missing from the bar. It then spent a
+    # year reporting the ACPI platform profile, which moves nothing the
+    # scheduler sees; docs/adr/0017.
     "custom/power-profile" = {
       exec = "${s}/system/power-profile.sh";
       return-type = "json";
       interval = 30;
       signal = 11;
       on-click = "${s}/system/power-profile-cycle.sh";
-      on-click-right = "${s}/system/power-profile-cycle.sh low-power";
+      on-click-right = "${s}/system/power-profile-cycle.sh toggle-fanless";
     };
 
     "custom/phone" = {

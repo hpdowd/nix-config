@@ -412,5 +412,66 @@ else
 	fi
 fi
 
+printf '\nFonts\n'
+
+# A font family that resolves to nothing renders as a silent fallback: bold text
+# just looks normal, a bar glyph just looks like a box. It has bitten twice —
+# "3270 Nerd Font" undeclared, then `_0xproto` (family "0xProto") standing in for
+# `nerd-fonts._0xproto` (family "0xProto Nerd Font Mono"). fc-match cannot check
+# this: it matches on family alone, so a "<family> Bold" spelling always looks
+# like a fallback. Match family+style out of fc-scan instead.
+mapfile -t FONT_DIRS < <(
+	grep -rhoE '<dir>[^<]+</dir>' "$SYS/etc/fonts/conf.d/"*.conf "$SYS/etc/fonts/fonts.conf" 2>/dev/null \
+		| sed -E 's#</?dir>##g' | grep '^/nix/store' | sort -u
+)
+if [[ ${#FONT_DIRS[@]} -lt 5 ]]; then
+	bad "only ${#FONT_DIRS[@]} font dirs found in the system closure — the scan is broken, not the config"
+else
+	FAMILIES=$(fc-scan --format '%{family}|%{style}\n' "${FONT_DIRS[@]}" 2>/dev/null | sort -u)
+	fam_count=$(printf '%s\n' "$FAMILIES" | grep -c .)
+	if [[ $fam_count -lt 100 ]]; then
+		bad "fc-scan returned only $fam_count families — the scan is broken, not the config"
+	else
+		ok "$fam_count font family/style pairs across ${#FONT_DIRS[@]} dirs"
+
+		# Every family name the terminals and the bar ask for by name.
+		KITTY="$GEN/home-files/.config/kitty/kitty.conf"
+		FOOT="$GEN/home-files/.config/foot/foot.ini"
+		wanted=$(
+			# font_family/bold_font/italic_font/bold_italic_font: rest of line.
+			sed -nE 's/^(font_family|bold_font|italic_font|bold_italic_font)[[:space:]]+(.*)$/\2/p' "$KITTY" 2>/dev/null
+			# symbol_map: codepoint ranges first, family last.
+			sed -nE 's/^symbol_map[[:space:]]+[^[:space:]]+[[:space:]]+(.*)$/\1/p' "$KITTY" 2>/dev/null
+			# foot: font=<family>:size=N
+			sed -nE 's/^font=([^:]+).*$/\1/p' "$FOOT" 2>/dev/null
+			# waybar CSS font-family, comma-separated, quoted or bare.
+			grep -rhoE 'font-family:[^;]+;' "$WAYBAR_DIR"/*.css 2>/dev/null \
+				| sed -E 's/font-family://; s/;//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//'
+		)
+		wanted=$(printf '%s\n' "$wanted" | grep -vE '^(auto|monospace|sans-serif|serif|inherit)?$' | sort -u)
+
+		want_count=$(printf '%s\n' "$wanted" | grep -c .)
+		if [[ $want_count -lt 3 ]]; then
+			bad "only $want_count font names extracted from the configs — the scan is broken, not the config"
+		else
+			missing=()
+			while IFS= read -r name; do
+				[[ -z $name ]] && continue
+				# Either a bare family, or "<family> <style>".
+				if ! printf '%s\n' "$FAMILIES" | awk -F'|' -v n="$name" \
+					'$1 == n || $1 " " $2 == n { found = 1 } END { exit !found }'; then
+					missing+=("$name")
+				fi
+			done <<<"$wanted"
+
+			if [[ ${#missing[@]} -gt 0 ]]; then
+				bad "font names that resolve to nothing (silent fallback)" "${missing[*]}"
+			else
+				ok "all $want_count font names referenced by kitty, foot and waybar resolve"
+			fi
+		fi
+	fi
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

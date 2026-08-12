@@ -649,7 +649,9 @@ Aliases worth knowing: `cat`→`bat`, `ls`/`ll`/`la`→`eza`, `lf`→`yazi`,
 list of clutter directories; `ll`/`la` are the unfiltered escape hatches.
 
 **Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All Gruvbox Dark,
-Hack Nerd Font Mono 11.
+Hack Nerd Font Mono 11 — kitty additionally takes bold and italic from
+0xProto Nerd Font Mono (bold-italic stays Hack; 0xProto ships none).
+`checks/static.sh` asserts every family named here actually resolves.
 
 ⚠️ **kitty and foot are generated** by `programs.kitty` / `programs.foot`, from
 a **single `gruvbox` palette** in `modules/home/programs.nix` — kitty takes

@@ -26,8 +26,11 @@
       # rather than trusting the package list.
       nerd-fonts._3270
 
-      # 0xProto is used for bold/italic in your terminals (CLAUDE.md).
-      _0xproto
+      # kitty's bold_font/italic_font ask for "0xProto Nerd Font Mono", which
+      # only the Nerd-patched build provides — plain `_0xproto` is family
+      # "0xProto", so both lines silently fell back to Hack. Same class as the
+      # 3270 miss above; found 2026-08-11 via `kitty --debug-font-fallback`.
+      nerd-fonts._0xproto
 
       noto-fonts
       noto-fonts-cjk-sans

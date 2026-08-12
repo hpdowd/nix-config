@@ -184,6 +184,9 @@
                 pkgs.jq
                 pkgs.findutils
                 pkgs.gnugrep
+                # fc-scan, for the font check; its absence trips that
+                # check's own floor rather than passing quietly.
+                pkgs.fontconfig
               ];
             }
             ''

@@ -623,9 +623,21 @@ were each a switch whose arms were identical or unreachable, left behind when th
 `dms` mode was removed. Before adding a per-mode variant, check the modes
 actually differ.
 
-Baseline: **Gruvbox Dark**, Hack Nerd Font Mono 11 in the terminals. Modes are
-**tiling** (Gruvbox Orange) and **hud**; the active one is in
-`~/.local/state/mango/current-mode`.
+**A Nerd Font package and its unpatched twin have different family names.**
+`_0xproto` is family `0xProto`; only `nerd-fonts._0xproto` is
+`0xProto Nerd Font Mono`. kitty's `bold_font`/`italic_font` asked for the latter
+while `fonts.nix` installed the former, so both lines fell back to Hack and bold
+text simply looked normal — nothing logged, for months. Same class as the 3270
+miss above it. **`fc-match` will not catch this**: it matches on *family* alone,
+so `fc-match "0xProto Nerd Font Mono Bold"` reports a fallback even when the font
+is installed correctly. Verify with the application's own resolver —
+`kitty --debug-font-fallback` prints the file it actually opened for each of
+Normal/Bold/Italic/Bold-Italic. 0xProto ships no bold-italic, so that one variant
+is Hack by design.
+
+Baseline: **Gruvbox Dark**, Hack Nerd Font Mono 11 in the terminals, with kitty
+bold/italic in 0xProto Nerd Font Mono. Modes are **tiling** (Gruvbox Orange) and
+**hud**; the active one is in `~/.local/state/mango/current-mode`.
 
 ---
 

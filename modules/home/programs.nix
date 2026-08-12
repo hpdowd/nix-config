@@ -100,6 +100,8 @@ in
     settings = {
       # Font. `font_family`/`size` come from `font` above; these are the
       # variants, which that option does not cover.
+      # Needs `nerd-fonts._0xproto` in fonts.nix, not `_0xproto` — the family
+      # name differs. 0xProto ships no bold-italic, so that variant stays Hack.
       bold_font = "0xProto Nerd Font Mono Bold";
       italic_font = "0xProto Nerd Font Mono Italic";
       symbol_map = "U+E000-U+F8FF,U+100000-U+10FFFF Symbols Nerd Font Mono";

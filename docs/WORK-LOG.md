@@ -1053,3 +1053,30 @@ bus 1. Its own `power/wakeup` reads `disabled` — which is why checking the
 device looked like a dead end — but its parent XHCI controller `0000:74:00.3` is
 `enabled`, and that is how a device leaving the bus raises a PME. Untried on
 purpose: 0015 wants the source confirmed, and the fix removes the symptom.
+
+---
+
+## Comment surgery — Phase 5d (2026-08-12)
+
+`dotfiles.nix`, `power.nix`, `desktop.nix`, `shell.nix`, `pkgs/default.nix` and
+`home/default.nix`: narrative comments cut to a one-line reason plus a pointer,
+261 lines removed against 127 added. The content was good and is not lost — it
+already existed in the ADRs, `gotchas.md` and `SYSTEM.md` §9, which is what made
+it duplication.
+
+`desktop.nix` also lost a class of comment worth naming: **stale Arch narration
+in the present tense** ("on Arch you have greetd installed but the service is
+DISABLED"). Arch has been gone since ADR 0008, so those read as instructions
+about the current machine. One was wrong on its own terms too — `fsel` was
+annotated as pinned to 3.5.2 by the overlay, which pins 3.6.0.
+
+Proved a no-op by derivation path, per the technique in the plan. Both
+`toplevel.drvPath` and the home activation package came back byte-identical —
+**except** for one line: a comment inside `programs.zsh.initContent`, which is a
+string literal and therefore generated output, not a Nix comment. Bisected to
+confirm it was the only leak, then removed deliberately (it said "exactly as on
+Arch"). The built home tree now differs from the baseline by that single line
+and nothing else.
+
+⚠️ A comment inside `''...''` is data. The ratio scan below counts it as a
+comment and the no-op check counts it as output; only the second is right.

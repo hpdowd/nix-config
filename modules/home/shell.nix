@@ -59,12 +59,8 @@
   };
 
   # --- Aliases --------------------------------------------------------------
-  # Kept minimal on purpose: the interesting ones (the $HOME-only eza filter,
-  # the ll/la/lla/lls escape hatches) are shell *functions* in
-  # ~/.config/zsh/conf.d/10-aliases.zsh and are sourced above rather than
-  # re-expressed here.
-  #
-  # `pacman`/`pamcan` are gone — the NixOS equivalents are below.
+  # Minimal on purpose: the interesting ones are shell *functions* in
+  # conf.d/10-aliases.zsh, sourced above. See CLAUDE.md for the `ls` trap.
   home.shellAliases = {
     cat = "bat";
     lf = "yazi";
@@ -73,31 +69,15 @@
     cleantmp = "~/.scripts/clean_tmp";
     lidaction = "~/.scripts/toggle_lid_action";
 
-    # The mango scripts are not on PATH — ~/.scripts is (home.sessionPath
-    # below), but ~/.config/mango/scripts is not, and adding it would put 28
-    # files with names like `mode.sh` and `reload.sh` into command completion.
-    # Aliases for the two that get typed by hand are cheaper.
-    #
-    # waybar-reload re-reads the three state files (mode, layout, position) and
-    # restarts the bar. It does NOT pick up edits made in this repo on its own:
-    # ~/.config/mango is a store path, so a config or CSS change needs `rebuild`
-    # first and this afterwards. mango-reload additionally re-applies the mode
-    # and dispatches reload_config, which is what a keybind change needs.
+    # ~/.config/mango/scripts is deliberately off PATH — 28 files with names
+    # like `mode.sh` would land in completion. Aliases for the two typed by
+    # hand are cheaper. Both need a `rebuild` first: the tree is a store path.
     waybar-reload = "~/.config/mango/scripts/waybar/waybar-restart.sh";
     mango-reload = "~/.config/mango/scripts/reload.sh";
 
-    # NixOS replacements for your pacman aliases. The flake lives in the clone
-    # at ~/src/nix-config, NOT ~/.config — see dotfiles.nix and INSTALL.md
-    # §0.1. ~/.config/nixos is not linked by dotfiles.nix, so it does not exist
-    # on the installed system.
-    #
-    # The flake ref MUST be quoted. zsh runs with EXTENDED_GLOB (set in
-    # zsh/conf.d/00-options.zsh), which makes `#` a pattern operator meaning
-    # "zero or more of the preceding" — so an unquoted ~/src/nix-config#thinkpad
-    # is parsed as a glob, matches nothing, and dies with
-    # `zsh: no matches found:` before nixos-rebuild is ever reached.
-    # Double quotes keep `#` literal; "$HOME" is used because `~` does not
-    # expand inside them.
+    # The flake ref MUST stay quoted: EXTENDED_GLOB makes `#` a pattern
+    # operator, so an unquoted ref dies with `zsh: no matches found:` before
+    # nixos-rebuild runs. See CLAUDE.md.
     rebuild = ''sudo nixos-rebuild switch --flake "${config.local.checkout}#thinkpad"'';
     rebuild-test = ''sudo nixos-rebuild test --flake "${config.local.checkout}#thinkpad"'';
     rebuild-boot = ''sudo nixos-rebuild boot --flake "${config.local.checkout}#thinkpad"'';
@@ -107,8 +87,8 @@
     search = "nix search nixpkgs";
   };
 
-  # PATH additions from ~/.config/zsh/conf.d/20-path.zsh. ~/.cargo/bin and
-  # ~/.bun/bin still work because you keep rustup/bun user-installed.
+  # PATH additions that were in conf.d/20-path.zsh. cargo and bun stay because
+  # rustup and bun are user-installed.
   home.sessionPath = [
     "$HOME/.config/emacs/bin"
     "$HOME/.cargo/bin"
@@ -121,12 +101,10 @@
     EDITOR = "nvim";
     VISUAL = "nvim";
     BUN_INSTALL = "$HOME/.bun";
-    # Matches the trick your Mangowm keybinds use to point fsel/walker at
-    # ~/.config/mango rather than ~/.config.
-    # XDG_CONFIG_HOME stays default; the override is per-keybind.
+    # XDG_CONFIG_HOME stays default; fsel/walker are pointed at
+    # ~/.config/mango per-keybind instead.
   };
 
-  # NOTE: userName/userEmail/extraConfig were renamed to `settings.*`.
   programs.git = {
     enable = true;
     settings = {

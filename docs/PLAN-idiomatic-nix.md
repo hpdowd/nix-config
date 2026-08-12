@@ -409,26 +409,47 @@ audit plus a rule recorded in `packages.nix`:
   commons. **Verify** whether a model-specific L14 Gen 5 module exists upstream;
   if so it may supersede hand-tuning in `power.nix`. Not confirmed either way.
 
-### 5d — comments → ADRs ⭐ biggest day-to-day win
+### 5d — comments → ADRs 🔶 MOSTLY DONE 2026-08-12
 
-| File | comment | code | ratio |
+The table that was here is retired — it predated `0f52e28`, which had already
+moved a third of it, and quoting stale counts as if current is the trap this
+phase exists to fix.
+
+Done 2026-08-12, one pass over the six worst by ratio: `dotfiles.nix`,
+`power.nix`, `desktop.nix`, `shell.nix`, `pkgs/default.nix`, `home/default.nix`.
+**261 lines removed, 127 added.** Each narrative was checked against the ADRs,
+`gotchas.md` and `SYSTEM.md` before cutting, so this moved rather than dropped.
+
+`desktop.nix` surfaced a class worth naming: **stale Arch narration in the
+present tense** ("on Arch you have greetd installed but the service is
+DISABLED"). Arch has been gone since ADR 0008, so these read as instructions
+about the current machine. One was independently wrong — `fsel` annotated as
+overlay-pinned to 3.5.2, which pins 3.6.0. Grep for `on Arch` and `your` when
+doing the rest.
+
+Proved a no-op by derivation path (see the technique below). ⚠️ **A comment
+inside `''…''` is data, not a comment** — one line in
+`programs.zsh.initContent` was the only thing in the whole pass that moved the
+hash. Bisect rather than assuming; the ratio scan cannot tell the two apart.
+
+**Still over the ~1:2 target**, in descending absolute comment count:
+
+| File | comments | code | ratio |
 |---|---|---|---|
-| `dotfiles.nix` | 249 | 57 | **4.4 : 1** |
-| `power.nix` | 139 | 62 | 2.2 : 1 |
-| `pkgs/default.nix` | 94 | 62 | 1.5 : 1 |
-| `theme.nix` | 83 | 77 | 1.1 : 1 |
-| `home/default.nix` | 120 | 113 | 1.1 : 1 |
-| **total** | **1,417** | — | — |
+| `hardware-configuration.nix` | 54 | 85 | 0.64 |
+| `power.nix` | 44 | 67 | 0.66 |
+| `dotfiles.nix` | 42 | 62 | 0.68 |
+| `pkgs/default.nix` | 37 | 62 | 0.60 |
+| `hosts/thinkpad/default.nix` | 28 | 51 | 0.55 |
+| `boot.nix` | 28 | 40 | 0.70 |
+| `audio.nix` | 28 | 48 | 0.58 |
+| `fonts.nix` | 26 | 51 | 0.51 |
+| `secrets.nix` | 15 | 21 | 0.71 |
 
-The *content* is good — it is the narrative that is misplaced. `dotfiles.nix`
-is 57 lines of code wearing a 249-line essay, and it duplicates `CLAUDE.md` and
-the ADRs. Keep a **one-line reason plus a pointer** (`# see docs/adr/0002`);
-move the story.
-
-**File-by-file with review, not one sweep.** Order by ratio. **Move, never
-drop** — check the ADR covers it before cutting. A new ADR on suspend/
-hibernation is needed for `power.nix` (material is in `SYSTEM.md` §9 and the
-work log).
+These are the diminishing returns. What remains in them is mostly one-line
+reasons already, and the small files are over the ratio on absolute counts too
+low to matter — `secrets.nix` is 15 comment lines total. **Judge the next pass
+on whether a comment earns its line, not on hitting 0.50.**
 
 ### 5e — `treefmt-nix`
 
@@ -491,7 +512,7 @@ which reads exactly like a catastrophic regression. Use
 | 5 | **3** mango config selection ⭐ **DO NEXT** | own session, needs a logout |
 | 6 | **5a–5c, 5f** | one commit each, independent |
 | 7 | **5e** treefmt | after 0.5 |
-| 8 | **5d** comments → ADRs | one commit per file, reviewed |
+| ~~8~~ | ~~**5d** comments → ADRs~~ | 🔶 six files done 2026-08-12; rest is diminishing returns |
 
 **Phase 0.5 before Phase 1 is a real judgement call.** sops-nix closes the
 bigger *reproducibility* hole; shellcheck closes the bigger *day-to-day
@@ -508,7 +529,7 @@ you missed.
 - No plaintext secret outside sops.
 - A fresh clone plus the age key reproduces a working machine, VPN and forge
   access included.
-- No `.nix` file above a ~1:2 comment-to-code ratio.
+- No `.nix` file above a ~1:2 comment-to-code ratio. **Nine still are** — see 5d, and treat the number as a prompt to look, not a target to hit.
 
 ## Open questions
 

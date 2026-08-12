@@ -1,32 +1,25 @@
 # Overlay for packages absent from nixpkgs, plus overrides.
 { inputs }:
 
-# `_final` rather than `final`: the overlay signature is `final: prev:` even
-# when the fixpoint argument is unused, and the underscore tells deadnix so.
+# `_final`: the overlay signature needs the argument; the underscore tells
+# deadnix it is unused on purpose.
 _final: prev: {
 
   # ==========================================================================
   # papirus-icon-theme — Gruvbox-yellow folders
   # ==========================================================================
-  # Stock Papirus folders are blue, which reads as broken against Gruvbox. The
-  # usual `papirus-folders` CLI recolours the theme IN PLACE and so cannot work
-  # on a read-only store path; nixpkgs exposes the same thing as `color`.
-  #
-  # An overlay rather than an override at the call sites: both
-  # `gtk.iconTheme.package` and systemPackages reference the theme, and
-  # overriding one would put two Papirus derivations on XDG_DATA_DIRS with the
-  # folder colour decided by lookup order.
+  # The `papirus-folders` CLI recolours in place and cannot touch a store path;
+  # `color` is the same thing at build time. An overlay, not a call-site
+  # override — two references would otherwise put two Papirus derivations on
+  # XDG_DATA_DIRS with the colour decided by lookup order.
   papirus-icon-theme = prev.papirus-icon-theme.override { color = "yellow"; };
 
   # ==========================================================================
   # fsel — version override
   # ==========================================================================
-  # nixpkgs has 3.1.0; the SUPER+Space launcher's config.toml is written for
-  # 3.6.0. Delete this block once nixpkgs catches up.
-  #
-  # Must override the GitHub SOURCE, not the release binary tarball — nixpkgs
-  # builds this with buildRustPackage, so a binary src leaves the cargo vendor
-  # step with no Cargo.lock. Evaluation does not catch that; only a build does.
+  # nixpkgs has 3.1.0; our config.toml is written for 3.6.0. Delete once nixpkgs
+  # catches up. Override the GitHub source, not the release tarball —
+  # buildRustPackage needs a Cargo.lock, and only a build catches its absence.
   fsel = prev.fsel.overrideAttrs (_old: rec {
     version = "3.6.0";
     src = prev.fetchFromGitHub {
@@ -44,10 +37,8 @@ _final: prev: {
   # ==========================================================================
   # gruvbox-gtk-theme — build the variant you actually use
   # ==========================================================================
-  # theme.nix and gtk-apply.sh both ask for `Gruvbox-Yellow-Dark`, but the
-  # default nixpkgs build produces only Gruvbox-Dark and Gruvbox-Light. Without
-  # this the theme name does not exist and every GTK app silently falls back to
-  # Adwaita.
+  # theme.nix and gtk-apply.sh ask for `Gruvbox-Yellow-Dark`, which the default
+  # build does not produce — without this every GTK app falls back to Adwaita.
   gruvbox-gtk-theme = prev.gruvbox-gtk-theme.override {
     colorVariants = [ "dark" ];
     themeVariants = [ "yellow" ];
@@ -56,8 +47,7 @@ _final: prev: {
   # ==========================================================================
   # Brother MFC-L3740CDW printer driver
   # ==========================================================================
-  # Unused — driverless IPP Everywhere works for this model (printing.nix).
-  # Kept as the fallback. 32-bit deb, so the CUPS filter needs 32-bit libs.
+  # Unused — driverless IPP Everywhere works (printing.nix). Kept as fallback.
   brother-mfc-l3740cdw = prev.stdenv.mkDerivation rec {
     pname = "brother-mfc-l3740cdw";
     version = "3.5.1-1";

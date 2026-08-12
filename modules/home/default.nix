@@ -130,15 +130,12 @@ in
   # --- Services -------------------------------------------------------------
   services.cliphist.enable = true; # replaces your cliphist autostart
 
-  # The only thing that locks the screen on sleep. NOT a power.nix sleep hook:
-  # that cgroup is killed on resume, taking swaylock with it — SYSTEM.md §9.
+  # The only thing that locks on sleep. NOT a power.nix hook — that cgroup is
+  # killed on resume, taking swaylock with it (docs/SYSTEM.md §9). Absolute
+  # paths throughout: swayidle's `sh -c` has bash on PATH and nothing else.
   #
-  # Absolute paths throughout: swayidle runs commands via `sh -c` with a PATH of
-  # bash and nothing else.
-  #
-  # Safe to lock on idle because mango advertises zwp_idle_inhibit_manager_v1 —
-  # mpv and Firefox suppress the whole ladder during playback. Confirm with
-  # `wayland-info | grep inhibit` before assuming that of another compositor.
+  # Safe to lock on idle because mango advertises zwp_idle_inhibit_manager_v1,
+  # so mpv and Firefox suppress the ladder during playback.
   services.swayidle = {
     enable = true;
     events = {
@@ -182,25 +179,17 @@ in
     ];
   };
 
-  # nixpkgs' swaync ships a user unit wanted by graphical-session.target, which
-  # races the `exec=` line in autostart.conf. The autostart copy wins the bus
-  # name and the unit sits permanently failed — invisible, because notifications
-  # work throughout. autostart owns the lifecycle (it respawns on mode switch so
-  # a restyle applies), so the unit is masked. Never run both.
-  #
-  # An empty file rather than a symlink to /dev/null: both load as masked, and
-  # pure evaluation refuses the absolute path.
+  # nixpkgs' swaync unit races the `exec=` line in autostart.conf, which owns
+  # the lifecycle, so it is masked — docs/adr/0005. An empty file rather than a
+  # /dev/null symlink: both mask, and pure eval refuses the absolute path.
   xdg.configFile."systemd/user/swaync.service".text = "";
 
-  # Night light. NOT `services.wlsunset` — that bakes the temperatures into a
-  # static ExecStart, and wlsunset has no runtime IPC, so the waybar picker
-  # could not change them. The runner reads the chosen temperature from
-  # ~/.local/state/mango/night-temp at start; night-mode.sh writes it and
-  # restarts this unit.
+  # Not `services.wlsunset`: it bakes the temperature into ExecStart, and
+  # wlsunset has no runtime IPC, so the waybar picker could not change it. The
+  # runner reads ~/.local/state/mango/night-temp instead.
   #
-  # This unit owns the process. Never let the script spawn its own copy too —
-  # only one client can hold a Wayland gamma control, and the loser fails
-  # silently.
+  # This unit owns the process — only one client can hold a Wayland gamma
+  # control, and the loser fails silently.
   systemd.user.services.wlsunset = {
     Unit = {
       Description = "Day/night gamma adjustments (night light)";
@@ -210,9 +199,8 @@ in
     };
     Service = {
       ExecStart = "%h/.config/mango/scripts/system/night-light-run.sh";
-      # This PATH is the unit's entire PATH. `bash` is mandatory: the runner's
-      # shebang is `#!/usr/bin/env bash` and NixOS has no /bin/bash, so env
-      # would exit 127 without it.
+      # A unit's `PATH=` is its entire PATH, so `bash` is mandatory — without
+      # it the runner's `env bash` shebang exits 127.
       Environment = [
         "PATH=${
           lib.makeBinPath [
@@ -237,13 +225,10 @@ in
   };
 
   # --- Session environment --------------------------------------------------
-  # `systemd.user.sessionVariables`, not `home.sessionVariables`: the latter
-  # writes hm-session-vars.sh, which interactive shells source and systemd user
-  # units do not — and the point of this block is xdg-desktop-portal-gtk, a user
-  # unit that ignores settings.ini unless GTK_THEME is set.
-  #
-  # Must match theme.nix's `gtk.theme.name`; pkgs/default.nix is what makes the
-  # yellow variant exist at all.
+  # `systemd.user.sessionVariables`, not `home.*`: the latter writes
+  # hm-session-vars.sh, which user units do not source — and the target here is
+  # xdg-desktop-portal-gtk, a user unit that ignores settings.ini without
+  # GTK_THEME. Must match theme.nix's `gtk.theme.name`.
   systemd.user.sessionVariables = {
     GTK_THEME = "Gruvbox-Yellow-Dark";
     QT_QPA_PLATFORM = "wayland";
@@ -251,9 +236,8 @@ in
   };
 
   # --- User systemd units ---------------------------------------------------
-  # mango/universal/autostart.conf starts this target; without it the exec-once
-  # fails silently on every boot. Nothing Wants or Requires it — it is a marker
-  # for other units to hang off.
+  # autostart.conf starts this target; without it that exec-once fails silently
+  # on every boot. A marker for other units to hang off — nothing Wants it.
   systemd.user.targets.mango-session = {
     Unit = {
       Description = "MangoWC Session Target";
@@ -262,11 +246,7 @@ in
     };
   };
 
-  # Proton Drive is deliberately NOT mounted — removed 2026-07-30. Proton blocks
-  # rclone's standard access method, and Nextcloud is the cloud sync here.
-  #
-  # Worth carrying forward: the ported unit could never start, and its
-  # `Restart=on-failure` with no start limit turned that into 230 retries, then
-  # HTTP 429, then an account-level abuse flag on Proton. Anything that talks to
-  # a remote API needs a StartLimitBurst — docs/adr/0006.
+  # Proton Drive is deliberately absent (2026-07-30): Proton blocks rclone's
+  # access method. Its unit is also the motivating failure for docs/adr/0006 —
+  # anything talking to a remote API needs a StartLimitBurst.
 }

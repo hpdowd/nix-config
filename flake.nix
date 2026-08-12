@@ -12,23 +12,15 @@
     # Hardware quirks for ThinkPads / AMD laptops.
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
-    # Secrets. Until this landed, "reproducible" carried an asterisk: a fresh
-    # install of this flake produced a machine that could not reach the VPN or
-    # git.henrydowd.dev. `follows` is correct here — unlike claude-desktop
-    # below, sops-nix builds fine against our nixpkgs.
+    # Secrets — docs/adr/0012. `follows` is fine here, unlike claude-desktop.
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # --- Third-party flakes replacing AUR packages ---------------------------
-    # Only two are needed. Verified 2026-07-27 against nixpkgs-unstable:
-    # mango, walker, elephant, fsel, dsearch, weathr, sidequest, winboat,
-    # valent, silverbullet, proton-authenticator, cursor-cli and
-    # github-copilot-cli are ALL in nixpkgs already, so the walker / elephant
-    # flake inputs that were here previously have been removed as redundant.
-    # The DankMaterialShell and quickshell inputs are gone for a different
-    # reason: DMS is being dropped as part of this migration.
+    # --- Third-party flakes --------------------------------------------------
+    # Only these two. Everything else once sourced from a flake — mango, walker,
+    # elephant, fsel and the rest — is in nixpkgs (checked 2026-07-27).
 
     # zen-browser-bin — not in nixpkgs
     zen-browser = {
@@ -36,13 +28,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # claude-desktop — not in nixpkgs (unofficial Linux build)
-    #
-    # Deliberately NOT using `inputs.nixpkgs.follows = "nixpkgs"`: this flake
-    # references `pkgs.nodePackages`, which was removed from nixpkgs, so
-    # forcing it onto our nixpkgs breaks evaluation of the whole system. Let
-    # it use its own pinned nixpkgs instead. Cost: a second nixpkgs in the
-    # store (~200 MB of eval sources, not a second package set).
+    # claude-desktop — not in nixpkgs. Deliberately NOT `follows`: it references
+    # `pkgs.nodePackages`, which nixpkgs removed, so forcing our nixpkgs onto it
+    # breaks evaluation of the whole system. Costs a second nixpkgs of sources.
     claude-desktop.url = "github:k3d3/claude-desktop-linux-flake";
   };
 
@@ -57,12 +45,11 @@
     let
       system = "x86_64-linux";
 
-      # Tooling only, and deliberately WITHOUT the overlay: a formatter or lint
-      # result must not depend on a package override.
+      # Tooling only, deliberately WITHOUT the overlay — a lint result must not
+      # depend on a package override.
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # Single overlay point for packages that aren't in nixpkgs and for
-      # anything you need to override. See ./pkgs/default.nix.
+      # Single overlay point — see ./pkgs/default.nix.
       overlays = [
         (import ./pkgs { inherit inputs; })
       ];
@@ -96,49 +83,32 @@
         ];
       };
 
-      # `nix flake check` — the only gate that runs before you do.
-      #
-      # This exists because the previous one could not do the job. Prior to
-      # 2026-08-03 the only pre-rebuild check was verify-packages.sh, which
-      # *evaluated* package names and said so itself: it "cannot catch profile
-      # collisions or a derivation that fails to build". Meanwhile CLAUDE.md
-      # names buildEnv collisions as THE expected failure mode when adding
-      # packages. The thing most likely to break was the thing nothing tested.
-      #
-      # `system` and `home` are real build products, so checking them builds
-      # the whole closure: collisions, failing derivations and eval errors all
-      # surface here rather than halfway through a `switch`.
+      # The gate — docs/adr/0010. `system` and `home` are real build products,
+      # so checking them builds the whole closure: collisions, failing
+      # derivations and eval errors surface here, not halfway through a switch.
+      # An evaluate-only check cannot do that, which is why the old one went.
       checks.${system} = {
         system = self.nixosConfigurations.thinkpad.config.system.build.toplevel;
         home = self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage;
 
-        # Lints. Both are configured to fire only on real findings — a check
-        # that always fails is one you learn to ignore, which is worse than no
-        # check. See statix.toml for why `repeated_keys` is off.
+        # Lints, tuned to fire only on real findings — a check that always
+        # fails is one you learn to ignore. statix.toml says why.
         statix = pkgs.runCommandLocal "statix-check" { nativeBuildInputs = [ pkgs.statix ]; } ''
           cd ${self}
           statix check
           touch $out
         '';
 
-        # `--no-lambda-pattern-names` excludes the `{ config, lib, pkgs, ... }`
-        # module headers. Those are boilerplate the module system requires, and
-        # flagging 37 of them buries the 2 findings that are real.
+        # `--no-lambda-pattern-names` excludes the module headers — required
+        # boilerplate, and 37 of them bury the 2 real findings.
         deadnix = pkgs.runCommandLocal "deadnix-check" { nativeBuildInputs = [ pkgs.deadnix ]; } ''
           deadnix --fail --no-lambda-pattern-names ${self}
           touch $out
         '';
 
-        # Shell is the layer that actually breaks here. Every failure
-        # catalogued in CLAUDE.md is a shell failure, not a Nix one — the
-        # #!/bin/bash exit-127s, the `mmsg -s -d` flags that return 0, `pkill
-        # -x` against a wrapped binary, the state path one reader disagreed
-        # about. Until 2026-08-03 those 2,100 lines were gated by nothing while
-        # the Nix was gated by a full build and two linters.
-        #
-        # SC1091 is excluded permanently: shellcheck cannot resolve a
-        # `. "$HOME/.config/…"` source path statically, and that will not
-        # change. Everything else runs at default severity.
+        # Shell is the layer that actually breaks here — docs/adr/0011. SC1091
+        # is excluded permanently: shellcheck cannot statically resolve a
+        # `. "$HOME/.config/…"` source path.
         shellcheck =
           pkgs.runCommandLocal "shellcheck-check"
             {
@@ -151,15 +121,14 @@
               cd ${self}
               find . -type f -not -path './docs/archive/*' -print0 \
                 | while IFS= read -r -d "" f; do
-                    # tr strips the null bytes binary files would otherwise
-                    # feed to the substitution, which bash warns about.
+                    # tr strips null bytes binary files would otherwise feed
+                    # to the substitution, which bash warns about.
                     case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
                       '#!'*bash*) printf '%s\0' "$f" ;;
                     esac
                   done > "$TMPDIR/scripts"
 
-              # A pattern that stops matching would make this pass by finding
-              # nothing, which is the failure this repo keeps having.
+              # A scan that stops matching passes by finding nothing.
               found=$(tr -cd '\0' < "$TMPDIR/scripts" | wc -c)
               if [ "$found" -lt 30 ]; then
                 echo "shellcheck: only $found scripts found — the shebang scan is broken" >&2
@@ -171,11 +140,8 @@
               touch $out
             '';
 
-        # The assertions CLAUDE.md makes, minus the two that need a running
-        # compositor. Each exists because a documented claim silently stopped
-        # being true and cost real debugging time; until now re-checking them
-        # was a manual step nobody was forced to run. verify-claims.sh keeps
-        # the live ones and says so in its header.
+        # The documented claims, minus the ones needing a live compositor —
+        # those stay in verify-claims.sh. docs/adr/0011.
         static =
           pkgs.runCommandLocal "static-check"
             {
@@ -197,22 +163,13 @@
             '';
       };
 
-      # `nix fmt`.
+      # Plain `nixfmt`, not `nixfmt-rfc-style` — same derivation at this pin,
+      # and the alias warns on every eval.
       #
-      # nixfmt (RFC 166), NOT nixpkgs-fmt — that project is archived upstream.
-      # Plain `nixfmt`, not `nixfmt-rfc-style`: at this pin they are the same
-      # derivation and the -rfc-style alias emits a deprecation warning on
-      # every evaluation. (`nixfmt-classic` is the pre-RFC formatter.)
-      #
-      # WRAPPED, because `formatter = pkgs.nixfmt` does not work. nixfmt takes
-      # FILES: given no arguments it reads stdin and dies on the empty input
-      # with a bare "unexpected end of input", and given a directory it throws
-      # a Haskell backtrace. `nix fmt` passes no arguments at all, so the
-      # obvious one-line formatter output fails both ways — and neither error
-      # names the real problem.
-      #
-      # If this ever needs to format more than Nix (shell, markdown, TOML),
-      # replace the wrapper with treefmt-nix rather than growing it.
+      # WRAPPED because `formatter = pkgs.nixfmt` cannot work: nixfmt takes
+      # files, `nix fmt` passes none, and it then dies on empty stdin with
+      # "unexpected end of input". Replace with treefmt-nix rather than growing
+      # this — docs/PLAN-idiomatic-nix.md §5e.
       formatter.${system} = pkgs.writeShellApplication {
         name = "fmt-nix";
         runtimeInputs = [
@@ -226,8 +183,7 @@
         '';
       };
 
-      # `nix develop`, or automatically via .envrc if you install direnv.
-      # Pins the tooling so it is not an ad-hoc PATH dependency.
+      # `nix develop`, or via .envrc. Pins the tooling off PATH.
       devShells.${system}.default = pkgs.mkShell {
         packages = [
           pkgs.nixfmt
@@ -237,16 +193,14 @@
           pkgs.nix-tree # inspect closures
           pkgs.nvd # diff two generations
 
-          # Secrets. Here rather than in packages.nix because they are only
-          # ever used against this repo, and `sops` needs .sops.yaml to be the
-          # working directory's to pick the right recipients.
+          # Here rather than packages.nix: only ever used against this repo,
+          # and sops needs this directory's .sops.yaml for the recipients.
           pkgs.sops
           pkgs.age
         ];
 
-        # sops looks here instead of ~/.config/sops/age/keys.txt, so there is
-        # one key rather than an editing key and a host key. It is henry-owned
-        # mode 600 for that reason; root reads it at activation regardless.
+        # One key rather than an editing key and a host key; henry-owned 600,
+        # and root reads it at activation regardless.
         SOPS_AGE_KEY_FILE = "/var/lib/sops-nix/key.txt";
       };
     };

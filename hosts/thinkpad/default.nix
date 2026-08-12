@@ -22,38 +22,18 @@
     ../../modules/system/secrets.nix
   ];
 
-  # Renamed from "arch" on 2026-07-30, once Arch was actually deleted. The old
-  # name was carried over so the side-by-side period had one less thing
-  # changing; it outlived its purpose and made every journal line read
-  # `arch systemd[…]` on a machine with no Arch on it. Matches the flake
-  # attribute (`nixosConfigurations.thinkpad`) now.
-  networking.hostName = "thinkpad";
+  networking.hostName = "thinkpad"; # matches the flake attribute
 
-  # `@home` is reused by this install AND stays mounted by Arch until the
-  # side-by-side period ends, so BOTH ids have to be pinned to the live Arch
-  # values (`id henry` -> uid=1000 gid=1000(henry)). Leaving them unset gets
-  # you uid=1000 by luck but group `users` (gid 100) by default, which would
-  # mean every file under /home/henry — all owned by gid 1000 — shows up as an
-  # unmapped group on NixOS, and any file NixOS creates shows up as gid 100 on
-  # Arch. Pinning both keeps one home directory readable from either system.
+  # Both ids are pinned because `@home` came from Arch owned by uid/gid 1000.
+  # Unset, the group would default to `users` (gid 100) and every file under
+  # /home/henry would show an unmapped group.
   users.groups.henry.gid = 1000;
 
-  # NO PASSWORD IS DECLARED HERE, DELIBERATELY — and that has a consequence you
-  # must handle during the install, or you cannot log in.
-  #
-  # `users.mutableUsers` is true (the default), so passwords live in
-  # /etc/shadow. The install creates a *fresh* /etc/shadow on the new @nixos
-  # subvolume, and `nixos-install` prompts only for the ROOT password. That
-  # leaves henry with a locked account: tuigreet will reject the login even
-  # though @home and the uid are reused.
-  #
-  # Fixed procedurally rather than declaratively, to keep a password hash out
-  # of git. Before rebooting out of the installer, run:
-  #
-  #     sudo nixos-enter --root /mnt -c 'passwd henry'
-  #
-  # See MIGRATION-GUIDE.md Step 8.3. If you skip it, boot back into Arch (or
-  # the installer) and set it from there — nothing is lost.
+  # No password here on purpose — `mutableUsers` is on, so it lives in
+  # /etc/shadow and stays out of git. On a fresh install `nixos-install` prompts
+  # only for root, leaving this account locked; set it from the installer with
+  # `nixos-enter --root /mnt -c 'passwd henry'`. docs/archive/MIGRATION-GUIDE.md
+  # step 8.3.
   users.users.henry = {
     isNormalUser = true;
     uid = 1000;
@@ -76,11 +56,11 @@
   # zsh must be enabled system-wide for it to be a valid login shell.
   programs.zsh.enable = true;
 
-  # Not its compinit — home-manager writes a second one into .zshrc, and running
-  # both cost 219 ms per shell.
+  # Not its compinit — home-manager writes a second one, and both cost 219 ms
+  # per shell.
   programs.zsh.enableCompletion = false;
 
-  security.sudo-rs.enable = true; # you have sudo-rs installed on Arch
+  security.sudo-rs.enable = true;
   security.sudo.enable = false;
 
   security.polkit.enable = true;
@@ -89,9 +69,9 @@
   # Credential store for the nextcloud-client unit and the browsers.
   services.gnome.gnome-keyring.enable = true;
 
-  # Writes `user_allow_other` into /etc/fuse.conf. Without it the `--allow-other`
-  # flag on the rclone ProtonDrive mount (modules/home/default.nix) is refused
-  # and the unit fails at start. On Arch this was a hand-edited /etc/fuse.conf.
+  # Writes `user_allow_other` into /etc/fuse.conf, for FUSE mounts using
+  # `--allow-other`. NOTE: its only stated consumer was the rclone ProtonDrive
+  # mount, removed 2026-07-30 — kept unaudited rather than dropped blind.
   programs.fuse.userAllowOther = true;
 
   # Do not change after first install — this pins stateful defaults, not versions.

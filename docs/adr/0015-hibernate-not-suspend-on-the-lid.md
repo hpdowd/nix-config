@@ -64,6 +64,7 @@ suspend phase anywhere.**
 | Trigger | Setting |
 |---|---|
 | Lid closed, either power source | `HandleLidSwitch` / `HandleLidSwitchExternalPower = "hibernate"` |
+| Lid closed **while docked** | `HandleLidSwitchDocked = "ignore"` — clamshell keeps working. logind re-checks the still-closed lid every event loop, so undocking falls through to the row above and hibernates (hence locks). `docs/SYSTEM.md` §9 |
 | Power key tapped | `HandlePowerKey = "hibernate"` (long press stays `poweroff`) |
 | 30 minutes idle **on battery**, nothing playing | ~~`idle-hibernate`~~ — now `idle-suspend`, see [0016](0016-idle-suspends-the-lid-hibernates.md) |
 | Battery at 3% | `services.upower.criticalPowerAction = "Hibernate"` |

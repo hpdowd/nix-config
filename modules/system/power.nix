@@ -175,6 +175,8 @@ in
   services.logind.settings.Login = {
     HandleLidSwitch = "hibernate";
     HandleLidSwitchExternalPower = "hibernate";
+    # Clamshell on an external display must keep running. Undocking with the lid
+    # still shut re-handles as an undocked close — see docs/SYSTEM.md §9.
     HandleLidSwitchDocked = "ignore";
 
     # Tap matches the lid, long press is the hard stop. The systemd defaults

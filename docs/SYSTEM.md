@@ -907,6 +907,31 @@ A closed lid **hibernates**, on both power sources. There is no suspend phase
 and no `HibernateDelaySec`, so a short lid-close costs a ~6 GiB write and a
 ~10–30 s resume rather than returning instantly.
 
+**Docked is the exception and stays `ignore`**, so clamshell work on an external
+display keeps running. Closing the lid docked therefore leaves the session awake
+*and unlocked* — accepted, because the alternative locks you out of the external
+screen you are working on.
+
+**Undocking with the lid still shut hibernates, and so locks.** This is logind's
+own behaviour, not something configured here: a lid close installs an
+`sd_event_add_post` handler that re-runs the lid decision after every event-loop
+iteration for as long as the lid stays closed (`button_recheck`,
+`logind-button.c`). Losing the display drops `manager_is_docked_or_external_displays()`
+to false, so the re-check falls through to `HandleLidSwitch`/`…ExternalPower` —
+hibernate — and that goes via `PrepareForSleep`, so swayidle's `before-sleep`
+locks first. Verified against systemd 261; the repo's own `HoldoffTimeoutSec`
+observation in `docs/adr/0015` is the same re-check seen after a resume.
+
+Two edges of that mechanism worth knowing:
+
+- The re-check passes `is_edge = false`, and `manager_handle_action` **returns
+  early for `HANDLE_LOCK` when `!is_edge`**. So `lock` is an edge-only action:
+  as a docked lid value it would fire once on close and never re-fire. Sleep
+  actions have no such guard, which is why the undock path works.
+- `HoldoffTimeoutSec` (30 s) suppresses lid handling right after startup or
+  resume — deliberately, to let USB docks settle before their displays are
+  counted. An undock inside that window waits it out.
+
 **So does a tap on the power key**, with a long press left as `poweroff`. The
 systemd defaults are the other way round — a brushed button ended the session
 with no prompt, and holding it did nothing — which is the one power-management

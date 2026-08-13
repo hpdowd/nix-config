@@ -531,6 +531,23 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `HandleLidSwitch` suspends, it does not lock, so a closed lid resumed straight
   to the desktop. See the swaylock section for why the lock handler cannot be a
   `powerManagement` hook.
+- **A lid action of `ignore` also means "do not lock".** The lock hangs off
+  swayidle's `before-sleep`, so it fires only when something actually *sleeps*.
+  `HandleLidSwitchDocked = "ignore"` therefore leaves a docked closed lid awake
+  and unlocked — accepted here, since locking would lock you out of the external
+  display you are using. It is easy to miss precisely because it looks like the
+  lid doing nothing, which is what `ignore` is supposed to look like.
+- **`lock` as a lid action is edge-only, and would silently not re-fire.**
+  `manager_handle_action` bails on `HANDLE_LOCK` when `!is_edge`
+  (`logind-action.c`), while sleep actions have no such guard. Since logind
+  re-runs the lid decision at *level* for as long as the lid is shut, a `lock`
+  branch fires once on close and never again — so it cannot pick up a later
+  change like an undock. Sleep actions can, which is what makes undock-then-
+  hibernate work with `ignore`. Read the source before assuming a lid value
+  behaves like its neighbours.
+- Verify the live values with `busctl get-property org.freedesktop.login1
+  /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitchDocked`,
+  not the Nix — see the reload trap above.
 - **upower's critical-battery percentages fail silently as a set**: give
   `percentageLow`/`Critical`/`Action` values that aren't strictly descending and
   it discards all three for its own defaults, unlogged — the action fires at a

@@ -400,15 +400,41 @@ else
 		ok "swayidle carries $timeouts idle timeouts"
 	fi
 
-	# `&&` skips the blank whenever swaylock exits non-zero, which is every time
+	# `&&` skips the blank whenever the lock exits non-zero, which is every time
 	# the screen was already locked by hand — only one client may hold an
 	# ext-session-lock-v1 lock. docs/gotchas.md → swaylock.
+	#
+	# `lockscreen`, not `swaylock`: the wrapper is what swayidle calls now
+	# (docs/adr/0018). Matching the old name here would pass by finding nothing.
 	if ! grep -q 'wlopm' "$IDLE_UNIT"; then
 		bad "swayidle never calls wlopm — the panel stays lit through the idle blank"
-	elif grep -qE 'swaylock[^;]*&&[^;]*wlopm' "$IDLE_UNIT"; then
-		bad "swayidle chains swaylock to wlopm with && — a manual lock leaves the panel lit"
+	elif ! grep -q 'lockscreen' "$IDLE_UNIT"; then
+		bad "swayidle does not lock via lockscreen — the idle lock has lost its background pool"
+	elif grep -qE 'lockscreen[^;]*&&[^;]*wlopm' "$IDLE_UNIT"; then
+		bad "swayidle chains lockscreen to wlopm with && — a manual lock leaves the panel lit"
 	else
-		ok "swayidle's idle blank is not gated on swaylock's exit status"
+		ok "swayidle's idle blank is not gated on the lock's exit status"
+	fi
+fi
+
+# The background pool is invisible when it is missing: lockscreen falls back to
+# the solid colour deliberately, so an empty pool looks exactly like the config
+# before this existed. Assert the floor — the pool the wrapper actually points
+# at, not merely that some pool was built.
+LOCKBIN="$GEN/home-path/bin/lockscreen"
+if [[ ! -x $LOCKBIN ]]; then
+	bad "no lockscreen on PATH — the mango binds call it by name and would exit 127" "$LOCKBIN"
+else
+	pool_dir=$(grep -oE '/nix/store/[^ )"]*/share/lock-backgrounds' "$LOCKBIN" | head -1)
+	if [[ -z $pool_dir ]]; then
+		bad "lockscreen references no background pool" "$LOCKBIN"
+	else
+		members=$(find "$pool_dir" -name '*.png' 2>/dev/null | wc -l)
+		if [[ $members -eq 0 ]]; then
+			bad "lockscreen's background pool is empty — every lock falls back to flat #282828" "$pool_dir"
+		else
+			ok "lockscreen's background pool carries $members members"
+		fi
 	fi
 fi
 

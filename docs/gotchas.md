@@ -273,6 +273,38 @@ an **untracked** hand-written file that quietly supplied the theme to every bare
 `swaylock -f`, alongside two more copies at `mango/{tiling,hud}/swaylock.conf`
 for the `--config` binds. All three are gone.
 
+⚠️ **The `--effect-*` options do nothing without a background image, and
+pixelating a solid colour does nothing even then.** Two independent no-ops that
+compose into one silent failure:
+
+- `apply_effects` runs on a *loaded image*. With no `-i` and no `-S` there is no
+  image, so the effects list is never reached — the flag parses, and is ignored.
+- `effect_pixelate` averages each block, and the average of a uniform field is
+  that same value. `--effect-pixelate 40` over `color=282828ff` returns
+  `#282828`.
+
+So `swaylock --effect-blur 7x5 -f` on a colour-only config exits 0, renders
+identically, and looks exactly like a broken build. **Effects need `-i` or
+`-S`.** The background is now a pre-generated pool instead (`docs/adr/0018`).
+
+**Backgrounds are resampled with `CAIRO_FILTER_BILINEAR`.** Any image that is
+not 1:1 with the output gets its edges softened, which destroys a deliberately
+blocky image without erroring. The pool is generated at the panel's native
+1920×1200 so the scale factor is exactly 1.
+
+⚠️ **`#282828` is neutral, so a background "shade" of it must have R=G=B.**
+A ramp built from stops like `#322e2b` (R50/G46/B43) is a warm brown: it reads
+as a *different colour* rather than a lighter or darker version of the
+background, however carefully its mean is matched. This survived four rounds of
+brightness adjustment because brightness was never what was wrong. The
+derivation asserts neutrality per tone rather than trusting the ramp.
+
+**A weighted ramp clumps.** Sampling five tones with one of them at 68% put
+**236 of 360 blocks into a single connected region** — two thirds of the screen
+as one flat mass, which defeats the point of a texture. The generator bans a
+block from matching any of its eight neighbours; below about nine tones there
+are too few colours left for that constraint to be satisfiable.
+
 ⚠️ **`services.fprintd.enable` switches the sensor on for EVERY pam service, not
 just the ones you name.** `security.pam.services.<x>.fprintAuth` defaults to
 `config.services.fprintd.enable`, so one `enable = true` put `pam_fprintd` into

@@ -631,7 +631,8 @@ is missing from the bar, **run its script by hand first**:
 | **wlsunset** | Night light, owned by a systemd user unit |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
 | **swaylock** | Screen lock (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
-| **swayidle** | Lock handler *and* idle daemon — swaylock on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
+| **lockscreen** | The wrapper every lock path actually calls — picks a background from the pool, then execs swaylock (§9, `docs/adr/0018`) |
+| **swayidle** | Lock handler *and* idle daemon — `lockscreen` on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
 | **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
 
@@ -806,7 +807,7 @@ The ladder now, all in `services.swayidle`:
 | Idle | What happens | Undone by |
 |---|---|---|
 | 4 min | `brightnessctl -s set 10%` — dim, as the warning | `brightnessctl -r` on activity |
-| 5 min | `swaylock -f`, then `wlopm --off '*'` | `wlopm --on '*'` on activity |
+| 5 min | `lockscreen -f`, then `wlopm --off '*'` | `wlopm --on '*'` on activity |
 | 30 min | `idle-suspend` — suspends only on battery, and only if no MPRIS player reports `Playing` | any input, instantly |
 
 Three things make it safe rather than annoying:
@@ -860,7 +861,7 @@ in the desktop can undo behind your back.
 
 ### Locking
 
-`services.swayidle` in `modules/home/default.nix` runs `swaylock -f` on
+`services.swayidle` in `modules/home/default.nix` runs `lockscreen -f` on
 `before-sleep`, on `lock`, and on the 5-minute idle timeout above. Before it
 existed, swaylock was reachable only by hand (`SUPER+Delete`, `SUPER+SHIFT+s`,
 the wlogout button) and **every lid-close resumed straight to the unlocked
@@ -868,7 +869,7 @@ desktop**.
 
 swayidle rather than another `powerManagement` hook, for two reasons:
 
-- It holds a **logind sleep inhibitor** — `-w` makes it wait for `swaylock -f`
+- It holds a **logind sleep inhibitor** — `-w` makes it wait for `lockscreen -f`
   to fork, and swaylock forks only once the lock surface is up. So the lock is
   guaranteed present before the suspend, not racing it.
 - A root sleep hook runs inside `sleep-actions.service`, whose cgroup is
@@ -884,7 +885,8 @@ Ordering falls out of this: swayidle's inhibitor puts the lock up first, then
 #### What it looks like, and why
 
 `programs.swaylock` generates `~/.config/swaylock/config`, which **every lock
-path reads** — all of them run bare `swaylock -f` and pass no `--config`.
+path reads** — all of them run `lockscreen -f`, which execs swaylock and passes
+no `--config`.
 
 `clock` + `indicator` are the point of it: a swaylock screen with nothing drawn
 on it is indistinguishable from a machine that is off or hung, so the lock now
@@ -898,8 +900,32 @@ Both options are **swaylock-effects extensions**, which is why the module sets
 This replaced three separate copies of the same theme: `mango/tiling/swaylock.conf`,
 `mango/hud/swaylock.conf`, and an **untracked** hand-written
 `~/.config/swaylock/config` that had been quietly supplying the theme to every
-bare `swaylock -f` all along. The per-mode files are deleted and both
-`SUPER+Delete` binds now run bare `swaylock -f`; there is one lock screen.
+bare `swaylock -f` all along. The per-mode files are deleted; there is one lock
+screen.
+
+#### The background
+
+The flat `#282828` was the same failure the clock fixes — nothing drawn is
+nothing to distinguish from a dead machine. It is now a **blocky neutral
+texture, with a different pattern on every lock** (`docs/adr/0018`).
+
+| | |
+|---|---|
+| `pkgs/lock-backgrounds` | 24 PNGs at native 1920×1200, fixed seeds. 160×150px blocks, nine neutral shades of `#282828`, no block matching any neighbour |
+| `pkgs/lockscreen` | picks one with `$RANDOM`, execs `swaylock -i`. Empty pool falls back to the solid `color` |
+| `programs.swaylock` | sets `scaling = "fill"`; deliberately sets **no** `image` — the wrapper supplies it per lock |
+
+**Every lock path calls `lockscreen`, not `swaylock`** — swayidle's
+`before-sleep`/`lock` and its idle timeout, wlogout, `power-menu.sh`, and the
+`SUPER+Delete` / `SUPER+SHIFT+s` binds. It is not named `swaylock` because that
+would shadow swaylock-effects in PATH, the same trap `package = null` exists
+for. `checks/static.sh` asserts swayidle reaches it and that its pool is
+non-empty — an empty pool is invisible, since the fallback is the old flat
+colour.
+
+Why a pool rather than generating per lock: swayidle's `before-sleep` hook
+blocks suspend until it exits, so a PNG encode there risks a late or missing
+lock for a difference nobody can see.
 
 ### Hibernation
 

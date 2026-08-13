@@ -5,7 +5,7 @@ CHOICE=$(printf "lock\nsuspend\nreboot\nshutdown\nlogout" | \
         --width 160 --maxheight 120) || exit 0
 
 case "$CHOICE" in
-    lock)     swaylock -f ;;
+    lock)     lockscreen -f ;;
     suspend)  systemctl suspend ;;
     reboot)   systemctl reboot ;;
     shutdown) systemctl poweroff ;;

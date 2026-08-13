@@ -497,11 +497,15 @@ in
   # Lock screen
   # ==========================================================================
 
-  # The ONE swaylock config. Every hands-off lock path uses bare `swaylock -f`
-  # — swayidle on sleep, wlogout, the binds — so they all read this file. It
-  # replaces the per-mode mango/{tiling,hud}/swaylock.conf pair, and an
-  # untracked hand-written ~/.config/swaylock/config that had been quietly
-  # supplying the theme all along.
+  # The ONE swaylock config. Every hands-off lock path goes through
+  # `lockscreen -f` — swayidle on sleep, wlogout, the binds — and that wrapper
+  # execs swaylock, so they all still read this file. It replaces the per-mode
+  # mango/{tiling,hud}/swaylock.conf pair, and an untracked hand-written
+  # ~/.config/swaylock/config that had been quietly supplying the theme.
+  #
+  # `image` is deliberately NOT set here: the wrapper passes `-i` per lock so
+  # the pattern varies (docs/adr/0018). `color` stays as the fallback for when
+  # the pool is empty.
   #
   # `package = null` is load-bearing: desktop.nix installs swaylock-EFFECTS
   # system-wide and PAM is declared for it. Plain `swaylock` from home-manager
@@ -526,6 +530,11 @@ in
       show-failed-attempts = true;
 
       color = "282828ff";
+      # The pool is generated at the panel's native 1920x1200, so `fill` scales
+      # by exactly 1 and the block edges stay hard. swaylock resamples with
+      # CAIRO_FILTER_BILINEAR, so an external output at another resolution gets
+      # a softened copy — cosmetic, and only on that output.
+      scaling = "fill";
       font = "Hack Nerd Font Mono";
       # Sized to the indicator, not to the screen: this is also the "Verifying"
       # and "Wrong" text, which has to fit inside the ring.
@@ -594,7 +603,7 @@ in
     layout = [
       {
         label = "lock";
-        action = "swaylock -f";
+        action = "${pkgs.lockscreen}/bin/lockscreen -f";
         text = "Lock";
         keybind = "l";
       }

@@ -7,7 +7,9 @@
 }:
 
 let
-  lockCmd = "${pkgs.swaylock-effects}/bin/swaylock -f";
+  # `lockscreen`, not `swaylock`: it picks a background from the pool per lock
+  # and execs swaylock-effects. docs/adr/0018.
+  lockCmd = "${pkgs.lockscreen}/bin/lockscreen -f";
 
   # The last rung of the idle ladder, with the two exceptions worth making.
   #

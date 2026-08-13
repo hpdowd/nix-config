@@ -1,9 +1,9 @@
 # Overlay for packages absent from nixpkgs, plus overrides.
 { inputs }:
 
-# `_final`: the overlay signature needs the argument; the underscore tells
-# deadnix it is unused on purpose.
-_final: prev: {
+# `final`, not `_final`: `lockscreen` below composes `lock-backgrounds` from
+# this same overlay, and only the fixpoint argument sees it.
+final: prev: {
 
   # ==========================================================================
   # papirus-icon-theme — Gruvbox-yellow folders
@@ -97,6 +97,106 @@ _final: prev: {
     };
     extraPkgs = pkgs: with pkgs; [ libsecret ];
     meta.description = "CurseForge mod manager";
+  };
+
+  # ==========================================================================
+  # lock-backgrounds — the swaylock background pool
+  # ==========================================================================
+  # A pool rather than one image: the member is chosen per lock (docs/adr/0018).
+  # Seeds are fixed, so which images exist is reproducible even though which one
+  # gets used is not.
+  #
+  # 1920x1200 is the panel's native mode, and is load-bearing — see blocks.py.
+  lock-backgrounds = prev.stdenv.mkDerivation {
+    pname = "lock-backgrounds";
+    version = "1";
+
+    dontUnpack = true;
+    nativeBuildInputs = [
+      prev.python3
+      prev.imagemagick
+    ];
+
+    buildPhase = ''
+      runHook preBuild
+      mkdir -p pool
+      for i in $(seq 1 24); do
+        python3 ${./lock-backgrounds/blocks.py} \
+          --grid 12x8 --steps 9 --seed "$i" \
+          --stops '#222222,#282828,#2e2e2e' \
+          --out block.ppm
+        magick block.ppm -filter Point -resize '1920x1200!' \
+          "pool/$(printf 'lock-%02d' "$i").png"
+      done
+      runHook postBuild
+    '';
+
+    # The floor. A pool that generated wrong is invisible at lock time — the
+    # screen just looks slightly off — and every wrong version so far looked
+    # plausible, so check both properties the eye actually reads.
+    #
+    # Neutrality is exact: a tinted ramp is what "the colour still doesn't feel
+    # right" turned out to be, and #282828 is R=G=B.
+    #
+    # The mean is a tolerance, not an equality. The ramp is symmetric about 40,
+    # but 96 blocks drawn from 9 tones vary by ±1 through sampling alone — an
+    # exact test fails on roughly one seed in four. ±1 still catches a shifted
+    # band, which is the failure worth catching: earlier attempts sat at 54
+    # and 70.
+    doCheck = true;
+    checkPhase = ''
+      runHook preCheck
+      n=$(find pool -name '*.png' | wc -l)
+      [ "$n" -eq 24 ] || { echo "pool has $n members, expected 24" >&2; exit 1; }
+      for f in pool/*.png; do
+        mean=$(magick "$f" -format '%[fx:int(mean*255)]' info:)
+        [ "$mean" -ge 39 ] && [ "$mean" -le 41 ] ||
+          { echo "$f: mean $mean, expected 40±1 (#282828)" >&2; exit 1; }
+
+        tinted=$(magick "$f" -unique-colors txt: |
+          grep -oE '#[0-9A-F]{6}' |
+          awk '{ if (substr($0,2,2) != substr($0,4,2) ||
+                    substr($0,4,2) != substr($0,6,2)) n++ } END { print n+0 }')
+        [ "$tinted" -eq 0 ] ||
+          { echo "$f: $tinted non-neutral tones — the ramp is tinted" >&2; exit 1; }
+      done
+      runHook postCheck
+    '';
+
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out/share/lock-backgrounds"
+      cp pool/*.png "$out/share/lock-backgrounds/"
+      runHook postInstall
+    '';
+
+    meta.description = "Blocky Gruvbox background pool for swaylock";
+  };
+
+  # ==========================================================================
+  # lockscreen — swaylock with a background picked per lock
+  # ==========================================================================
+  # Deliberately NOT named `swaylock`. A wrapper of that name would land earlier
+  # in PATH and shadow swaylock-effects, which is the exact trap that makes
+  # `programs.swaylock.package = null` load-bearing. docs/gotchas.md → swaylock.
+  lockscreen = prev.writeShellApplication {
+    name = "lockscreen";
+    runtimeInputs = [ prev.swaylock-effects ];
+    text = ''
+      # nullglob so an empty pool yields an empty array rather than the literal
+      # glob — otherwise the fallback below never fires and swaylock is handed a
+      # path with a `*` in it.
+      shopt -s nullglob
+      pool=(${final.lock-backgrounds}/share/lock-backgrounds/*.png)
+
+      # A lock that will not start is worse than a plain one, so an empty pool
+      # falls back to the solid `color` still set in the swaylock config.
+      if [ ''${#pool[@]} -eq 0 ]; then
+        exec swaylock "$@"
+      fi
+
+      exec swaylock -i "''${pool[RANDOM % ''${#pool[@]}]}" "$@"
+    '';
   };
 
   # ==========================================================================

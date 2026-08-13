@@ -218,6 +218,10 @@
       grim
       slurp
       wlopm # power.nix drives it from the sleep hooks via ${pkgs.wlopm}
+      # Here for the mango binds only: those are plain text in a store path and
+      # cannot interpolate a Nix path, so they need the name on PATH. Every
+      # caller Nix *can* reach uses ${pkgs.lockscreen} instead.
+      lockscreen
 
       # --- Android / misc tooling ---------------------------------------------
       apktool

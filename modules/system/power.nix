@@ -23,6 +23,39 @@ let
           ${pkgs.wlopm}/bin/wlopm --${mode} '*' || true
     done
   '';
+  # Nothing throttled goes into a sleep. Hibernation's entry phase preallocates
+  # ~5.8 GiB and compresses into zram before it can snapshot — 7 s at full clock,
+  # 22 s capped — and a lid reopened inside that window hung the machine outright
+  # on 2026-08-13. No restore side is needed: `tlp suspend` touches only AHCI and
+  # ASPM, and `tlp resume` reapplies the AC/BAT profile. docs/gotchas.md → Power.
+  #
+  # `set -e` is in effect in the generated pre-sleep script, so every write is
+  # guarded — an unhandled failure here would abort the hook that powers the
+  # panel down.
+  unthrottleForSleep = ''
+    # Boost first: with it off the driver clamps cpuinfo_max_freq to the 2901000
+    # nominal, so reading it before this lifts the cap only part of the way.
+    if [ -w /sys/devices/system/cpu/cpufreq/boost ]; then
+      echo 1 > /sys/devices/system/cpu/cpufreq/boost || true
+    fi
+
+    # Counted, because uncapping nothing is the failure that looks like success.
+    lifted=0
+    for pol in /sys/devices/system/cpu/cpufreq/policy[0-9]*; do
+      [ -w "$pol/scaling_max_freq" ] || continue
+      top=$(${pkgs.coreutils}/bin/cat "$pol/cpuinfo_max_freq") || continue
+      if echo "$top" > "$pol/scaling_max_freq"; then
+        lifted=$((lifted + 1))
+      fi
+    done
+    [ "$lifted" -gt 0 ] || echo "sleep: no cpufreq policy uncapped, entering sleep throttled" >&2
+
+    for gpu in /sys/class/drm/card[0-9]/device/power_dpm_force_performance_level; do
+      if [ -w "$gpu" ]; then
+        echo auto > "$gpu" || true
+      fi
+    done
+  '';
   # One command for a mode switch, because TLP cannot do all of it. Its amdgpu
   # branch folds PP_BAL and PP_SAV together and reads only
   # RADEON_DPM_PERF_LEVEL_ON_BAT — a `_ON_SAV` variant is accepted into
@@ -198,7 +231,11 @@ in
   # backlight cannot do this — brightnessctl drives the PWM and leaves the
   # DISPLAY block active. Overlaps swayidle's own wlopm timeout harmlessly.
   # docs/SYSTEM.md §9.
-  powerManagement.powerDownCommands = setDisplayPower "off";
+  #
+  # The un-throttle runs last, and for suspend as well as hibernate — only
+  # hibernate has an entry phase long enough to matter, but one hook for
+  # sleep.target beats a second unit that has to tell them apart.
+  powerManagement.powerDownCommands = setDisplayPower "off" + unthrottleForSleep;
 
   # Load-bearing: an output left off is not restored by input, so without this
   # the machine wakes to a black screen no keypress fixes.

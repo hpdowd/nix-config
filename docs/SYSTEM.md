@@ -789,6 +789,20 @@ the only one that matched what the machine actually does overnight.
 Hibernation on the lid stays regardless: it is there for the resume hang and the
 spurious wake (§below), not for the drain.
 
+**The same pre-sleep hook also un-throttles.** After `setDisplayPower "off"`,
+`powerDownCommands` enables `cpufreq/boost`, writes each policy's
+`cpuinfo_max_freq` into its `scaling_max_freq`, and returns the iGPU to DPM
+`auto` — so nothing throttled enters a sleep. The reason is hibernation's entry
+phase: it preallocates ~5.8 GiB and compresses into zram *before* it can
+snapshot, measured at 7 s at full clock against 22 s capped, and a lid reopened
+inside that window hung the machine outright (`docs/gotchas.md` → Power).
+Order matters — with boost off the driver clamps `cpuinfo_max_freq` to the
+2901000 nominal, so boost must be lifted before the ceiling is read. There is no
+restore half: `tlp suspend` touches only AHCI and PCIe ASPM, and `tlp resume`
+reapplies the AC/BAT profile on the way back. It runs for suspend too, where the
+entry phase is too short to matter, because one hook on `sleep.target` beats a
+second unit that has to tell the two apart.
+
 > If suspend drain is ever suspected again, read
 > `/sys/kernel/debug/amd_pmc/smu_fw_info` **first** — it names the offending IP
 > block directly, in one command.

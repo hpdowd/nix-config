@@ -88,6 +88,16 @@ inert, silent, this repo's signature bug. `power-mode` writes
 `power_dpm_force_performance_level` itself, which is the whole reason it exists
 rather than the toggle shelling out to `tlp` directly.
 
+**The pin and the CPU cap are lifted for the duration of a sleep.** A 2026-08-13
+lid-close hung the machine in hibernation's entry phase, 2.5 s after a switch to
+`power-saver` — that phase preallocates ~5.8 GiB and compresses into zram before
+it can snapshot, and doing it at 1115770 kHz with boost off stretches a 7 s
+window to 22 s. `powerManagement.powerDownCommands` now un-throttles before
+`sleep.target`; `tlp resume` reapplies the AC/BAT profile afterwards. So the mode
+a sleep is entered in is not the mode it is left in — which was already true of
+any resume, since `tlp resume` has never restored a manual mode.
+`docs/gotchas.md` → Power.
+
 **The waybar module reads `/run/tlp/last_pwr`**, not `tlp-stat` (0.25 s per
 poll). Format is `<profile> <power-source>`, `PP_PRF=0 PP_BAL=1 PP_SAV=2` and
 `PS_AC=0 PS_BAT=1`, from `tlp-func-base`; verified live on both supplies. An

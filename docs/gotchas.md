@@ -693,6 +693,42 @@ and the WiFi resume fix. The traps worth carrying in your head:
   snapshotted *before* the write, so success and refusal leave byte-identical
   traces. The primary signal is the machine physically powering off. Do not set
   `HibernateMode=shutdown` on that misreading; it was tried and reverted.
+- ⚠️ **Hibernation entry is a multi-second window, and reopening the lid inside
+  it hung the machine outright.** 2026-08-13 04:11:51 `Lid closed.` →
+  `Hibernating...` → 04:11:52.78 `PM: hibernation: hibernation entry`, and that
+  is the **last line of the boot**. The lid was reopened <5 s later; the machine
+  was dead — no panel, no input — and had to be power-cycled. The next boot at
+  04:12:38 logged `PM: Image not found (code -22)`, so **no image was ever
+  written**: the hang is in the entry phase, before the snapshot, not in resume.
+  This is distinct from the s2idle resume hang below — that one ends a boot at
+  `PM: suspend entry (s2idle)`.
+  - **The window is not instantaneous.** Preallocation alone measured **7.10 s**
+    and **22.17 s** on the two hibernates either side of this one
+    (`PM: hibernation: Allocated … kbytes in N seconds`), on top of process
+    freeze and device suspend. Any lid-open within ~20 s of a lid-close lands
+    inside it. Treat a short lid close as the hazard case, not the cheap one.
+  - **How to tell a hang from a success, since both look like silence.** A
+    hibernate that *worked* replays its entry-phase kernel lines at **resume**
+    time — the kmsg buffer is inside the image — so `Marking nosave` …
+    `hibernation exit` all arrive with the resume's timestamp, hours after the
+    entry line. Aug 12 18:08:06 entry → Aug 13 00:58:35 replay is the good
+    shape. A journal that **stops** at `hibernation entry` and is followed by a
+    fresh boot logging `Image not found` is the hang. There is no third signal:
+    journald is frozen for the whole entry phase, so nothing written after the
+    freeze survives unless a resume flushes it.
+  - **Correlate, unconfirmed:** `power-mode power-saver` ran **2.5 s** before the
+    lid close, so the entry ran with the CPU capped at 1115770 kHz, boost off,
+    and the iGPU pinned to DPM `low` — i.e. the slowest possible version of the
+    window it then had to survive. Worth checking against the mode at the time
+    before blaming the lid alone.
+  - **Mitigated, not fixed.** `powerDownCommands` now un-throttles before
+    `sleep.target` (`docs/SYSTEM.md` §9, `docs/adr/0017`), which removes that
+    correlate and shortens the window. It does not make the window safe, and the
+    hang has **one** observation behind it — do not read a quiet month as proof.
+    ⚠️ **Order the writes: boost first.** With boost off the driver clamps
+    `cpuinfo_max_freq` to the 2901000 nominal, so reading the ceiling before
+    lifting boost uncaps the CPU to *nominal* and looks like it worked. Verified
+    both ways live: `boost=0` → `cpuinfo_max_freq` 2901000, `boost=1` → 4630443.
 - **Re-test "this protocol isn't available" claims.** This file long asserted
   mango advertised no `wl_output`, so DPMS was impossible — which is what sent
   sleep blanking down the backlight path that could never have worked, and cost a

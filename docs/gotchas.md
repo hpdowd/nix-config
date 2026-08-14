@@ -9,7 +9,7 @@ a broken thing look identical, so "it ran and exited 0" is not evidence.
 
 - [Arch carryover](#arch-carryover) — state that survived via `@home`
 - [nixpkgs and NixOS](#nixpkgs-and-nixos) — packaging traps
-- [Desktop](#desktop) — mango, walker, elephant, swaync, wlogout
+- [Desktop](#desktop) — mango, rofi, swaync, wlogout
 - [Waybar](#waybar)
 - [Power](#power) — battery, suspend, hibernation, the GPU freeze
 - [Editors](#editors)
@@ -112,7 +112,7 @@ line — the cmdline ends in `kdeconnectd` — so the guard is now permanently
 **Match `comm` with a regex that tolerates the wrapper's dot:**
 
 ```bash
-pgrep '^\.?elephant' >/dev/null || elephant     # matches .elephant-wrapp
+pgrep '^\.?kdeconnectd' >/dev/null || kdeconnectd   # matches .kdeconnectd-wr
 ```
 
 `comm` never contains the guard's own command line, so it cannot self-match, and
@@ -213,15 +213,21 @@ tells you which one drew it.
 
 **The program has to be told where it is, and that pointer is config too.**
 Three cases found on 2026-08-09, all of which looked fully converted:
-`elephant` reads `~/.config/elephant/menus.toml` for its menu path, not the
-mango tree the menus live in; `fsel` reads `~/.config/fsel`, reached only by a
-hand-made symlink; the bitwarden provider reads
+`elephant` read `~/.config/elephant/menus.toml` for its menu path, not the
+mango tree the menus lived in; `fsel` reads `~/.config/fsel`, reached only by a
+hand-made symlink; the bitwarden provider read
 `~/.config/elephant/bitwarden.toml`. Every bridge was in `@home` and in no
-repo, so all three worked here and on no other machine. All three are declared
-now (ADR 0014), and `checks/static.sh` asserts the menu path.
+repo, so all three worked here and on no other machine. All were declared
+(ADR 0014); the elephant pair left with walker.
+
+**`rofi` is the live instance of the same shape.** It reads
+`~/.config/rofi/config.rasi` and nothing in the mango tree points at it, so
+`modules/home/dotfiles.nix` naming that path is the only thing connecting the
+two — and rofi with no config falls back to its built-in theme rather than
+erroring. `checks/static.sh` asserts the declaration exists.
 
 The tell is never the filesystem — the file is present and linked either way.
-Ask the program: `elephant listproviders` must name `menus:connectivity`.
+Ask the program: `rofi -no-config -h` must list the modes you expect.
 
 ### mango
 
@@ -247,19 +253,21 @@ it would commit a duplicate that changes on every mode switch. The real files ar
 starts on built-in defaults — no waybar, no keybinds — until a mode script has
 run once.
 
-**`mango/walker/config.toml` is the same shape and once broke `rebuild`
-outright.** Both `autostart.conf` files `ln -sf` it into place, but it was *also*
+**`mango/walker/config.toml` was the same shape and once broke `rebuild`
+outright.** Each `autostart.conf` `ln -sf`'d it into place, but it was *also*
 tracked, so home-manager wanted to own it: activation died with `Existing file …
-would be clobbered`, and `backupFileExtension` does not rescue you. The timing is
+would be clobbered`, and `backupFileExtension` does not rescue you. The timing was
 the nasty part — the symlink only exists once a mode script has run, so the
-failure surfaces after an unrelated mode switch. **When adding anything under
+failure surfaced after an unrelated mode switch. It is gone with walker (rofi
+has one config for every mode), but **when adding anything under
 `dotfiles/mango/`, check nothing writes to that path at runtime.**
 
 **Don't `sudo` the mango scripts.** Under sudo `~` is `/root`, so `reload.sh`
 fails with `No such file or directory` and `MANGO_INSTANCE_SIGNATURE is not set`
-— which reads like a broken install rather than a wrong user — and leaves a
-**root-owned elephant** your own `pkill` cannot kill. `reload.sh` refuses to run
-as root.
+— which reads like a broken install rather than a wrong user — and used to
+leave a **root-owned elephant** your own `pkill` cannot kill. `reload.sh`
+refuses to run as root; it no longer restarts any daemon, because rofi has
+none.
 
 **Runtime state is `${XDG_STATE_HOME:-$HOME/.local/state}/mango`** (`current-mode`,
 `waybar-layout`, `waybar-position`, `night-temp`, `last-vpn`). One script
@@ -420,30 +428,61 @@ rejected, each getting a fresh `timeout` window. Set via
 result with `grep ^auth /etc/pam.d/sudo`; the tokens are `timeout=` and
 `max-tries=` (hyphen, not underscore, despite the log text saying `max_tries`).
 
-### walker / elephant
+### rofi
 
-**An elephant provider whose backing CLI is missing does not load, and says
+`rofi` replaced walker and elephant on 2026-08-14 (ADR 0021). The walker
+findings are kept below the rule, because the *shape* of each recurs.
+
+**A rofi plugin listed as its own package is a plugin rofi never loads.**
+nixpkgs `rofi` is a `symlinkJoin` over `rofi-unwrapped` that adds
+`-plugin-path` pointing into its own `lib/rofi`, so a `rofi-calc` sitting
+beside it in `systemPackages` puts the `.so` somewhere nothing looks. `-show
+calc` then prints `Mode calc is not found` to a stderr nobody reads and **exits
+1** — a dead key. Plugins go through `rofi.override { plugins = [ … ]; }`.
+`rofi-rbw` is the exception and not a plugin at all: a standalone front-end
+over `rbw`, so it is an ordinary package.
+
+**Ask the binary, not the Nix:** `rofi -no-config -h | sed -n '/Detected
+modes/,/^$/p'` lists what actually `dlopen`ed, which is what `checks/static.sh`
+now reads. Under the build sandbox it needs `HOME` set to something writable —
+with `/homeless-shelter` rofi fails to create its runtime dir, warns, and
+prints **no help at all**, which reads as "the scan is broken" rather than
+"rofi is broken".
+
+**`-no-custom` cannot be un-set.** Setting it in `config.rasi` applies to every
+`-dmenu` call, and `-no-no-custom` on the command line is accepted, ignored,
+and exits 0. So it goes at the call site: every fixed-choice menu passes it,
+and the password prompt in `menus/network-menu.sh` must not — with it, Enter
+returns nothing and `nmcli` runs with an empty password.
+
+**Sizing comes from the theme, not the caller.** rofi has no `--maxheight`;
+`listview { dynamic: true; lines: N; }` makes `lines` a ceiling and shrinks to
+fit. Porting a walker call by dropping `--maxheight` is correct, not lossy.
+
+**walker 2.x could not draw a window without elephant, and exited 0 about it.**
+This is why the migration happened, and it is the sharpest example in this file
+of the repo's signature bug. With the walker daemon up and only elephant
+killed, `walker -d` **exits 0, prints nothing, opens no window** — from the
+keyboard indistinguishable from pressing Escape, and from a script
+indistinguishable from a cancel, because every caller reads a cancel as
+`|| exit 0`. The control run with elephant up exits 124, the window still being
+open when the timeout fires. **Two exit codes that differ only by a timeout is
+the whole diagnostic.**
+
+**An elephant provider whose backing CLI was missing did not load, and said
 nothing.** `SUPER+P` opened an empty window for weeks because `bitwarden.so`
-shells out to **`rbw`**, which was never declared — while `~/.config/rbw/` had
-come across via `@home`, so the config surviving made it look verified. **The
-diagnostic is `elephant listproviders`**: the provider is simply absent, while
-its `.so` sits in the store next to the ones that loaded. `rbw`, `wtype` and
-`pinentry-qt` are declared now.
+shelled out to **`rbw`**, which was never declared — while `~/.config/rbw/` had
+come across via `@home`, so the config surviving made it look verified. The
+same trap is live for `rofi-rbw`, which is a front-end over the same `rbw`:
+`rbw`, `wtype` and `pinentry-qt` stay declared in `modules/home/packages.nix`
+for it, and the failure looks identical (an empty list, exit 0).
 
-**A provider that was never built fails the same silent way.** `elephant` is now
-built with `enabledProviders` (ADR 0019) rather than all 25, so the failure has a
-second cause: a `[[providers.prefixes]]` entry or a `walker.sh -m <name>` naming
-a provider outside that list opens an empty window and exits 0 — indistinguishable
-from the missing-CLI case above. `SUPER+CTRL+O` ran `-m obsidian` for months
-against a provider that never existed at all. `checks/static.sh` now cross-checks
-the walker configs and keybinds against the enabled list in both directions, so
-adding a prefix without adding its provider fails `nix flake check`.
-
-**Every provider is ~26 MB and they are all loaded at startup.** They are Go
-plugins, each statically linking its own copy of the runtime, so the all-in-one
-package is an 807 MB store path — 782 MB of it `lib/elephant/providers/`,
-`symbols.so` alone 144 MB — and the daemon `dlopen`s the lot. That is where
-elephant's ~295 MB RSS came from; it is not an index or a leak.
+**Every elephant provider was ~26 MB and all were loaded at startup** — Go
+plugins each statically linking their own runtime, `symbols.so` alone 144 MB,
+all `dlopen`ed by the daemon. Trimming 25 providers to 15 cut the store path
+807 → 546 MB and moved RSS **not at all**: 295 MB before, 305 MB after. Recorded
+because the prediction that it would fall was written down as though measured;
+see ADR 0019's status line.
 
 ---
 

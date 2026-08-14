@@ -193,7 +193,7 @@ let
       tooltip-format-connected = "{controller_alias}\n\n{device_enumerate}";
       tooltip-format-enumerate-connected = "{device_alias}";
       tooltip-format-enumerate-connected-battery = "{device_alias} {device_battery_percentage}%";
-      on-click = "bluetoothctl power on; ${s}/walker/walker.sh -m bluetooth";
+      on-click = "bluetoothctl power on; ${s}/menus/bluetooth-menu.sh";
       on-click-right = "bluetoothctl power off";
     };
 
@@ -202,7 +202,7 @@ let
       format-muted = "  muted";
       tooltip = false;
       on-click = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
-      on-click-right = "${s}/walker/walker.sh -m wireplumber";
+      on-click-right = "${s}/menus/volume-menu.sh";
       # Reads backwards on purpose. `trackpad_natural_scrolling=1` in
       # mango/universal/settings.conf inverts the axis before waybar sees it,
       # so fingers-UP arrives as on-scroll-DOWN — this is what makes swiping up

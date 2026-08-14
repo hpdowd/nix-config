@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bluetooth manager menu
 
-WALKER=(~/.config/mango/scripts/walker/walker.sh -d)
+MENU=(rofi -dmenu -no-custom)
 
 BT=$'\uf294 '    # fa-bluetooth
 SCAN=$'\uf021 '  # fa-refresh
@@ -101,7 +101,7 @@ menu+="────────────────────────�
 menu+="${GEAR}  Bluetooth manager"
 
 # ── Show ───────────────────────────────────────────────────────────────
-choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "$BT")
+choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "$BT")
 [ -z "$choice" ] && exit 0
 
 # ── Handle ─────────────────────────────────────────────────────────────

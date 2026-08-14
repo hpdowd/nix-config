@@ -171,7 +171,7 @@
       equibop
       teams-for-linux
       bitwarden-desktop
-      rbw # elephant's bitwarden provider shells out to this; without it the provider doesn't load
+      rbw # rofi-rbw (SUPER+p) is a front-end over this; without it the key opens an empty list
       pinentry-qt # rbw's config.json asks for "pinentry", which every variant provides
       warpinator
       kdePackages.kdeconnect-kde # not valent — the mango configs call kdeconnect-cli
@@ -214,7 +214,7 @@
       pcmanfm
       pavucontrol
       wl-clipboard
-      wtype # elephant's bitwarden provider autotypes with this
+      wtype # rofi-rbw autotypes with this
       grim
       slurp
       wlopm # power.nix drives it from the sleep hooks via ${pkgs.wlopm}

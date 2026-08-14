@@ -110,8 +110,8 @@ It was an allowlist until 2026-07-30, when the repo root was `~/.config` itself
 and a new directory stayed invisible to git until someone un-ignored it by name.
 The root is an ordinary project root now — add a config directory by adding it.
 
-What is still ignored is specific: generated files (`dotfiles/mango/config.conf`,
-`dotfiles/mango/walker/config.toml`), runtime state, zsh's compdump, and the
+What is still ignored is specific: generated files
+(`dotfiles/mango/config.conf`), runtime state, zsh's compdump, and the
 credential directories (`gh`, `glab-cli`, `opencode`, `gpu-screen-recorder`,
 `rclone`, `rbw`, `tea`). Those are not linked by the flake either.
 

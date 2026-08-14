@@ -33,7 +33,7 @@ do_toggle() {
 do_menu() {
   CHOICE=$(printf \
     "  2700K   Candlelight\n  3000K   Warm\n  3500K   Evening\n  4000K   Soft white\n  4500K   Neutral\n  6500K   (off)" |
-    ~/.config/mango/scripts/walker/walker.sh -d -p "Night mode" --maxheight 220)
+    rofi -dmenu -no-custom -p "Night mode")
 
   [ -z "$CHOICE" ] && exit 0
 

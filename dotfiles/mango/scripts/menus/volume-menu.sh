@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Volume menu — set volume, toggle mute, switch sinks, enable amplification
 
-WALKER=(~/.config/mango/scripts/walker/walker.sh -d)
+MENU=(rofi -dmenu -no-custom)
 
 VOL=$'\uf028 '   # fa-volume-up
 MUTE=$'\uf026 '  # fa-volume-off
@@ -65,7 +65,7 @@ menu+="${SEP}"$'\n'
 menu+="${GEAR}  Audio settings (pavucontrol)"
 
 # ── Show ───────────────────────────────────────────────────────────────
-choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "${VOL} ${vol_pct}%")
+choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "${VOL} ${vol_pct}%")
 [ -z "$choice" ] && exit 0
 
 # ── Handle ─────────────────────────────────────────────────────────────

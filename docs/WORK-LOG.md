@@ -1115,3 +1115,65 @@ Exactly the failure this repo is named for. `dotfiles/scripts/fan-calibrate` is
 the corrected version; it refuses to start as non-root. The shipped
 `CPU_SCALING_MAX_FREQ_ON_SAV = 1115770` is `lowest_nonlinear` reasoned from the
 V/f curve, not a measurement.
+
+---
+
+## rofi replaces walker and elephant (2026-08-14)
+
+`docs/adr/0021`. Two menu programs and a 546 MB daemon out, one 256 KB binary
+and two plugins in. **427 MB resident** goes with them.
+
+**The finding that forced it.** walker 2.x cannot draw a window without
+elephant, and does not say so. With the walker daemon up and only elephant
+killed, `walker -d` **exits 0, prints nothing and opens no window** — from the
+keyboard indistinguishable from pressing Escape, and from a script
+indistinguishable from a cancel, since every caller here reads a cancel as
+`|| exit 0`. The control run with elephant up exits 124, the window still open
+when the timeout fires. Two exit codes differing only by a timeout was the whole
+diagnostic. That put nine scripts and four keybinds behind a daemon whose
+absence looked like a working system.
+
+**ADR 0019's prediction did not hold, and that is what decided it.** It recorded
+295 MB RSS at 25 providers and reasoned resident memory would fall with the
+number of plugins `dlopen`ed. Measured after the trim: **305 MB at 15**. The
+store path did fall 807 → 546 MB, exactly as recorded. RSS did not move. So the
+remaining 546 MB could not be cut further by the technique already applied.
+0019 is superseded rather than deleted — the measurement is the reason 0021
+exists, and the "should fall" line was flagged there as a prediction.
+
+**What was actually being used**: two of walker's nine prefixes, `=` calc and
+`.` symbols. Both were reachable only by typing into walker's main window,
+**which no bind opened** — one `walker` invocation from being unreachable
+already. They are real keys now (`SUPER+=`, `SUPER+;`). `websearch`, `files`,
+`todo`, `bookmarks`, `windows`, `runner` and `providerlist` are gone, not
+stubbed.
+
+**Two things that were already here and unused.** `rofi` was in
+`desktop.nix` and invoked by nothing, and `universal/rule.conf` carried two
+`layer_name:rofi` animation rules that had never matched — Arch carryover, and
+the right name after all (rofi passes the literal `"rofi"` as its
+`zwlr_layer_surface` namespace, `source/wayland/display.c:1616`). So was
+`menus/bluetooth-menu.sh`: hand-written, 155 lines, bound to nothing, quietly
+displaced by elephant's provider. It takes `SUPER+CTRL+B` and the waybar
+bluetooth click now; `menus/volume-menu.sh` takes the pulseaudio right-click.
+
+**The check that replaced 0019's is narrower and stronger.** It reads
+`rofi -no-config -h`'s `Detected modes` — what `dlopen` actually succeeded on —
+rather than the Nix that asked for the plugins, so a plugin that builds and
+fails to load is caught, which the old provider scan could not do. Both
+directions were negative-tested before being committed: a bogus mode in
+`config.rasi`, and a built plugin nothing names, each take the run to
+25 passed / 1 failed.
+
+**The check found its own hole first.** The first version hid rofi's stderr with
+`2>/dev/null` and reported "rofi reports only 0 modes — the scan is broken".
+With stderr kept, the real reason: under the build sandbox `$HOME` is
+`/homeless-shelter`, rofi cannot create its runtime directory, warns, and prints
+no help at all. Fixed by giving that one invocation `HOME="$TMPDIR"`. A check
+that swallows the diagnostic is the thing this repo exists to avoid.
+
+**Not carried over:** hud mode's narrower launcher window (walker's wrapper
+injected per-mode sizing; one theme now serves all three modes), and 337 lines
+of tuned Gruvbox GTK CSS, which do not port — rasi is a different language.
+`config.rasi` starts from rofi's shipped `gruvbox-dark` and overrides four
+things. Deliberately plain, to be tuned once against a running system.

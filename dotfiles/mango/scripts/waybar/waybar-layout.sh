@@ -21,7 +21,7 @@ menu_entries() {
     done
 }
 
-CHOICE=$(menu_entries | "$MANGO_DIR/scripts/walker/walker.sh" -d -p "Waybar layout" --maxheight 160) || exit 0
+CHOICE=$(menu_entries | rofi -dmenu -no-custom -p "Waybar layout") || exit 0
 [[ "$CHOICE" == *"  •" ]] && exit 0
 name="${CHOICE//  •/}"
 name="${name// /}"

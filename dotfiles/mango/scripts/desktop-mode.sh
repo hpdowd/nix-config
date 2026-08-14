@@ -13,7 +13,7 @@
 . "$HOME/.config/mango/scripts/lib.sh"
 
 # One line, and it must stay one line: checks/static.sh reads it with `sed` to
-# cross-check that every mode has its conf, mode script and walker config.
+# cross-check that every mode has its conf and its mode script.
 MODES=("tiling" "hud" "noctalia")
 
 menu_entries() {
@@ -24,7 +24,7 @@ menu_entries() {
     done
 }
 
-CHOICE=$(menu_entries | "$MANGO_DIR/scripts/walker/walker.sh" -d -p "Desktop mode" --maxheight 220) || exit 0
+CHOICE=$(menu_entries | rofi -dmenu -no-custom -p "Desktop mode") || exit 0
 [[ "$CHOICE" == *"  •" ]] && exit 0
 MODE="${CHOICE//  •/}"
 MODE="${MODE// /}"

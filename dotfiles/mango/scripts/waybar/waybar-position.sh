@@ -2,7 +2,7 @@
 # Move the waybar between the top and bottom screen edge.
 #
 # Bound to SUPER+SHIFT+/ , alongside SUPER+/ (waybar layout) and SUPER+CTRL+/
-# (desktop mode). Those two open a walker picker because they have three and
+# (desktop mode). Those two open a rofi picker because they have three and
 # two-plus options respectively; this one is a straight toggle, because with
 # exactly two positions a menu is more keystrokes than the thing it selects.
 #

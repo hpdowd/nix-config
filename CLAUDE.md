@@ -29,7 +29,7 @@ Three habits follow, and they matter more than any single fact below:
 - **Prefer generated config.** A typed home-manager option turns a typo into an
   eval error. See the tier rule.
 - **Verify by output, not by exit status.** When something is missing, run its
-  command by hand and check the output is non-empty — `elephant listproviders`,
+  command by hand and check the output is non-empty — `rofi -no-config -h`,
   `hx --health <lang>`, the module's own `exec`.
 - **Assert a floor.** A scan that stops matching passes by finding nothing, so
   `checks/static.sh` fails when a count hits zero, deliberately.
@@ -102,8 +102,8 @@ Two traps that destroy work rather than merely failing:
   compounds it: it creates no profile generation, so the new store path has no GC
   root.)
 - **Two owners for one path is an activation failure, not a merge.** If anything
-  writes a file at runtime — `mango/config.conf`, `mango/walker/config.toml` — git
-  must not track it and no `xdg.configFile` may claim it.
+  writes a file at runtime — `mango/config.conf`, and `mango/walker/config.toml`
+  before walker left — git must not track it and no `xdg.configFile` may claim it.
 
 Two techniques worth reaching for before accepting a mutable directory: manage a
 *file* rather than a directory (`xdg.configFile."Kvantum/kvantum.kvconfig".source`

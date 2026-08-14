@@ -64,32 +64,23 @@
 
     # Launchers & menus
     fsel # SUPER+Space launcher; the overlay pins 3.6.0
-    walker
-    # Every provider is a Go plugin carrying its own copy of the runtime, ~26 MB
-    # each, and elephant dlopens all of them at startup. Build only the ones the
-    # walker configs and keybinds reach — checks/static.sh holds the two in sync.
-    (elephant.override {
-      enabledProviders = [
-        # default/empty sets, keybinds and waybar clicks
-        "desktopapplications"
-        "calc"
-        "websearch"
-        "menus"
-        "providerlist"
-        "clipboard"
-        "bitwarden"
-        "bluetooth"
-        "wireplumber"
-        # reachable only by a walker prefix
-        "symbols"
-        "files"
-        "todo"
-        "bookmarks"
-        "windows"
-        "runner"
+    # nixpkgs `rofi` is the merged wayland fork; `rofi-wayland` is gone. It is
+    # a wrapper over `rofi-unwrapped`, so plugins go through `plugins = [...]`
+    # — listing them as separate systemPackages entries drops a .so into a
+    # directory rofi never looks in, and `-show calc` then fails with "Mode
+    # calc is not found" on a stderr nobody reads. Verify with
+    # `rofi -h | sed -n '/Detected modes/,/^$/p'`, which must list both.
+    # dotfiles/rofi/config.rasi names the same two modes; static.sh pairs them.
+    (rofi.override {
+      plugins = [
+        rofi-calc # `=` in walker; SUPER+equal here. Shells out to its own qalc.
+        rofi-emoji # `.` in walker; SUPER+semicolon here
       ];
     })
-    rofi # nixpkgs `rofi` is the merged wayland fork; `rofi-wayland` is gone
+    # NOT a rofi plugin — a standalone front-end over `rbw`, so it is a package
+    # in its own right rather than an entry above. Replaced elephant's
+    # bitwarden provider (SUPER+p).
+    rofi-rbw
 
     # Clipboard
     cliphist

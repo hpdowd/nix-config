@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 CHOICE=$(printf "lock\nsuspend\nreboot\nshutdown\nlogout" | \
-    ~/.config/mango/scripts/walker/walker.sh --dmenu --placeholder "power" \
-        --width 160 --maxheight 120) || exit 0
+    rofi -dmenu -no-custom -p "power") || exit 0
 
 case "$CHOICE" in
     lock)     lockscreen -f ;;

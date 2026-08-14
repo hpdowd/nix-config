@@ -13,20 +13,14 @@
 # The mode scripts write this; the rest of home/mango/ is tracked input.
 /dotfiles/mango/config.conf
 
-# Same story, found the hard way on 2026-07-31: both autostart.conf files do
-#   ln -sf ~/.config/mango/walker/configs/{tiling,hud}.toml \
-#          ~/.config/mango/walker/config.toml
-# so this path is a GENERATED SYMLINK rewritten on every mode switch — while it
-# was simultaneously tracked in git, which made home-manager want to own it too.
-# Two owners on one path. Activation then failed outright with
-#   Existing file '/home/henry/.config/mango/walker/config.toml' would be
-#   clobbered
-# and, because the symlink is only created once a mode script has run, the
-# breakage appeared *after* a mode switch rather than after the change that
-# caused it. The tracked copy was byte-identical to configs/tiling.toml, so it
-# was a duplicate that could only drift. Untracked; the mode configs are the
-# real source, exactly as tiling.conf/hud.conf are for config.conf above.
-/dotfiles/mango/walker/config.toml
+# `/dotfiles/mango/walker/config.toml` was the second rule here until
+# 2026-08-14. Each autostart.conf symlinked its mode's walker config over that
+# path, so it was a generated symlink AND tracked in git — two owners on one
+# path, and activation failed with "would be clobbered" only after a mode
+# switch had created it, long after the change that caused it. walker is gone
+# (docs/adr/0021) and rofi has one config for every mode, so the whole class
+# goes with it. Left as a note because the shape recurs: anything an
+# autostart.conf writes must not also be tracked.
 
 # Runtime state moved to ~/.local/state/mango on 2026-07-30. Kept as a rule so
 # an old checkout or a stray script cannot quietly reintroduce state into the

@@ -37,14 +37,11 @@ in
     "glow".source = ../../dotfiles/glow; # no home-manager module at this pin
     "fsel".source = ../../dotfiles/fsel;
 
-    # elephant reads ~/.config/elephant, not the mango tree; these two files are
-    # what connect them (docs/adr/0014). Files, not a directory, so elephant
-    # keeps a writable dir for caches. `.text` to derive the path rather than
-    # hardcode /home/henry.
-    "elephant/menus.toml".text = ''
-      paths = ["${config.xdg.configHome}/mango/elephant/menus"]
-    '';
-    "elephant/bitwarden.toml".source = ../../dotfiles/elephant/bitwarden.toml;
+    # rofi reads ~/.config/rofi/config.rasi and nothing in the mango tree points
+    # at it, so this declaration is the only thing that connects the two
+    # (docs/adr/0014). A file, not a directory: rofi writes a cache and
+    # rofi.png next to it.
+    "rofi/config.rasi".source = ../../dotfiles/rofi/config.rasi;
 
     # Not `services.swaync` — autostart.conf owns the lifecycle so a restyle
     # applies on mode switch. docs/adr/0005.

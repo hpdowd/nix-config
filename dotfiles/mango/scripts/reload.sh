@@ -27,16 +27,7 @@ fi
 # `{"success":true}` versus `{"error":"unknown command"}`.
 mmsg dispatch reload_config
 
-# `pkill -x elephant` was here until 2026-07-30 and had been a silent no-op
-# since the migration: nixpkgs ships elephant as a wrapper, so the process
-# `comm` is `.elephant-wrapped` — and the kernel truncates comm to 15 chars,
-# so it actually reads `.elephant-wrapp`. `-x` matches comm exactly, so it
-# never matched, and every reload leaked another elephant. Match the command
-# line instead, which is the stable `/nix/store/…/bin/elephant`.
-pkill -f 'bin/elephant$'
-
-# setsid + redirect: without them elephant inherits this script's stdout, so
-# any caller that pipes reload.sh (`reload.sh | tail`) hangs forever waiting
-# for EOF on a pipe the daemon is holding open.
-setsid elephant >/dev/null 2>&1 < /dev/null &
-disown
+# Nothing to restart after this. Until 2026-08-14 the reload also had to bounce
+# the elephant daemon, because walker could not draw a window without it — see
+# docs/adr/0021. rofi has no daemon: every menu is a fresh process that reads
+# ~/.config/rofi/config.rasi on the way up, so a rebuild is the whole reload.

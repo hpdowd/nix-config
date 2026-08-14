@@ -1,6 +1,15 @@
 # 0019 — elephant builds only the providers something reaches
 
-**Status:** Accepted (2026-08-13)
+**Status:** Superseded by [0021](0021-rofi-replaces-walker-and-elephant.md)
+(2026-08-14) — walker and elephant are gone, so there is no provider list left
+to trim. Kept, because the measurement below is what decided 0021. The trim cut
+the store path 807 → 546 MB exactly as recorded here, and did **not** move the
+resident set: measured 2026-08-14, **305 MB at 15 providers**, against the
+295 MB at 25 that this record predicted would fall. Consequences flagged that as
+a prediction rather than evidence. It was wrong, and 546 MB that could not be
+cut further by the same technique is why rofi won.
+
+Originally **Accepted (2026-08-13)**.
 
 Extends [0014](0014-declare-the-namer-not-just-the-file.md) (assert reachability
 both ways, per selector) and [0011](0011-shell-is-gated-too.md) (the floor rule).

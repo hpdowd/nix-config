@@ -2,7 +2,7 @@
 # Network manager menu — WiFi, Ethernet, VPN
 # Instant open via cache; rescan re-launches with fresh data.
 
-WALKER=(~/.config/mango/scripts/walker/walker.sh -d)
+MENU=(rofi -dmenu -no-custom)
 CACHE=/tmp/network-menu-cache.txt
 
 SEP=$'────────────────────────'
@@ -119,7 +119,7 @@ else
   echo "$menu" >"$CACHE"
 fi
 
-choice=$(printf '%s' "$menu" | "${WALKER[@]}" -p "$WIFI")
+choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "$WIFI")
 [ -z "$choice" ] && exit 0
 
 # ── Helpers for handling choice ───────────────────────────────────────
@@ -210,7 +210,11 @@ case "$choice" in
       fi
     else
       # Unknown network — prompt for password
-      pass=$(printf '' | ~/.config/mango/scripts/walker/walker.sh -d -I -p "${LOCK}  ${ssid}" --maxheight 60 --minheight 60)
+      # NOT "${MENU[@]}": this is the one prompt where the typed string is the
+      # answer, so it must not carry `-no-custom` — with it, Enter returns
+      # nothing and the connection attempt runs with an empty password. Empty
+      # stdin is deliberate; rofi returns the input when no row matches.
+      pass=$(printf '' | rofi -dmenu -password -p "${LOCK}  ${ssid}")
       [ -z "$pass" ] && exit 0
       if ! nmcli dev wifi connect "$ssid" password "$pass" 2>/dev/null; then
         sleep 0.5

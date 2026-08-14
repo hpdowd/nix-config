@@ -133,10 +133,10 @@ Two rules follow from this and explain most of the surprises:
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
 │   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
 ├── dotfiles/                  the hand-written dotfiles that remain
-│   ├── mango/                 compositor: modes, waybar CSS, walker, fsel, scripts
+│   ├── mango/                 compositor: modes, waybar CSS, fsel, scripts
 │   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
 │   ├── swaync/ glow/ fsel/    apps with no module, or whose module is not adopted
-│   ├── elephant/              bitwarden.toml; menus.toml is generated (ADR 0014)
+│   ├── rofi/                  config.rasi — config AND theme (ADR 0021)
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
 │   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
@@ -180,7 +180,7 @@ All defined as zsh aliases in `modules/home/shell.nix`:
 | `gc` | `nix-collect-garbage --delete-older-than 30d` | Reclaim store space |
 | `search` | `nix search nixpkgs` | Find a package name |
 | `waybar-reload` | Restart waybar from the current state | After a `rebuild` that touched the bar |
-| `mango-reload` | Re-apply the mode, dispatch `reload_config`, restart elephant | After a `rebuild` that touched keybinds, rules or autostart |
+| `mango-reload` | Re-apply the mode and dispatch `reload_config` | After a `rebuild` that touched keybinds, rules or autostart |
 
 The mango scripts are not on `$PATH` — `~/.scripts` is, `~/.config/mango/scripts`
 is not, and putting it there would drop 28 files with names like `mode.sh` into
@@ -242,8 +242,8 @@ looks exactly like the change having had no effect.**
 `corectrl` is the only entry where an edit is still live without a rebuild.
 
 **Never `sudo` the mango scripts.** Under sudo `~` is `/root`, so they fail with
-what looks like a broken install, and leave a root-owned elephant process your
-own `pkill` cannot kill. `reload.sh` refuses to run as root.
+what looks like a broken install, and write root-owned files into a config tree
+they should not touch. `reload.sh` refuses to run as root.
 
 ---
 
@@ -295,7 +295,8 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Waybar appearance | `dotfiles/mango/waybar/style*.css` + `colors.css` — still hand-written |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
-| Launcher entries | `dotfiles/mango/walker/configs/`, `dotfiles/mango/fsel/config.toml` |
+| Launcher entries | `dotfiles/mango/fsel/config.toml`; menu contents are in the `scripts/menus/*.sh` that build them |
+| rofi's look, size or modes | `dotfiles/rofi/config.rasi` — one file for all three desktop modes |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
 ---
@@ -347,13 +348,13 @@ rebuild.
 
 Currently: `mango` (with `recursive = true`), `nvim`, `swaync`, `glow`, `fsel`,
 `zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
-`nwg-look`, `elephant/{menus,bitwarden}.toml` and the `gtk-3.0`/`gtk-4.0`
-assets.
+`nwg-look`, `rofi/config.rasi` and the `gtk-3.0`/`gtk-4.0` assets.
 
-> **`elephant/menus.toml` is generated, not linked.** It names an absolute path
-> into the mango tree, which must be derived from `config.xdg.configHome`
-> rather than carry a hardcoded `/home/henry` — so it uses `.text`. It is the
-> only thing connecting elephant to `mango/elephant/menus/`, and until
+> **`rofi/config.rasi` is declared as a FILE, not a directory.** rofi writes a
+> cache and `rofi.png` next to it, so linking the parent would give one path two
+> owners. It is also the only thing connecting rofi to this repo — nothing in
+> the mango tree names it, and rofi with no config falls back to its built-in
+> theme rather than erroring. Same shape as `elephant/menus.toml` before it: until
 > 2026-08-09 it was hand-written and in no repo. See ADR 0014.
 
 > **File-level is a variant of this tier, not a separate one.**
@@ -363,7 +364,7 @@ assets.
 > directory containing a file symlink. `htop`, `ncspot` and `zed` used to need
 > this; their native modules now do exactly the same thing internally, so it
 > became upstream's problem. What is left is `Kvantum`, `nwg-look` and the GTK
-> asset directories.
+> asset directories, plus `rofi/config.rasi`.
 
 `mango` and `nvim` reached this tier by **moving the writer** rather than
 accepting a mutable directory — nvim's `lazy-lock.json` moved to
@@ -413,7 +414,7 @@ from `dotfiles/` in the same change. `waybar.nix` writes into `~/.config/mango/`
 which the recursive `mango` link also owns, and that only works because the
 four `.jsonc` files were deleted from `dotfiles/mango/waybar/`. `walker/config.toml`
 broke `rebuild` outright this way: tracked in git *and* written as a symlink by
-both autostart files.
+every autostart file. It is gone with walker (ADR 0021); the shape is not.
 
 ⚠️ **"Declarative" and "writable" are not actually in tension.** That was an
 artefact of only having symlinks. `programs.zed-editor` runs an activation
@@ -462,8 +463,7 @@ both directions, so a half-removal cannot pass the gate.
 
 ```
 git rm -r dotfiles/mango/noctalia \
-          dotfiles/mango/scripts/modes/noctalia.sh \
-          dotfiles/mango/walker/configs/noctalia.toml
+          dotfiles/mango/scripts/modes/noctalia.sh
 ```
 
 Then revert, in order of how easy each is to miss:
@@ -535,7 +535,7 @@ Waybar configs are generated as the **full layout × position matrix**:
 `config-<layout>-<position>.jsonc`, 4 × 2 = 8 files. `waybar-restart.sh` only
 builds a filename from the three state values; nothing is rewritten at runtime.
 
-The first two open a walker picker; position is a **straight toggle**, since
+The first two open a rofi picker; position is a **straight toggle**, since
 with two options a menu costs more keystrokes than the thing it selects.
 `waybar-position.sh` also accepts an explicit `top`/`bottom` argument for
 scripting.
@@ -580,7 +580,8 @@ a byte-identical copy each.
 | `SUPER+Return` | foot (terminal) |
 | `SUPER+SHIFT+Return` | kitty |
 | `SUPER+Space` | fsel — the main launcher |
-| `SUPER+W` | walker provider list (all menus) |
+| `SUPER+=` | Calculator (`rofi -show calc`, result to the clipboard) |
+| `SUPER+;` | Emoji picker (`rofi -show emoji`) |
 | `SUPER+B` | Zen browser |
 | `SUPER+E` | Thunar |
 | `SUPER+V` | Clipboard history |
@@ -680,9 +681,8 @@ is missing from the bar, **run its script by hand first**:
 | Piece | Role |
 |---|---|
 | **fsel** | Primary launcher (`SUPER+Space`), floating foot terminal pinned right |
-| **walker** | Structured menus — bluetooth, clipboard, bitwarden, mode pickers |
-| **elephant** | Widget/provider backend behind walker |
-| **rofi** | Secondary menus. **No config in this repo** — there is no `rofi/` directory and never was on NixOS; it runs on its own defaults. Grepping for `rofi` is misleading, since it substring-matches `power-profile` |
+| **rofi** | Every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
+| **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
 | **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit |
@@ -1249,7 +1249,7 @@ Nearly every problem on this system fails **silently**. The catalogue:
 | A mango script "succeeds" but does nothing | Old dwl-era `mmsg -s -d` flags. `mmsg` takes verbs (`get`, `dispatch`, `watch`) and returns `{"error":...}` **with exit 0** | `mmsg dispatch <func>`, and check the output |
 | Icons render as empty boxes | The font lacks that codepoint, or a CSS `url()` failed — GTK draws its missing-image box **without logging** | `fc-list ':charset=XXXX' family` |
 | An icon is off-centre in its cell | Container wider than its content, filled from one end — glyph advance vs ink, or `min-width` vs `icon-size` | Compare the two numbers |
-| Duplicate/leaked daemon processes | `pkill -x` against a nixpkgs wrapper — `comm` is `.elephant-wrapp` (truncated at 15 chars), not `elephant` | `pkill -f 'bin/elephant$'` |
+| Duplicate/leaked daemon processes | `pkill -x` against a nixpkgs wrapper — `comm` is `.kdeconnectd-wr` (truncated at 15 chars), not `kdeconnectd` | `pkill -f 'bin/kdeconnectd$'` |
 | A user unit misbehaves in an Arch-like way | `~/.config/systemd/user/` shadows `/etc/systemd/user/` | Now clean — contains only home-manager symlinks. Keep it that way |
 | Lock screen rejects the correct password | Missing `/etc/pam.d/swaylock` → PAM falls through to `other` = deny | `pam_warn(swaylock:auth)` in the journal. Declared in `desktop.nix` |
 | Session blank after killing swaylock | `ext-session-lock-v1` **requires** the compositor to stay locked if the client dies. Not a bug | Relaunch swaylock on the same `WAYLAND_DISPLAY` and authenticate, or reboot |

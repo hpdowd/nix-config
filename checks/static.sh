@@ -70,8 +70,11 @@ else
 	bad "symlinks in the source" "$(echo "$syms" | tr '\n' ' ')"
 fi
 
-# Generated at runtime, so tracking them means two owners for one path.
-for f in dotfiles/mango/config.conf dotfiles/mango/walker/config.toml; do
+# Generated at runtime, so tracking them means two owners for one path. A list
+# of one since walker left (docs/adr/0021) — kept as a loop because the shape
+# recurs every time an autostart.conf learns to write something.
+GENERATED=(dotfiles/mango/config.conf)
+for f in "${GENERATED[@]}"; do
 	if is_tracked "$f"; then
 		bad "$f is tracked but is generated at runtime"
 	elif grep -qF "$f" "$SRC/.gitignore"; then
@@ -205,42 +208,19 @@ else
 	for m in "${MODES[@]}"; do
 		[[ -f "$MANGO/$m/$m.conf" ]] || missing+="  $m/$m.conf"$'\n'
 		[[ -f "$MANGO/scripts/modes/$m.sh" ]] || missing+="  scripts/modes/$m.sh"$'\n'
-		[[ -f "$MANGO/walker/configs/$m.toml" ]] || missing+="  walker/configs/$m.toml"$'\n'
 	done
-	# And nothing surplus: a walker config for a mode that no longer exists.
-	for c in "$MANGO"/walker/configs/*.toml; do
-		[[ -e $c ]] || continue
-		n=$(basename "$c" .toml)
-		printf '%s\n' "${MODES[@]}" | grep -qxF "$n" || missing+="  walker/configs/$n.toml names no mode"$'\n'
+	# And nothing surplus, in both directions: a <m>/<m>.conf naming no mode is
+	# a config nothing can select. (walker/configs/<m>.toml was the third
+	# per-mode file until 2026-08-14; rofi has one config for every mode.)
+	for d in "$MANGO"/*/; do
+		n=$(basename "$d")
+		[[ -f "$d/$n.conf" ]] || continue
+		printf '%s\n' "${MODES[@]}" | grep -qxF "$n" || missing+="  $n/$n.conf names no mode"$'\n'
 	done
 	if [[ -z $missing ]]; then
-		ok "each of the ${#MODES[@]} modes has its conf, script and walker config, and no others exist"
+		ok "each of the ${#MODES[@]} modes has its conf and its mode script, and no others exist"
 	else
 		bad "mode/file mismatch" "$missing"
-	fi
-fi
-
-# Walker themes are selected by name from inside the walker configs, which is
-# what made walker/themes/mango/ survive as 765 lines of dead CSS.
-mapfile -t THEMES < <(
-	sed -n 's/^theme = "\([^"]*\)".*/\1/p' "$MANGO"/walker/configs/*.toml 2>/dev/null | sort -u
-)
-if [[ ${#THEMES[@]} -eq 0 ]]; then
-	bad "no theme= line found in any walker config — the scan is broken, not the repo"
-else
-	themerr=""
-	for t in "${THEMES[@]}"; do
-		[[ -d "$MANGO/walker/themes/$t" ]] || themerr+="  themes/$t named but absent"$'\n'
-	done
-	for d in "$MANGO"/walker/themes/*/; do
-		[[ -d $d ]] || continue
-		n=$(basename "$d")
-		printf '%s\n' "${THEMES[@]}" | grep -qxF "$n" || themerr+="  themes/$n exists but no config names it"$'\n'
-	done
-	if [[ -z $themerr ]]; then
-		ok "all ${#THEMES[@]} walker themes are named by a config, and no others exist"
-	else
-		bad "walker theme mismatch" "$themerr"
 	fi
 fi
 
@@ -265,51 +245,80 @@ else
 	bad "a mango config names a missing or non-executable script" "$missing"
 fi
 
-# elephant reads its menu path from ~/.config/elephant/menus.toml, which lives
-# in a different tree — the .lua landing on disk says nothing about it loading.
-menus_decl=$(grep -rh 'elephant/menus' "$SRC/modules/home/dotfiles.nix" 2>/dev/null)
-if [[ -z $menus_decl ]]; then
-	bad "nothing declares elephant's menus.toml — the .lua files are unreachable"
-elif ! find "$MANGO/elephant/menus" -name '*.lua' -print -quit 2>/dev/null | grep -q .; then
-	bad "menus.toml is declared but no .lua menu exists — the scan is broken"
+# rofi reads ~/.config/rofi/config.rasi, which is in a different tree from the
+# mango configs that use it — the .rasi landing in the repo says nothing about
+# rofi finding it. Same shape as elephant's menus.toml before it (docs/adr/0014).
+rasi_decl=$(grep -rh 'rofi/config.rasi' "$SRC/modules/home/dotfiles.nix" 2>/dev/null)
+if [[ -z $rasi_decl ]]; then
+	bad "nothing declares rofi/config.rasi — rofi would fall back to its built-in theme"
+elif [[ ! -f "$SRC/dotfiles/rofi/config.rasi" ]]; then
+	bad "config.rasi is declared but absent from the source — the scan is broken"
 else
-	ok "elephant's menu path is declared and has menus"
+	ok "rofi's config.rasi is declared and present"
 fi
 
-# elephant is built with only the providers we reach (docs/adr/0019), so a
-# prefix or `-m` naming one we dropped now renders empty and exits 0.
-mapfile -t ENABLED < <(
-	sed -n '/enabledProviders = \[/,/\];/p' "$SRC/modules/system/desktop.nix" |
-		sed -n 's/^ *"\([a-z0-9]*\)"$/\1/p'
-)
-mapfile -t WANTED < <(
-	{
-		# `provider = "x"` prefix blocks, and the default/empty sets.
-		sed -n 's/^provider = "\([^"]*\)".*/\1/p' "$MANGO"/walker/configs/*.toml
-		sed -n '/^\(default\|empty\) = \[/,/\]/p' "$MANGO"/walker/configs/*.toml |
-			grep -o '"[a-z0-9:]\+"' | tr -d '"'
-		# `walker.sh -m <provider>`. Anchored on walker, or `install -m 644` lands
-		# in the list as a provider named 644.
-		grep -rh 'walker' "$MANGO" "$SRC/modules/home/waybar.nix" 2>/dev/null |
-			grep -oE -- '-m [a-z0-9:]+' | cut -d' ' -f2
-	} | cut -d: -f1 | sort -u | sed '/^$/d'
-)
-if [[ ${#ENABLED[@]} -eq 0 || ${#WANTED[@]} -eq 0 ]]; then
-	bad "could not read elephant's provider lists — the scan is broken, not the repo"
+# rofi's modes come from two places that cannot see each other: the built-ins,
+# and the plugins listed in modules/system/desktop.nix. A mode named by
+# config.rasi or by a `-show` bind whose plugin is not built makes rofi print
+# "Mode <x> is not found" to a stderr nobody is reading and exit 1 — a key that
+# does nothing, which is this repo's signature failure. Read what the BUILT
+# binary reports rather than the Nix that asked for it: `-h` lists exactly what
+# dlopens, so a plugin that builds but fails to load is caught too. `-no-config`
+# so the check does not depend on a home directory.
+ROFI="$SYS/sw/bin/rofi"
+if [[ ! -x $ROFI ]]; then
+	bad "no rofi in the system profile — every menu bind would exit 127" "$ROFI"
 else
-	proverr=""
-	for w in "${WANTED[@]}"; do
-		printf '%s\n' "${ENABLED[@]}" | grep -qxF "$w" ||
-			proverr+="  $w is named by a walker config or keybind but not built"$'\n'
-	done
-	for e in "${ENABLED[@]}"; do
-		printf '%s\n' "${WANTED[@]}" | grep -qxF "$e" ||
-			proverr+="  $e is built but nothing reaches it"$'\n'
-	done
-	if [[ -z $proverr ]]; then
-		ok "all ${#ENABLED[@]} enabled elephant providers are reached, and nothing reaches a dropped one"
+	# 2>&1, not 2>/dev/null: if rofi cannot start, its reason is the only thing
+	# separating "the config is wrong" from "the scan is broken", and throwing
+	# it away is how a check comes to pass by finding nothing.
+	# HOME/XDG_CACHE_HOME: rofi creates a runtime directory before it does
+	# anything else, and under the build sandbox `$HOME` is /homeless-shelter.
+	# It cannot, warns, and prints no help at all — so the list came back empty
+	# and the check read as "the scan is broken", which is exactly what it said.
+	rofi_help=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR" "$ROFI" -no-config -h 2>&1)
+	mapfile -t DETECTED < <(
+		printf '%s\n' "$rofi_help" | sed -n '/Detected modes/,/^$/p' |
+			sed -n 's/^[[:space:]]*• *+\?\([a-z]*\).*/\1/p'
+	)
+	mapfile -t WANTED < <(
+		{
+			# config.rasi's `modes:` list, comma-separated.
+			sed -n 's/^ *modes: *"\([^"]*\)".*/\1/p' "$SRC/dotfiles/rofi/config.rasi" | tr ',' '\n'
+			# `rofi -show <mode>` in a bind, a script or a waybar click.
+			grep -rhoE -- '-show [a-z]+' "$MANGO" "$SRC/modules/home/waybar.nix" 2>/dev/null |
+				cut -d' ' -f2
+		} | tr -d ' ' | sort -u | sed '/^$/d'
+	)
+	# The reverse direction needs the Nix: `-h` cannot say which of the modes it
+	# lists came from a plugin, so a plugin nothing reaches would hide among the
+	# built-ins.
+	mapfile -t PLUGINS < <(
+		sed -n '/plugins = \[/,/\];/p' "$SRC/modules/system/desktop.nix" |
+			sed -n 's/^ *rofi-\([a-z]*\).*/\1/p'
+	)
+	if [[ ${#DETECTED[@]} -lt 5 ]]; then
+		bad "rofi reports only ${#DETECTED[@]} modes — the scan is broken, not the config" \
+			"$(printf '%s\n' "$rofi_help" | head -3)"
+	elif [[ ${#WANTED[@]} -eq 0 || ${#PLUGINS[@]} -eq 0 ]]; then
+		bad "no rofi modes or plugins found in the source — the scan is broken, not the repo"
 	else
-		bad "elephant provider mismatch" "$proverr"
+		moderr=""
+		for w in "${WANTED[@]}"; do
+			printf '%s\n' "${DETECTED[@]}" | grep -qxF "$w" ||
+				moderr+="  $w is named by config.rasi or a bind but rofi does not have it"$'\n'
+		done
+		for p in "${PLUGINS[@]}"; do
+			printf '%s\n' "${DETECTED[@]}" | grep -qxF "$p" ||
+				moderr+="  rofi-$p is built but rofi does not load it"$'\n'
+			printf '%s\n' "${WANTED[@]}" | grep -qxF "$p" ||
+				moderr+="  rofi-$p is built but nothing reaches it"$'\n'
+		done
+		if [[ -z $moderr ]]; then
+			ok "all ${#WANTED[@]} rofi modes reached are loaded, and both ${#PLUGINS[@]} plugins are reached"
+		else
+			bad "rofi mode mismatch" "$moderr"
+		fi
 	fi
 fi
 
@@ -561,6 +570,11 @@ else
 			# waybar CSS font-family, comma-separated, quoted or bare.
 			grep -rhoE 'font-family:[^;]+;' "$WAYBAR_DIR"/*.css 2>/dev/null \
 				| sed -E 's/font-family://; s/;//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//'
+			# rofi: `font: "<family> <size>";`. Every menu entry carries Font
+			# Awesome glyphs in the string itself, so a fallback here is a
+			# window full of boxes rather than a slightly different typeface.
+			sed -nE 's/^[[:space:]]*font:[[:space:]]*"(.*) [0-9]+"[[:space:]]*;.*/\1/p' \
+				"$SRC/dotfiles/rofi/config.rasi" 2>/dev/null
 		)
 		wanted=$(printf '%s\n' "$wanted" | grep -vE '^(auto|monospace|sans-serif|serif|inherit)?$' | sort -u)
 

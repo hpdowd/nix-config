@@ -1,0 +1,68 @@
+/* rofi's configuration AND its theme, in one file.
+ *
+ * rofi reads ~/.config/rofi/config.rasi and nothing else points at it, so
+ * modules/home/dotfiles.nix declares this path by name (docs/adr/0014). It is
+ * declared as a FILE, not a directory: rofi writes a cache and rofi.png
+ * alongside it, and two owners for one path is an activation failure.
+ *
+ * Deliberately plain. The 337 lines of hand-tuned GTK CSS that dressed walker
+ * do not port — rasi is a different language — so this starts from rofi's own
+ * gruvbox-dark and overrides only what has to be right for the menus to work.
+ * Tune the look against a running system, not from here.
+ */
+
+configuration {
+  /* Only the modes something actually reaches. `calc` and `emoji` come from
+   * the two plugins in modules/system/desktop.nix; naming a mode whose plugin
+   * is not built makes `rofi -show calc` print "Mode calc is not found" to a
+   * stderr nobody is reading and exit 1 — a key that does nothing. The list
+   * here and the plugin list there are held together by checks/static.sh. */
+  modes: "drun,run,calc,emoji";
+
+  /* Menu entries carry Font Awesome glyphs ( and friends) in the string
+   * itself, so this must be a Nerd Font or every icon renders as a box.
+   * "Hack Nerd Font" is declared in modules/system/fonts.nix and is the
+   * terminal font; checks/static.sh resolves this name against the built font
+   * closure, because a family that matches nothing falls back silently. */
+  font: "Hack Nerd Font 11";
+
+  /* The glyphs are already in the text; icon lookup would add a per-entry
+   * theme scan for nothing. drun is the exception and is not on a key. */
+  show-icons: false;
+  drun-display-format: "{name}";
+
+  calc {
+    /* Without this, Enter on a result does nothing: rofi-calc writes the
+     * result to stdout, and a rofi spawned from a keybind has no stdout
+     * anyone reads. The plugin runs this through `/bin/sh -c` — which does
+     * exist on NixOS, unlike /bin/bash. */
+    calc-command: "echo -n '{result}' | wl-copy";
+  }
+}
+
+@theme "gruvbox-dark"
+
+/* Sized here rather than per call. walker took --maxheight on every
+ * invocation, so each caller carried a number that had to be re-guessed
+ * whenever a menu grew an entry; `dynamic` makes the list shrink to fit its
+ * contents and `lines` is only the ceiling, so a three-item menu is three
+ * items tall on its own.
+ */
+window {
+  width: 40em;
+}
+
+listview {
+  lines: 12;
+  dynamic: true;
+  scrollbar: false;
+}
+
+/* `no-custom` is NOT set here, deliberately. It belongs at the call site:
+ * every fixed-choice menu passes `-no-custom` so a typo cannot return itself
+ * and fall silently through the handler's `*)` branch, while the password
+ * prompt in menus/network-menu.sh must NOT pass it — there the typed string
+ * is the answer. Setting it globally would need un-setting for that one call,
+ * and rofi has no negation for it: `-no-no-custom` is accepted, ignored, and
+ * exits 0.
+ */

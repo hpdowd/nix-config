@@ -527,7 +527,6 @@ a byte-identical copy each.
 | `SUPER+E` | Thunar |
 | `SUPER+V` | Clipboard history |
 | `SUPER+P` | Bitwarden |
-| `SUPER+CTRL+O` | Obsidian notes |
 | `SUPER+CTRL+N` / `+V` / `+B` | Network / VPN / Bluetooth menu |
 
 **Windows**

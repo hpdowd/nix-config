@@ -159,12 +159,6 @@ files = [
   { action = "refresh_index", label = "reload", bind = "ctrl r", after = "AsyncReload" },
 ]
 
-1password = [
-  { action = "copy_password", label = "copy password", default = true, bind = "Return" },
-  { action = "copy_username", label = "copy username", bind = "shift Return" },
-  { action = "copy_2fa", label = "copy 2fa", bind = "ctrl Return" },
-]
-
 todo = [
   { action = "save", default = true, bind = "Return", after = "AsyncClearReload" },
   { action = "save_next", label = "save & new", bind = "shift Return", after = "AsyncClearReload" },
@@ -185,15 +179,6 @@ runner = [
 
 symbols = [
   { action = "run_cmd", label = "select", default = true, bind = "Return" },
-]
-
-unicode = [
-  { action = "run_cmd", label = "select", default = true, bind = "Return" },
-]
-
-nirisessions = [
-  { action = "start", label = "start", default = true, bind = "Return" },
-  { action = "start_new", label = "start blank", bind = "ctrl Return" },
 ]
 
 clipboard = [

@@ -30,6 +30,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0016](0016-idle-suspends-the-lid-hibernates.md) | The idle rung suspends; the lid still hibernates | Accepted (amends [0015](0015-hibernate-not-suspend-on-the-lid.md)) |
 | [0017](0017-tlp-profiles-not-platform-profile.md) | Power modes are TLP profiles; `platform_profile` was a placebo | Accepted |
 | [0018](0018-lock-background-is-a-pool.md) | The lock background is a pre-generated pool, picked per lock | Accepted |
+| [0019](0019-elephant-builds-only-reached-providers.md) | elephant builds only the providers something reaches | Accepted (extends [0014](0014-declare-the-namer-not-just-the-file.md), [0011](0011-shell-is-gated-too.md)) |
 
 ## Format
 

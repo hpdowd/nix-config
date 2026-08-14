@@ -59,7 +59,30 @@
     # Launchers & menus
     fsel # SUPER+Space launcher; the overlay pins 3.6.0
     walker
-    elephant
+    # Every provider is a Go plugin carrying its own copy of the runtime, ~26 MB
+    # each, and elephant dlopens all of them at startup. Build only the ones the
+    # walker configs and keybinds reach — checks/static.sh holds the two in sync.
+    (elephant.override {
+      enabledProviders = [
+        # default/empty sets, keybinds and waybar clicks
+        "desktopapplications"
+        "calc"
+        "websearch"
+        "menus"
+        "providerlist"
+        "clipboard"
+        "bitwarden"
+        "bluetooth"
+        "wireplumber"
+        # reachable only by a walker prefix
+        "symbols"
+        "files"
+        "todo"
+        "bookmarks"
+        "windows"
+        "runner"
+      ];
+    })
     rofi # nixpkgs `rofi` is the merged wayland fork; `rofi-wayland` is gone
 
     # Clipboard

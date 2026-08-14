@@ -240,6 +240,43 @@ else
 	ok "elephant's menu path is declared and has menus"
 fi
 
+# elephant is built with only the providers we reach (docs/adr/0019), so a
+# prefix or `-m` naming one we dropped now renders empty and exits 0.
+mapfile -t ENABLED < <(
+	sed -n '/enabledProviders = \[/,/\];/p' "$SRC/modules/system/desktop.nix" |
+		sed -n 's/^ *"\([a-z0-9]*\)"$/\1/p'
+)
+mapfile -t WANTED < <(
+	{
+		# `provider = "x"` prefix blocks, and the default/empty sets.
+		sed -n 's/^provider = "\([^"]*\)".*/\1/p' "$MANGO"/walker/configs/*.toml
+		sed -n '/^\(default\|empty\) = \[/,/\]/p' "$MANGO"/walker/configs/*.toml |
+			grep -o '"[a-z0-9:]\+"' | tr -d '"'
+		# `walker.sh -m <provider>`. Anchored on walker, or `install -m 644` lands
+		# in the list as a provider named 644.
+		grep -rh 'walker' "$MANGO" "$SRC/modules/home/waybar.nix" 2>/dev/null |
+			grep -oE -- '-m [a-z0-9:]+' | cut -d' ' -f2
+	} | cut -d: -f1 | sort -u | sed '/^$/d'
+)
+if [[ ${#ENABLED[@]} -eq 0 || ${#WANTED[@]} -eq 0 ]]; then
+	bad "could not read elephant's provider lists — the scan is broken, not the repo"
+else
+	proverr=""
+	for w in "${WANTED[@]}"; do
+		printf '%s\n' "${ENABLED[@]}" | grep -qxF "$w" ||
+			proverr+="  $w is named by a walker config or keybind but not built"$'\n'
+	done
+	for e in "${ENABLED[@]}"; do
+		printf '%s\n' "${WANTED[@]}" | grep -qxF "$e" ||
+			proverr+="  $e is built but nothing reaches it"$'\n'
+	done
+	if [[ -z $proverr ]]; then
+		ok "all ${#ENABLED[@]} enabled elephant providers are reached, and nothing reaches a dropped one"
+	else
+		bad "elephant provider mismatch" "$proverr"
+	fi
+fi
+
 printf '\nNetworkManager profiles\n'
 
 # Read the keyfiles the unit will actually write, not the option that produced

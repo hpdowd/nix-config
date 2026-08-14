@@ -372,6 +372,21 @@ diagnostic is `elephant listproviders`**: the provider is simply absent, while
 its `.so` sits in the store next to the ones that loaded. `rbw`, `wtype` and
 `pinentry-qt` are declared now.
 
+**A provider that was never built fails the same silent way.** `elephant` is now
+built with `enabledProviders` (ADR 0019) rather than all 25, so the failure has a
+second cause: a `[[providers.prefixes]]` entry or a `walker.sh -m <name>` naming
+a provider outside that list opens an empty window and exits 0 — indistinguishable
+from the missing-CLI case above. `SUPER+CTRL+O` ran `-m obsidian` for months
+against a provider that never existed at all. `checks/static.sh` now cross-checks
+the walker configs and keybinds against the enabled list in both directions, so
+adding a prefix without adding its provider fails `nix flake check`.
+
+**Every provider is ~26 MB and they are all loaded at startup.** They are Go
+plugins, each statically linking its own copy of the runtime, so the all-in-one
+package is an 807 MB store path — 782 MB of it `lib/elephant/providers/`,
+`symbols.so` alone 144 MB — and the daemon `dlopen`s the lot. That is where
+elephant's ~295 MB RSS came from; it is not an index or a leak.
+
 ---
 
 ## Waybar

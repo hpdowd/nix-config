@@ -160,7 +160,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 |---|---|
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — nineteen records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — twenty records, each carrying the failure that motivated it |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |
 | planning the next structural change | `docs/PLAN-idiomatic-nix.md` |

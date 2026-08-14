@@ -1,0 +1,14 @@
+{
+  "wallpaper": { "enabled": false },
+  "nightLight": { "enabled": false },
+  "idle": { "enabled": false },
+  "colorSchemes": { "syncGsettings": false },
+  "templates": { "enableUserTheming": false, "activeTemplates": [] },
+  "general": {
+    "lockOnSuspend": false,
+    "telemetryEnabled": false,
+    "showChangelogOnStartup": false
+  },
+  "plugins": { "autoUpdate": false, "notifyUpdates": false },
+  "appLauncher": { "terminalCommand": "foot -e" }
+}

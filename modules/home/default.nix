@@ -248,6 +248,35 @@ in
     };
   };
 
+  # Noctalia, started only by the `noctalia` desktop mode — docs/adr/0020.
+  #
+  # A unit rather than an `exec=` line, unlike every other mode daemon, because
+  # `mmsg dispatch reload_config` re-runs every `exec=`: a pgrep guard has to be
+  # exactly right or a reload leaves two shells fighting over one layer surface,
+  # and `start`/`stop` are idempotent by construction. It also puts the failure
+  # in `systemctl --user status` instead of nowhere.
+  #
+  # No `Install`, so nothing starts it at login but noctalia/autostart.conf.
+  # `PartOf` the session target means logout stops it.
+  systemd.user.services.noctalia = {
+    Unit = {
+      Description = "Noctalia shell";
+      PartOf = [ "mango-session.target" ];
+      After = [ "mango-session.target" ];
+      # Covers the one race here: at login straight into noctalia mode this can
+      # start before universal/autostart.conf's dbus-update-activation-environment
+      # has put WAYLAND_DISPLAY in the user manager, and quickshell exits.
+      # StartLimit* belong in [Unit], not [Service] — docs/adr/0006.
+      StartLimitIntervalSec = 60;
+      StartLimitBurst = 5;
+    };
+    Service = {
+      ExecStart = "${pkgs.noctalia-shell}/bin/noctalia-shell";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+  };
+
   # Proton Drive is deliberately absent (2026-07-30): Proton blocks rclone's
   # access method. Its unit is also the motivating failure for docs/adr/0006 —
   # anything talking to a remote API needs a StartLimitBurst.

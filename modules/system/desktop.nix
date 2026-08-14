@@ -50,6 +50,12 @@
     # Bar / notifications / OSD / lock
     waybar
     swaynotificationcenter
+    # Both the bar and the notification daemon in `noctalia` desktop mode
+    # (docs/adr/0020). The unit in modules/home/default.nix runs it by store
+    # path; this entry is for the `noctalia-shell ipc call …` the binds use.
+    # `noctalia-shell` (4.x, quickshell) not `noctalia` (5.x beta, which clones
+    # plugin repos over git at runtime).
+    noctalia-shell
     swayosd
     swaylock-effects
     # wlogout is deliberately absent — programs.wlogout owns it in home. Two

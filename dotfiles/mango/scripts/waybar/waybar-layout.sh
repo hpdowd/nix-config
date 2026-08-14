@@ -3,6 +3,14 @@
 # selected by the desktop MODE, not here — see waybar-restart.sh.
 . "$HOME/.config/mango/scripts/lib.sh"
 
+# Refuse before the picker opens, and SAY SO: in noctalia mode there is no
+# waybar to lay out, and a menu that accepts a choice and then does nothing is
+# worse than a key that reports why.
+if ! mode_has_waybar; then
+    notify-send "Waybar" "No waybar in $(current_mode) mode"
+    exit 0
+fi
+
 LAYOUTS=("full" "focus" "minimal")
 
 menu_entries() {

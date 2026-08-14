@@ -12,6 +12,15 @@
 # and needed a `margin-swap` placeholder to stop the swap undoing itself.
 . "$HOME/.config/mango/scripts/lib.sh"
 
+# noctalia mode has its own bar. Every caller below would otherwise start waybar
+# on top of it — including the two pickers, whose own guards fire before this
+# one. Kill rather than merely return: this is also the path that a switch INTO
+# noctalia takes, so leaving a stale bar up would be the visible failure.
+if ! mode_has_waybar; then
+    pkill waybar
+    exit 0
+fi
+
 MODE=$(current_mode)
 POSITION=$(waybar_position)
 

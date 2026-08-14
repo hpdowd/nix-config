@@ -244,6 +244,27 @@ else
 	fi
 fi
 
+# Same check the waybar configs get below, for the mango tree: a `bind=` or
+# `exec=` naming a script that is missing — or present but not executable — is
+# a key that does nothing and a daemon that never starts, both exiting 0. Nix
+# preserves the mode bit, so a script committed 644 arrives 444 and fails only
+# at runtime. That is how notify.sh shipped dead on 2026-08-14.
+missing=""
+refs=0
+while read -r ref; do
+	[[ -z $ref ]] && continue
+	refs=$((refs + 1))
+	[[ -x "$MANGO/scripts/${ref#*mango/scripts/}" ]] || missing+="  $ref"$'\n'
+done < <(grep -rho '[~]/\.config/mango/scripts/[^ "]*' "$MANGO" --include='*.conf' | sort -u)
+
+if [[ $refs -eq 0 ]]; then
+	bad "no script references found in the mango configs — the scan is broken, not the repo"
+elif [[ -z $missing ]]; then
+	ok "all $refs scripts named by a bind or autostart exist and are executable"
+else
+	bad "a mango config names a missing or non-executable script" "$missing"
+fi
+
 # elephant reads its menu path from ~/.config/elephant/menus.toml, which lives
 # in a different tree — the .lua landing on disk says nothing about it loading.
 menus_decl=$(grep -rh 'elephant/menus' "$SRC/modules/home/dotfiles.nix" 2>/dev/null)

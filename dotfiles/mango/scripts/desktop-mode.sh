@@ -12,7 +12,9 @@
 # so a reader cannot disagree with a writer about either.
 . "$HOME/.config/mango/scripts/lib.sh"
 
-MODES=("tiling" "hud")
+# One line, and it must stay one line: checks/static.sh reads it with `sed` to
+# cross-check that every mode has its conf, mode script and walker config.
+MODES=("tiling" "hud" "noctalia")
 
 menu_entries() {
     local current

@@ -33,9 +33,14 @@ state_write() {
 }
 
 # The three switches, with their defaults in ONE place.
-current_mode() { state current-mode tiling; }      # tiling | hud
+current_mode() { state current-mode tiling; }      # tiling | hud | noctalia
 waybar_layout() { state waybar-layout full; }      # full | focus | minimal
 waybar_position() { state waybar-position top; }   # top | bottom
+
+# noctalia mode runs its own bar, so the three waybar scripts must refuse
+# rather than start one over it. Here, not in each of them, for the reason the
+# header gives: a reader and a writer that disagree fail silently.
+mode_has_waybar() { [ "$(current_mode)" != noctalia ]; }
 
 # Apply a desktop mode. modes/tiling.sh and modes/hud.sh differed only in two
 # names and were otherwise a byte-identical copy of the body below, including

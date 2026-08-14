@@ -179,6 +179,36 @@ jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev' flake.lock
 
 ## Desktop
 
+### A script committed 644 is a dead key
+
+**Nix preserves the mode bit, so a `bind=` pointing at a non-executable script
+does nothing and exits 0.** Found on 2026-08-14 while adding `notify.sh` for the
+noctalia mode: the file was written without `chmod +x`, arrived in the store as
+`-r--r--r--`, and `CTRL+ALT+\` silently stopped toggling notifications. Nothing
+logged, and the file is present and correctly linked in `~/.config` — the same
+tell as the section below.
+
+`checks/static.sh` had asserted exactly this for scripts named by a **waybar
+config** since the empty-module bugs, but not for the far larger set named by
+`bind=` and `exec=` lines in the mango tree. It now covers both, and fails on a
+reference count of zero rather than passing by matching nothing.
+
+The tell: `ls -lL ~/.config/mango/scripts/<name>` — the target's mode, not the
+symlink's. Git tracks the bit, so `chmod +x` needs a `git add` to take effect in
+the build.
+
+### noctalia and swaync cannot both run
+
+**The second claimant of `org.freedesktop.Notifications` does not error — it
+just never receives a notification.** noctalia-shell is a notification daemon as
+well as a bar, so `noctalia/autostart.conf` kills swaync and does not restart it,
+and `tiling/`+`hud/` restart swaync and stop the noctalia unit. ADR 0005 is the
+general rule; ADR 0020 is this instance.
+
+Verify by ownership, never by "it started": `busctl --user status
+org.freedesktop.Notifications` names the owning PID. `notify-send test` then
+tells you which one drew it.
+
 ### A tracked, linked file can still be inert
 
 **The program has to be told where it is, and that pointer is config too.**

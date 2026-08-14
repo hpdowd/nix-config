@@ -19,6 +19,13 @@ set -u
 
 . "$HOME/.config/mango/scripts/lib.sh"
 
+# Same reason as waybar-layout.sh: nothing to move in noctalia mode, and this
+# one would otherwise flip the state file silently.
+if ! mode_has_waybar; then
+    notify-send "Waybar" "No waybar in $(current_mode) mode"
+    exit 0
+fi
+
 current=$(waybar_position)
 
 case "${1:-}" in

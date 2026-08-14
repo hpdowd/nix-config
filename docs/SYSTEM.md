@@ -287,7 +287,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 
 | Want to change | Edit |
 |---|---|
-| Keybinds | `dotfiles/mango/universal/bind.conf` (all modes) or `bind-tiling-hud.conf` |
+| Keybinds | `dotfiles/mango/universal/bind.conf` (all modes) or `bind-shared.conf` |
 | Window rules | `dotfiles/mango/universal/rule.conf` |
 | Per-workspace layout | `dotfiles/mango/universal/tag.conf` |
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
@@ -401,6 +401,7 @@ Do not "finish the job" without reading these:
 | waybar CSS | Same reasoning — hand-tuned presentation is data |
 | `glow`, `nwg-look` | No module at this pin |
 | `corectrl` | Writes its own config from the GUI, and that GUI is the program |
+| `noctalia/settings.json` | Same — noctalia rewrites it on every change. **Seeded, not linked**: see below |
 
 ### Four traps
 
@@ -432,6 +433,58 @@ Delete `~/.config/X` first so home-manager builds a fresh directory.
 `xdg.configFile.<name>` writes *to* `~/.config/<name>`. That is why this repo
 lives at `~/src/nix-config` and not at `~/.config` as it did under Arch.
 
+### A fourth option: seeded, not owned
+
+`~/.config/noctalia/` is claimed by **nothing** in this repo — not
+`xdg.configFile`, not `home.file`. noctalia rewrites `settings.json` itself, so
+owning the path would be an activation failure, and `mkOutOfStoreSymlink` (tier
+3) would put a file it rewrites back inside the checkout.
+
+Instead `scripts/modes/noctalia.sh` copies `dotfiles/mango/noctalia/settings.json`
+into place **only when the destination does not exist**. The seed is partial and
+deliberately carries no `settingsVersion`; it sets only the keys that would
+otherwise fight this machine (wallpaper, night light, idle, lock-on-suspend,
+gsettings sync, app theming). Everything else comes from the package's own
+`Assets/settings-default.json`, and upstream's migrations all guard on the old
+key being present, so they no-op against a partial file rather than corrupting
+it.
+
+Reach for this when a program rewrites its config *and* its defaults are mostly
+right — you get a known-good first run without signing up to own the file
+forever. The cost is that the seed is inert after first run: changing it does
+nothing to a machine that already has the file. `docs/adr/0020`.
+
+### Removing noctalia
+
+The whole mode comes out in one pass, and `nix flake check` fails until it is
+complete — `checks/static.sh` asserts the mode list and the mode files agree in
+both directions, so a half-removal cannot pass the gate.
+
+```
+git rm -r dotfiles/mango/noctalia \
+          dotfiles/mango/scripts/modes/noctalia.sh \
+          dotfiles/mango/walker/configs/noctalia.toml
+```
+
+Then revert, in order of how easy each is to miss:
+
+| File | Change |
+|---|---|
+| `scripts/desktop-mode.sh` | drop `"noctalia"` from `MODES=(…)` — keep it one line |
+| `scripts/lib.sh` | delete `mode_has_waybar()` |
+| `scripts/waybar/waybar-{restart,layout,position}.sh` | delete the three guards that call it |
+| `tiling/autostart.conf`, `hud/autostart.conf` | delete the `systemctl --user stop noctalia` line |
+| `modules/home/default.nix` | delete `systemd.user.services.noctalia` |
+| `modules/system/desktop.nix` | delete `noctalia-shell` |
+
+`scripts/menus/notify.sh` and the two `CTRL+ALT` binds that call it can stay —
+the script falls through to `swaync-client` whenever the mode is not `noctalia`,
+which after this is always. `universal/bind-shared.conf` keeps its name; it was
+`bind-tiling-hud.conf` and that name is the one that would be wrong.
+
+Finally, `rm -rf ~/.config/noctalia ~/.cache/noctalia` — neither is managed, so
+nothing else will clear them.
+
 ---
 
 ## 7. The desktop
@@ -442,10 +495,10 @@ A Wayland compositor in the dwl/dwm lineage: tags (workspaces), a master/stack
 layout, keyboard-driven. Config lives in `dotfiles/mango/`, split into:
 
 - **`universal/`** — shared across modes: binds, window rules, tags, settings, autostart
-- **`tiling/`, `hud/`** — per-mode compositor config and autostart
+- **`tiling/`, `hud/`, `noctalia/`** — per-mode compositor config and autostart
 
 **`config.conf` is generated, not authored.** A mode script copies
-`tiling/tiling.conf` or `hud/hud.conf` over it verbatim; that copy is what mango
+`<mode>/<mode>.conf` over it verbatim; that copy is what mango
 reads, and it `source=`s every keybind, rule and autostart file. It is
 gitignored because tracking it would mean committing a duplicate that changes
 on every mode switch.
@@ -460,7 +513,7 @@ Three independent switches, all on the `/` key:
 
 | | Options | Bind | State file |
 |---|---|---|---|
-| **Desktop mode** | `tiling`, `hud` | `SUPER+CTRL+/` | `~/.local/state/mango/current-mode` |
+| **Desktop mode** | `tiling`, `hud`, `noctalia` | `SUPER+CTRL+/` | `~/.local/state/mango/current-mode` |
 | **Waybar layout** | `full`, `focus`, `minimal` | `SUPER+/` | `~/.local/state/mango/waybar-layout` |
 | **Waybar position** | `top`, `bottom` | `SUPER+SHIFT+/` | `~/.local/state/mango/waybar-position` |
 
@@ -472,6 +525,11 @@ screen edges.
 **`SUPER+/` offers `full`, `focus` and `minimal` only** — the `hud` layout is
 chosen automatically whenever the desktop mode is `hud`, so it is not a
 separate pick.
+
+**`noctalia` has no waybar at all**, so both `SUPER+/` and `SUPER+SHIFT+/`
+refuse with a `notify-send` rather than starting one over noctalia's own bar.
+The guard is `mode_has_waybar()` in `lib.sh`, so the three waybar scripts cannot
+disagree about it. See §6 for the mode, and `docs/adr/0020`.
 
 Waybar configs are generated as the **full layout × position matrix**:
 `config-<layout>-<position>.jsonc`, 4 × 2 = 8 files. `waybar-restart.sh` only
@@ -1222,6 +1280,19 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
   else behind it) and is untried. Since 2026-08-12 the idle rung suspends, so
   the machine finally produces samples to test it against — see
   `docs/adr/0016`.
+- **Three things in noctalia mode are inert, and each looks like a bug.**
+  Measured by running the shell against a scratch config on 2026-08-14, not
+  predicted. Its **power-profile widget does nothing** — it drives
+  `org.freedesktop.UPower.PowerProfiles`, and this machine uses TLP with
+  power-profiles-daemon deliberately absent (`docs/adr/0017`), so the service is
+  not activatable. Its **blur-behind is silently ignored**: mango does not
+  implement `ext-background-effect-v1`, and the setting stays on in the UI
+  regardless. And it **fetches its version and contributor list from GitHub** on
+  first run and on cache expiry, gated by no setting at all — those calls fail
+  with `Moved Permanently` on 4.7.7 anyway, because `curl -s` does not follow
+  the redirect left by the upstream repo rename. `general.showChangelogOnStartup`
+  and `plugins.notifyUpdates` are off in the seed, but they suppress the popup
+  and the nag, **not** the fetch.
 - **The age key is a single point of failure.** `/var/lib/sops-nix/key.txt` is
   in no repo and no backup; without it `secrets/secrets.yaml` is unreadable.
   See §11.

@@ -135,6 +135,18 @@ someone else's service, not on this machine. Any unit that talks to a remote API
 needs a start limit. See `docs/adr/0006`. (Proton Drive was removed outright;
 don't re-add it — Proton blocks rclone's access method.)
 
+**The node named `nixpkgs` in `flake.lock` is not our nixpkgs.** Node names are
+allocated in traversal order, so `claude-desktop`'s un-`follows`ed nixpkgs took
+the bare name and ours is **`nixpkgs_3`**. Reading
+`.nodes.nixpkgs.locked.rev` therefore reports the wrong flake's pin — and
+convincingly, since it is a real nixpkgs rev that moves on its own schedule. It
+made a `nix flake update` that had bumped our nixpkgs by 18 months of aliases
+look like it had changed nothing. Resolve the name first:
+
+```bash
+jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev' flake.lock
+```
+
 ---
 
 ## Desktop
@@ -720,6 +732,22 @@ and the dconf keys. `gtk-apply.sh` now only exports `GTK_THEME` to the systemd
 user environment and restarts `xdg-desktop-portal-gtk` (which caches the theme at
 startup). **Never have both setting the theme** — one owner, in either direction.
 See `docs/adr/0004`.
+
+**`gruvbox-gtk-theme` is vendored in `pkgs/`, because nixpkgs deleted it.**
+GTK2 went, taking `gtk-engine-murrine` with it, and murrine's reverse
+dependencies were removed rather than fixed — `gruvbox-gtk-theme` and
+`gruvbox-material-gtk-theme` both, on 2026-07-22. The failure is an **eval**
+error naming a package nothing appeared to have touched, on the next
+`nix flake update`; it aborts the whole config before any build starts, so it
+looks far worse than it is. The dependency was only a `propagatedUserEnvPkgs`
+entry serving the theme's `gtk-2.0/` files, so dropping it costs nothing here —
+the vendored derivation is the removed one minus murrine and minus the variant
+plumbing, building `Gruvbox-Yellow-Dark` directly. Upstream
+(Fausto-Korpsvart/Gruvbox-GTK-Theme) is alive and unchanged.
+
+> Any theme still carrying a `gtk-2.0/` directory is a candidate to go the same
+> way. The tell is a removal notice in nixpkgs' `pkgs/top-level/aliases.nix`
+> quoting a *transitive* GTK2 dependency, not a problem with the package itself.
 
 **Papirus folder icons are recoloured at build time.** Stock folders are blue,
 which reads as badly broken against Gruvbox — the symptom is Thunar looking

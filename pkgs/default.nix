@@ -35,13 +35,44 @@ final: prev: {
   });
 
   # ==========================================================================
-  # gruvbox-gtk-theme — build the variant you actually use
+  # gruvbox-gtk-theme — vendored; nixpkgs removed it
   # ==========================================================================
-  # theme.nix and gtk-apply.sh ask for `Gruvbox-Yellow-Dark`, which the default
-  # build does not produce — without this every GTK app falls back to Adwaita.
-  gruvbox-gtk-theme = prev.gruvbox-gtk-theme.override {
-    colorVariants = [ "dark" ];
-    themeVariants = [ "yellow" ];
+  # Dropped 2026-07-22 for depending on gtk-engine-murrine (GTK2). That was only
+  # a `propagatedUserEnvPkgs` entry serving the theme's gtk-2.0/ files, so the
+  # GTK3/4 CSS this system actually uses is unaffected — the upstream repo is
+  # unchanged. Builds `Gruvbox-Yellow-Dark` only, which is the one name
+  # theme.nix, gtk-apply.sh and $GTK_THEME ask for.
+  gruvbox-gtk-theme = prev.stdenvNoCC.mkDerivation {
+    pname = "gruvbox-gtk-theme";
+    version = "0-unstable-2025-10-23";
+
+    src = prev.fetchFromGitHub {
+      owner = "Fausto-Korpsvart";
+      repo = "Gruvbox-GTK-Theme";
+      rev = "578cd220b5ff6e86b078a6111d26bb20ec8c733f";
+      hash = "sha256-RXoPj/aj9OCTIi8xWatG0QpDAUh102nFOipdSIiqt7o=";
+    };
+
+    nativeBuildInputs = [ prev.sassc ];
+    buildInputs = [ prev.gnome-themes-extra ];
+    dontBuild = true;
+
+    postPatch = "patchShebangs themes/install.sh";
+
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/share/themes
+      cd themes
+      ./install.sh -n Gruvbox -c dark -t yellow -d "$out/share/themes"
+      runHook postInstall
+    '';
+
+    meta = {
+      description = "GTK theme based on the Gruvbox colour palette";
+      homepage = "https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme";
+      license = prev.lib.licenses.gpl3Plus;
+      platforms = prev.lib.platforms.unix;
+    };
   };
 
   # ==========================================================================

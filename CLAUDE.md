@@ -125,6 +125,11 @@ not do zsh). See `docs/adr/0011`.
 - `pkill -f 'bin/foo$'`, never `pkill -x foo` — nixpkgs wraps binaries, so `comm`
   is `.foo-wrapped`, truncated to 15 chars. Drop the `$` if the process takes
   arguments: `-f` matches the whole command line, so the anchor misses.
+- **To *test* for a process, match `comm`: `pgrep '^\.?foo'`.** `-x` misses the
+  wrapper exactly as above, and `-f` matches the guard's own shell — the cmdline
+  of `pgrep -f 'foo$' || foo` ends in `foo`, so the guard is always true and the
+  daemon never starts. Bare-invoked processes (`mango`, `kdeconnectd`) carry no
+  path in their cmdline either, so `bin/` anchors do not help.
 - `mmsg` takes verbs (`get`, `dispatch`, `watch`). The dwl-era `-s -d` flags
   return an error object and **exit 0**.
 - Runtime state is `${XDG_STATE_HOME:-$HOME/.local/state}/mango`. Every reader

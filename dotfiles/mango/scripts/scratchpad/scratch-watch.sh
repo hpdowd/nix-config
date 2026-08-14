@@ -31,6 +31,8 @@ while true; do
             update "${BASH_REMATCH[1],,}"
         fi
     done
-    pgrep -x mangowm >/dev/null || exit 0
+    # `mangowm` was never the process name — mango is unwrapped, so comm is
+    # plain `mango` and this loop exited on its first reconnect.
+    pgrep -x mango >/dev/null || exit 0
     sleep 1
 done

@@ -110,30 +110,45 @@ else
 fi
 
 # nixpkgs wraps some binaries, so `comm` becomes .foo-wrapped, truncated to 15
-# chars. `pkill -x` matches comm exactly and never fires. Resolve each target
+# chars. `-x` matches comm exactly and never fires. `pgrep` is checked alongside
+# `pkill` because the read-only form fails just as quietly and in both
+# directions: a guard that never matches respawns a running daemon, and a
+# liveness test that never matches exits a healthy loop. Resolve each target
 # rather than flagging every -x: a check that cries wolf gets ignored.
 pk_bad=""
 pk_n=0
 while read -r line; do
 	[[ -z $line ]] && continue
-	name=${line##*pkill -x }
+	name=${line##*-x }
 	name=${name%% *}
 	name=${name%%;*}
 	[[ -z $name ]] && continue
 	pk_n=$((pk_n + 1))
-	if [[ ! -e "$PROFILE/$name" ]]; then
-		pk_bad+="  $name: not in the home profile — cannot verify"$'\n'
+	# System packages are not in the home profile — mango and elephant live in
+	# the system one, so checking only $PROFILE reports "cannot verify" for the
+	# targets most likely to be wrapped.
+	bin=""
+	for d in "$PROFILE" "$SYS/sw/bin"; do
+		[[ -e "$d/$name" ]] && {
+			bin="$d/$name"
+			break
+		}
+	done
+	if [[ -z $bin ]]; then
+		pk_bad+="  $name: in neither profile — cannot verify: ${line%%:*}"$'\n'
 		continue
 	fi
-	real=$(readlink -f "$PROFILE/$name")
+	real=$(readlink -f "$bin")
 	[[ -e "$(dirname "$real")/.${name}-wrapped" ]] \
-		&& pk_bad+="  $name is wrapped — pkill -x will never match: ${line%%:*}"$'\n'
-done < <(grep -rn 'pkill -x' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
+		&& pk_bad+="  $name is wrapped — -x will never match: ${line%%:*}"$'\n'
+done < <(grep -rnE 'p(kill|grep) -x' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
 
-if [[ -z $pk_bad ]]; then
-	ok "all $pk_n 'pkill -x' targets are unwrapped binaries"
+if [[ $pk_n -eq 0 ]]; then
+	bad "no 'pkill -x'/'pgrep -x' found at all — the scan is broken, not the repo"
+elif [[ -z $pk_bad ]]; then
+	ok "all $pk_n 'pkill -x'/'pgrep -x' targets are unwrapped binaries"
 else
-	bad "'pkill -x' against a nixpkgs wrapper never matches" "$(echo "$pk_bad" | head -4)"
+	bad "'-x' against a nixpkgs wrapper never matches" "$(echo "$pk_bad" | head -4)"
 fi
 
 printf '\nSecrets\n'

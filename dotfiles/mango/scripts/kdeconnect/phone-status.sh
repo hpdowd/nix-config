@@ -3,7 +3,7 @@ DEVICE="ca2da407b0d74e098414a3a0d76b1502"
 DBUS_SVC="org.kde.kdeconnect"
 DBUS_DEV="/modules/kdeconnect/devices/$DEVICE"
 
-if ! pgrep -x kdeconnectd >/dev/null 2>&1; then
+if ! pgrep '^\.?kdeconnectd' >/dev/null 2>&1; then
     echo '{"text":"","tooltip":"KDE Connect not running","class":"offline"}'
     exit 0
 fi

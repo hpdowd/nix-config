@@ -94,6 +94,34 @@ died. Match the command line: `pkill -f 'bin/elephant$'`, `pkill -f '^swaync( |$
 > running — which, for a fullscreen layer-shell overlay, means it stays on
 > screen. Drop the anchor when the process takes arguments.
 
+**`pgrep -x` fails the same way, and `pgrep -f` cannot replace it in a guard.**
+All four `pgrep -x` targets in the repo were dead: `elephant`, `kdeconnectd` and
+`awww-daemon` are wrapped, and the compositor's `comm` is `mango` — `mangowm`
+was never a process name. The read-only form fails in *both* directions: a guard
+that never matches respawns a running daemon, and a liveness test that never
+matches exits a healthy loop (`scratch-watch.sh` could only ever `exit 0` on
+reconnect). `phone-status.sh` reported "KDE Connect not running" against a
+kdeconnectd that had been up since boot.
+
+Swapping in `-f` is a trap here, because a guard's own shell is a match:
+`pgrep -f 'kdeconnectd$' || kdeconnectd` matches the shell running that very
+line — the cmdline ends in `kdeconnectd` — so the guard is now permanently
+*true* and the daemon never starts. Anchoring on `bin/` does not help either;
+`kdeconnectd` and `mango` are invoked bare, so their cmdline carries no path.
+
+**Match `comm` with a regex that tolerates the wrapper's dot:**
+
+```bash
+pgrep '^\.?elephant' >/dev/null || elephant     # matches .elephant-wrapp
+```
+
+`comm` never contains the guard's own command line, so it cannot self-match, and
+the `\.?` prefix plus prefix-matching absorbs both the wrapper dot and the
+15-char truncation. Keep `-x` only for a binary that is genuinely unwrapped, and
+anchor it (`pgrep -x mango`) — a bare prefix would also match `mangohud`.
+`checks/static.sh` resolves every `-x` target through both profiles and fails on
+a wrapped one.
+
 **`buildEnv` collisions abort the whole generation.** Two packages owning one
 file path is the failure to expect when adding packages. If one supersedes the
 other, drop it; if they merely contend, use `lib.hiPrio` on the **winner** —

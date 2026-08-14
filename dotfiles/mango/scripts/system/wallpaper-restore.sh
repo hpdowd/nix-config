@@ -19,7 +19,9 @@ WALLPAPER="${XDG_DATA_HOME:-$HOME/.local/share}/mango/wallpaper.png"
 # and not an error.
 [ -f "$WALLPAPER" ] || exit 0
 
-pgrep -x awww-daemon >/dev/null || awww-daemon &
+# Match comm with the wrapper's leading dot, not the command line: `-x` misses
+# `.awww-daemon-wr`, and `-f` would match this script's own guard line.
+pgrep '^\.?awww-daemon' >/dev/null || awww-daemon &
 
 # `awww img` fails until the daemon has bound its socket, so poll rather than
 # guessing at a sleep. ~4s of headroom; it normally binds well inside 1s.

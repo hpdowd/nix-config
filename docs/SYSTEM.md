@@ -276,7 +276,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Terminal colours | `modules/home/programs.nix` — one `gruvbox` `let` binding feeds both kitty and foot |
+| Any colour | `modules/home/palette.nix` — the one Gruvbox definition. Feeds kitty, foot, the bar's `colors.css` and rofi's `colors.rasi` |
 | kitty, foot, helix, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | Helix colour scheme | `dotfiles/helix/themes/gruvbox.toml` — the one helix file that is still data |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
@@ -292,7 +292,8 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Per-workspace layout | `dotfiles/mango/universal/tag.conf` |
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
 | Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
-| Waybar appearance | `dotfiles/mango/waybar/style*.css` + `colors.css` — still hand-written |
+| Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
+| rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout. Its `colors.rasi` is generated the same way |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | `dotfiles/mango/fsel/config.toml`; menu contents are in the `scripts/menus/*.sh` that build them |
@@ -314,7 +315,7 @@ file from typed options; **there is no config file in this repo at all.**
 
 | What | Module |
 |---|---|
-| kitty, foot | `programs.kitty`, `programs.foot` — both fed by one shared `gruvbox` palette |
+| kitty, foot | `programs.kitty`, `programs.foot` — both fed by `modules/home/palette.nix` |
 | helix | `programs.helix` (the theme stays a file — see below) |
 | zed | `programs.zed-editor` |
 | htop, ncspot, imv, yazi | `programs.htop`, `programs.ncspot`, `programs.imv`, `programs.yazi` |
@@ -335,9 +336,12 @@ argument is not tidiness:
   installs the package *and* writes the config, so removing it removes both.
   Previously `kitty` was in `packages.nix` while `kitty/` was in
   `dotfiles.nix`, with nothing tying them together.
-- **Values can be shared.** The Gruvbox palette is one `let` binding instead of
-  sixteen hex codes transcribed into two files with nothing keeping them in
-  step. Likewise waybar's `full-at` is *read from* the TLP threshold rather
+- **Values can be shared.** The Gruvbox palette is one file
+  (`modules/home/palette.nix`) instead of sixteen hex codes transcribed into
+  four with nothing keeping them in step — the terminals, the bar's
+  `colors.css` and rofi's `colors.rasi` all derive from it, and
+  `checks/static.sh` asserts every generated name is used and every reference
+  resolves. Likewise waybar's `full-at` is *read from* the TLP threshold rather
   than copied.
 
 ### Tier 2 — store-based, `source = ../../dotfiles/X`
@@ -712,9 +716,10 @@ Hack Nerd Font Mono 11 — kitty additionally takes bold and italic from
 `checks/static.sh` asserts every family named here actually resolves.
 
 ⚠️ **kitty and foot are generated** by `programs.kitty` / `programs.foot`, from
-a **single `gruvbox` palette** in `modules/home/programs.nix` — kitty takes
-`#rrggbb`, foot takes bare hex, both from the same `let` binding. There is no
-`dotfiles/kitty/` or `dotfiles/foot/` in this repo. Change the palette there, once.
+the **single palette** in `modules/home/palette.nix` — kitty takes `#rrggbb`,
+foot takes bare hex, both from the same attrset, which also feeds the bar and
+rofi. There is no `dotfiles/kitty/` or `dotfiles/foot/` in this repo. Change a
+colour there, once, and it lands everywhere on the next rebuild.
 ghostty has no config at all: `dotfiles/ghostty/config.ghostty` was a zero-byte
 file and was deleted rather than converted; the package runs on its defaults,
 exactly as it already did.

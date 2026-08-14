@@ -322,6 +322,51 @@ else
 	fi
 fi
 
+printf '\nGenerated palette\n'
+
+# waybar/colors.css and rofi/colors.rasi are derived from
+# modules/home/palette.nix; the stylesheets that consume them are hand-written
+# and reference the names. Both sides fail quietly when they disagree — GTK
+# drops a rule naming an undefined @colour and carries on, so the module simply
+# renders in the inherited colour, and rofi falls back to its built-in
+# Solarized role rather than erroring. Neither writes anywhere anyone reads.
+# So: every name used must be defined, and every name defined must be used —
+# an unused entry is a colour someone will later assume is live.
+palette_pair() {
+	local label=$1 defined=$2 used=$3 err=""
+	# `@import`, `@keyframes` and friends are CSS/rasi at-rules, not colours.
+	used=$(printf '%s\n' "$used" | grep -vxE 'import|keyframes|media|theme|define-color')
+	if [[ -z $defined ]]; then
+		bad "$label: no colours defined — the generated file is missing or the scan is broken"
+		return
+	fi
+	if [[ -z $used ]]; then
+		bad "$label: no colour references found in the stylesheets — the scan is broken"
+		return
+	fi
+	while IFS= read -r n; do
+		[[ -z $n ]] && continue
+		printf '%s\n' "$defined" | grep -qxF "$n" || err+="  @$n is used but not defined"$'\n'
+	done <<<"$used"
+	while IFS= read -r n; do
+		[[ -z $n ]] && continue
+		printf '%s\n' "$used" | grep -qxF "$n" || err+="  @$n is defined but nothing uses it"$'\n'
+	done <<<"$defined"
+	if [[ -z $err ]]; then
+		ok "$label: all $(printf '%s\n' "$defined" | grep -c .) generated colours are used, and every reference resolves"
+	else
+		bad "$label palette mismatch" "$err"
+	fi
+}
+
+palette_pair "waybar" \
+	"$(sed -n 's/^@define-color \([a-z-]*\) .*/\1/p' "$WAYBAR_DIR/colors.css" 2>/dev/null | sort -u)" \
+	"$(grep -ohE '@[a-z-]+' "$SRC"/dotfiles/mango/waybar/style-*.css 2>/dev/null | tr -d '@' | sort -u)"
+
+palette_pair "rofi" \
+	"$(sed -n 's/^ *\([a-z-]*\): *#[0-9a-f]*;.*/\1/p' "$GEN/home-files/.config/rofi/colors.rasi" 2>/dev/null | sort -u)" \
+	"$(grep -ohE '@[a-z-]+' "$SRC/dotfiles/rofi/config.rasi" 2>/dev/null | tr -d '@' | sort -u)"
+
 printf '\nNetworkManager profiles\n'
 
 # Read the keyfiles the unit will actually write, not the option that produced

@@ -102,14 +102,37 @@ the **built binary** rather than the Nix that asked for it:
 Reading either list as empty **fails**, per [0011](0011-shell-is-gated-too.md).
 Both directions were negative-tested before this was written.
 
-### The theme is deliberately plain
+### The theme is derived, not transcribed
 
 The 337 lines of tuned Gruvbox GTK CSS under `walker/themes/` do not port —
-rasi is a different language, not a dialect. `config.rasi` therefore starts
-from rofi's own shipped `gruvbox-dark` and overrides four things: the font
-(a Nerd Font, because every menu entry carries Font Awesome glyphs in the
-string itself), width, `listview` lines, and the scrollbar. Tune it once
-against a running system rather than guessing twice.
+rasi is a different language, not a dialect. The first cut imported rofi's own
+shipped `gruvbox-dark` on the theory that a gruvbox is a gruvbox. **It is not.**
+Seen against the running system it disagreed with every convention this desktop
+has: 2px borders against `tiling.conf`'s `borderpx=1`, an `#a89984` border
+matching nothing here, `#665c54` selection where the terminals use `#504945`,
+and alternate rows striped `#32302f` where nothing else stripes at all.
+
+So `config.rasi` carries the **shape** — square, 1px, flat, one accent — read
+off `tiling.conf` and `style-solid.css` rather than invented, and the
+**colours** come from `modules/home/palette.nix`, generated into a sibling
+`colors.rasi` that it `@import`s. Same split the bar already had: rules by
+hand, palette derived. `waybar/colors.css` moved onto the same source in the
+same change, so one file now defines every colour on this machine.
+
+One rofi-specific trap is worth stating, because it is invisible until it
+fires: **overriding widgets is not enough, you must override the roles.** A
+widget with no rule of its own resolves through rofi's built-in role variables,
+and those are *Solarized light* — `urgent-background` is `#fdf6e3`. Styling
+`element selected` and stopping leaves cream-on-teal waiting in every state
+nothing has exercised yet. `rofi -dump-theme` is the check: nothing in the
+output should still read `var(lightbg)`, `var(blue)` or `var(red)`.
+
+`checks/static.sh` asserts the palette both ways, per
+[0014](0014-declare-the-namer-not-just-the-file.md) — every generated colour is
+referenced by a stylesheet, and every `@name` a stylesheet references is
+defined. Both halves fail silently otherwise: GTK drops a rule naming an
+undefined colour and renders the module in whatever it inherited, and rofi
+falls back to the built-in role.
 
 `no-custom` is set **per call**, not globally, and that is not a style
 preference: rofi has no negation for it. `-no-no-custom` is accepted, ignored,
@@ -124,6 +147,12 @@ and exits 0 — so a global setting could not be lifted for the one prompt in
   `rofi.override { plugins = ... }` is a different derivation, so it builds from
   source on a version bump. It is a small C build, unlike elephant's fifteen Go
   plugins.
+- **The palette is now one file for the whole machine.** That was not the goal
+  of this change and is its most useful side effect: adding rofi would have
+  made a fourth copy of the same sixteen hex codes, which forced the question.
+  `modules/home/palette.nix` feeds the terminals, the bar and the menus; the
+  generated `colors.css` came out byte-identical to the hand-written one it
+  replaced, so the unification is provably a no-op for what was already there.
 - **Sizing moved from the caller to the theme.** Every walker call carried a
   `--maxheight` that had to be re-guessed when a menu grew an entry;
   `listview { dynamic: true; }` shrinks to fit, so a three-item menu is three

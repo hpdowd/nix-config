@@ -1177,3 +1177,51 @@ injected per-mode sizing; one theme now serves all three modes), and 337 lines
 of tuned Gruvbox GTK CSS, which do not port — rasi is a different language.
 `config.rasi` starts from rofi's shipped `gruvbox-dark` and overrides four
 things. Deliberately plain, to be tuned once against a running system.
+
+---
+
+## One palette for the machine (2026-08-14)
+
+Follows the rofi migration above. The first rofi theme imported rofi's shipped
+`gruvbox-dark` on the assumption that a gruvbox is a gruvbox. Seen against the
+running desktop it disagreed with every convention here: **2px** borders
+against `tiling.conf`'s `borderpx=1`, an `#a89984` border matching nothing,
+`#665c54` selection where the terminals use `#504945`, and alternate rows
+striped `#32302f` where nothing else on this system stripes at all.
+
+The shape is now read off what exists rather than invented — `tiling.conf`
+(`borderpx=1`, `border_radius=0`, `focuscolor=0xd79921`) and `style-solid.css`
+(radius 0, 1px `@overlay` hairlines, flat modules, selection drawn as
+`background: @accent; color: @base`). Square, 1px, flat, one accent.
+
+**The colours forced a bigger change.** Adding rofi would have made a *fourth*
+copy of the same sixteen hex codes — the `let` binding in `programs.nix` for
+kitty and foot, `waybar/colors.css` for the bar, `helix/themes/gruvbox.toml`,
+and now a rasi. Nothing kept them in step, and a drifted palette is invisible:
+there is no way to tell a considered accent from a typo by looking at it. So
+`modules/home/palette.nix` is the one definition, and `waybar/colors.css` and
+`rofi/colors.rasi` are generated from it. The hand-written `style-*.css` and
+`config.rasi` stay hand-written — the line is that stylesheets are *rules* and
+a palette is *data*.
+
+**The unification is provably a no-op for what was already there.** The
+generated `colors.css` diffs byte-identical against the tracked file it
+replaced, and kitty's generated palette is unchanged. Worth doing that
+comparison rather than eyeballing the bar: ten colours that are almost right
+look exactly like ten colours that are right.
+
+**The rofi-specific trap.** Overriding widgets is not enough — a widget with no
+rule of its own resolves through rofi's built-in *role* variables, and those are
+Solarized light (`urgent-background` is `#fdf6e3`). The first pass styled
+`element selected` and left cream-on-teal waiting in every state nothing had
+exercised yet. Fixed by overriding the roles instead, which also covers widgets
+nobody thought of. `rofi -dump-theme` is the diagnostic: nothing in the output
+should still read `var(lightbg)`, `var(blue)` or `var(red)`. Four Solarized
+values remain *defined* in the dump and are read by nothing.
+
+**Two new floors** (`checks/static.sh`, 26 → 28): every generated colour is
+referenced by a stylesheet, and every `@name` a stylesheet references is
+defined — for waybar and rofi both. Both halves fail silently otherwise: GTK
+drops a rule naming an undefined colour and renders the module in whatever it
+inherited, and rofi falls back to the built-in role. Negative-tested in both
+directions before committing.

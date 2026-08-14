@@ -87,8 +87,13 @@ never as a side effect of a build.
 | 3 — out-of-store | `mkOutOfStoreSymlink` | the app rewrites its own config from its GUI | `corectrl` only |
 
 Tier 1 earns its churn three ways: typos become build failures, one option owns
-both the package and its config, and values can be shared (one Gruvbox `let`
-binding feeds kitty and foot, instead of sixteen hex codes transcribed twice).
+both the package and its config, and values can be shared —
+`modules/home/palette.nix` is the one Gruvbox definition, feeding kitty, foot,
+the bar's `colors.css` and rofi's `colors.rasi`, instead of the same sixteen
+hex codes transcribed into four files with nothing keeping them in step. A
+**drifted palette looks deliberate**, which is why it gets a check rather than
+a convention: `checks/static.sh` asserts every generated colour is used and
+every reference resolves.
 What is deliberately *not* generated — `nvim`, `mango`, `swaync`,
 `helix/themes/`, `glow`, `nwg-look` — is listed with its reasons in
 `docs/SYSTEM.md` §6. Read that before "finishing the job". See `docs/adr/0009`.

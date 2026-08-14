@@ -15,10 +15,17 @@
 # that renders as nothing and reads as "missing from the bar" (see the exit-127
 # scripts and the power-profile glyph in CLAUDE.md).
 #
-# Only the JSON is generated. style*.css stay hand-written files for the same
-# reason helix/themes/gruvbox.toml does — they are hand-tuned presentation, not
-# settings, and transcribing them into Nix attrsets buys nothing but a chance
-# of a silent typo.
+# The JSON and the palette are generated. `style-*.css` stay hand-written files
+# for the same reason helix/themes/gruvbox.toml does — they are hand-tuned
+# presentation, not settings, and transcribing them into Nix attrsets buys
+# nothing but a chance of a silent typo.
+#
+# `colors.css` is the exception, and the line between them is worth stating:
+# the style sheets are *rules*, colors.css was thirteen `@define-color` lines
+# of pure *data* that also existed in modules/home/palette.nix and in rofi's
+# theme. A palette that has drifted between three files looks deliberate —
+# there is no way to tell a considered accent from a typo by looking at it —
+# so this one is derived and the others are not.
 {
   config,
   lib,
@@ -28,6 +35,10 @@
 
 let
   s = "~/.config/mango/scripts";
+
+  # The shared palette, in GTK CSS spelling. `style-*.css` `@import` this and
+  # refer to the names, so a colour is written once here and nowhere else.
+  p = import ./palette.nix;
 
   # ── Module definitions — one copy each ────────────────────────────────────
   modules = {
@@ -578,5 +589,28 @@ in
     lib.nameValuePair "mango/waybar/${name}" {
       source = toWaybar (lib.replaceStrings [ "." ] [ "-" ] name) value;
     }
-  ) layouts;
+  ) layouts
+  // {
+    # Derived from modules/home/palette.nix, so this file is NOT in
+    # dotfiles/mango/waybar/ — one path, one owner. The names are the bar's own
+    # vocabulary and the style sheets are written against them, which is why
+    # they are spelled out rather than emitted by iterating the palette: a
+    # renamed role should break the build here, not silently stop matching in
+    # a `@import`ed stylesheet where GTK ignores the unknown colour without a
+    # word.
+    "mango/waybar/colors.css".text = ''
+      /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
+         Imported by every style-*.css. */
+      @define-color base    #${p.base};
+      @define-color surface #${p.surface};
+      @define-color overlay #${p.overlay};
+      @define-color text    #${p.text};
+      @define-color subtext #${p.subtext};
+      @define-color accent  #${p.accent};
+      @define-color green   #${p.okColor};
+      @define-color red     #${p.errColor};
+      @define-color yellow  #${p.warnColor};
+      @define-color blue    #${p.infoColor};
+    '';
+  };
 }

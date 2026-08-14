@@ -455,6 +455,22 @@ and exits 0. So it goes at the call site: every fixed-choice menu passes it,
 and the password prompt in `menus/network-menu.sh` must not — with it, Enter
 returns nothing and `nmcli` runs with an empty password.
 
+**rofi's built-in defaults are Solarized light, and they show through.** A rasi
+that styles only the widgets it names leaves every other one resolving through
+rofi's default *role* variables — `urgent-background` is `#fdf6e3`, cream on a
+gruvbox window, and you find out the first time a menu marks a row urgent.
+Override the roles (`normal-*`, `selected-*`, `active-*`, `urgent-*`,
+`alternate-*`) rather than the widgets. The check is
+`rofi -dump-theme | grep 'var(lightbg)\|var(blue)\|var(red)'` — anything left
+is a widget still wearing the default theme.
+
+**rofi's shipped `gruvbox-dark` is a different gruvbox from this system's.**
+2px borders against `borderpx=1`, an `#a89984` border matching nothing here,
+`#665c54` selection where the terminals use `#504945`, and alternate rows
+striped `#32302f`. Importing it looked like the cheap way to match and was
+the reason the menus read as foreign. The palette is
+`modules/home/palette.nix`; see ADR 0009.
+
 **Sizing comes from the theme, not the caller.** rofi has no `--maxheight`;
 `listview { dynamic: true; lines: N; }` makes `lines` a ceiling and shrinks to
 fit. Porting a walker call by dropping `--maxheight` is correct, not lossy.

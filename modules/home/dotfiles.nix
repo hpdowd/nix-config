@@ -39,9 +39,30 @@ in
 
     # rofi reads ~/.config/rofi/config.rasi and nothing in the mango tree points
     # at it, so this declaration is the only thing that connects the two
-    # (docs/adr/0014). A file, not a directory: rofi writes a cache and
-    # rofi.png next to it.
+    # (docs/adr/0014). Files, not a directory: rofi writes a cache and
+    # rofi.png next to them.
+    #
+    # Split the same way the bar is: the layout rules are hand-tuned
+    # presentation and stay written by hand, the palette is data and is derived
+    # from modules/home/palette.nix. config.rasi `@import`s this one.
     "rofi/config.rasi".source = ../../dotfiles/rofi/config.rasi;
+    "rofi/colors.rasi".text =
+      let
+        p = import ./palette.nix;
+      in
+      ''
+        /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
+           Imported by config.rasi. The names match waybar/colors.css so the
+           bar and the menus can be reasoned about in one vocabulary. */
+        * {
+            base:    #${p.base};
+            overlay: #${p.overlay};
+            text:    #${p.text};
+            subtext: #${p.subtext};
+            accent:  #${p.accent};
+            urgent:  #${p.errColor};
+        }
+      '';
 
     # Not `services.swaync` — autostart.conf owns the lifecycle so a restyle
     # applies on mode switch. docs/adr/0005.

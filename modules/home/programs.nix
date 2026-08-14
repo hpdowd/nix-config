@@ -50,33 +50,11 @@
 }:
 
 let
-  # Gruvbox Dark, medium contrast. Single source for the terminals; kitty and
-  # foot spell their keys differently but the palette is identical, and it was
-  # previously written out twice (kitty/gruvbox-orange.conf and
-  # foot/gruvbox-colors.ini) with no mechanism keeping them in step.
-  gruvbox = {
-    bg = "282828";
-    fg = "ebdbb2";
-    selBg = "504945";
-
-    black = "282828";
-    red = "cc241d";
-    green = "98971a";
-    yellow = "d79921";
-    blue = "458588";
-    magenta = "b16286";
-    cyan = "689d6a";
-    white = "a89984";
-
-    brBlack = "928374";
-    brRed = "fb4934";
-    brGreen = "b8bb26";
-    brYellow = "fabd2f";
-    brBlue = "83a598";
-    brMagenta = "d3869b";
-    brCyan = "8ec07c";
-    brWhite = "ebdbb2";
-  };
+  # The palette lived here as a `let` binding until 2026-08-14, which was
+  # already the second copy (kitty/gruvbox-orange.conf and
+  # foot/gruvbox-colors.ini before it) — and the bar carried a third in
+  # waybar/colors.css. One file now, shared with the bar and the menus.
+  gruvbox = import ./palette.nix;
 
   # kitty wants a leading `#`, foot wants bare hex. One palette, two spellings.
   hash = c: "#${c}";

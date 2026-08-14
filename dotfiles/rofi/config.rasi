@@ -1,14 +1,14 @@
-/* rofi's configuration AND its theme, in one file.
+/* rofi's configuration and its layout rules.
  *
- * rofi reads ~/.config/rofi/config.rasi and nothing else points at it, so
- * modules/home/dotfiles.nix declares this path by name (docs/adr/0014). It is
- * declared as a FILE, not a directory: rofi writes a cache and rofi.png
- * alongside it, and two owners for one path is an activation failure.
+ * rofi reads ~/.config/rofi/config.rasi and nothing in the mango tree points at
+ * it, so modules/home/dotfiles.nix declaring this path is the only thing that
+ * connects the two (docs/adr/0014). Declared as a FILE, not a directory: rofi
+ * writes a cache and rofi.png next to it.
  *
- * Deliberately plain. The 337 lines of hand-tuned GTK CSS that dressed walker
- * do not port — rasi is a different language — so this starts from rofi's own
- * gruvbox-dark and overrides only what has to be right for the menus to work.
- * Tune the look against a running system, not from here.
+ * The COLOURS are not here. `colors.rasi` next to this file is generated from
+ * modules/home/palette.nix, the same palette the terminals and the bar use, so
+ * `@accent` here and `@accent` in waybar/colors.css cannot drift apart. Change
+ * a colour there and rebuild; change the shape below by hand.
  */
 
 configuration {
@@ -40,22 +40,163 @@ configuration {
   }
 }
 
-@theme "gruvbox-dark"
+@import "colors"
 
-/* Sized here rather than per call. walker took --maxheight on every
- * invocation, so each caller carried a number that had to be re-guessed
- * whenever a menu grew an entry; `dynamic` makes the list shrink to fit its
- * contents and `lines` is only the ceiling, so a three-item menu is three
- * items tall on its own.
- */
+/* ==========================================================================
+   Shape.
+
+   The system's design language, and none of it is invented here — it is read
+   off what already exists:
+
+     tiling.conf   borderpx=1, border_radius=0, bordercolor=0x3c3836,
+                   focuscolor=0xd79921, gaps 0
+     style-solid.css   border-radius: 0, `border: none` with 1px @overlay
+                   hairlines, flat transparent modules, and selection drawn as
+                   `background: @accent; color: @base` on the active workspace
+
+   So: square, 1px, flat, one accent, no zebra striping. rofi's own shipped
+   gruvbox-dark disagreed with all four — 2px borders, an #a89984 border that
+   matches nothing here, #665c54 selection where the terminals use #504945, and
+   alternate rows striped #32302f. It is a different gruvbox, not this one.
+   ========================================================================== */
+
+/* Map rofi's ROLE names onto the palette, rather than styling widgets one by
+ * one. This is not stylistic — a widget with no rule of its own still resolves
+ * through these, and rofi's built-in defaults are **Solarized light**
+ * (`background: #fdf6e3`, `foreground: #002b36`). Styling only the widgets you
+ * can name leaves the rest cream-on-teal, and you find out the first time a
+ * menu marks a row urgent. `rofi -dump-theme` is the check: nothing in the
+ * output should still read `var(lightbg)`, `var(blue)` or `var(red)`.
+ *
+ * The `alternate-*` roles are deliberately identical to their `normal-*`
+ * counterparts. That is what turns off zebra striping, which rofi's shipped
+ * gruvbox does and nothing else on this system does. */
+* {
+  background:                  @base;
+  background-color:            transparent;
+  foreground:                  @text;
+  border-color:                @overlay;
+  separatorcolor:              @overlay;
+  scrollbar-handle:            @overlay;
+  text-color:                  @text;
+
+  normal-background:           transparent;
+  normal-foreground:           @text;
+  alternate-normal-background: transparent;
+  alternate-normal-foreground: @text;
+  selected-normal-background:  @accent;
+  selected-normal-foreground:  @base;
+
+  active-background:           transparent;
+  active-foreground:           @accent;
+  alternate-active-background: transparent;
+  alternate-active-foreground: @accent;
+  selected-active-background:  @accent;
+  selected-active-foreground:  @base;
+
+  urgent-background:           transparent;
+  urgent-foreground:           @urgent;
+  alternate-urgent-background: transparent;
+  alternate-urgent-foreground: @urgent;
+  selected-urgent-background:  @urgent;
+  selected-urgent-foreground:  @base;
+
+  /* Matched substring. Bold only: italic in a mono Nerd Font reflows the
+   * glyph advance, so the icon column visibly shifts as you type. */
+  highlight:                   bold;
+}
+
 window {
-  width: 40em;
+  background-color: @base;
+  border:           1px;
+  border-color:     @overlay;
+  border-radius:    0;
+  padding:          0;
+  width:            40em;
+}
+
+mainbox {
+  border:   0;
+  padding:  0;
+  children: [ inputbar, listview ];
+}
+
+/* One hairline under the input, in the bar's separator colour — the same rule
+ * `window#waybar` uses to divide itself from the windows below it. */
+inputbar {
+  padding:      6px 10px;
+  spacing:      8px;
+  border:       0 0 1px 0;
+  border-color: @overlay;
+  children:     [ prompt, entry ];
+}
+
+prompt {
+  text-color: @accent;
+}
+
+entry {
+  text-color:        @text;
+  placeholder-color: @subtext;
+  /* rofi's default is the literal "Type to filter". Every caller already
+   * passes `-p`, so that would be a second label saying less. */
+  placeholder:       "";
 }
 
 listview {
-  lines: 12;
-  dynamic: true;
+  /* `lines` is a ceiling, not a height: `dynamic` shrinks the list to its
+   * contents, so a three-item menu is three items tall on its own. This is
+   * what replaced the --maxheight every walker call had to carry and re-guess
+   * whenever a menu grew an entry. */
+  lines:     12;
+  dynamic:   true;
   scrollbar: false;
+  border:    0;
+  padding:   4px 0;
+  spacing:   0;
+}
+
+/* Flat, like the bar's modules: no per-row background, generous horizontal
+ * padding, tight vertical. The separator rows the menus draw ("──────") are
+ * ordinary entries, so anything with a background here would box them too. */
+element {
+  padding: 4px 10px;
+  border:  0;
+}
+
+/* No per-state `element` rules: the roles above already carry all nine
+ * combinations, and repeating them here is how the two drift. Selection comes
+ * out as the accent block, exactly as `#workspaces button.active` draws the
+ * focused workspace on the bar. */
+
+element-text,
+element-icon {
+  background-color: inherit;
+  text-color:       inherit;
+  vertical-align:   0.5;
+}
+
+/* `-mesg` is unused today, but an unstyled widget inherits rofi's built-in
+ * theme rather than nothing — so it would appear in a colour scheme this file
+ * has otherwise replaced, the first time some script passes one. */
+message {
+  padding:      6px 10px;
+  border:       0 0 1px 0;
+  border-color: @overlay;
+}
+
+textbox {
+  text-color: @subtext;
+}
+
+/* The match counter. Not in `inputbar`'s children, so it does not draw today —
+ * but rofi hardcodes these three to a literal `Gray` rather than resolving a
+ * role, so they are the one place the sweep above cannot reach. Named here so
+ * adding them to the inputbar later is a one-line change, not a surprise. */
+num-filtered-rows,
+num-rows,
+textbox-num-sep {
+  text-color: @subtext;
 }
 
 /* `no-custom` is NOT set here, deliberately. It belongs at the call site:

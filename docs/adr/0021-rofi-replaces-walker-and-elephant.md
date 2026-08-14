@@ -159,6 +159,11 @@ and exits 0 — so a global setting could not be lifted for the one prompt in
   items tall on its own. hud mode no longer gets a narrower launcher — walker's
   wrapper injected that, and one theme now serves all three modes. If it is
   wanted back it is one `-theme-str` in the hud branch, not a wrapper script.
+- **rofi's widget tree is opt-out, not opt-in.** Naming `mainbox`'s children
+  removes the ones you did not name, and rofi-calc's live preview draws through
+  the `message` widget — so pinning that list turned the calculator into a
+  press-Enter-and-hope box with nothing logged. Verified live after the fix by
+  screenshotting `rofi -show calc -filter '17*24'`; see `docs/gotchas.md`.
 - **`=` and `.` became real keys.** They were reachable before only by typing
   into walker's main window, which **no bind opened** — they were one `walker`
   invocation away from being unreachable already. They are now `SUPER+equal`

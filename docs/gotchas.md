@@ -455,6 +455,17 @@ and exits 0. So it goes at the call site: every fixed-choice menu passes it,
 and the password prompt in `menus/network-menu.sh` must not — with it, Enter
 returns nothing and `nmcli` runs with an empty password.
 
+**Pinning `mainbox { children: [ ... ] }` silently deletes every widget you
+left out.** rofi's default is `[ inputbar, message, listview, mode-switcher ]`.
+Writing `[ inputbar, listview ]` to "keep it simple" removed the message bar —
+and **rofi-calc renders its live result through the mode `_get_message` hook**,
+which `rofi_view_reload_message_bar` (view.c:208) returns from immediately when
+`mesg_box` is NULL. So `SUPER+=` stopped previewing as you typed while Enter
+went on working, because `calc-command` fires off the entry, not the message.
+Nothing logged. Do not pin the list unless you are reordering something: the
+default order is already the wanted one, and an empty message bar is
+`widget_disable`d, so it costs the dmenu menus no space.
+
 **rofi's built-in defaults are Solarized light, and they show through.** A rasi
 that styles only the widgets it names leaves every other one resolving through
 rofi's default *role* variables — `urgent-background` is `#fdf6e3`, cream on a

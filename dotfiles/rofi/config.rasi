@@ -115,10 +115,18 @@ window {
   width:            40em;
 }
 
+/* No `children` list. Setting one is how the live calc preview was lost on
+ * 2026-08-14: rofi's default is [ inputbar, message, listview, mode-switcher ],
+ * this said [ inputbar, listview ], and rofi-calc renders its running result
+ * through the mode `_get_message` hook — which `rofi_view_reload_message_bar`
+ * (view.c:208) drops on the floor when `mesg_box` is NULL, i.e. whenever
+ * `message` is not in the layout. Nothing logged; Enter still worked, because
+ * `calc-command` runs off the entry rather than the message. Pinning this list
+ * opts out of every widget rofi adds, present and future, to reorder nothing —
+ * the default order is already the wanted one. */
 mainbox {
-  border:   0;
-  padding:  0;
-  children: [ inputbar, listview ];
+  border:  0;
+  padding: 0;
 }
 
 /* One hairline under the input, in the bar's separator colour — the same rule

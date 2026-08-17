@@ -1201,6 +1201,47 @@ and the WiFi resume fix. The traps worth carrying in your head:
   — which reads as "the names are unconstrained" rather than "the scan missed
   them".
 
+### `wantedBy` a target you are transitively ordered after deletes your start job
+
+`power-profiles-tlp` (`docs/adr/0026`) declared `wantedBy = [ "multi-user.target" ]`
+and `after = [ "tlp.service" ]`, and **never started at all** — no failure, no
+`systemctl --failed` entry, just an inactive unit and a bus name nobody served.
+
+A target implicitly gains `After=` on everything in its `Wants=`, *unless that
+unit already orders itself against the target*. Upstream `tlp.service` is
+`After=multi-user.target`. So the `wantedBy` alone closed a three-unit cycle —
+target after us, us after TLP, TLP after target — and systemd broke it the way it
+always does, by **deleting a job**; ours:
+
+```
+multi-user.target: Found ordering cycle: power-profiles-tlp.service/start after
+  tlp.service/start after multi-user.target/start - after power-profiles-tlp.service
+multi-user.target: Job power-profiles-tlp.service/start deleted to break ordering cycle
+dbus-broker-launch[…]: Activation request for 'org.freedesktop.UPower.PowerProfiles' failed.
+```
+
+D-Bus activation cannot rescue it either — the cycle is in the transaction, so
+every activation attempt fails identically. To a client this is indistinguishable
+from the unit not existing.
+
+The fix is to name the target in `after` as well as `wantedBy`, which suppresses
+the implicit edge. `wifi-resume` in `networking.nix` already does this against
+`suspend.target`; that is the pattern, not redundancy — **don't "tidy" a target
+out of an `after` list that also appears in `wantedBy`.**
+
+Confirm which way a unit sits, on the running system rather than in the file
+(the edge is implicit, so it is *not* in the generated unit):
+
+```console
+$ systemctl show multi-user.target -p After | tr ' ' '\n' | grep power-profiles-tlp
+multi-user.target-after=power-profiles-tlp.service   # ← cycle
+$ systemctl show suspend.target -p After | tr ' ' '\n' | grep wifi-resume
+                                                     # ← empty: correct
+```
+
+`journalctl -b | grep 'ordering cycle'` is the general scan, and is worth running
+after adding any unit with both `wantedBy` and `after`.
+
 ### The amdgpu/TTM freeze
 
 A GPF in `ttm_lru_bulk_move_tail` kills the faulting task **while it still holds

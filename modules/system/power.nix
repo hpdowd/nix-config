@@ -207,7 +207,19 @@ in
     # BindsTo, not Requires: with TLP gone there is no profile to report and no
     # honest value to publish, so the name must LEAVE the bus. Clients then see
     # an absent service — true — instead of a stale profile that looks live.
-    after = [ "tlp.service" ];
+    #
+    # `multi-user.target` is load-bearing in this list even though nothing here
+    # needs it: a target implicitly gains `After=` on everything in its `Wants=`
+    # *unless that unit already orders itself against the target*. Upstream
+    # tlp.service is `After=multi-user.target`, so without the second entry the
+    # `wantedBy` above closed a cycle — target after us, us after TLP, TLP after
+    # target — and systemd resolved it by DELETING this unit's start job. The
+    # bus name was then never served and dbus activation failed too, which is
+    # indistinguishable from the unit not existing. docs/gotchas.md → Power.
+    after = [
+      "tlp.service"
+      "multi-user.target"
+    ];
     bindsTo = [ "tlp.service" ];
 
     # StartLimit* belong in [Unit], not [Service] — docs/adr/0006. The daemon

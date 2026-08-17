@@ -5,6 +5,14 @@
 
 SCRATCHPADS=(spotify equibop)
 
+# Reap the `mmsg watch` below on the way out. Nothing kills this script today —
+# it is `exec-once`, so a mode switch leaves it alone — but window-title.sh had
+# exactly this shape and leaked one watcher per waybar kill, each holding an IPC
+# socket to mango for as long as the session lasted. `-P $$` is by parent, not
+# by name, so it cannot reach another script's watcher.
+cleanup() { pkill -P $$ 2>/dev/null; }
+trap cleanup EXIT PIPE HUP INT TERM
+
 # Clean slate on start — compositor restart means all scratchpads are gone
 for pad in "${SCRATCHPADS[@]}"; do rm -f "/tmp/scratch-${pad}"; done
 pkill -RTMIN+8 waybar 2>/dev/null || true

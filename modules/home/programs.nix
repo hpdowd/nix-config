@@ -58,6 +58,12 @@ let
 
   # kitty wants a leading `#`, foot wants bare hex. One palette, two spellings.
   hash = c: "#${c}";
+
+  # swaylock wants `rrggbbaa` and has no separate opacity setting, so the alpha
+  # is part of every colour it takes. Two are used: solid, and the wash behind
+  # the indicator that lets the background pool through.
+  opaque = c: "${c}ff";
+  wash = c: "${c}55";
 in
 {
   # ==========================================================================
@@ -481,6 +487,9 @@ in
   # mango/{tiling,hud}/swaylock.conf pair, and an untracked hand-written
   # ~/.config/swaylock/config that had been quietly supplying the theme.
   #
+  # In `noctalia` mode the wrapper hands the lock to noctalia first and this is
+  # the fallback (docs/adr/0024); in tiling and hud it is still the lock screen.
+  #
   # `image` is deliberately NOT set here: the wrapper passes `-i` per lock so
   # the pattern varies (docs/adr/0018). `color` stays as the fallback for when
   # the pool is empty.
@@ -507,7 +516,13 @@ in
       indicator-caps-lock = true;
       show-failed-attempts = true;
 
-      color = "282828ff";
+      # Colours come from palette.nix, not from hex typed here. Two of them did
+      # not: the ring and the keypress highlight were gruvbox ORANGE (d65d0e,
+      # fe8019), a shade this machine uses nowhere else, so the lock screen was
+      # the one surface whose accent disagreed with the bar, the menus and the
+      # window borders — and a drifted palette looks deliberate. `opaque` and
+      # `wash` spell the two alpha values the indicator needs.
+      color = opaque gruvbox.bg0;
       # The pool is generated at the panel's native 1920x1200, so `fill` scales
       # by exactly 1 and the block edges stay hard. swaylock resamples with
       # CAIRO_FILTER_BILINEAR, so an external output at another resolution gets
@@ -520,24 +535,24 @@ in
       indicator-radius = 100;
       indicator-thickness = 7;
 
-      inside-color = "28282855";
-      inside-clear-color = "28282855";
-      inside-ver-color = "45858855";
-      inside-wrong-color = "fb493455";
+      inside-color = wash gruvbox.bg0;
+      inside-clear-color = wash gruvbox.bg0;
+      inside-ver-color = wash gruvbox.blue;
+      inside-wrong-color = wash gruvbox.errColor;
 
-      ring-color = "d65d0eff";
-      ring-clear-color = "b8bb26ff";
-      ring-ver-color = "458588ff";
-      ring-wrong-color = "fb4934ff";
+      ring-color = opaque gruvbox.accent;
+      ring-clear-color = opaque gruvbox.okColor;
+      ring-ver-color = opaque gruvbox.blue;
+      ring-wrong-color = opaque gruvbox.errColor;
 
-      key-hl-color = "fe8019ff";
-      bs-hl-color = "fb4934ff";
+      key-hl-color = opaque gruvbox.warnColor;
+      bs-hl-color = opaque gruvbox.errColor;
 
-      text-color = "ebdbb2ff";
-      text-clear-color = "ebdbb2ff";
-      text-ver-color = "83a598ff";
-      text-wrong-color = "fb4934ff";
-      text-caps-lock-color = "fe8019ff";
+      text-color = opaque gruvbox.text;
+      text-clear-color = opaque gruvbox.text;
+      text-ver-color = opaque gruvbox.infoColor;
+      text-wrong-color = opaque gruvbox.errColor;
+      text-caps-lock-color = opaque gruvbox.warnColor;
 
       # Fully transparent — the ring carries the state, the lines only add
       # edges to it.

@@ -24,6 +24,7 @@ window#waybar {
 
 #clock,
 #battery,
+#custom-phone,
 #custom-power {
     background: @surface;
     color: @text;
@@ -32,6 +33,16 @@ window#waybar {
     padding: 0 10px;
     border-left: 1px solid @overlay;
 }
+
+/* Symbols Nerd Font Mono for the glyphs, 3270 for the digits behind it — the
+   reasoning and the measurements are in style-solid.css under Phone. Without
+   this the module had no rule here either and sat flush against #workspaces. */
+#custom-phone {
+    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
+}
+
+#custom-phone.warning  { color: @accent; }
+#custom-phone.critical { color: @red; }
 
 #clock {
     border-left: 1px solid @overlay;

@@ -15,6 +15,35 @@ final: prev: {
   papirus-icon-theme = prev.papirus-icon-theme.override { color = "yellow"; };
 
   # ==========================================================================
+  # noctalia-shell — its mango backend still speaks dwl's dead flags
+  # ==========================================================================
+  # `MangoService.qml` drives mango through `mmsg -s -d <func>`, the dwl-era
+  # flag form. mango 0.16 answers `{"error":"unknown command"}` and EXITS 0, so
+  # every one of these did nothing and reported nothing — the failure this repo
+  # is named for. The launcher was the visible half: picking an app ran
+  # `CompositorService.spawn` → `MangoService.spawn` → nothing. docs/adr/0025.
+  #
+  # A patch rather than a workaround in settings, because there are five call
+  # sites and only one is the launcher; and because `mmsg dispatch spawn_shell`
+  # makes the app a child of MANGO, in the session scope, instead of a child of
+  # the shell inside `noctalia.service` — where a mode switch would kill it with
+  # the bar (KillMode=control-group).
+  #
+  # `--replace-fail`, so a version bump that renames any of these is a BUILD
+  # error. The verb names are checked against mango's own function table by
+  # checks/static.sh; `-g -A` (display scales) and `-s -t` (tag switch) are
+  # deliberately left alone — those two need a different call shape, not a
+  # different spelling, and are the `DwlIpc` half recorded in docs/adr/0020.
+  noctalia-shell = prev.noctalia-shell.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace Services/Compositor/MangoService.qml \
+        --replace-fail '"mmsg", "-s", "-d",' '"mmsg", "dispatch",' \
+        --replace-fail '"mmsg", "-s", "-q"' '"mmsg", "dispatch", "quit"' \
+        --replace-fail 'mmsg -s -d ' 'mmsg dispatch '
+    '';
+  });
+
+  # ==========================================================================
   # fsel — version override
   # ==========================================================================
   # nixpkgs has 3.1.0; our config.toml is written for 3.6.0. Delete once nixpkgs
@@ -205,15 +234,61 @@ final: prev: {
   };
 
   # ==========================================================================
-  # lockscreen — swaylock with a background picked per lock
+  # lockscreen — lock the session with whichever locker the mode owns
   # ==========================================================================
   # Deliberately NOT named `swaylock`. A wrapper of that name would land earlier
   # in PATH and shadow swaylock-effects, which is the exact trap that makes
   # `programs.swaylock.package = null` load-bearing. docs/gotchas.md → swaylock.
+  #
+  # Every lock path goes through this one name — swayidle's before-sleep, lock
+  # and 5-minute timeout, wlogout, power-menu.sh — so mode-awareness belongs
+  # here and nowhere else. docs/adr/0024.
   lockscreen = prev.writeShellApplication {
     name = "lockscreen";
-    runtimeInputs = [ prev.swaylock-effects ];
+    # Absolute paths for all four: swayidle runs this from `sh -c` with a PATH
+    # that carries bash and little else, and an unqualified `sleep` or
+    # `noctalia-shell` would exit 127 under `set -e` — before the swaylock
+    # fallback below ever ran.
+    # `final.noctalia-shell`, NOT `prev.` — and this one is load-bearing rather
+    # than tidy. quickshell resolves an ipc target by the shell.qml PATH it was
+    # started from ("No running instances for …/shell.qml" is its own wording),
+    # so the unpatched derivation would look for instances of a path nothing
+    # runs, find none, and hand every unattended lock back to swaylock. It would
+    # also put two noctalia closures in the system.
+    runtimeInputs = [
+      prev.swaylock-effects
+      final.noctalia-shell
+      prev.systemd
+      prev.coreutils
+    ];
     text = ''
+      # In `noctalia` mode the shell owns the lock screen, and it is already the
+      # one SUPER+Delete opens; leaving the unattended locks on swaylock made
+      # every resume look like a different machine. Ask noctalia first, then
+      # fall through — swaylock below is BOTH the fallback and the proof, since
+      # only one client may hold an `ext-session-lock-v1` lock and swaylock
+      # exits non-zero exactly when the session is already locked. So this
+      # returns with the session locked either way, which is the guarantee
+      # swayidle's sleep inhibitor is built on. docs/adr/0024.
+      mode=$(cat "''${XDG_STATE_HOME:-$HOME/.local/state}/mango/current-mode" 2>/dev/null || echo tiling)
+      if [ "$mode" = noctalia ] && systemctl --user is-active --quiet noctalia; then
+        # `ipc call` prints "Target not found." / "Function not found." and
+        # EXITS 0, so output is the only signal (docs/adr/0023).
+        out=$(noctalia-shell ipc call lockScreen lock 2>&1 || true)
+        if [ -n "$out" ]; then
+          # Not fatal: swaylock is still ahead, and stderr reaches the journal
+          # of whatever called this.
+          printf 'lockscreen: noctalia ipc call lockScreen lock: %s\n' "$out" >&2
+        else
+          # The shell raises its lock asynchronously — there is no IPC that
+          # reports the lock is up, and mango has no session-lock query. This
+          # wait therefore decides only WHICH locker wins, never whether one
+          # does: too short and swaylock takes the lock instead, which is the
+          # previous behaviour rather than an unlocked screen.
+          sleep 1
+        fi
+      fi
+
       # nullglob so an empty pool yields an empty array rather than the literal
       # glob — otherwise the fallback below never fires and swaylock is handed a
       # path with a `*` in it.

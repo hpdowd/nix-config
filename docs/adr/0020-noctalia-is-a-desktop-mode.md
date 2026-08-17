@@ -1,6 +1,9 @@
 # 0020 — noctalia is a desktop mode, not a second desktop
 
-**Status:** Accepted (2026-08-14)
+**Status:** Accepted (2026-08-14), **corrected 2026-08-16 — the mango
+integration does not work**; extended by
+[0022](0022-noctalia-mode-looks-like-noctalia.md) and
+[0023](0023-noctalia-owns-its-own-actions.md)
 
 Follows [0005](0005-one-owner-per-daemon.md) (one owner per daemon) and
 [0014](0014-declare-the-namer-not-just-the-file.md) (assert reachability both
@@ -39,6 +42,17 @@ It also has first-class mango support — `Services/Compositor/MangoService.qml`
 selected when `XDG_CURRENT_DESKTOP` contains `mango`, driving the bar off the DWL
 IPC. Without that the workspace and window widgets would render empty, which on
 this desktop is indistinguishable from the bar being broken.
+
+> ⚠️ **Corrected 2026-08-16: that last paragraph is wrong, and its own predicted
+> failure is what actually happens.** `MangoService.qml` is selected, but every
+> path in it is guarded on `DwlIpc.available`, which is false on this machine and
+> always will be: quickshell probes for the Wayland global `zdwl_ipc_manager_v2`
+> and mango 0.16.0 advertises no dwl IPC at all — `mmsg`'s JSON socket is a
+> different interface. So `rebuildWorkspaces()` and `updateWindows()` return
+> early, and the **Workspace widget (the centre of the bar) and ActiveWindow
+> widget render nothing**. The claim was read off the file's existence rather
+> than off a running shell, which is the mistake this repo names in its own
+> first paragraph. See `docs/SYSTEM.md` §13 for the tell and the options.
 
 ## Decision
 
@@ -106,9 +120,12 @@ if noctalia is removed.
   symlink in this tree resolved into its own parent once already. Third copy of
   a file that differs from the first in nothing. Accepted over relaxing the check,
   which would widen the blast radius of "try a shell" into the gate itself.
-- **Removal is nine files, and the gate enforces it.** Drop `"noctalia"` from
-  `MODES` and `nix flake check` fails until the conf, mode script and walker
-  config are gone too. The uninstall is written out in `docs/SYSTEM.md` §6.
+- **Removal is one pass, and the gate enforces it.** Drop `"noctalia"` from
+  `MODES` and `nix flake check` fails until the conf and mode script are gone
+  too. The uninstall is written out in `docs/SYSTEM.md` §6, which is the count
+  to trust — it grew with [0022](0022-noctalia-mode-looks-like-noctalia.md) and
+  [0023](0023-noctalia-owns-its-own-actions.md), and the walker config named
+  here left with walker ([0021](0021-rofi-replaces-walker-and-elephant.md)).
 - **swayosd keeps running in noctalia mode, and its OSD overlaps noctalia's.**
   Deliberate: `swayosd-server` is `exec-once`, so a mode that killed it would not
   get it back on the way out — one-way breakage, silently. Cosmetic overlap is

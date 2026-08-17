@@ -209,6 +209,180 @@ Verify by ownership, never by "it started": `busctl --user status
 org.freedesktop.Notifications` names the owning PID. `notify-send test` then
 tells you which one drew it.
 
+### The noctalia bar does not appear, and nothing says why
+
+**Two failures stack, and the second one hides the first.** Seen 2026-08-15
+after switching tiling → noctalia → tiling → noctalia: the second entry produced
+no bar at all.
+
+The crash is `Failed to create wl_display (No such file or directory)` followed
+by Qt's `no Qt platform plugin could be initialized` and `SIGABRT`, ~700 ms in.
+It means the **systemd user manager's** `WAYLAND_DISPLAY` names a socket that is
+not there — the manager has its own copy of the environment, published once by
+`dbus-update-activation-environment --systemd --all` in
+`universal/autostart.conf`, and it does not track the session afterwards.
+Compare the two directly; they are supposed to agree:
+
+```sh
+systemctl --user show-environment | grep -E 'WAYLAND_DISPLAY|^DISPLAY|MANGO'
+printf '%s %s %s\n' "$WAYLAND_DISPLAY" "$DISPLAY" "$MANGO_INSTANCE_SIGNATURE"
+# repair, from inside the session:
+dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY MANGO_INSTANCE_SIGNATURE
+```
+
+⚠️ **Running a nested mango is how the environment goes stale.** The nested
+instance runs the live `universal/autostart.conf`, whose first line republishes
+*its* `WAYLAND_DISPLAY` into the user manager; killing it then leaves the
+manager pointing at a socket that no longer exists, and every user unit started
+afterwards connects to nothing. This is the same trap as the config paths above,
+one layer further out — strip the `autostart.conf` sources from any test config.
+
+**Then the unit wedges, and that is what makes it look intermittent.** Five
+crashes inside `StartLimitIntervalSec` leave it `failed` with
+`start-limit-hit`; after that `systemctl --user start` refuses with "attempted
+too often" and exits 1 — but an `exec=` line in an autostart has no reader for
+that, so the mode switch reports success and produces nothing. So **fixing the
+environment is not enough**: the unit stays wedged until a `reset-failed`.
+`scripts/modes/noctalia-start.sh` now does that on every entry into the mode,
+waits for the unit to be up *and stay* up, and restores swaync with a
+`notify-send` if it does not — losing the bar and the notification daemon at
+once is otherwise completely silent.
+
+### noctalia's workspace widget is empty, and the shell says so once
+
+**mango advertises no dwl IPC, so noctalia's Workspace and ActiveWindow widgets
+render nothing** — and the Workspace widget is the centre of its bar. The shell
+picks the right backend and reports it (`MangoService Initializing MangoWC/DWL
+compositor integration (DWL protocol)`), which reads like success; every path in
+that backend is then guarded on `DwlIpc.available`, which is false forever.
+quickshell probes for the Wayland global `zdwl_ipc_manager_v2`; mango 0.16.0
+creates only `wlr_*` globals, and `mmsg`'s JSON socket is a different interface
+that noctalia uses for two unrelated calls. One line at startup is the whole
+tell:
+
+```sh
+journalctl --user -u noctalia | grep 'DWL is not available'
+```
+
+**Read this as a method, not a fact about one widget.** `docs/adr/0020` recorded
+the integration as working because `MangoService.qml` exists and is selected —
+a file's existence stood in for a running system, in the one repo whose first
+rule is that those look identical. A compositor integration is only confirmed by
+watching the widget change when you switch tags.
+
+### `noctalia-shell ipc call` exits 0 when the name is wrong
+
+**`Target not found.` and `Function not found.` are printed, and the status is
+0.** A successful void call prints nothing. So **output is the signal** and the
+exit status tells you nothing — the same shape as the dwl-era `mmsg -s -d` that
+broke five scripts here. Test a call by capturing it, never by `&&`:
+
+```sh
+out=$(noctalia-shell ipc call launcher toggle 2>&1); [ -z "$out" ] || echo "FAILED: $out"
+noctalia-shell ipc show   # the authoritative list of targets and functions
+```
+
+`checks/static.sh` pairs every call in `scripts/menus/shell.sh` against the
+`IpcHandler` blocks in the shipped QML, matching the function *inside* its own
+target — `dock clear` would otherwise pass, because `notifications` declares
+`clear`.
+
+**Its logout is inert on this machine.** `MangoService.logout()` runs
+`mmsg -s -q`, the flag form mango answers with `{"error":"unknown command"}` and
+exit 0. The session menu's logout button is disabled in `settings-pinned.json`
+for that reason — a missing button beats one that silently does nothing.
+
+### noctalia's whole mango backend spoke dwl, so the launcher did nothing
+
+`logout()` above was not the only one. **Five calls in `MangoService.qml` used
+the `mmsg -s -d <func>` flag form**, including `spawn()` — which is what
+`ApplicationsProvider` reaches through `CompositorService.spawn()`, so **picking
+an app in noctalia's launcher launched nothing**. Not every time, which is why it
+went unnoticed: entries whose `Exec` has quoted or spaced arguments take an
+earlier branch (`app.execute()`) and do work.
+
+The overlay rewrites them to `mmsg dispatch` (`docs/adr/0025`), with a check
+pairing each verb against mango's own function table — `mmsg` answers an unknown
+*function* exactly as it answers an unknown *command*: `{"error":…}`, exit 0.
+
+Two calls are deliberately left in the flag form. `mmsg -g -A` (display scales)
+and `mmsg -s -t` (tag switch) need a different call **shape**, not a different
+spelling; they are the `DwlIpc` half above, behind the empty workspace widget.
+
+⚠️ **Once a package is overridden in the overlay, `prev.<pkg>` is the wrong
+one.** Every consumer must take `final.`, or the system carries two closures and
+they are not interchangeable: **quickshell resolves an ipc target by the
+`shell.qml` PATH the instance was started from**, so a caller built against the
+unpatched derivation gets `No running instances` while the shell is up. The
+`lockscreen` wrapper is the one that matters — it would hand every unattended
+lock back to swaylock, indistinguishably from noctalia simply being down.
+`checks/static.sh` pins the wrapper's copy to the system's.
+
+⚠️ **This also decides where your applications live.** `mmsg dispatch
+spawn_shell` makes them children of **mango**, in the session scope. The
+alternative fix — noctalia's `appLauncher.customLaunchPrefix`, which routes
+through `Quickshell.execDetached` — makes them children of the *shell*, inside
+`noctalia.service`, whose `KillMode=control-group` means **a mode switch kills
+everything you launched from noctalia**. Same for anything started from the dock.
+
+### Leaving noctalia mode leaves 1 MB of tmpfs behind, every time
+
+The shell itself exits cleanly — the unit's cgroup takes the whole tree,
+`setsid` and all — but **quickshell never removes its instance directory**. Each
+start leaves `$XDG_RUNTIME_DIR/quickshell/by-id/<id>/` holding a socket, a lock
+and a `log.qslog` that reaches 1.5 MB. It *knows* they are dead: every failed
+`ipc call` prints a "Dead instances:" list naming them. 18 of them were holding
+11 MB of RAM on 2026-08-16.
+
+`noctalia-start.sh` prunes them before each start, using quickshell's own
+`by-pid/` index for liveness rather than parsing the binary lock file.
+
+```sh
+du -sh "$XDG_RUNTIME_DIR/quickshell"   # what it has accumulated
+```
+
+### Entering noctalia mode used to end night light for the session
+
+`NightLightService.qml` runs **`pkill -x wlsunset` in `Component.onCompleted`,
+unconditionally** — on every start, whether or not `nightLight.enabled` is
+pinned off. It matches: this repo's wlsunset is unwrapped, so `comm` is plain
+`wlsunset` and `-x` hits (the usual `-x`-misses-the-wrapper trap does not save
+you here — see Scripts).
+
+The reason it stayed dead is systemd's, not noctalia's. **`Restart=on-failure`
+does not restart a process killed by SIGTERM**: systemd counts SIGTERM, SIGINT,
+SIGHUP and SIGPIPE as *clean* exits. Confirmed with a transient unit —
+`Result=success`, `NRestarts=0`. `night-light-run.sh` ends in `exec wlsunset`,
+so wlsunset **is** the unit's main process and takes the signal directly.
+
+The unit is now `Restart=always`, with a check on it. noctalia's own journal is
+where this was found, and it says so plainly:
+
+```sh
+journalctl --user -u noctalia | grep 'Killed stale wlsunset'
+systemctl --user show wlsunset -p NRestarts -p ActiveState
+```
+
+### Editing noctalia's settings seed changes nothing
+
+**`noctalia/settings.json` is written once, when there is no file at all**, so
+on any machine that has entered the mode even once, adding a key there is a
+change that lands in the repo and never on the machine — which looks exactly
+like a key that does not work. The half that *does* apply is
+`noctalia/settings-pinned.json`, merged over the live file on every entry into
+the mode (ADR 0022). Put a setting that must hold there; put a preference the
+UI may keep in the seed.
+
+**noctalia ignores a settings key it does not know, in silence** — no log, no
+fallback, and the UI shows its own default. So a key renamed upstream stops
+applying and reads as never having been set. `checks/static.sh` asserts every
+key path in both files still exists in the package's
+`Assets/settings-default.json`.
+
+The pin is skipped while the shell is running, because noctalia holds settings
+in memory and writes the whole file back. It says so with `notify-send` rather
+than reporting a merge that was about to be overwritten.
+
 ### A tracked, linked file can still be inert
 
 **The program has to be told where it is, and that pointer is config too.**
@@ -294,6 +468,43 @@ the `polkit-gnome-authentication-agent-1` user service in `desktop.nix`.
 with `recursive = true` (so the mode scripts can still `cp`), and the files there
 are read-only copies. Rebuild, *then* reload.
 
+**The parser is last-wins, and `source=` is processed inline at its position.**
+So a key set *after* a `source=` overrides what that file set — which is how
+`noctalia/noctalia.conf` sources the shared settings and then disagrees with
+them (ADR 0022) — and the same key set *before* it is silently discarded.
+Measured on 2026-08-15, not assumed. The probe is cheap, because one option has
+a value you can read back:
+
+```sh
+# in a scratch HOME: sub.conf sets `xkb_rules_layout=de`, config.conf sources it
+# and then sets `us`. `mmsg get keyboardlayout` names the winner.
+printf 'source=./sub.conf\nxkb_rules_layout=us\n' > "$H/.config/mango/config.conf"
+```
+
+**mango ignores `XDG_CONFIG_HOME` — it reads `$HOME/.config/mango/config.conf`.**
+This bites exactly when testing: a nested instance started with a scratch
+`XDG_CONFIG_HOME` reads the **live** config and runs the live `autostart.conf`
+against the running session, killing waybar and starting daemons. Override
+`HOME`, not `XDG_CONFIG_HOME`, and strip the `autostart.conf` sources from the
+test config.
+
+**Settings are last-wins but BINDS ARE FIRST-WINS, and a duplicate warns.**
+Binds append (`parse_config.h`: `realloc(… count + 1 …)`) and the dispatcher
+stops at the first match (`src/mango.c`, `only match the first keybind`), so a
+mode conf sourced *ahead* of `universal/bind.conf` does override it — the exact
+opposite of the rule for scalar settings two paragraphs up. Do not use it
+without a reason: mango also prints `[WARNING] Key binding conflict` naming both
+files and both lines for every duplicate, unless both binds carry the `c` flag,
+and a handful of those trains you to ignore the one that matters. Mode-dependent
+keys go through `scripts/menus/shell.sh` instead (ADR 0023); only keys that
+exist in *one* mode are bound per-mode.
+
+**A misspelled option IS reported** — a rarity in this repo, so use it. mango
+prints `[ERROR]: Unknown keyword: <key>` with the file and line number to
+stderr, at parse time. Nothing else validates a conf file, so a nested instance
+started against a candidate config is the only pre-flight there is; one that
+logs a single error you put there yourself has accepted every other line.
+
 ### swaylock
 
 **swaylock needs a PAM service declared by hand, or it can never unlock.** It is
@@ -326,6 +537,17 @@ non-zero whenever you had already locked by hand — and with `&&` the
 idle period. It costs battery and logs nothing. `;` blanks either way, which is
 correct in both cases: already locked, or newly locked.
 
+**That same failure is the only way to ask "is the session locked?".** Nothing
+here answers the question directly: noctalia's `lockScreen` IPC declares one
+function, `lock()`, and returns before its lock surface exists; `mmsg get` has
+no session-lock subcommand; `loginctl`'s `LockedHint` tracks the logind *signal*
+and not the Wayland protocol, so it is unchanged by either locker. What does
+answer it is running swaylock and reading the exit status — it prints
+`Failed to lock session -- is another lockscreen running?` and exits non-zero
+only once the compositor has confirmed the session locked. `lockscreen` uses
+exactly that as the proof behind the noctalia lock (`docs/adr/0024`), which is
+also why it is safe: the probe's *success* case is a lock too.
+
 **`programs.swaylock.package` must be `null` here.** `desktop.nix` installs
 **swaylock-effects** system-wide and declares PAM for it, but the home-manager
 module defaults to installing plain `pkgs.swaylock`, which lands *earlier* in
@@ -350,6 +572,13 @@ That config is also the *only* one now: `~/.config/swaylock/config` used to be
 an **untracked** hand-written file that quietly supplied the theme to every bare
 `swaylock -f`, alongside two more copies at `mango/{tiling,hud}/swaylock.conf`
 for the `--config` binds. All three are gone.
+
+**Its colours come from `palette.nix`, and did not until 2026-08-16.** The ring
+and the keypress highlight were gruvbox *orange* (`d65d0e`, `fe8019`) while the
+machine's accent has always been yellow (`d79921`) — hex typed by hand into the
+one surface nothing compared against the palette, in the one place you cannot
+see it next to anything else. Add a colour here as `opaque gruvbox.<role>` or
+`wash gruvbox.<role>`, never as a literal.
 
 ⚠️ **The `--effect-*` options do nothing without a background image, and
 pixelating a solid colour does nothing even then.** Two independent no-ops that
@@ -527,6 +756,25 @@ hand-written — hand-tuned presentation is data, not settings.
 the recursive mango link **only** because the hand-written `.jsonc` files were
 deleted. Two owners for one path is an activation failure.
 
+**Killing waybar leaks the `mmsg watch` behind `window-title.sh`.** The module
+script dies with the bar; the stream inside its process substitution does not.
+Four orphans were alive at once on 2026-08-16 — PPID 1, up to fourteen hours
+old, ~5 MB each, every one holding an open IPC socket to mango with nothing
+reading from it. One leaks per `pkill waybar`, so **every mode switch and every
+`waybar-reload`**. The tell is that they carry `WAYBAR_OUTPUT_NAME` in their
+environment long after the bar that set it is gone:
+
+```sh
+pgrep -a 'mmsg watch'                       # more than one per module = leaked
+tr '\0' '\n' < /proc/<pid>/environ | grep WAYBAR_OUTPUT_NAME
+```
+
+The fix is `trap 'pkill -P $$' EXIT PIPE HUP INT TERM` — by **parent**, not by
+name, since matching `mmsg` would take out every other module's watcher too.
+`PIPE` is in the list because a closed bar pipe is how the script usually dies,
+and SIGPIPE's default action skips the `EXIT` trap. `checks/static.sh` requires
+it of every script that streams `mmsg watch`.
+
 **`on-scroll-up` on the volume and backlight modules DECREASES, and that is
 correct.** `trackpad_natural_scrolling=1` makes libinput invert the axis before
 any client sees it, so fingers-up arrives as `on-scroll-down`. Reading the
@@ -551,6 +799,36 @@ Font Awesome icons in at natural width but keeps a narrow 0.54em advance, so the
 ink overflows its cell to the right with all the slack on the left. **Padding
 cannot fix it** — symmetric padding centres the advance box, not the ink. The
 module gets *wider* when fixed, since the real advance was understated.
+
+> **A module that also emits text must name `3270 Nerd Font` after the symbols
+> font**, not fall through to generic `monospace`. `Symbols Nerd Font Mono` is
+> symbols-only — it carries no digits and no `%` — so `custom/phone`, which
+> renders `󰂂 85%`, would take its percentage from whatever fontconfig resolves
+> `monospace` to, sitting beside a `battery` module rendering its own in 3270.
+> Pango falls back per character, so listing both gets the glyph from the first
+> and the digits from the second.
+
+**Measure the advance, don't infer it from how the glyph looks.** Two comments in
+`style-solid.css` claimed the opposite of what the fonts do and were corrected
+only after measuring. `fc-list ':charset=<hex>'` answers whether a glyph exists,
+not whether it fits; for that, read `hmtx` against the glyph's ink bounds:
+
+```sh
+ft=$(nix eval --raw nixpkgs#python3Packages.fonttools.outPath)
+PYTHONPATH=$(echo "$ft"/lib/python3.*/site-packages) nix shell nixpkgs#python3 \
+  --command python -c '…TTFont(path); hmtx[g] vs glyf[g].xMax…'
+```
+
+`nix shell nixpkgs#python3Packages.fonttools -c python` does **not** work — that
+puts the `ttx` CLI on `PATH` without putting the module on `PYTHONPATH`, and the
+import fails in a way that reads like the package being wrong.
+
+Measured on 3270 (upem 2000) vs Symbols Nerd Font Mono (upem 2048):
+
+| glyph | 3270 advance / ink | Symbols advance / ink |
+|---|---|---|
+| `U+F10B` fa-mobile | 874 / 0–1269 — **overflows 395** | 2048 / 320–1728 |
+| `U+F0084` md-battery | 874 / 0–1000 — **overflows 126** | 2048 / 409–1639 |
 
 **`#taskbar button` must keep `min-width` ≤ `icon-size`.** waybar `pack_start`s
 the icon, so any width beyond the icon becomes empty space on the **right only**.
@@ -616,6 +894,25 @@ check the `text` field is non-empty** — not just that the script succeeds. An
 empty custom module is indistinguishable from an absent one. `custom/power-profile`
 emitted `{"text":""}` for a while because its icons were written as literal
 glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
+
+**And the inverse: a module invisible for long enough loses its stylesheet.**
+`custom/phone` was listed in the `full` and `hud` layouts but had **no CSS rule
+in either sheet** — not even a place in the shared reset list — for as long as it
+existed. Nothing caught it, because for that whole time `phone-status.sh`'s
+liveness guard could not match a wrapped `kdeconnectd` and the script always took
+its "KDE Connect not running" branch, which emits empty text. Fixing that guard
+(`866b57b`) made the module render for the first time, unstyled: no padding, no
+`border-left`, so the phone glyph sat flush against `custom/power-profile` and
+read as **a second icon inside the power module** rather than a module of its
+own. It was reported that way, and blamed on the noctalia work landing the same
+week.
+
+Two things follow. **A dead guard hides a presentation bug behind a functional
+one**, and fixing the functional one exposes it with no warning — when a guard
+fix makes something appear, check it has a rule. And **`custom/phone` deliberately
+emits empty text when the phone is unreachable**, so the module is absent rather
+than a permanently grey glyph; only `connected` / `warning` / `critical` are
+styled, and `disconnected` / `offline` are unstyled on purpose.
 
 ---
 

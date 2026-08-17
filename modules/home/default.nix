@@ -215,7 +215,11 @@ in
         "NIGHT_LONG=-6.26"
         "NIGHT_DAY_TEMP=6500"
       ];
-      Restart = "on-failure";
+      # `always`, not `on-failure`: noctalia runs `pkill -x wlsunset` on every
+      # start, unconditionally, and systemd counts a SIGTERM as a CLEAN exit —
+      # so `on-failure` let one entry into noctalia mode end night light for the
+      # rest of the session, silently. docs/gotchas.md → night light.
+      Restart = "always";
       RestartSec = 3;
     };
     Install.WantedBy = [ "graphical-session.target" ];
@@ -271,6 +275,9 @@ in
       StartLimitBurst = 5;
     };
     Service = {
+      # Without this its lock screen probes and picks /etc/pam.d/login; the
+      # swaylock service is the one declared for this job — docs/adr/0023.
+      Environment = [ "NOCTALIA_PAM_SERVICE=swaylock" ];
       ExecStart = "${pkgs.noctalia-shell}/bin/noctalia-shell";
       Restart = "on-failure";
       RestartSec = 2;

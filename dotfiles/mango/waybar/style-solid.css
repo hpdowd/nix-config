@@ -50,6 +50,7 @@ window#waybar.bottom {
 #tray,
 #custom-power,
 #custom-night-mode,
+#custom-phone,
 #custom-power-profile {
     background: transparent;
     color: @text;
@@ -304,6 +305,34 @@ window#waybar.bottom {
 #custom-power-profile.fanless     { color: @green; }
 #custom-power-profile.unknown     { color: @yellow; }
 #custom-power-profile.unavailable { color: @yellow; }
+
+/* ── Phone (KDE Connect) ──────────────────────────────────────────── */
+
+/* Had no rule at all until 2026-08-16, so it rendered flush against
+   #custom-power-profile and read as a second icon inside it; gotchas.md → Waybar.
+
+   Symbols Nerd Font Mono for the same measured reason as power-profile above:
+   in 3270 fa-mobile (U+F10B) overflows its 874/2000 cell by 395 units and the
+   nf-md-battery set by 126. 3270 is named after it and is NOT redundant with
+   the `*` rule — this module also emits digits ("󰂂 85%") and the Symbols font
+   is symbols-only, so without it the percentage falls to generic monospace
+   beside a battery module rendering its own in 3270. Pango falls back per
+   character. */
+#custom-phone {
+    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
+    font-size: 13px;
+    padding: 0 8px;
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+/* phone-status.sh emits `disconnected` and `offline` with empty text, so those
+   two never render and are deliberately unstyled — the module is absent from
+   the bar whenever the phone is unreachable. These three are the reachable
+   states, and mirror the battery thresholds the script applies at 30 and 15. */
+#custom-phone.connected { color: @text; }
+#custom-phone.warning   { color: @yellow; }
+#custom-phone.critical  { color: @red; }
 
 /* ── Battery ──────────────────────────────────────────────────────── */
 

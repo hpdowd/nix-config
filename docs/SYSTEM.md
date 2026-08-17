@@ -406,7 +406,7 @@ Do not "finish the job" without reading these:
 | waybar CSS | Same reasoning — hand-tuned presentation is data |
 | `glow`, `nwg-look` | No module at this pin |
 | `corectrl` | Writes its own config from the GUI, and that GUI is the program |
-| `noctalia/settings.json` | Same — noctalia rewrites it on every change. **Seeded, not linked**: see below |
+| `noctalia/settings.json` | Same — noctalia rewrites it on every change. **Seeded and pinned, not linked**: see below |
 
 ### Four traps
 
@@ -438,36 +438,58 @@ Delete `~/.config/X` first so home-manager builds a fresh directory.
 `xdg.configFile.<name>` writes *to* `~/.config/<name>`. That is why this repo
 lives at `~/src/nix-config` and not at `~/.config` as it did under Arch.
 
-### A fourth option: seeded, not owned
+### A fourth option: seeded, and pinned
 
 `~/.config/noctalia/` is claimed by **nothing** in this repo — not
 `xdg.configFile`, not `home.file`. noctalia rewrites `settings.json` itself, so
 owning the path would be an activation failure, and `mkOutOfStoreSymlink` (tier
 3) would put a file it rewrites back inside the checkout.
 
-Instead `scripts/modes/noctalia.sh` copies `dotfiles/mango/noctalia/settings.json`
-into place **only when the destination does not exist**. The seed is partial and
-deliberately carries no `settingsVersion`; it sets only the keys that would
-otherwise fight this machine (wallpaper, night light, idle, lock-on-suspend,
-gsettings sync, app theming). Everything else comes from the package's own
-`Assets/settings-default.json`, and upstream's migrations all guard on the old
-key being present, so they no-op against a partial file rather than corrupting
-it.
+Instead `scripts/modes/noctalia.sh` writes it in two halves that differ in
+**when** they apply:
 
-Reach for this when a program rewrites its config *and* its defaults are mostly
-right — you get a known-good first run without signing up to own the file
-forever. The cost is that the seed is inert after first run: changing it does
-nothing to a machine that already has the file. `docs/adr/0020`.
+| File | Applied | Holds |
+|---|---|---|
+| `noctalia/settings.json` | once, when there is no file at all | preferences — terminal command, changelog popup, telemetry. Yours to change from noctalia's UI afterwards |
+| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the Gruvbox colour scheme |
+
+Both are partial and deliberately carry no `settingsVersion`; everything else
+comes from the package's own `Assets/settings-default.json`, and upstream's
+migrations all guard on the old key being present, so they no-op against a
+partial file rather than corrupting it. The pin is a `jq -s '.[0] * .[1]'`
+recursive merge, so it replaces the leaves it names and leaves everything else
+noctalia has written alone.
+
+⚠️ **Editing the seed does nothing to this machine** — it has run the mode, so
+the file exists and the seed is never consulted again. That is the half the pin
+exists to answer. A setting that must hold goes in `settings-pinned.json`; the
+cost is that noctalia's own Settings UI will visibly revert it on the next mode
+switch, which is deliberate for the colour scheme (the palette is machine-wide,
+§6 and `modules/home/palette.nix`) and is why everything else stays in the seed.
+
+Reach for this shape when a program rewrites its config *and* its defaults are
+mostly right: you get a known-good first run and a small set of invariants that
+keep holding, without signing up to own the file forever.
+`docs/adr/0020`, amended by `docs/adr/0022`.
 
 ### Removing noctalia
 
 The whole mode comes out in one pass, and `nix flake check` fails until it is
 complete — `checks/static.sh` asserts the mode list and the mode files agree in
-both directions, so a half-removal cannot pass the gate.
+both directions, so a half-removal cannot pass the gate. The four noctalia-only
+assertions (settings keys, colour scheme, layer namespaces, package present) are
+gated on `dotfiles/mango/noctalia/` existing, so they leave with the directory
+rather than failing after it.
+
+**This list is tested, not asserted** (2026-08-16): applied to a scratch copy of
+the tree it leaves `checks/static.sh` at 30 passed / 0 failed, the four
+noctalia-gated assertions correctly skipping. Deleting only the directory fails
+on two counts. Seven files go, ten are edited.
 
 ```
 git rm -r dotfiles/mango/noctalia \
-          dotfiles/mango/scripts/modes/noctalia.sh
+          dotfiles/mango/scripts/modes/noctalia.sh \
+          dotfiles/mango/scripts/modes/noctalia-start.sh
 ```
 
 Then revert, in order of how easy each is to miss:
@@ -480,10 +502,16 @@ Then revert, in order of how easy each is to miss:
 | `tiling/autostart.conf`, `hud/autostart.conf` | delete the `systemctl --user stop noctalia` line |
 | `modules/home/default.nix` | delete `systemd.user.services.noctalia` |
 | `modules/system/desktop.nix` | delete `noctalia-shell` |
+| `modules/home/default.nix` | drop `NOCTALIA_PAM_SERVICE` with the unit |
+| `scripts/menus/shell.sh` | delete the four `fb=none` rows — control centre, calendar, dock, keep-awake. The rest keep working; the noctalia branch is only reached when the mode is selected |
+| `pkgs/default.nix` | delete `lockscreen`'s noctalia branch and its `noctalia-shell` runtime input (`docs/adr/0024`); what is left is the swaylock wrapper it was |
+| `pkgs/default.nix` | delete the `noctalia-shell` overrideAttrs — the `mmsg` verb patch (`docs/adr/0025`) |
 
-`scripts/menus/notify.sh` and the two `CTRL+ALT` binds that call it can stay —
-the script falls through to `swaync-client` whenever the mode is not `noctalia`,
-which after this is always. `universal/bind-shared.conf` keeps its name; it was
+Every **shared** bind can stay exactly as it is: they all name
+`scripts/menus/shell.sh`, whose noctalia branch is only reached when
+`current_mode` says so, which after this is never. The nine fallbacks — fsel,
+rofi, swaync, `lockscreen -f` — are what a machine without noctalia was using
+anyway. `universal/bind-shared.conf` keeps its name; it was
 `bind-tiling-hud.conf` and that name is the one that would be wrong.
 
 Finally, `rm -rf ~/.config/noctalia ~/.cache/noctalia` — neither is managed, so
@@ -499,7 +527,10 @@ A Wayland compositor in the dwl/dwm lineage: tags (workspaces), a master/stack
 layout, keyboard-driven. Config lives in `dotfiles/mango/`, split into:
 
 - **`universal/`** — shared across modes: binds, window rules, tags, settings, autostart
-- **`tiling/`, `hud/`, `noctalia/`** — per-mode compositor config and autostart
+- **`tiling/`, `hud/`, `noctalia/`** — per-mode compositor config and autostart.
+  `noctalia/` carries three more: `bind.conf` (keys that exist in no other
+  mode), and `settings.json` + `settings-pinned.json`, which are written into
+  `~/.config/noctalia/` rather than linked (§6)
 
 **`config.conf` is generated, not authored.** A mode script copies
 `<mode>/<mode>.conf` over it verbatim; that copy is what mango
@@ -526,14 +557,30 @@ Mode selects the compositor config, autostart set and waybar stylesheet
 Layout selects which waybar modules are shown. Position moves the bar between
 screen edges.
 
+**Mode also selects the look, and noctalia's is not the other two's.** `tiling`
+and `hud` share the flat set — no animations, no gaps, square corners, a 1px
+border. `noctalia` overrides all of it after the `source=` lines: 12px corners
+matching noctalia's own frame radius, 8/12px gaps, a 2px border, zoom open and
+close, and shadows on floating windows. Compositor blur stays off (the amdgpu
+freeze, `docs/gotchas.md` → Power), layer shadows and layer animations stay off
+for anything `^noctalia-` because the shell draws and animates its own panels.
+`docs/adr/0022`.
+
 **`SUPER+/` offers `full`, `focus` and `minimal` only** — the `hud` layout is
 chosen automatically whenever the desktop mode is `hud`, so it is not a
 separate pick.
 
-**`noctalia` has no waybar at all**, so both `SUPER+/` and `SUPER+SHIFT+/`
-refuse with a `notify-send` rather than starting one over noctalia's own bar.
-The guard is `mode_has_waybar()` in `lib.sh`, so the three waybar scripts cannot
-disagree about it. See §6 for the mode, and `docs/adr/0020`.
+**`noctalia` has no waybar at all**, so `SUPER+/` and `SUPER+SHIFT+/` mean
+"configure the bar" rather than "configure waybar": in noctalia mode they open
+its settings panel and toggle its bar, through `scripts/menus/shell.sh` like
+every other mode-dependent key (`docs/adr/0023`). Until 2026-08-16 both simply
+refused with a `notify-send` — correct, and still two dead keys out of a set
+that small.
+
+`mode_has_waybar()` in `lib.sh` stays, and so do the three guards that call it:
+nothing routes a waybar script into noctalia mode any more, but the scripts are
+still runnable by hand and a guard that is never reached costs nothing next to
+one that was needed and removed. See §6 for the mode, and `docs/adr/0020`.
 
 Waybar configs are generated as the **full layout × position matrix**:
 `config-<layout>-<position>.jsonc`, 4 × 2 = 8 files. `waybar-restart.sh` only
@@ -583,14 +630,25 @@ a byte-identical copy each.
 |---|---|
 | `SUPER+Return` | foot (terminal) |
 | `SUPER+SHIFT+Return` | kitty |
-| `SUPER+Space` | fsel — the main launcher |
-| `SUPER+=` | Calculator (`rofi -show calc`, result to the clipboard) |
-| `SUPER+;` | Emoji picker (`rofi -show emoji`) |
+| `SUPER+Space` | Launcher — fsel, or noctalia's own in `noctalia` mode |
+| `SUPER+=` | Calculator (`rofi -show calc`, result to the clipboard) — rofi in every mode |
+| `SUPER+;` | Emoji picker |
 | `SUPER+B` | Zen browser |
 | `SUPER+E` | Thunar |
+| `SUPER+W` | Window switcher (`rofi -show window`) — a picker, unlike `SUPER+Tab`. rofi in **every** mode, incl. noctalia: see §13 |
 | `SUPER+V` | Clipboard history |
-| `SUPER+P` | Bitwarden |
-| `SUPER+CTRL+N` / `+V` / `+B` | Network / VPN / Bluetooth menu |
+| `SUPER+P` | Bitwarden — rofi in every mode |
+| `SUPER+CTRL+N` / `+B` | Network / Bluetooth |
+| `SUPER+CTRL+V` | VPN menu — rofi in every mode |
+
+⚠️ **Nine of these keys change owner with the desktop mode.** They all route
+through `scripts/menus/shell.sh`, which holds the one table pairing each action
+with a noctalia IPC call and its rofi/swaync equivalent — see §6 and
+`docs/adr/0023`. The keys marked "rofi in every mode" stay put for reasons that differ per key:
+noctalia's launcher has a calculator but no IPC function to open it directly, no
+`rbw` front end at all, and its network panel does not know about the PIA
+profiles this repo declares. `SUPER+W` is a third case — noctalia *has*
+`launcher windows` and it lists nothing here (§13).
 
 **Windows**
 
@@ -640,15 +698,31 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | Key | Action |
 |---|---|
 | `SUPER+R` | Reload mango config |
-| `SUPER+/` / `SUPER+CTRL+/` | Waybar layout / desktop mode picker |
-| `SUPER+SHIFT+/` | Toggle waybar between top and bottom |
-| `SUPER+SHIFT+S` | Lock screen |
-| `SUPER+SHIFT+P` | Cycle ACPI power profile |
+| `SUPER+/` | Configure the bar — waybar's layout picker, or noctalia's settings panel |
+| `SUPER+SHIFT+/` | Waybar top/bottom, or noctalia's bar on/off |
+| `SUPER+CTRL+/` | Desktop mode picker |
+| `SUPER+SHIFT+N` | Do not disturb |
+| `SUPER+SHIFT+S` / `SUPER+Delete` | Lock screen |
+| `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
+| `SUPER+SHIFT+P` | Cycle ACPI power profile — TLP in every mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
 | Media & brightness keys | Volume, playback, backlight (via wpctl / playerctl / brightnessctl) |
 | Power button | Tap hibernates, hold powers off — logind, not a mango bind (§9) |
+
+**noctalia mode only**
+
+These four have no analogue under waybar and swaync, so they are bound in
+`noctalia/bind.conf` and exist only while that mode is selected — a shared bind
+would be a key that does nothing and exits 0 in the other two.
+
+| Key | Action |
+|---|---|
+| `SUPER+C` | Control centre |
+| `SUPER+D` | Calendar |
+| `SUPER+SHIFT+D` | Dock |
+| `SUPER+SHIFT+A` | Keep awake — a real Wayland idle inhibitor, so it holds off **swayidle**, not just noctalia's own (pinned-off) idle service. Only here because nothing outside a bar holds one: tiling and hud have waybar's module in 4 of 8 layouts |
 
 ### Waybar
 
@@ -691,8 +765,8 @@ is missing from the bar, **run its script by hand first**:
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
-| **swaylock** | Screen lock (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
-| **lockscreen** | The wrapper every lock path actually calls — picks a background from the pool, then execs swaylock (§9, `docs/adr/0018`) |
+| **swaylock** | Screen lock in tiling and hud, and the fallback in noctalia mode (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
+| **lockscreen** | The wrapper every lock path actually calls — hands the lock to noctalia in noctalia mode, otherwise picks a background from the pool and execs swaylock (§9, `docs/adr/0018`, `docs/adr/0024`) |
 | **swayidle** | Lock handler *and* idle daemon — `lockscreen` on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
 | **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
@@ -943,11 +1017,22 @@ existed, swaylock was reachable only by hand (`SUPER+Delete`, `SUPER+SHIFT+s`,
 the wlogout button) and **every lid-close resumed straight to the unlocked
 desktop**.
 
+**Which locker you get follows the desktop mode** (`docs/adr/0024`). In tiling
+and hud it is swaylock, as it always was. In `noctalia` mode, with the unit
+running, `lockscreen` asks the shell for its own lock screen first — the same
+one `SUPER+Delete` opens — waits a second, and then runs swaylock anyway.
+swaylock exits non-zero exactly when something else already holds the
+`ext-session-lock-v1` lock, so that last step is simultaneously the fallback and
+the *proof* that the session is locked. Neither outcome can leave it unlocked;
+only which lock screen you see is at stake.
+
 swayidle rather than another `powerManagement` hook, for two reasons:
 
 - It holds a **logind sleep inhibitor** — `-w` makes it wait for `lockscreen -f`
   to fork, and swaylock forks only once the lock surface is up. So the lock is
-  guaranteed present before the suspend, not racing it.
+  guaranteed present before the suspend, not racing it. In noctalia mode the
+  same promise is kept by the failing swaylock above, which cannot fail until
+  the compositor has confirmed the session locked.
 - A root sleep hook runs inside `sleep-actions.service`, whose cgroup is
   **killed when the unit stops on resume** — taking the swaylock it just
   started with it. That leaves the compositor locked with no client, which
@@ -1174,10 +1259,11 @@ What is running, and who owns it.
 | Unit | Purpose |
 |---|---|
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
-| `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp` |
+| `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp`. **`Restart=always`**, because noctalia SIGTERMs it on every start and systemd counts that as a clean exit (`docs/gotchas.md` → night light) |
 | `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages` |
 | `nextcloud-client` | Cloud sync — stores its credentials in gnome-keyring |
-| `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` |
+| `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` — read by rofi, and by noctalia's own clipboard view in `noctalia` mode |
+| `noctalia` | The `noctalia` desktop mode's shell — bar, notifications, panels. **Started only by that mode's autostart**, never at login; `PartOf` the session target. `Restart=on-failure` with a start limit, so it can wedge: `scripts/modes/noctalia-start.sh` clears that on every entry (`docs/adr/0022`) |
 | `mango-session.target` | A marker other units can hang off; started from `autostart.conf` |
 | `swaync.service` | **Masked** — autostart owns swaync instead |
 
@@ -1285,6 +1371,40 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
   else behind it) and is untried. Since 2026-08-12 the idle rung suspends, so
   the machine finally produces samples to test it against — see
   `docs/adr/0016`.
+- ⚠️ **noctalia's Workspace and ActiveWindow widgets render nothing, and the
+  Workspace widget is the centre of its bar.** Found 2026-08-16 by reading the
+  running system rather than the config. `MangoService.qml` *is* selected —
+  the log says `Initializing MangoWC/DWL compositor integration (DWL protocol)`
+  — but every one of its paths is guarded on `DwlIpc.available`, and
+  `rebuildWorkspaces()` and `updateWindows()` both return early when it is
+  false. It is false permanently: quickshell probes for the Wayland global
+  `zdwl_ipc_manager_v2`, and mango 0.16.0 creates no such thing (its
+  `protocols/` holds three `wlr-*` XML files and no dwl IPC; `mmsg`'s JSON
+  socket is a different interface entirely). The tell is one line at startup:
+
+  ```sh
+  journalctl --user -u noctalia | grep 'DWL is not available'
+  ```
+
+  **This corrects `docs/adr/0020`**, which recorded mango support as working and
+  named this exact failure as the thing that support avoided. Nothing to be done
+  short of writing a QML widget against `mmsg watch` — noctalia's plugin system
+  is the other route and it clones git repositories at runtime, which 0020
+  rejected. Tag state is still reachable from waybar in the other two modes.
+
+  **The same dead path empties `CompositorService.windows`**, which is what
+  `MangoService.updateWindows()` assigns, so anything reading the window list
+  is inert too: the launcher's own window switcher (`launcher windows`) opens
+  and lists nothing. That is why `SUPER+W` is `rofi -show window` in every mode
+  including noctalia (`docs/adr/0023`). **The dock is fine** — it reads
+  `ToplevelManager` (wlr-foreign-toplevel) directly, which mango does
+  advertise, so `SUPER+SHIFT+D` works. When adding a noctalia widget or key,
+  check which of the two it reads: `CompositorService` is dead here,
+  `ToplevelManager` is live.
+- **noctalia's session-menu logout is inert**, because `MangoService.logout()`
+  shells out to `mmsg -s -q` — the dwl-era flag form mango answers with
+  `{"error":"unknown command"}` and exit 0. The button is disabled in
+  `settings-pinned.json` rather than left to do nothing (`docs/adr/0023`).
 - **Three things in noctalia mode are inert, and each looks like a bug.**
   Measured by running the shell against a scratch config on 2026-08-14, not
   predicted. Its **power-profile widget does nothing** — it drives

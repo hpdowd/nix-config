@@ -196,6 +196,10 @@ printf '\nRuntime-selected files\n'
 # weight that still looks maintained.
 MANGO="$SRC/dotfiles/mango"
 
+# The one lock path, checked in two places below: for the noctalia ipc call it
+# makes, and for the background pool it points at.
+LOCKBIN="$GEN/home-path/bin/lockscreen"
+
 # Desktop mode. desktop-mode.sh validates against this list, so it is the
 # complete set of values current-mode can hold.
 mapfile -t MODES < <(
@@ -234,8 +238,26 @@ refs=0
 while read -r ref; do
 	[[ -z $ref ]] && continue
 	refs=$((refs + 1))
-	[[ -x "$MANGO/scripts/${ref#*mango/scripts/}" ]] || missing+="  $ref"$'\n'
-done < <(grep -rho '[~]/\.config/mango/scripts/[^ "]*' "$MANGO" --include='*.conf' | sort -u)
+	# `#*scripts/` covers both spellings — the `~/.config/mango/scripts/` of a
+	# conf and the `$MANGO_DIR/scripts/` of a script.
+	[[ -x "$MANGO/scripts/${ref#*scripts/}" ]] || missing+="  $ref"$'\n'
+done < <(
+	{
+		# `~/.config/…` in a bind= or exec= line.
+		grep -rho '[~]/\.config/mango/scripts/[^ "]*' "$MANGO" --include='*.conf'
+		# `"$MANGO_DIR/scripts/…"` from one script to another. Added when
+		# shell.sh took over the network and bluetooth menus: their only
+		# callers stopped being .conf files, and they fell out of this scan
+		# without any count reaching zero to say so.
+		# SC2016: `$MANGO_DIR` is the literal text being searched for, not a
+		# variable to expand — the scripts spell the path that way.
+		# shellcheck disable=SC2016
+		grep -rho '\$MANGO_DIR/scripts/[^" ]*' "$MANGO/scripts"
+		# mode.sh's `modes/$MODE.sh` is decided at runtime and cannot be
+		# resolved here — and does not need to be: the mode/file check above
+		# already asserts a script exists for every value $MODE can hold.
+	} | grep -v 'scripts/[^ ]*\$' | sort -u
+)
 
 if [[ $refs -eq 0 ]]; then
 	bad "no script references found in the mango configs — the scan is broken, not the repo"
@@ -243,6 +265,298 @@ elif [[ -z $missing ]]; then
 	ok "all $refs scripts named by a bind or autostart exist and are executable"
 else
 	bad "a mango config names a missing or non-executable script" "$missing"
+fi
+
+# Two binds on one key: mango prints `[WARNING] Key binding conflict` naming
+# both files and lines, then runs whichever was parsed FIRST (src/mango.c,
+# "only match the first keybind"). That warning goes to mango's stderr, where
+# nothing reads it — so the second bind looks installed and never fires. Built
+# per mode from the `source=` lines of its own conf, which is exactly the set
+# mango parses. Keys are lowercased first: the dispatcher compares with
+# xkb_keysym_to_lower(), so `SUPER,O` and `SUPER,o` are one key, not two.
+if [[ ${#MODES[@]} -gt 0 ]]; then
+	duperr=""
+	binds_seen=0
+	for m in "${MODES[@]}"; do
+		conf="$MANGO/$m/$m.conf"
+		[[ -f $conf ]] || continue
+		mapfile -t srcs < <(sed -n 's|^source=\./||p' "$conf")
+		dups=$(
+			{
+				for s in "${srcs[@]}"; do
+					[[ -f "$MANGO/$s" ]] && grep -h '^bind=' "$MANGO/$s"
+				done
+				grep -h '^bind=' "$conf"
+			} | cut -d, -f1,2 | tr '[:upper:]' '[:lower:]' | sort | uniq -d
+		)
+		binds_seen=$((binds_seen + 1))
+		[[ -n $dups ]] && duperr+="  $m: $(echo "$dups" | tr '\n' ' ')"$'\n'
+	done
+	if [[ $binds_seen -eq 0 ]]; then
+		bad "no mode confs read for the bind scan — the scan is broken, not the repo"
+	elif [[ -z $duperr ]]; then
+		ok "no key is bound twice in any of the $binds_seen modes"
+	else
+		bad "a key is bound twice — mango warns to a stderr nobody reads, then runs the first" "$duperr"
+	fi
+fi
+
+# scripts/menus/shell.sh is a selector like any other (docs/adr/0014): a bind
+# naming an action its case table lacks hits the `usage:` branch on a stderr
+# nobody reads, and an action in the table that no bind names is a mode-specific
+# path nothing can reach — the shape that hid four unreachable files here. Both
+# directions, and both sides must be non-empty.
+# `^bind=` first, then the action: an unfiltered scan reads the prose in the
+# comments too, and "shell.sh rather than calling" duly arrived as an action
+# named `rather`.
+mapfile -t BIND_ACTIONS < <(
+	grep -rh '^bind=' "$MANGO" --include='*.conf' |
+		grep -oE 'menus/shell\.sh [a-z-]+' | awk '{print $2}' | sort -u
+)
+mapfile -t TABLE_ACTIONS < <(
+	sed -n 's/^\([a-z-]*\))[[:space:]]*ipc=.*/\1/p' "$MANGO/scripts/menus/shell.sh" | sort -u
+)
+if [[ ${#BIND_ACTIONS[@]} -eq 0 || ${#TABLE_ACTIONS[@]} -eq 0 ]]; then
+	bad "shell.sh actions or the binds naming them came back empty — the scan is broken, not the repo"
+else
+	acterr=""
+	for a in "${BIND_ACTIONS[@]}"; do
+		printf '%s\n' "${TABLE_ACTIONS[@]}" | grep -qxF "$a" ||
+			acterr+="  a bind calls shell.sh $a, which its case table does not have"$'\n'
+	done
+	for a in "${TABLE_ACTIONS[@]}"; do
+		printf '%s\n' "${BIND_ACTIONS[@]}" | grep -qxF "$a" ||
+			acterr+="  shell.sh handles $a, which no bind reaches"$'\n'
+	done
+	if [[ -z $acterr ]]; then
+		ok "all ${#TABLE_ACTIONS[@]} shell.sh actions are reached by a bind, and no bind names another"
+	else
+		bad "shell.sh action mismatch" "$acterr"
+	fi
+fi
+
+# --- noctalia mode ----------------------------------------------------------
+# All of this is gated on the mode's directory existing, so removing noctalia
+# (docs/SYSTEM.md §6) removes the checks with it rather than leaving three
+# failures behind. Inside the gate nothing is allowed to skip.
+if [[ -d "$MANGO/noctalia" ]]; then
+	# The mode without the package is a mode that starts nothing. Resolve the
+	# store path off the binary rather than looking under $SYS/sw/share:
+	# environment.pathsToLink does not link share/noctalia-shell, so the QML
+	# and the Assets are reachable only through the package itself.
+	NOCT_BIN="$SYS/sw/bin/noctalia-shell"
+	NOCT_SHARE=""
+	if [[ ! -x $NOCT_BIN ]]; then
+		bad "the noctalia mode exists but noctalia-shell is not in the system profile" "$NOCT_BIN"
+	else
+		NOCT_SHARE="$(readlink -f "$NOCT_BIN")"
+		NOCT_SHARE="${NOCT_SHARE%/bin/noctalia-shell}/share/noctalia-shell"
+		[[ -d $NOCT_SHARE ]] || {
+			bad "noctalia-shell has no share/noctalia-shell — the scan is broken, not the repo" "$NOCT_SHARE"
+			NOCT_SHARE=""
+		}
+	fi
+
+	# noctalia IGNORES a settings key it does not know, in silence, so a key
+	# renamed upstream stops applying and reads exactly like a key that was
+	# never set. Both halves of docs/adr/0022 are checked: the first-run seed
+	# and the pin merged on every mode entry.
+	if [[ -n $NOCT_SHARE ]]; then
+		defaults="$NOCT_SHARE/Assets/settings-default.json"
+		if [[ ! -f $defaults ]]; then
+			bad "noctalia ships no Assets/settings-default.json — the scan is broken, not the repo"
+		else
+			keyerr=""
+			keys=0
+			for f in settings.json settings-pinned.json; do
+				n=$(jq -r '[paths] | length' "$MANGO/noctalia/$f" 2>/dev/null || echo 0)
+				keys=$((keys + n))
+				while read -r p; do
+					[[ -z $p ]] && continue
+					keyerr+="  $f: $p is not a key noctalia has"$'\n'
+				done < <(
+					jq -r --slurpfile d "$defaults" \
+						'paths as $p | select(($d[0] | getpath($p)) == null) | $p | join(".")' \
+						"$MANGO/noctalia/$f" 2>/dev/null
+				)
+			done
+			if [[ $keys -eq 0 ]]; then
+				bad "no keys read from the noctalia settings files — the scan is broken, not the repo"
+			elif [[ -z $keyerr ]]; then
+				ok "all $keys noctalia settings keys exist in the shipped defaults"
+			else
+				bad "noctalia settings key mismatch" "$keyerr"
+			fi
+
+			# A scheme name that resolves to no file leaves the shell on
+			# whatever it last loaded — the machine ends up half Gruvbox and
+			# half noctalia purple, which looks like a theme, not a fault.
+			# Resolution mirrors ColorSchemeService.resolveSchemePath().
+			scheme=$(jq -r '.colorSchemes.predefinedScheme // empty' "$MANGO/noctalia/settings-pinned.json")
+			case "$scheme" in
+			"Noctalia (default)") schemedir="Noctalia-default" ;;
+			"Noctalia (legacy)") schemedir="Noctalia-legacy" ;;
+			"Tokyo Night") schemedir="Tokyo-Night" ;;
+			"Rose Pine") schemedir="Rosepine" ;;
+			*) schemedir="$scheme" ;;
+			esac
+			if [[ -z $scheme ]]; then
+				bad "no predefinedScheme pinned — noctalia would keep its own palette while the rest of the machine is gruvbox"
+			elif [[ -f "$NOCT_SHARE/Assets/ColorScheme/$schemedir/$schemedir.json" ]]; then
+				ok "noctalia's pinned colour scheme ($scheme) ships with the package"
+			else
+				bad "noctalia has no colour scheme named $scheme" \
+					"Assets/ColorScheme/$schemedir/$schemedir.json"
+			fi
+		fi
+	fi
+
+	# `noctalia-shell ipc call <target> <fn>` prints "Target not found." or
+	# "Function not found." and EXITS 0 — the dwl-era `mmsg -s -d` shape, which
+	# broke five scripts here without a word. The names live in shell.sh's case
+	# table and in the `lockscreen` wrapper; the shell declares them as
+	# `IpcHandler { target: … function x() }` in its QML. Neither side can see
+	# the other, so pair them here.
+	#
+	# The wrapper is scanned as a BUILT script rather than as a source file:
+	# it is generated in pkgs/default.nix, and the unattended lock is the one
+	# caller nobody is watching when it fails (docs/adr/0024).
+	if [[ -n $NOCT_SHARE ]]; then
+		SHELL_SH="$MANGO/scripts/menus/shell.sh"
+		mapfile -t IPC_WRAPPER < <(
+			sed -n 's/.*noctalia-shell ipc call \([A-Za-z]* [A-Za-z]*\).*/\1/p' \
+				"$LOCKBIN" 2>/dev/null
+		)
+		mapfile -t IPC_PAIRS < <(
+			{
+				sed -n 's/^[a-z-]*)[[:space:]]*ipc="\([^"]*\)".*/\1/p' "$SHELL_SH"
+				printf '%s\n' "${IPC_WRAPPER[@]}"
+			} | grep . | sort -u
+		)
+		if [[ ${#IPC_PAIRS[@]} -eq 0 ]]; then
+			bad "no ipc pairs read from shell.sh — the scan is broken, not the repo"
+		elif [[ ${#IPC_WRAPPER[@]} -eq 0 ]]; then
+			# The wrapper's own floor. Without it the pairs all come from
+			# shell.sh and the check passes by finding nothing, while the
+			# unattended lock has quietly gone back to swaylock in noctalia mode
+			# — a difference you only see at 3am, on the screen you are trying
+			# to unlock.
+			bad "lockscreen makes no noctalia ipc call — the sleep lock is no longer noctalia's in noctalia mode" \
+				"$LOCKBIN"
+		else
+			mapfile -t IPC_QML < <(grep -rl 'IpcHandler' "$NOCT_SHARE")
+			ipcerr=""
+			for pair in "${IPC_PAIRS[@]}"; do
+				t=${pair%% *}
+				f=${pair##* }
+				# The function must be inside THAT target's block. Two
+				# independent greps would pass `dock clear`, since some other
+				# target does declare `clear`. `intgt` is recomputed on every
+				# `target:` line, so it closes at the next one.
+				awk -v t="$t" -v f="$f" '
+					/target: "/ { intgt = ($0 ~ "target: \"" t "\"") }
+					intgt && $0 ~ "function " f "\\(" { found = 1; exit }
+					END { exit !found }
+				' "${IPC_QML[@]}" ||
+					ipcerr+="  $t $f is called by shell.sh but noctalia has no such handler"$'\n'
+			done
+			if [[ -z $ipcerr ]]; then
+				ok "all ${#IPC_PAIRS[@]} noctalia ipc calls name a handler the shell declares"
+			else
+				bad "noctalia ipc mismatch" "$ipcerr"
+			fi
+		fi
+	fi
+
+	# The overlay rewrites noctalia's dwl-era `mmsg -s -d <func>` to mango's verb
+	# form (docs/adr/0025). Both halves of that can rot in silence: the patch
+	# could stop applying, and a verb could stop being a function mango has —
+	# `mmsg` answers an unknown one with `{"error":…}` and exits 0, which is the
+	# failure the patch exists to remove, not a new one.
+	if [[ -n $NOCT_SHARE ]]; then
+		MANGO_BIN="$SYS/sw/bin/mango"
+		mapfile -t MMSG_FUNCS < <(
+			grep -ohE 'mmsg", "dispatch", "[a-z_]+|mmsg dispatch [a-z_]+' \
+				"$NOCT_SHARE/Services/Compositor/MangoService.qml" 2>/dev/null |
+				grep -oE '[a-z_]+$' | sort -u
+		)
+		if [[ ${#MMSG_FUNCS[@]} -lt 5 ]]; then
+			# The floor. An unapplied patch leaves every call in the flag form,
+			# so this list empties rather than mismatching — the launcher would
+			# go back to doing nothing at all, reported by nobody.
+			bad "only ${#MMSG_FUNCS[@]} mmsg verb calls in MangoService.qml, expected 5 — the overlay patch is not applied" \
+				"$NOCT_SHARE/Services/Compositor/MangoService.qml"
+		elif [[ ! -e $MANGO_BIN ]]; then
+			bad "no mango binary to check the verbs against — the scan is broken, not the repo" "$MANGO_BIN"
+		else
+			# mango's own strings are the function table. Extracting whole
+			# tokens rather than grepping for each name means `quit` cannot
+			# match inside `quitting`.
+			#
+			# Through a FILE, not a pipe into `grep -q`: `-q` exits at the first
+			# match, which SIGPIPEs the writer part-way through a 2,000-line
+			# list. That is noise on a hit and a WRONG ANSWER on a miss, since
+			# the reader never sees the rest.
+			mango_words="${TMPDIR:-/tmp}/mango-words.$$"
+			grep -aoE '[a-z_]{3,}' "$MANGO_BIN" | sort -u >"$mango_words"
+			mmsgerr=""
+			for f in "${MMSG_FUNCS[@]}"; do
+				grep -qxF "$f" "$mango_words" ||
+					mmsgerr+="  $f is dispatched by noctalia but mango declares no such function"$'\n'
+			done
+			rm -f "$mango_words"
+			if [[ -z $mmsgerr ]]; then
+				ok "all ${#MMSG_FUNCS[@]} mmsg verbs noctalia dispatches are functions mango has"
+			else
+				bad "noctalia dispatches a function mango does not have" "$mmsgerr"
+			fi
+		fi
+
+		# The lock wrapper calls `noctalia-shell ipc call` by absolute path, and
+		# quickshell resolves an instance by the shell.qml PATH it was started
+		# from — so a wrapper built against a DIFFERENT derivation than the unit
+		# runs finds "No running instances" and hands every unattended lock back
+		# to swaylock (docs/adr/0024, 0025). One `prev.` where a `final.` belongs
+		# is all it takes, and at runtime that is indistinguishable from noctalia
+		# simply being down.
+		lock_noct=$(grep -oE '/nix/store/[^ :"]*noctalia-shell[^ :"]*/bin' "$LOCKBIN" 2>/dev/null | head -1)
+		sys_noct=$(readlink -f "$SYS/sw/bin/noctalia-shell" 2>/dev/null)
+		if [[ -z $lock_noct ]]; then
+			bad "lockscreen has no noctalia-shell on its PATH — its ipc call would exit 127" "$LOCKBIN"
+		elif [[ ${sys_noct%/bin/noctalia-shell} != "${lock_noct%/bin}" ]]; then
+			bad "lockscreen and the system disagree on which noctalia-shell — the lock ipc will never find the running shell" \
+				"$lock_noct vs $sys_noct"
+		else
+			ok "lockscreen's noctalia-shell is the one the unit runs"
+		fi
+	fi
+
+	# `layerrule=…,layer_name:X` naming a namespace nothing creates is a rule
+	# that never fires and never says so — the same class as the rofi layer
+	# rules that matched nothing for months (docs/WORK-LOG.md). noctalia's
+	# namespaces are `<name>-<screen>`, so the configs carry an anchored prefix
+	# and this asserts the prefix still matches a namespace the shipped QML
+	# declares.
+	if [[ -n $NOCT_SHARE ]]; then
+		mapfile -t NOCT_LAYERS < <(
+			grep -rhoE 'layer_name:\^?noctalia[a-z-]*' "$MANGO" --include='*.conf' |
+				sed 's/^layer_name:\^\?//' | sort -u
+		)
+		if [[ ${#NOCT_LAYERS[@]} -eq 0 ]]; then
+			bad "no noctalia layer rules found — mango would double every panel animation noctalia plays"
+		else
+			layererr=""
+			for l in "${NOCT_LAYERS[@]}"; do
+				grep -rqF "namespace: \"$l" "$NOCT_SHARE" ||
+					layererr+="  $l matches no namespace noctalia declares"$'\n'
+			done
+			if [[ -z $layererr ]]; then
+				ok "every noctalia layer rule (${#NOCT_LAYERS[@]}) matches a namespace the shell declares"
+			else
+				bad "noctalia layer rule mismatch" "$layererr"
+			fi
+		fi
+	fi
 fi
 
 # rofi reads ~/.config/rofi/config.rasi, which is in a different tree from the
@@ -508,6 +822,43 @@ else
 	bad "waybar's battery states have drifted from upower" "$drifted"
 fi
 
+# Night light is killed from outside this repo: noctalia runs `pkill -x wlsunset`
+# in `Component.onCompleted`, unconditionally, on every start. systemd counts a
+# SIGTERM as a CLEAN exit, so `Restart=on-failure` did not bring it back and one
+# entry into noctalia mode ended night light for the session, silently.
+# docs/gotchas.md → night light.
+NIGHT_UNIT="$GEN/home-files/.config/systemd/user/wlsunset.service"
+if [[ ! -f $NIGHT_UNIT ]]; then
+	bad "no generated wlsunset.service — the scan is broken" "$NIGHT_UNIT"
+elif ! grep -qx 'Restart=always' "$NIGHT_UNIT"; then
+	bad "wlsunset is not Restart=always — an outside SIGTERM ends night light for the session" \
+		"$(grep -m1 '^Restart=' "$NIGHT_UNIT" || echo 'no Restart= at all')"
+else
+	ok "wlsunset restarts even when something else SIGTERMs it"
+fi
+
+# `mmsg watch` is a long-lived stream, and the script running it is killed from
+# outside — `pkill waybar` on every mode switch and every waybar-reload. The
+# watcher does not go with it: four orphans were alive at once on 2026-08-16, up
+# to fourteen hours old, each holding an IPC socket to a compositor nothing was
+# reading from. A trap that reaps this script's own children is the fix, and its
+# absence is invisible until you count processes.
+mapfile -t WATCHERS < <(grep -rl 'mmsg watch' "$SRC/dotfiles" 2>/dev/null | sort)
+if [[ ${#WATCHERS[@]} -eq 0 ]]; then
+	bad "no script runs 'mmsg watch' — the scan is broken, not the repo"
+else
+	watcherr=""
+	for w in "${WATCHERS[@]}"; do
+		grep -q 'pkill -P \$\$' "$w" ||
+			watcherr+="  ${w#"$SRC"/} streams mmsg watch but never reaps it"$'\n'
+	done
+	if [[ -z $watcherr ]]; then
+		ok "all ${#WATCHERS[@]} 'mmsg watch' streams are reaped when their script exits"
+	else
+		bad "an mmsg watch stream outlives its script" "$watcherr"
+	fi
+fi
+
 printf '\nIdle\n'
 
 # swayidle carried no timeouts at all until 2026-08-11 while the docs described
@@ -548,7 +899,6 @@ fi
 # the solid colour deliberately, so an empty pool looks exactly like the config
 # before this existed. Assert the floor — the pool the wrapper actually points
 # at, not merely that some pool was built.
-LOCKBIN="$GEN/home-path/bin/lockscreen"
 if [[ ! -x $LOCKBIN ]]; then
 	bad "no lockscreen on PATH — the mango binds call it by name and would exit 127" "$LOCKBIN"
 else

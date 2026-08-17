@@ -1225,3 +1225,368 @@ defined — for waybar and rofi both. Both halves fail silently otherwise: GTK
 drops a rule naming an undefined colour and renders the module in whatever it
 inherited, and rofi falls back to the built-in role. Negative-tested in both
 directions before committing.
+
+---
+
+## noctalia mode looks like noctalia (2026-08-15)
+
+`docs/adr/0020` installed noctalia as a third desktop mode and answered only how
+to run it without breaking the other two. What it left behind looked finished
+and was not: `noctalia/noctalia.conf` was a **byte-for-byte copy of
+`tiling.conf`** — `animations=0`, `border_radius=0`, every gap `0` — so a
+rounded, floating, animated shell sat on hard square windows that snapped
+between positions with no motion. The mode now overrides the shared flat look
+after its `source=` lines: 12px corners matching noctalia's own
+`bar.frameRadius`, 8/12px gaps, a 2px border in palette `overlay`, zoom open and
+close, shadows on floating windows.
+
+**The divergence rests on a parser fact, so it was measured rather than
+assumed.** mango is last-wins and processes `source=` inline at its position —
+probed with a nested instance under a scratch `HOME`, using `xkb_rules_layout`
+because `mmsg get keyboardlayout` reads the effective value back. Two findings
+came out of that: **mango ignores `XDG_CONFIG_HOME`** (the first nested instance
+read the *live* config and ran the live autostart against the running session),
+and **a misspelled option is reported** — `[ERROR]: Unknown keyword:` with file
+and line, which is rare enough here to be worth using. The candidate conf was
+started nested with one deliberate typo appended; one error out means every
+other line was accepted.
+
+**The seed was inert, which is worse than absent.** `modes/noctalia.sh` wrote
+`settings.json` only when the destination did not exist, so on this machine —
+which had run the mode — adding a key to it would have changed the repo and not
+the desktop. The visible symptom was noctalia rendering in its own purple while
+everything else on the machine is Gruvbox by construction. Settings are now
+written in two halves: `settings.json` seeds preferences once, and
+`settings-pinned.json` is merged over the live file on every entry into the mode
+with `jq -s '.[0] * .[1]'`. Against the live file that merge changed exactly one
+value (`predefinedScheme`), added nothing and lost nothing — checked before
+shipping, because a recursive merge that silently drops a subtree looks like a
+program forgetting its settings.
+
+**Three things stay off, deliberately.** Compositor `blur` (this machine hangs
+outright on an amdgpu TTM fault; a permanent shader pass is not what to spend
+that risk on), `layer_shadows`, and layer animations for anything `^noctalia-` —
+the shell draws and animates its own panels, and doubling either is worse than
+neither.
+
+**Four new gated assertions** (`checks/static.sh`, 28 → 31 reported checks —
+the fourth only ever speaks up to fail; all skipped if
+`dotfiles/mango/noctalia/` is gone, so removal still takes nine files): every
+key path in both settings files exists in the package's
+`Assets/settings-default.json` (noctalia ignores unknown keys in silence — 25
+paths today, floor at zero); the pinned colour scheme resolves to a file that
+ships, the way `ColorSchemeService.resolveSchemePath()` resolves it; every
+`layer_name:^noctalia-` matches a `namespace:` the shipped QML declares; and the
+package is in the system profile at all. The assets are reached through the
+binary's store path — `environment.pathsToLink` does not link
+`share/noctalia-shell`, so looking under `$SYS/sw/share` finds nothing and would
+have passed by finding nothing.
+
+**The mode switch could wedge, silently.** Reported the same evening: tiling →
+noctalia → tiling → noctalia, and the second entry produced no bar. Two failures
+stacked. The shell was aborting on `Failed to create wl_display` because the
+systemd user manager's `WAYLAND_DISPLAY` pointed at a socket that was gone —
+self-inflicted, by the nested-mango probe above: a nested instance runs the live
+`universal/autostart.conf`, whose first line republishes *its* display into the
+user manager, and killing it leaves that pointing at nothing. The gotchas entry
+now carries that warning next to the nested-instance technique that earned it.
+
+The second failure is the one worth keeping. Five crashes inside
+`StartLimitIntervalSec` leave the unit `failed` with `start-limit-hit`, after
+which `systemctl --user start` refuses — it does exit 1, but an `exec=` line has
+no reader for that, so the switch reported success and produced nothing, and
+repairing the environment did not help because the wedge outlives its cause. The
+three `exec=` lines are now `scripts/modes/noctalia-start.sh`: `reset-failed`
+before start, wait for the unit to be active *and still active 1.5 s later*, and
+on failure restart swaync and `notify-send` the reason — a mode with no bar AND
+no notification daemon has nothing left to report with. Both paths tested
+against a purpose-built crash-looping unit rather than by reasoning about them:
+a plain `start` on the wedged unit exits 1 and stays down; through the script it
+comes back.
+
+
+---
+
+## noctalia's keys do noctalia's things (2026-08-16)
+
+The decision `docs/adr/0020` deferred. In `noctalia` mode the shell's launcher,
+lock screen, control centre, calendar, session menu, settings panel and dock sat
+behind no key at all, while the keys that were bound reached past it to rofi,
+swaync and swaylock — the mode looked like noctalia and behaved like tiling.
+
+**Which mechanism to use was measured, not chosen.** mango's binds append and
+the dispatcher stops at the first match (`src/mango.c`, `only match the first
+keybind`), so a per-mode conf sourced ahead of `universal/bind.conf` really does
+override it — the opposite of the last-wins rule for scalar settings found the
+day before. But mango also runs `check_key_binding_conflicts()` and prints
+`[WARNING] Key binding conflict` with both files and both line numbers for every
+duplicate; a nested instance confirmed it fires. Nine overrides would mean nine
+warnings on every start, on the stderr where a real one would appear. So the
+nine shared keys go through one script — `scripts/menus/shell.sh`, which is
+`notify.sh` generalised from one row to thirteen — and only the four keys with
+no counterpart elsewhere are bound per-mode, in `noctalia/bind.conf`.
+
+**`noctalia-shell ipc call` prints `Target not found.` and exits 0**, while a
+successful void call prints nothing: `mmsg -s -d` all over again. Output is the
+signal; the status is worthless. Hence a check pairing all 13 calls against the
+`IpcHandler` blocks in the shipped QML, matching the function *inside* its own
+target — negative-tested with `dock clear`, which passes a two-greps version
+because `notifications` declares `clear`.
+
+**Reading the shell's own code turned up a dead action.** noctalia's
+`MangoService.logout()` runs `mmsg -s -q`, which this machine answers with
+`{"error":"unknown command"}` and exit 0. Its session-menu logout button is
+disabled in the pin rather than left to do nothing.
+
+**The lock is split on purpose.** The manual keys use noctalia's lock screen in
+its own mode; swayidle's `before-sleep`, `lock` and 300 s timeout stay on
+`lockscreen -f` in every mode, because that path has to be synchronous (`-f`
+forks only once the lock is up) and has to work when the shell is not running.
+The unit now pins `NOCTALIA_PAM_SERVICE=swaylock` — left alone noctalia probes
+and takes `/etc/pam.d/login`, and the swaylock service is the one this repo
+declares with `fprintAuth = false` for the reason every Wayland locker needs it.
+
+That warning is now a check instead: no key may be bound twice in any mode,
+built per mode from the `source=` lines of its own conf and lowercased first,
+since the dispatcher compares with `xkb_keysym_to_lower()`. Adding a per-mode
+bind file is exactly the change that can collide, so the assertion arrived with
+it.
+
+**Two keys that refused now do something, and four gaps closed.** `SUPER+/` and
+`SUPER+SHIFT+/` were guarded by `mode_has_waybar()` and answered a `notify-send`
+in noctalia mode — correct, and still two dead keys out of a set that small.
+They mean "configure the bar", and each mode's bar is a different program, so
+they joined the table: waybar's layout picker and position toggle, or noctalia's
+settings panel and `bar toggle`. Then the shipped IPC surface was read against
+the existing binds rather than guessed at, which turned up a window switcher
+(`SUPER+W`, `rofi -show window` as the fallback — it works because mango does
+create `wlr_foreign_toplevel_manager_v1`), do-not-disturb (`SUPER+SHIFT+N`,
+`swaync-client -d`) and keep-awake (`SUPER+SHIFT+A`). The last is noctalia-only:
+its inhibitor is quickshell's native one over `zwp_idle_inhibit_manager_v1`, so
+it holds off **swayidle**, not merely noctalia's own pinned-off idle service —
+tiling and hud have no CLI for that and hold one only through waybar's module.
+Seventeen actions, seventeen ipc pairs, no key bound twice.
+
+**A check had quietly narrowed.** `network-menu.sh` and `bluetooth-menu.sh` are
+now called from `shell.sh` rather than from a `.conf`, so they dropped straight
+out of the "every script named by a bind exists and is executable" scan with no
+count reaching zero to say so — the failure that scan exists to catch, happening
+to the scan itself. It reads `$MANGO_DIR/scripts/…` inside scripts now too:
+14 references became 19. The action check caught its own version of this on the
+first run, reporting an action named `rather`, read out of the prose in a
+comment; it looks only at `^bind=` lines now.
+
+
+---
+
+## Review: what the noctalia mode actually does (2026-08-16)
+
+A pass over the running system rather than the source, after the three changes
+above were rebuilt and applied (system generation 64). Everything asserted
+statically holds at runtime: mango parses the new mode conf and bind file with
+**no `Unknown keyword` and no `Key binding conflict`** in the journal, the pin
+merged (`predefinedScheme` is `Gruvbox`, clipboard history on, the dead logout
+button off), and `NOCTALIA_PAM_SERVICE=swaylock` is in the unit *and* in the
+running process's environment.
+
+**One documented claim did not survive the pass, and it is the important one.**
+`docs/adr/0020` recorded noctalia's mango support as working — the file
+`MangoService.qml` exists, is selected, and announces itself in the log with
+`Initializing MangoWC/DWL compositor integration (DWL protocol)`. Every path
+inside it is then guarded on `DwlIpc.available`, which is false permanently:
+quickshell probes for the Wayland global `zdwl_ipc_manager_v2`, and mango 0.16.0
+creates only `wlr_*` globals — its `protocols/` directory holds three `wlr-*`
+XML files and no dwl IPC at all. So `rebuildWorkspaces()` and `updateWindows()`
+return early, and **the Workspace widget — the centre of noctalia's bar — and
+the ActiveWindow widget render nothing.**
+
+Three independent confirmations before writing it down: the absent protocol on
+mango's side, the string `zdwl_ipc_manager_v2` in quickshell's binary on the
+other, and `WARN quickshell.dwl: DWL is not available` in the unit's journal at
+every start.
+
+The failure is exactly the one 0020 named as the reason the integration
+mattered, so its own predicted symptom has been the live state for two days. It
+went unseen because the claim was read off a file's existence instead of a
+running shell — in the repo whose first rule is that a thing that is missing and
+a thing that is broken look identical. 0020 is corrected in place rather than
+superseded; the method, not the widget, is the lesson, and it is in
+`docs/gotchas.md` next to the tell.
+
+Not fixed, and not cheaply fixable: the routes are a QML widget written against
+`mmsg watch`, or noctalia's plugin system, which clones git repositories at
+runtime and 0020 rejected for that reason. Tag state remains on waybar in the
+other two modes.
+
+
+## Audit: two of yesterday's claims were wrong (2026-08-16)
+
+Follows the review above, going after the same class rather than the same
+widget: **which noctalia features read the dead `DwlIpc` path.**
+
+**`SUPER+W` was a dead key, added the day before.** noctalia's own
+`launcher windows` opens the launcher in `>win` mode, and `WindowsProvider`
+reads `CompositorService.windows` — filled only by `MangoService.updateWindows()`,
+which returns early behind the same `DwlIpc.available` guard as the workspace
+widget. So the switcher opened and listed nothing. It is now `rofi -show window`
+in **every** mode, noctalia included; rofi reads wlr-foreign-toplevel, which
+mango does advertise. The general rule, now in §13: `CompositorService` is dead
+here, `ToplevelManager` is live — the **dock is fine** because it reads the
+latter directly.
+
+**"noctalia's launcher has no calculator" was false.** It ships
+`CalculatorProvider.qml` with `handleSearch: true`, so typing `1+1` into the
+plain launcher works. The real reason `SUPER+=` stays on rofi is narrower and
+was not what got written down: there is no `launcher calculator` IPC function,
+so no key can open it directly. Corrected in `docs/adr/0023` and §7.
+
+Both mistakes have the same shape as the one they follow — a capability was
+credited from the fact that a file implementing it exists, without checking what
+that file reads at runtime. Three for three now.
+
+Also trimmed: the six-line narrative comment added to
+`modules/home/default.nix` for the PAM variable is down to two and a pointer,
+per `CLAUDE.md` — `docs/PLAN-idiomatic-nix.md` §5d is moving comments *out* of
+the Nix, and that edit was pushing the other way.
+
+
+## The lock after sleep is noctalia's now (2026-08-16)
+
+Reported from the machine, not from a check: **the lock screen that appears
+after a sleep is not the one the lock key opens.** Both halves of that were
+true, and each was a separate defect.
+
+`docs/adr/0023`, written hours earlier, gave the manual key to noctalia's lock
+and deliberately left `services.swayidle` on swaylock — so the only lock ever
+seen by hand was noctalia's, and the only lock ever seen after a lid close, a
+5-minute idle or a 30-minute suspend was swaylock's. Which is nearly all of
+them.
+
+The reason given was that the unattended path must be **synchronous**, and it
+must: swayidle holds a logind delay inhibitor and waits, and `-f` returns only
+once the lock surface is up. `noctalia-shell ipc call lockScreen lock` cannot
+promise that — it returns as soon as the shell reads the message, and nothing
+reports back. Confirmed, one at a time, that there is nothing to poll:
+`lockScreen` declares exactly one function; `mmsg get` has ten subcommands and
+none is about the lock; `loginctl`'s `LockedHint` tracks the logind signal
+rather than `ext-session-lock-v1`, so neither locker moves it.
+
+**The answer was already in 0023's own last sentence** — swaylock exits non-zero
+when something else holds the lock. So `lockscreen` asks noctalia, waits a
+second, and runs swaylock anyway: its *failure* proves the session is locked,
+and its *success* means noctalia did not manage it and swaylock is now the lock.
+Two outcomes, both locked, and the one-second wait decides only which screen you
+see. `docs/adr/0024`. That the wrapper is the single place every lock path goes
+through is what made this one edit rather than five.
+
+**And the lock screen's accent was orange.** `ring-color` `d65d0e`,
+`key-hl-color` and `text-caps-lock-color` `fe8019` — gruvbox shades used nowhere
+else on this machine, against a `palette.nix` that has said `accent = d79921`
+since it existed. They were the last hex values typed by hand into
+`programs.swaylock.settings`, in the one surface you never see beside another,
+so nothing compared them. Now `opaque gruvbox.accent` and
+`opaque gruvbox.warnColor`, with `wash` spelling the `55` alpha the indicator
+uses to let the background pool through.
+
+Checks: the wrapper's ipc pair joins `shell.sh`'s thirteen in the QML pairing
+scan, with a floor on the wrapper's own matches — `lockScreen lock` appears in
+both files, so a merged list would have kept passing after the wrapper stopped
+calling anything at all, while the sleep lock quietly reverted.
+
+Untested, and it is the same gap 0023 recorded: a lock screen cannot be verified
+without the password, and this raises the stakes from one key to every resume.
+Confirm noctalia's lock *unlocks* before trusting a sleep to it. `CTRL+ALT+F2`
+is the way out; killing the shell is not.
+
+
+## noctalia lifecycle audit (2026-08-16)
+
+Asked directly: does noctalia shut down completely, does it leave remnants, and
+does anything it starts survive it as a second instance. Three answers, and the
+third one turned out to point the other way.
+
+**It shuts down completely.** `KillMode=control-group`, and quickshell's
+"detached" spawn only calls `setsid()` — which changes the session, not the
+cgroup. Verified rather than assumed: a `setsid` grandchild inside a transient
+user unit is still in the unit's cgroup and dies on `stop`. No quickshell
+process was alive after the switch.
+
+**It leaves 11 MB of RAM behind.** quickshell never removes its instance
+directory — 18 of them under `$XDG_RUNTIME_DIR/quickshell/by-id/`, one per start
+since 14 August, each with a socket, a lock and a `log.qslog` up to 1.5 MB. It
+knows: every failed `ipc call` prints a "Dead instances:" list naming them.
+`noctalia-start.sh` now prunes them before starting, deciding liveness from
+quickshell's own `by-pid/` index rather than parsing its binary lock.
+
+**The duplicate processes were waybar's, not noctalia's.** Four
+`mmsg watch focusing-client`, PPID 1, up to fourteen hours old, ~5 MB each, each
+still holding an IPC socket to mango. `WAYBAR_OUTPUT_NAME` in their environment
+identified them as `window-title.sh`'s, and their start times line up with
+waybar starts exactly: one leaks per `pkill waybar`, so every mode switch and
+every `waybar-reload`. A `trap 'pkill -P $$'` fixes it — by parent, since
+matching `mmsg` by name would take out the other modules' watchers — and
+`PIPE` is in the trap list because a closed bar pipe is how the script actually
+dies, and SIGPIPE skips the `EXIT` trap. `scratch-watch.sh` has the same shape
+and nothing kills it today; it got the trap anyway, so the check can be a rule
+rather than an exception.
+
+**And the leak that mattered ran the other way: noctalia kills our night
+light.** `NightLightService.qml` runs `pkill -x wlsunset` in
+`Component.onCompleted`, unconditionally, ignoring the `nightLight.enabled` we
+pin off. It matches, because wlsunset here is unwrapped. What made it permanent
+was systemd: **`Restart=on-failure` does not restart after SIGTERM** — signal
+death is only a failure for signals other than TERM/INT/HUP/PIPE — confirmed
+with a transient unit (`Result=success`, `NRestarts=0`). And
+`night-light-run.sh` ends in `exec wlsunset`, so wlsunset is the main process
+and takes the signal itself. noctalia's own journal had been saying so all
+along: `NightLight Killed stale wlsunset process from previous session`, three
+times today. Now `Restart=always`, with a check.
+
+Two 47-hour-old `nmcli -t monitor` orphans also turned up. They are **not** an
+ongoing leak: they sit in `session-3.scope`, from before noctalia became a
+systemd unit, when it was an `exec=` line in mango's autostart.
+
+### The launcher was doing nothing, and that is a fifth dead dwl path
+
+Found on the way through `CompositorService`. `MangoService.spawn()` runs
+`mmsg -s -d spawn_shell,<cmd>` — the flag form mango answers with
+`{"error":"unknown command"}` and exit 0. That is the launcher's default path,
+so picking an application launched nothing. Not always: entries whose `Exec` has
+quoted or spaced arguments take `app.execute()` instead and worked, which is how
+`docs/adr/0023` could record the launcher as reachable without noticing.
+
+Five call sites shared the spelling and all five verbs are in mango's function
+table, so the overlay patches them to `mmsg dispatch` (`docs/adr/0025`). The
+alternative — noctalia's `customLaunchPrefix` setting — was rejected for fixing
+one site of five and for launching applications *inside* `noctalia.service`,
+where `KillMode=control-group` would kill them all on the next mode switch.
+`mmsg dispatch spawn_shell` makes them children of mango instead; verified by
+spawning one and reading its parent and cgroup.
+
+`--replace-fail` makes an upstream rename a build error rather than a silent
+revert, and the check pairs every verb against tokens pulled from the mango
+binary — because `mmsg` reports an unknown *function* exactly the way it
+reported the unknown *command*.
+
+Left alone knowingly: `mmsg -g -A` (display scales) and `mmsg -s -t` (tag
+switch) need a different call shape, not a different spelling. The logout button
+stays disabled — its call is patched, but it is the one action that cannot be
+tested without ending the session.
+
+One of the new checks failed on its first run, and wrongly. It piped mango's
+2,000-name token list into `grep -q`, which exits at the first match and
+SIGPIPEs the writer: harmless noise on a hit, but on a miss the reader never
+sees the rest of the list, so the verdict depends on how much of it arrived. It
+reported `quit` as a function mango does not have; mango has it. Reading from a
+file instead. A check that answers from a truncated input belongs in the same
+catalogue as everything it was written to catch.
+
+The patch then exposed a second-order trap in this repo's own overlay: the
+`lockscreen` wrapper still took `prev.noctalia-shell`, the *unpatched*
+derivation. quickshell resolves an ipc target by the `shell.qml` path the
+instance was started from, so the lock's `ipc call` would have searched for
+instances of a path nothing runs — `No running instances`, and every unattended
+lock quietly back on swaylock, looking exactly like noctalia being down. Once a
+package is overridden, `final.` is the only correct spelling for a consumer;
+there is a check pinning the wrapper's copy to the system's.
+

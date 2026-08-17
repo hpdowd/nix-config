@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# One key, one action, and whichever shell owns that job in the current mode.
+# Generalises notify.sh, which did exactly this for the notification panel from
+# 2026-08-14 and is now this file's `notify` row. docs/adr/0023.
+#
+# WHY A SCRIPT AND NOT A PER-MODE bind= OVERRIDE. mango's binds append and the
+# dispatcher stops at the FIRST match (src/mango.c: "only match the first
+# keybind"), so a mode conf sourced ahead of universal/bind.conf really would
+# override it — but mango also prints a `[WARNING] Key binding conflict` naming
+# both files and lines for every duplicate, and thirteen of those on every start
+# is how a real conflict warning stops being read. One bind, one script.
+#
+# THE FAILURE THIS GUARDS. `noctalia-shell ipc call <target> <fn>` prints
+# "Target not found." or "Function not found." and EXITS 0 — the same shape as
+# the dwl-era `mmsg -s -d` that broke five scripts silently. A successful void
+# call prints nothing, so OUTPUT is the signal and the exit status is worthless.
+# checks/static.sh asserts every pair below against the shipped shell; this is
+# the runtime backstop for the case the check cannot see.
+set -u
+
+. "$HOME/.config/mango/scripts/lib.sh"
+
+# tiling/hud halves. Functions, not strings: `clipboard` is a pipeline and
+# needs a shell, and quoting a command through a variable does not survive it.
+fb_launcher() { foot -a fsel-launcher -e fsel --detach; }
+fb_lock() { lockscreen -f; }
+fb_clipboard() { cliphist list | rofi -dmenu -no-custom -p "clipboard" | cliphist decode | wl-copy; }
+fb_emoji() { rofi -show emoji; }
+fb_network() { "$MANGO_DIR/scripts/menus/network-menu.sh"; }
+fb_bluetooth() { "$MANGO_DIR/scripts/menus/bluetooth-menu.sh"; }
+fb_power() { "$MANGO_DIR/scripts/menus/power-menu.sh"; }
+fb_notify() { swaync-client -t; }
+fb_notify_clear() { swaync-client -C; }
+fb_dnd() { swaync-client -d; }
+# The two keys that used to refuse in noctalia mode. They are the "configure the
+# bar" keys, and each mode's bar is configured by its own thing.
+fb_bar_settings() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
+fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
+
+# The table. `ipc` is a noctalia target and function, two words on purpose —
+# checks/static.sh reads this block and asserts both halves exist. `fb=none`
+# marks an action noctalia alone has; those keys are bound only in
+# noctalia/bind.conf, so reaching one from another mode means the two files
+# have drifted, and it says so rather than doing nothing.
+case "${1:-}" in
+launcher)       ipc="launcher toggle";             fb=fb_launcher ;;
+lock)           ipc="lockScreen lock";             fb=fb_lock ;;
+clipboard)      ipc="launcher clipboard";          fb=fb_clipboard ;;
+emoji)          ipc="launcher emoji";              fb=fb_emoji ;;
+network)        ipc="network togglePanel";         fb=fb_network ;;
+bluetooth)      ipc="bluetooth togglePanel";       fb=fb_bluetooth ;;
+power)          ipc="sessionMenu toggle";          fb=fb_power ;;
+notify)         ipc="notifications toggleHistory"; fb=fb_notify ;;
+notify-clear)   ipc="notifications clear";         fb=fb_notify_clear ;;
+dnd)            ipc="notifications toggleDND";     fb=fb_dnd ;;
+settings)       ipc="settings toggle";             fb=fb_bar_settings ;;
+bar)            ipc="bar toggle";                  fb=fb_bar_toggle ;;
+control-center) ipc="controlCenter toggle";        fb=none ;;
+calendar)       ipc="calendar toggle";             fb=none ;;
+dock)           ipc="dock toggle";                 fb=none ;;
+# Keep-awake is a real Wayland inhibitor (quickshell's IdleInhibitor over
+# zwp_idle_inhibit_manager_v1, which mango advertises), so it suppresses
+# SWAYIDLE's ladder here, not just noctalia's own idle service — which is
+# pinned off anyway. No fallback: waybar carries an idle_inhibitor module in
+# tiling and hud, and nothing outside a bar holds one.
+keep-awake)     ipc="idleInhibitor toggle";        fb=none ;;
+*)
+	echo "usage: ${0##*/} <action> — see the case table in this file" >&2
+	exit 1
+	;;
+esac
+
+if [ "$(current_mode)" = noctalia ]; then
+	# The mode can be noctalia while the shell is down — it crash-loops against
+	# a stale WAYLAND_DISPLAY and wedges (docs/gotchas.md → Desktop). Then
+	# `ipc call` fails to connect and the key would do nothing at all.
+	if ! systemctl --user is-active --quiet noctalia; then
+		notify-send -u critical "Noctalia" "$1: the shell is not running"
+		exit 1
+	fi
+	# Unquoted on purpose: $ipc is a target and a function, two arguments.
+	# shellcheck disable=SC2086
+	out=$(noctalia-shell ipc call $ipc 2>&1)
+	if [ -n "$out" ]; then
+		notify-send -u critical "Noctalia" "$1: $out"
+		exit 1
+	fi
+	exit 0
+fi
+
+if [ "$fb" = none ]; then
+	notify-send "$1" "Only in noctalia mode"
+	exit 0
+fi
+"$fb"

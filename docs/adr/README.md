@@ -31,8 +31,12 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0017](0017-tlp-profiles-not-platform-profile.md) | Power modes are TLP profiles; `platform_profile` was a placebo | Accepted |
 | [0018](0018-lock-background-is-a-pool.md) | The lock background is a pre-generated pool, picked per lock | Accepted |
 | [0019](0019-elephant-builds-only-reached-providers.md) | elephant builds only the providers something reaches | **Superseded** by [0021](0021-rofi-replaces-walker-and-elephant.md) — kept for the measurement that decided it |
-| [0020](0020-noctalia-is-a-desktop-mode.md) | noctalia is a desktop mode, not a second desktop | Accepted (follows [0005](0005-one-owner-per-daemon.md), [0014](0014-declare-the-namer-not-just-the-file.md)) |
+| [0020](0020-noctalia-is-a-desktop-mode.md) | noctalia is a desktop mode, not a second desktop | Accepted, **corrected 2026-08-16 — its mango bar integration does not work** (extended by [0022](0022-noctalia-mode-looks-like-noctalia.md), [0023](0023-noctalia-owns-its-own-actions.md)) |
 | [0021](0021-rofi-replaces-walker-and-elephant.md) | rofi replaces walker and elephant | Accepted (supersedes [0019](0019-elephant-builds-only-reached-providers.md); follows [0014](0014-declare-the-namer-not-just-the-file.md)) |
+| [0022](0022-noctalia-mode-looks-like-noctalia.md) | noctalia mode owns its look; its settings are seeded *and* pinned | Accepted (extends [0020](0020-noctalia-is-a-desktop-mode.md), amending its seeding half) |
+| [0023](0023-noctalia-owns-its-own-actions.md) | In noctalia mode the keys do noctalia's actions, through one table | Accepted, **amended 2026-08-16 — the automatic lock moved too** ([0024](0024-the-unattended-lock-follows-the-mode.md)) |
+| [0024](0024-the-unattended-lock-follows-the-mode.md) | The unattended lock follows the mode; swaylock is its fallback *and* its proof | Accepted (amends [0023](0023-noctalia-owns-its-own-actions.md); extends [0018](0018-lock-background-is-a-pool.md)) |
+| [0025](0025-patch-noctalias-mango-backend.md) | Patch noctalia's mango backend where it speaks dwl's dead flags, rather than route around it | Accepted (follows the correction on [0020](0020-noctalia-is-a-desktop-mode.md)) |
 
 ## Format
 

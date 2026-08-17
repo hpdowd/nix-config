@@ -8,9 +8,11 @@ if ! pgrep '^\.?kdeconnectd' >/dev/null 2>&1; then
     exit 0
 fi
 
+# Empty text, so waybar renders nothing: an unreachable phone is this module's
+# resting state. gotchas.md -> Waybar.
 REACHABLE=$(qdbus $DBUS_SVC $DBUS_DEV org.kde.kdeconnect.device.isReachable 2>/dev/null)
 if [ "$REACHABLE" != "true" ]; then
-    echo '{"text":"","tooltip":"Galaxy S22+ (offline)","class":"disconnected"}'
+    echo '{"text":"","tooltip":"Galaxy S22+ (offline)","class":"disconnected"}'
     exit 0
 fi
 

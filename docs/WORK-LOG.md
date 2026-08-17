@@ -1683,3 +1683,127 @@ cycle reaches fanless on the third click. `docs/adr/0017` kept fanless off the
 bar's left-click for exactly that reason. Accepted because it is a labelled
 button rather than a scroll wheel, and noctalia raises a toast naming the
 profile it moved to — the feedback the bar cycle lacked.
+
+---
+
+## Two symptoms, three bugs, none of which announced itself (2026-08-17)
+
+**3 commits, `38f2d07` → `f3e2209`.** Reported as "shutdown and reboot force a
+1.5 minute wait, and the login screen appeared broken". Both were real, they were
+unrelated to each other, and looking for them turned up a third that nobody had
+noticed because it was silent by construction.
+
+### The 1.5 minutes was `DefaultTimeoutStopUSec` to the second
+
+Which is the whole diagnosis: 1 min 30 s is not a plausible amount of time for
+anything to *take*, so nothing was slow — something refused to stop and was
+eventually shot. `session-N.scope: Stopping timed out. Killing.` names no
+process, and the four SIGKILLed survivors were `bash`, `bash`, `sleep`, `sleep`.
+
+The reason those `sleep`s existed is the useful part of the evidence. Their PIDs
+were **higher than the PID of the `reboot` that started the shutdown** — so they
+were spawned after the machine had been asked to go down. Not a wedged process;
+a loop that was still running, ninety seconds in.
+
+`scratch-watch.sh` and `window-title.sh` both carried
+
+```bash
+cleanup() { pkill -P $$ 2>/dev/null; }
+trap cleanup EXIT PIPE HUP INT TERM
+```
+
+which reads as thorough and is the bug. A handler on a terminating signal
+**replaces** that signal's default action — bash runs it and then *resumes*. Both
+scripts reaped their `mmsg watch`, fell back into `while true`, and spun on
+`sleep 1` forever. `window-title.sh` was worse than it looked: the trap had been
+added to stop it leaking a watcher per `pkill waybar`, and it had quietly traded
+that for leaking *the script itself*.
+
+Split into `trap cleanup EXIT` plus `trap 'exit 0' PIPE HUP INT TERM`, so the
+signal kills and `EXIT` reaps once on every path. Verified against the installed
+store artifact rather than a copy of the pattern: the real `window-title.sh`
+spawns its child, dies on SIGTERM, and leaves zero orphans — the fix does not
+undo the leak fix it replaces. `fan-calibrate` had the same shape, where "Ctrl-C
+restores the frequency limits" meant "restores them and keeps calibrating".
+
+`checks/static.sh` now resolves each trap's handler by brace depth — a `sed` range
+ending at `^}` runs straight past a one-line handler and finds the *next*
+function's `exit` — and fails any that cannot exit. Confirmed to fail against
+both scripts restored to their broken form, because a check that cannot fail is
+not a check. Its floor is set below today's count deliberately: the floor guards
+the regex, not the population, and one set to today's three would turn deleting a
+trap into a check failure.
+
+### The greeter: the kernel was innocent and the obvious fix was cargo cult
+
+`services.greetd.useTextGreeter` defaults to **false**, and nothing warns when
+the configured greeter is tuigreet. greetd.service therefore had no TTY handling
+at all — none of `StandardInput/Output=tty`, `TTYPath`, `TTYReset`,
+`TTYVHangup`, `TTYVTDisallocate`, the set `getty@` has always carried. greetd
+never claimed tty1 and never cleared it, so tuigreet drew over the boot's
+leftovers and systemd kept printing `[ OK ] Started …` on top of it afterwards:
+`/dev/console` is the *foreground* VT, which is the one the greeter is on.
+
+`Type=idle` was already set and is not a defence. It delays the start until jobs
+are dispatched or 5 s pass, whichever is first, and says nothing about output
+after that — libvirt, `graphical.target`, the greeter's own user session and
+polkitd all landed on the greeter afterwards.
+
+The instinct here is `quiet` and `boot.consoleLogLevel`, and it would have been
+wrong. Console loglevel is 4, so only priority < 4 reaches the VT, and
+`journalctl -b -k -p err` across the greeter's window is **empty** — the kernel
+printed nothing. Lowering it would have changed nothing while looking exactly
+like a fix that worked, because boot timing varies run to run and the symptom is
+intermittent by nature. Worth keeping as the general shape: *establish which
+stream is printing before quietening either one.*
+
+### The third bug: yesterday's daemon had never once run
+
+Found while reading the boot journal for the greeter. `power-profiles-tlp`, from
+`fb23e76` the previous day, was not running and had never been running:
+
+```
+multi-user.target: Job power-profiles-tlp.service/start deleted to break ordering cycle
+Activation request for 'org.freedesktop.UPower.PowerProfiles' failed.
+```
+
+A target implicitly gains `After=` on everything in its `Wants=` **unless the
+unit already orders itself against that target**, and upstream `tlp.service` is
+`After=multi-user.target`. So `wantedBy = [ "multi-user.target" ]` with only
+`after = [ "tlp.service" ]` closed a cycle, and systemd resolved it the way it
+always does — by deleting a job. D-Bus activation could not rescue it either,
+since the cycle is in the transaction, so every attempt failed identically. To a
+client this is indistinguishable from the unit not existing.
+
+This is worth stating against the previous entry, which shipped this daemon and
+described exercising it end to end on a private bus and through seven checks.
+All of that was true and none of it touched the failure, because every one of
+those checks asked whether the *unit and its clients agreed*, and this bug was in
+whether systemd ever ran the unit. `journalctl -b | grep 'ordering cycle'` is now
+in `docs/gotchas.md` as the thing to run after adding any unit that has both
+`wantedBy` and `after`. `wifi-resume` in `networking.nix` already had the correct
+shape, which is why the fix is to copy it — and why that duplicated-looking
+target entry must not be tidied away.
+
+The bus name is served for the first time as of this entry: `ActiveProfile`
+reads `power-saver`, `Profiles` lists all three with `Driver=tlp`.
+
+### What is not yet proven
+
+The greeter fix is verified in the unit and not on screen — greetd is
+`restartIfChanged = false` and only ever draws at boot, so it takes a reboot to
+see. And the *running* watchers are still the pre-rebuild, SIGTERM-immune ones
+(`SigCgt` bit 14 set, started 02:17), because a rebuild does not restart what
+`exec-once` launched. **The next shutdown will therefore still wait its 90
+seconds**, one last time, and be clean from the following boot onward. Killing
+them early needs `-9`, which is the bug restating itself.
+
+### The shape shared by all three
+
+Each failure was invisible in the place you would look for it. The scripts were
+doing exactly what they were told. The greeter's unit was `active (running)`.
+The daemon's absence was reported once, at boot, in a message about
+`multi-user.target` rather than about itself, and `systemctl --failed` was empty
+throughout — a unit whose start job was deleted has not failed. In all three
+cases the answer came from the journal read at the timestamp of the symptom, and
+in none of them from the file that contained the mistake.

@@ -13,8 +13,17 @@
 # rather than by name, which is both exact and safe: matching `mmsg` would take
 # out every other module's watcher too. PIPE is in the list because that is how
 # this script usually dies, and its default action skips the EXIT trap.
+#
+# The signal traps `exit` and leave the reaping to EXIT. Handling a signal with
+# a handler that does not exit REPLACES the default action, so the first version
+# of this fix traded the watcher leak for a worse one — the script itself became
+# immune to SIGTERM and SIGPIPE, reaped its child, and looped forever. At logout
+# that cost 90 s of `session-N.scope: Stopping timed out` on every shutdown and
+# reboot; per `pkill waybar` it leaked this script instead of its watcher.
+# docs/gotchas.md → Scripts.
 cleanup() { pkill -P $$ 2>/dev/null; }
-trap cleanup EXIT PIPE HUP INT TERM
+trap cleanup EXIT
+trap 'exit 0' PIPE HUP INT TERM
 
 emit() {
     jq -cn --arg t "$1" '{text: $t, tooltip: $t, class: "window"}'

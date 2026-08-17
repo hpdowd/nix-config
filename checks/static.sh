@@ -1139,5 +1139,78 @@ else
 	fi
 fi
 
+# --- signal traps -----------------------------------------------------------
+# A handler trapped on a terminating signal REPLACES that signal's default
+# action — bash runs it and then resumes. Two mango watchers written that way
+# ignored logind's SIGTERM, kept looping, and held the session scope open until
+# systemd SIGKILLed them 90 s later, on every shutdown and reboot. The shape is
+# one line from the correct one and reads as the more careful of the two, so it
+# gets a check rather than a convention. docs/gotchas.md → Scripts.
+printf '\nSignal traps\n'
+
+# The body of function `$2` in file `$1`, by brace depth — the handlers here are
+# one-liners, so a `sed` range ending at `^}` would run past them into the next
+# function and find its `exit` instead.
+fn_body() {
+	awk -v fn="$2" '
+		!open && $0 ~ "^[[:space:]]*(function[[:space:]]+)?" fn "[[:space:]]*\\(\\)" { open = 1 }
+		open {
+			print
+			depth += gsub(/\{/, "{") - gsub(/\}/, "}")
+			if (depth > 0) seen = 1
+			if (seen && depth <= 0) exit
+		}
+	' "$1"
+}
+
+traps_seen=0
+traps_bad=()
+for f in "${SCRIPTS[@]}"; do
+	# Read once rather than redirecting the loop: `fn_body` below opens the same
+	# file, and a loop whose stdin IS that file is one refactor away from having
+	# its input consumed out from under it (SC2094).
+	mapfile -t lines < "$f"
+	for line in "${lines[@]}"; do
+		# `trap ACTION SIGSPEC...`. `trap -p` and `trap - SIG` reset rather than
+		# handle, so they carry no obligation to exit.
+		[[ $line =~ ^[[:space:]]*trap[[:space:]]+(\'[^\']*\'|\"[^\"]*\"|[^[:space:]]+)[[:space:]]+([A-Za-z0-9[:space:]]+)$ ]] || continue
+		action=${BASH_REMATCH[1]}
+		signals=${BASH_REMATCH[2]}
+
+		# Only signals whose default action terminates. EXIT is the right home
+		# for cleanup and must NOT exit. The `[A-Za-z0-9…]` above also drops the
+		# `RTMIN+8` form on purpose: a real-time signal here is waybar asking a
+		# module to refresh, where carrying on IS the point.
+		[[ $signals == *TERM* || $signals == *INT* || $signals == *HUP* || $signals == *QUIT* || $signals == *PIPE* ]] || continue
+		traps_seen=$((traps_seen + 1))
+
+		action=${action#[\'\"]}
+		action=${action%[\'\"]}
+		[[ $action == - || -z $action ]] && continue
+		[[ $action == *exit* ]] && continue
+
+		# A bare function name — resolve it and look for `exit` in the body.
+		if [[ $action =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] \
+			&& fn_body "$f" "$action" | grep -qw exit; then
+			continue
+		fi
+
+		traps_bad+=("${f#"$SRC"/}: ${line#"${line%%[![:space:]]*}"}")
+	done
+done
+
+# The scan finding nothing is the failure mode it exists to catch. The floor
+# guards the regex, not the population — set below today's 3 so that removing a
+# trap is a code change rather than a check failure, but above 0 so a regex that
+# stops matching cannot pass by finding nothing.
+if [[ $traps_seen -lt 2 ]]; then
+	bad "only $traps_seen terminating-signal traps found — the scan is broken, not the repo"
+elif [[ ${#traps_bad[@]} -gt 0 ]]; then
+	bad "${#traps_bad[@]} signal trap(s) never exit, so the signal no longer kills the script" \
+		"$(printf '%s; ' "${traps_bad[@]}")"
+else
+	ok "$traps_seen terminating-signal traps all exit"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

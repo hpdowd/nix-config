@@ -42,7 +42,12 @@ restore() {
     echo "$ORIG_BOOST" > "$BOOST"
     echo "restored: min=$ORIG_MIN max=$ORIG_MAX boost=$ORIG_BOOST"
 }
-trap restore EXIT INT TERM
+# `exit` in the signal traps, restore on EXIT. `trap restore INT` alone replaces
+# SIGINT's default action, so Ctrl-C restored the limits and then carried on
+# calibrating with them restored — the same shape that made the mango watchers
+# survive logout. docs/gotchas.md → Scripts.
+trap restore EXIT
+trap 'exit 130' INT TERM
 
 fan()  { awk '/^speed/{print $2}' "$FAN"; }
 cput() {

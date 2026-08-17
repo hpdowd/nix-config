@@ -10,8 +10,16 @@ SCRATCHPADS=(spotify equibop)
 # exactly this shape and leaked one watcher per waybar kill, each holding an IPC
 # socket to mango for as long as the session lasted. `-P $$` is by parent, not
 # by name, so it cannot reach another script's watcher.
+#
+# The signal traps must `exit`. A handler that only cleans up REPLACES SIGTERM's
+# default action, so logind's SIGTERM stopped killing this script: it reaped the
+# watcher, fell back into the loop below, and spun on `sleep 1` until the scope
+# hit DefaultTimeoutStopUSec and SIGKILLed it — 90 s added to every shutdown and
+# reboot, logged only as `session-N.scope: Stopping timed out`.
+# docs/gotchas.md → Scripts.
 cleanup() { pkill -P $$ 2>/dev/null; }
-trap cleanup EXIT PIPE HUP INT TERM
+trap cleanup EXIT
+trap 'exit 0' PIPE HUP INT TERM
 
 # Clean slate on start — compositor restart means all scratchpads are gone
 for pad in "${SCRATCHPADS[@]}"; do rm -f "/tmp/scratch-${pad}"; done

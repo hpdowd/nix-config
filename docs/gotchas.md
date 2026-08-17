@@ -1371,6 +1371,52 @@ repo they existed on this disk only, while `audio.nix` declared a unit whose
 `ExecStart` pointed at one — so a fresh install produced a unit that could not
 start.
 
+### A cleanup trap that does not `exit` makes the script immune to SIGTERM
+
+`trap cleanup EXIT PIPE HUP INT TERM`, with `cleanup() { pkill -P $$; }`,
+**replaces** SIGTERM's default action instead of running before it. bash runs the
+handler and then *resumes* — so a `while true` daemon reaps its child, falls back
+into the loop and runs forever. Nothing logs it: the script is doing exactly what
+it was told.
+
+This cost **90 seconds on every shutdown and reboot**. `scratch-watch.sh` and
+`window-title.sh` both had the shape, both sat in the graphical `session-N.scope`,
+and logind's SIGTERM bounced off both. They spun on `sleep 1` until the scope hit
+`DefaultTimeoutStopUSec` (1 min 30 s) and systemd SIGKILLed them. The whole event
+is four lines, none of which name a script:
+
+```
+systemd-logind[…]: Session 10 logged out. Waiting for processes to exit.
+systemd[1]: session-10.scope: Stopping timed out. Killing.
+systemd[1]: session-10.scope: Killing process 1552530 (sleep) with signal SIGKILL.
+systemd[1]: session-10.scope: Failed with result 'timeout'.
+```
+
+**The tell that it is a live loop and not a wedged process**: the surviving PIDs
+are *higher* than the PID of the `reboot` that started the shutdown — the loop was
+still spawning new `sleep`s ninety seconds after being asked to stop.
+
+Write it as two traps, so the signal exits and `EXIT` does the reaping exactly
+once on every path:
+
+```bash
+cleanup() { pkill -P $$ 2>/dev/null; }
+trap cleanup EXIT
+trap 'exit 0' PIPE HUP INT TERM
+```
+
+**Verify by killing it, never by reading it** — the two shapes are one line apart
+and the broken one looks more careful:
+
+```bash
+./script & pid=$!; sleep 0.5; kill -TERM $pid; sleep 1.5
+kill -0 $pid 2>/dev/null && echo "STILL ALIVE — the bug"
+```
+
+`fan-calibrate` had the same shape with `restore`, where it read as "Ctrl-C
+restores the frequency limits" and actually meant "Ctrl-C restores them and keeps
+calibrating."
+
 **None of them have a file extension.** Don't add `.sh`; fish's aliases did, and
 were therefore always broken.
 

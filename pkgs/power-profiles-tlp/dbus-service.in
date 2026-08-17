@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.freedesktop.UPower.PowerProfiles
+Exec=@out@/bin/power-profiles-tlp
+User=root
+SystemdService=power-profiles-tlp.service

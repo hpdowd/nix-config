@@ -1126,6 +1126,42 @@ and the WiFi resume fix. The traps worth carrying in your head:
   mango advertised no `wl_output`, so DPMS was impossible — which is what sent
   sleep blanking down the backlight path that could never have worked, and cost a
   flat battery to discover. `wlopm --json` is one command.
+- ⚠️ **Turning off power-profiles-daemon removed the *answer*, not just the
+  second tuner.** PPD is also the interface desktops use to *ask* what the power
+  profile is, so `services.power-profiles-daemon.enable = false` left every such
+  client — noctalia's control-centre button, GNOME's power page,
+  `powerprofilesctl` — finding no service and rendering a greyed control, in
+  silence, for months. `power-profiles-tlp` now owns that bus name and answers it
+  from TLP (`docs/adr/0026`). **When you disable a daemon because it conflicts,
+  check what else was reading its interface.**
+- ⚠️ **A running unit is not an activatable bus name, and `systemctl status`
+  cannot tell you which you have.** `power-profiles-tlp` came up, owned the name,
+  and answered `busctl` correctly — and noctalia still did nothing, because
+  quickshell probes the name at *its* startup, tries to **activate** it when
+  unowned, and gives up for the life of the process. The tell was an hour-old
+  journal line, `Could not launch service …: The name is not activatable`,
+  followed by `The PowerProfiles service will not work`. Meanwhile
+  `noctalia-shell ipc call powerProfile set balanced` printed nothing, which by
+  `docs/adr/0023`'s rule reads as success. **Any daemon here that owns a bus name
+  a desktop client consumes needs `share/dbus-1/system-services/<name>.service`
+  with `SystemdService=`**, not just a `wantedBy` unit. `checks/static.sh`
+  asserts it.
+- **An XML comment may not contain `--`, and dbus rejects the whole file if one
+  does.** The first draft of `pkgs/power-profiles-tlp/dbus-policy.conf` had a
+  prose double hyphen in its header comment. Since that file is loaded by the
+  *system* bus, the blast radius is every service on it, not the one being
+  added. `checks/static.sh` runs `xmllint --noout` over it; keep prose dashes
+  single.
+- **`services.tuned.ppdSupport` is the off-the-shelf version of this and is the
+  wrong tool here.** It does claim both PPD bus names, but it translates into
+  *tuned* profiles, which set governor and EPP themselves — a second owner on the
+  cpufreq path alongside TLP (`docs/adr/0005`), and every number in
+  `docs/adr/0017` was measured with TLP applying them alone.
+- **Reading a Qt/QML client's D-Bus contract needs `strings -e l`.** The profile
+  names quickshell parses (`power-saver`, `balanced`, `performance`) are UTF-16
+  literals in the binary and do **not** appear in a default ASCII `strings` dump
+  — which reads as "the names are unconstrained" rather than "the scan missed
+  them".
 
 ### The amdgpu/TTM freeze
 

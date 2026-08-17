@@ -1590,3 +1590,96 @@ lock quietly back on swaylock, looking exactly like noctalia being down. Once a
 package is overridden, `final.` is the only correct spelling for a consumer;
 there is a check pinning the wrapper's copy to the system's.
 
+---
+
+## The power-profile widget was never noctalia's fault (2026-08-17)
+
+`docs/adr/0026`. Started as "noctalia uses a different tool for battery
+settings" and turned out not to be about noctalia, or about batteries.
+
+noctalia's power-profile controls drive
+`org.freedesktop.UPower.PowerProfiles` — the power-profiles-daemon interface —
+which is unowned here, because TLP displaces PPD (`docs/adr/0017`). Read off
+`PowerProfileService.qml`: `available` is `powerProfiles.hasPerformanceProfile`,
+and every function in the file returns early when it is false. So the control
+centre's power button has been sitting greyed out since the mode was added, and
+`docs/SYSTEM.md` §13 has carried it as inert since 2026-08-14.
+
+**The framing was wrong, and that was the useful part.** Disabling PPD was
+recorded as removing a conflicting *tuner*. It also removed the *answer* — PPD
+is the interface desktops ask through, not only the thing that acts. Nothing in
+`power.nix` said so, and the cost landed in a program that had not been written
+yet.
+
+Two things it is *not*: noctalia 4.7.7 has no charge-threshold support at all
+(grepped the package for `charge_control` and `ChargeThreshold` — nothing), so
+TLP's 75/85 was never contested. And nothing was visibly broken in the bar:
+`showPowerProfiles` defaults `false` and `PowerProfile` is not in the default
+*bar* layout. The gap was a missing readout, not a dead button — except in the
+control centre, where the button is shipped by default and was grey.
+
+`pkgs/power-profiles-tlp/` now owns the name and answers it from TLP: reads
+`/run/tlp/last_pwr`, writes through `power-mode`, and pushes
+`PropertiesChanged` when TLP switches on its own at a charger transition. The
+control-centre button went live with nothing seeded.
+
+`services.tuned.ppdSupport` is the off-the-shelf version and does claim both PPD
+bus names, but it tunes through tuned — a second owner on the cpufreq path
+alongside TLP, which is `docs/adr/0005` and would invalidate every measurement
+in `docs/adr/0017`.
+
+### Four things the verification caught that reading would not have
+
+**The profile names are UTF-16 in the client binary.** An ASCII `strings` over
+`noctalia-qs` finds `Actions`, `Profile`, `Version` — and none of
+`power-saver`, `balanced`, `performance`. Which reads as "the names are
+unconstrained", not as "the scan missed them". `strings -e l` has all three,
+plus the two `PerformanceDegraded` reasons. This repo's oldest lesson, one layer
+down: a scan that finds nothing is not evidence.
+
+**The dbus policy was ill-formed, and the XML parser found it, not dbus.** An
+XML comment may not contain a double hyphen, and the header comment had one in
+ordinary prose. dbus rejects the whole file — and that file is loaded by the
+*system* bus, so the blast radius is every service on it. `xmllint --noout` is
+now one of the six checks, and `libxml2` joined the static check's inputs.
+
+**`StartLimit*` went in `[Service]` first**, where systemd ignores it —
+`docs/adr/0006` says `[Unit]`, and `modules/home/default.nix` had the comment
+saying so eight lines from where it was needed. NixOS's `startLimitBurst`
+option puts it in the right section.
+
+**And the one that only a live run could find: the daemon worked and noctalia
+still did nothing.** `busctl` read and wrote the profile correctly, the CPU
+actually changed, the waybar module and the bus agreed — and
+`noctalia-shell ipc call powerProfile set balanced` printed nothing and moved
+nothing. Printing nothing is *success* by `docs/adr/0023`'s rule, so the call
+site looked fine. The reason was an hour old in the journal: quickshell probes
+the name at its own startup, tries to **activate** it when unowned, and gives up
+permanently — `The name is not activatable`, then `The PowerProfiles service
+will not work`. A unit that is running is not a name D-Bus can start, and
+nothing in `systemctl status` separates the two. Fixed by shipping
+`share/dbus-1/system-services/…PowerProfiles.service` with `SystemdService=`,
+which is what upower ships in the same nixpkgs. Seventh check.
+
+Worth stating plainly: the previous six checks all passed against a build that
+had this hole in it. They asserted the things that agree *inside* the repo. The
+one that mattered was a property of how a client outside it starts.
+
+The daemon was exercised end to end on a private `dbus-launch` bus with a fake
+`power-mode` before it was given the real name — set, read back, an external
+write standing in for a charger transition, and all five refusal paths. The
+`--bus session` and `--pwrfile` flags exist for that and are staying: a daemon
+that can only be tested by switching the system does not get tested. Each of the
+four content checks was then confirmed to *fail* against a deliberately drifted
+copy, because a check that cannot fail is not a check.
+
+Holds are declined rather than implemented — `HoldProfile` raises
+`NotSupported`. Recording a hold that changed nothing would be this repo's
+signature bug written on purpose, and honouring one would let any application
+override a profile whose every value was measured for this chassis.
+
+The one accepted regression: noctalia's control-centre button *cycles*, and the
+cycle reaches fanless on the third click. `docs/adr/0017` kept fanless off the
+bar's left-click for exactly that reason. Accepted because it is a labelled
+button rather than a scroll wheel, and noctalia raises a toast naming the
+profile it moved to — the feedback the bar cycle lacked.

@@ -153,6 +153,9 @@
                 # fc-scan, for the font check; its absence trips that
                 # check's own floor rather than passing quietly.
                 pkgs.fontconfig
+                # xmllint, for power-profiles-tlp's dbus policy — an ill-formed
+                # one is rejected by the whole system bus, not just by us.
+                pkgs.libxml2
               ];
             }
             ''

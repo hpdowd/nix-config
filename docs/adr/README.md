@@ -37,6 +37,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0023](0023-noctalia-owns-its-own-actions.md) | In noctalia mode the keys do noctalia's actions, through one table | Accepted, **amended 2026-08-16 — the automatic lock moved too** ([0024](0024-the-unattended-lock-follows-the-mode.md)) |
 | [0024](0024-the-unattended-lock-follows-the-mode.md) | The unattended lock follows the mode; swaylock is its fallback *and* its proof | Accepted (amends [0023](0023-noctalia-owns-its-own-actions.md); extends [0018](0018-lock-background-is-a-pool.md)) |
 | [0025](0025-patch-noctalias-mango-backend.md) | Patch noctalia's mango backend where it speaks dwl's dead flags, rather than route around it | Accepted (follows the correction on [0020](0020-noctalia-is-a-desktop-mode.md)) |
+| [0026](0026-serve-the-ppd-bus-name-from-tlp.md) | Serve the power-profiles-daemon bus name from TLP, rather than leave it unowned | Accepted (follows [0017](0017-tlp-profiles-not-platform-profile.md), [0005](0005-one-owner-per-daemon.md); closes an inert widget from [0020](0020-noctalia-is-a-desktop-mode.md)) |
 
 ## Format
 

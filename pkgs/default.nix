@@ -234,6 +234,74 @@ final: prev: {
   };
 
   # ==========================================================================
+  # power-profiles-tlp — the PPD bus name, answered from TLP
+  # ==========================================================================
+  # TLP and power-profiles-daemon cannot both run (docs/adr/0017), so every
+  # client that speaks PPD finds nothing and renders nothing — noctalia's
+  # battery panel most visibly. This owns the name and translates.
+  # docs/adr/0026; the unit and its `--power-mode` are in modules/system/power.nix.
+  #
+  # `--replace-fail` on the shebang, so a rewrite of the script that drops it
+  # is a build error rather than a daemon that runs under the wrong python.
+  power-profiles-tlp =
+    let
+      python = prev.python3.withPackages (ps: [
+        ps.dbus-python
+        ps.pygobject3
+      ]);
+    in
+    prev.stdenv.mkDerivation {
+      pname = "power-profiles-tlp";
+      version = "1";
+
+      dontUnpack = true;
+      nativeBuildInputs = [ prev.makeWrapper ];
+
+      installPhase = ''
+        runHook preInstall
+        install -Dm755 ${./power-profiles-tlp/daemon.py} $out/bin/power-profiles-tlp
+        substituteInPlace $out/bin/power-profiles-tlp \
+          --replace-fail '#!/usr/bin/env python3' '#!${python}/bin/python3'
+
+        install -Dm644 ${./power-profiles-tlp/dbus-policy.conf} \
+          $out/share/dbus-1/system.d/org.freedesktop.UPower.PowerProfiles.conf
+
+        # Activation, and it is NOT redundant with the always-on unit. quickshell
+        # bus-ACTIVATES this name at startup and gives up permanently when that
+        # fails — observed: "Could not launch service …: The name is not
+        # activatable", then "The PowerProfiles service will not work", after
+        # which noctalia's every profile call returns early in silence. A unit
+        # that merely happens to be running is not the same as a name dbus can
+        # start. `SystemdService` is what dbus-broker uses; `Exec` is the
+        # non-systemd fallback. docs/adr/0026.
+        install -Dm644 ${./power-profiles-tlp/dbus-service.in} \
+          $out/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service
+        substituteInPlace \
+          $out/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service \
+          --replace-fail '@out@' "$out"
+
+        # `gi.repository.Gio` and `.GLib` resolve through typelibs, not through
+        # PYTHONPATH. Without this the imports raise at startup — which under a
+        # systemd unit is a failure nothing in the session ever surfaces.
+        wrapProgram $out/bin/power-profiles-tlp \
+          --prefix GI_TYPELIB_PATH : "${prev.glib.out}/lib/girepository-1.0"
+        runHook postInstall
+      '';
+
+      # The floor. `--help` imports dbus and gi and exits, so a missing python
+      # dependency or an unwrapped typelib path fails the BUILD rather than
+      # arriving as an inert widget three reboots later.
+      doInstallCheck = true;
+      installCheckPhase = ''
+        runHook preInstallCheck
+        $out/bin/power-profiles-tlp --help >/dev/null
+        runHook postInstallCheck
+      '';
+
+      meta.description = "Serve the power-profiles-daemon D-Bus API from TLP";
+    };
+
+  # ==========================================================================
   # lockscreen — lock the session with whichever locker the mode owns
   # ==========================================================================
   # Deliberately NOT named `swaylock`. A wrapper of that name would land earlier

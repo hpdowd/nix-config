@@ -98,7 +98,10 @@ let
 in
 {
   # --- TLP ------------------------------------------------------------------
-  services.power-profiles-daemon.enable = false; # conflicts with TLP
+  # Conflicts with TLP. Note that this removes the ANSWER as well as the second
+  # tuner — PPD is also the interface desktops ask the profile through — so
+  # power-profiles-tlp below owns that bus name instead. docs/adr/0026.
+  services.power-profiles-daemon.enable = false;
 
   services.tlp = {
     enable = true;
@@ -189,6 +192,45 @@ in
       ];
     }
   ];
+
+  # --- the PPD bus name, answered from TLP ----------------------------------
+  # Everything that speaks power-profiles-daemon — noctalia's battery panel,
+  # `powerprofilesctl`, GNOME's power page — finds no service here, because TLP
+  # holds the ground PPD would (`services.power-profiles-daemon.enable = false`
+  # above). They render nothing and say nothing. This unit owns the name and
+  # answers it from `/run/tlp/last_pwr` and `power-mode`, so those clients drive
+  # the same three profiles as the bar and SUPER+SHIFT+P. docs/adr/0026.
+  systemd.services.power-profiles-tlp = {
+    description = "power-profiles-daemon D-Bus API, served from TLP";
+    wantedBy = [ "multi-user.target" ];
+
+    # BindsTo, not Requires: with TLP gone there is no profile to report and no
+    # honest value to publish, so the name must LEAVE the bus. Clients then see
+    # an absent service — true — instead of a stale profile that looks live.
+    after = [ "tlp.service" ];
+    bindsTo = [ "tlp.service" ];
+
+    # StartLimit* belong in [Unit], not [Service] — docs/adr/0006. The daemon
+    # refuses to start when TLP reports no profile, so without a limit a
+    # too-early start becomes an unbounded loop that reads as `activating`.
+    startLimitIntervalSec = 60;
+    startLimitBurst = 5;
+
+    serviceConfig = {
+      Type = "simple";
+      # The wrapper is passed in rather than looked up: this is the one
+      # definition of `power-mode`, and a PATH lookup that missed would be a
+      # daemon that starts and cannot switch anything.
+      ExecStart = "${pkgs.power-profiles-tlp}/bin/power-profiles-tlp --power-mode ${powerMode}/bin/power-mode";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+  };
+
+  # Ships share/dbus-1/system.d/…PowerProfiles.conf — the policy that lets root
+  # own the name and wheel set the profile. Without this the daemon starts and
+  # cannot claim the name at all.
+  services.dbus.packages = [ pkgs.power-profiles-tlp ];
 
   services.thermald.enable = false; # Intel-only
 

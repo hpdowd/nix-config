@@ -144,6 +144,8 @@ Two rules follow from this and explain most of the surprises:
 │   │                          by programs.nix. No config files here
 │   └── corectrl/              the single out-of-store entry
 ├── pkgs/default.nix           the overlay — package overrides and local packages
+│   ├── lock-backgrounds/      blocks.py — the swaylock pool generator (ADR 0018)
+│   └── power-profiles-tlp/    the PPD bus name, answered from TLP (ADR 0026)
 ├── statix.toml                lint config — `repeated_keys` is off, see the file
 ├── .envrc                     `use flake`; needs direnv, otherwise `nix develop`
 ├── verify-claims.sh           re-checks the assertions CLAUDE.md makes about the system
@@ -704,7 +706,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+SHIFT+N` | Do not disturb |
 | `SUPER+SHIFT+S` / `SUPER+Delete` | Lock screen |
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
-| `SUPER+SHIFT+P` | Cycle ACPI power profile — TLP in every mode |
+| `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
@@ -870,6 +872,39 @@ silence it cannot deliver and costs real speed. Details in `docs/adr/0017`.
 ABM 3 visibly shifts panel contrast; that is the mode working, not a display
 fault. The iGPU pin costs compositor smoothness — 200 MHz against a 1899 MHz top
 state — and is the first thing to relax if fanless feels sluggish.
+
+#### The same three profiles over D-Bus
+
+`power-profiles-tlp` owns `org.freedesktop.UPower.PowerProfiles` and answers it
+from TLP, so clients written against power-profiles-daemon drive these three
+profiles rather than finding no service. Reads come from `/run/tlp/last_pwr`,
+writes go through `power-mode`, and a switch TLP makes on its own — a charger
+transition — is pushed out as `PropertiesChanged`. `docs/adr/0026`.
+
+```
+busctl get-property org.freedesktop.UPower.PowerProfiles \
+  /org/freedesktop/UPower/PowerProfiles \
+  org.freedesktop.UPower.PowerProfiles ActiveProfile
+```
+
+The visible consumer is **noctalia's control-centre power button**
+(`SUPER+CTRL+C`), which is in its shipped default shortcut row and was greyed
+out until this existed. ⚠️ **It cycles balanced → performance → fanless**, so a
+third click lands on the 1.1 GHz cap — deliberate on noctalia's part, accepted
+here because it names the profile in a toast. `SUPER+SHIFT+P` gets back to
+balanced.
+
+Two things it deliberately does not do. **Profile holds are declined** with a
+`NotSupported` error rather than recorded and ignored, so no application can pin
+a profile behind you. And **it refuses to start** when TLP reports no profile,
+rather than publishing a guess; `BindsTo=tlp.service` means a stopped TLP takes
+the bus name with it. Both failures land in `systemctl status
+power-profiles-tlp`.
+
+> noctalia's **battery-panel slider** is a separate control and is off by
+> default. It is a per-instance setting on the Battery *bar widget*, so enabling
+> it in the seed would mean owning noctalia's whole bar layout — turn it on in
+> noctalia's settings panel instead (Bar → Battery → show power profiles).
 
 ### Battery stops below 100%
 
@@ -1244,6 +1279,7 @@ What is running, and who owns it.
 | `systemd-resolved` | DNS |
 | `avahi` | mDNS, for CUPS printer discovery |
 | `tlp` | Power tuning + battery thresholds |
+| `power-profiles-tlp` | Owns `org.freedesktop.UPower.PowerProfiles` and answers it from TLP, so PPD clients see the three profiles (§9, `docs/adr/0026`). `BindsTo=tlp.service` |
 | `thermald`, `fwupd`, `upower` | Thermals, firmware updates, battery reporting + the critical-battery hibernate (§9) |
 | `pipewire` (+ pulse/jack) | Audio. PulseAudio proper is off |
 | `cups` + `sane` | Brother MFC-L3740CDW, driverless IPP |
@@ -1405,12 +1441,15 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
   shells out to `mmsg -s -q` — the dwl-era flag form mango answers with
   `{"error":"unknown command"}` and exit 0. The button is disabled in
   `settings-pinned.json` rather than left to do nothing (`docs/adr/0023`).
-- **Three things in noctalia mode are inert, and each looks like a bug.**
+- ~~**Its power-profile widget does nothing**~~ — **closed 2026-08-17.** It
+  drove `org.freedesktop.UPower.PowerProfiles`, which was unowned here because
+  TLP displaces power-profiles-daemon (`docs/adr/0017`). `power-profiles-tlp`
+  now owns that name and answers it from TLP, so the control-centre button is
+  live in every mode's clients — §9 and `docs/adr/0026`. The battery-panel
+  slider is a separate, off-by-default control; §9 says how to turn it on.
+- **Two more things in noctalia mode are inert, and each looks like a bug.**
   Measured by running the shell against a scratch config on 2026-08-14, not
-  predicted. Its **power-profile widget does nothing** — it drives
-  `org.freedesktop.UPower.PowerProfiles`, and this machine uses TLP with
-  power-profiles-daemon deliberately absent (`docs/adr/0017`), so the service is
-  not activatable. Its **blur-behind is silently ignored**: mango does not
+  predicted. Its **blur-behind is silently ignored**: mango does not
   implement `ext-background-effect-v1`, and the setting stays on in the UI
   regardless. And it **fetches its version and contributor list from GitHub** on
   first run and on cache expiry, gated by no setting at all — those calls fail

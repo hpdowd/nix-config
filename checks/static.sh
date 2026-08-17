@@ -559,6 +559,149 @@ if [[ -d "$MANGO/noctalia" ]]; then
 	fi
 fi
 
+# --- power profiles ---------------------------------------------------------
+# power-profiles-tlp translates between three things that live in three files
+# and have no compiler between them: TLP's numeric state, `power-mode`'s
+# argument list, and the PPD bus name. Every one of them fails silently when it
+# drifts — a wrong profile name is exit 2 at click time, a wrong code renders a
+# stale profile forever, a wrong bus name is a service nothing finds, which is
+# indistinguishable from the state this daemon was written to fix.
+# docs/adr/0026.
+PPD_SRC="$SRC/pkgs/power-profiles-tlp/daemon.py"
+PPD_POLICY="$SRC/pkgs/power-profiles-tlp/dbus-policy.conf"
+if [[ ! -f $PPD_SRC || ! -f $PPD_POLICY ]]; then
+	bad "power-profiles-tlp is missing a source or policy file" "$PPD_SRC $PPD_POLICY"
+else
+	# 1. The daemon and power-mode must accept the same three profile names.
+	#    power-mode rejects anything else with exit 2, which reaches the user as
+	#    a slider that snaps back.
+	mapfile -t PPD_PROFILES < <(
+		sed -n 's/^PROFILES = (\(.*\))$/\1/p' "$PPD_SRC" |
+			grep -oE '"[a-z-]+"' | tr -d '"' | sort -u
+	)
+	mapfile -t MODE_PROFILES < <(
+		sed -n 's/^[[:space:]]*\(performance | balanced | power-saver\)) ;;$/\1/p' \
+			"$SRC/modules/system/power.nix" | tr -d ' ' | tr '|' '\n' | sort -u
+	)
+	if [[ ${#PPD_PROFILES[@]} -eq 0 || ${#MODE_PROFILES[@]} -eq 0 ]]; then
+		bad "no profile names read from the daemon or from power-mode — the scan is broken, not the repo"
+	elif [[ ${PPD_PROFILES[*]} != "${MODE_PROFILES[*]}" ]]; then
+		bad "power-profiles-tlp and power-mode disagree on the profile names" \
+			"daemon: ${PPD_PROFILES[*]} / power-mode: ${MODE_PROFILES[*]}"
+	else
+		ok "power-profiles-tlp and power-mode accept the same ${#PPD_PROFILES[@]} profiles"
+	fi
+
+	# 2. The daemon and the waybar module both decode /run/tlp/last_pwr, and
+	#    nothing makes them agree. `fanless` is this repo's name for TLP's
+	#    `power-saver` (docs/adr/0017) and is the ONE deliberate difference, so
+	#    it is normalised here rather than tolerated by a looser comparison.
+	mapfile -t PPD_CODES < <(
+		sed -n 's/^CODE_TO_PROFILE = {\(.*\)}$/\1/p' "$PPD_SRC" |
+			grep -oE '"[0-9]": "[a-z-]+"' | tr -d '"' | tr -d ' ' | sort -u
+	)
+	mapfile -t BAR_CODES < <(
+		sed -nE 's/^[[:space:]]*([0-9])\) name=([a-z-]+).*$/\1:\2/p' \
+			"$MANGO/scripts/system/power-profile.sh" | sed 's/fanless/power-saver/' | sort -u
+	)
+	if [[ ${#PPD_CODES[@]} -eq 0 || ${#BAR_CODES[@]} -eq 0 ]]; then
+		bad "no last_pwr codes read from the daemon or the waybar module — the scan is broken, not the repo"
+	elif [[ ${PPD_CODES[*]} != "${BAR_CODES[*]}" ]]; then
+		bad "power-profiles-tlp and the waybar module decode last_pwr differently" \
+			"daemon: ${PPD_CODES[*]} / bar: ${BAR_CODES[*]}"
+	else
+		ok "power-profiles-tlp and the waybar module decode all ${#PPD_CODES[@]} last_pwr codes alike"
+	fi
+
+	# 3. One bus name, spelled the same in the daemon and in every rule of the
+	#    policy. PPD's name is a fixed external contract, so it is asserted
+	#    literally too — a typo made consistently in both files still reaches
+	#    no client.
+	PPD_NAME=org.freedesktop.UPower.PowerProfiles
+	mapfile -t PPD_NAMES < <(
+		{
+			sed -n 's/^BUS_NAME = "\(.*\)"$/\1/p' "$PPD_SRC"
+			grep -oE '(own|send_destination)="[^"]+"' "$PPD_POLICY" | cut -d'"' -f2
+		} | sort -u
+	)
+	if [[ ${#PPD_NAMES[@]} -eq 0 ]]; then
+		bad "no bus name read from the daemon or the policy — the scan is broken, not the repo"
+	elif [[ ${#PPD_NAMES[@]} -ne 1 || ${PPD_NAMES[0]} != "$PPD_NAME" ]]; then
+		bad "the daemon and its dbus policy do not all name $PPD_NAME" "${PPD_NAMES[*]}"
+	else
+		ok "the daemon and its dbus policy all name $PPD_NAME"
+	fi
+
+	# 4. dbus rejects a malformed policy file, and an XML comment containing a
+	#    double hyphen is malformed — which this file's first draft was. The
+	#    file is loaded by the system bus, so the blast radius is every service
+	#    on it, not just this one.
+	if ! command -v xmllint >/dev/null; then
+		bad "xmllint is absent — the dbus policy went unchecked, which is not a pass"
+	elif ! xmllint --noout "$PPD_POLICY" 2>/dev/null; then
+		bad "the dbus policy is not well-formed XML — the system bus would reject it" "$PPD_POLICY"
+	else
+		ok "the dbus policy parses as XML"
+	fi
+
+	# 5. The unit must exist in the built system and must pass --power-mode.
+	#    Left to a PATH lookup the daemon refuses to start, which is honest but
+	#    is a boot-time failure for a thing decided at build time.
+	PPD_UNIT="$SYS/etc/systemd/system/power-profiles-tlp.service"
+	PPD_PKG=""
+	if [[ ! -f $PPD_UNIT ]]; then
+		bad "power-profiles-tlp is packaged but no unit runs it — the PPD name would stay unowned" "$PPD_UNIT"
+	else
+		ppd_exec=$(sed -n 's/^ExecStart=//p' "$PPD_UNIT")
+		# The store path the unit actually runs, so check 6 reads the same
+		# package rather than one the overlay merely could produce.
+		PPD_PKG=${ppd_exec%%/bin/power-profiles-tlp*}
+		ppd_mode=$(grep -oE '\-\-power-mode [^ ]+' <<<"$ppd_exec" | awk '{print $2}')
+		if [[ -z $ppd_mode ]]; then
+			bad "the power-profiles-tlp unit passes no --power-mode — it would start and switch nothing" "$ppd_exec"
+		elif [[ ! -x $ppd_mode ]]; then
+			bad "the power-profiles-tlp unit names a power-mode that is not executable" "$ppd_mode"
+		else
+			ok "the power-profiles-tlp unit runs an executable power-mode"
+		fi
+	fi
+
+	# 6. A running unit is NOT the same as an activatable name, and the
+	#    difference is invisible from `systemctl status`. quickshell probes the
+	#    name at startup and, finding it unowned, tries to ACTIVATE it — then
+	#    gives up for the life of the process when that fails. Observed exactly
+	#    once, on the first live run: "The name is not activatable", after which
+	#    every noctalia profile call returned early and printed nothing.
+	PPD_ACT="$PPD_PKG/share/dbus-1/system-services/$PPD_NAME.service"
+	if [[ -z $PPD_PKG ]]; then
+		bad "could not resolve the power-profiles-tlp package from the unit — the scan is broken, not the repo"
+	elif [[ ! -f $PPD_ACT ]]; then
+		bad "power-profiles-tlp ships no dbus activation file — a client that starts first gives up permanently" "$PPD_ACT"
+	else
+		act_name=$(sed -n 's/^Name=//p' "$PPD_ACT")
+		act_unit=$(sed -n 's/^SystemdService=//p' "$PPD_ACT")
+		act_exec=$(sed -n 's/^Exec=//p' "$PPD_ACT")
+		if [[ $act_name != "$PPD_NAME" ]]; then
+			bad "the activation file names $act_name, not $PPD_NAME — dbus would activate nothing"
+		elif [[ $act_unit != power-profiles-tlp.service ]]; then
+			bad "the activation file names unit $act_unit, which is not the one that serves the name" "$PPD_ACT"
+		elif [[ ! -x $act_exec ]]; then
+			bad "the activation file's Exec is not executable — the non-systemd fallback would 127" "$act_exec"
+		else
+			ok "the dbus activation file names $PPD_NAME and an executable power-profiles-tlp.service"
+		fi
+	fi
+
+	# 7. Two owners for one bus name is docs/adr/0005 verbatim, and the loser
+	#    here is whichever starts second — silently, since ours exits 1 into the
+	#    journal and PPD would simply serve profiles TLP never applied.
+	if [[ -f "$SYS/etc/systemd/system/power-profiles-daemon.service" ]]; then
+		bad "power-profiles-daemon is enabled alongside power-profiles-tlp — two owners for $PPD_NAME"
+	else
+		ok "power-profiles-daemon is absent, so power-profiles-tlp owns $PPD_NAME alone"
+	fi
+fi
+
 # rofi reads ~/.config/rofi/config.rasi, which is in a different tree from the
 # mango configs that use it — the .rasi landing in the repo says nothing about
 # rofi finding it. Same shape as elephant's menus.toml before it (docs/adr/0014).

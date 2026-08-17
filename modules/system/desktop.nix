@@ -12,6 +12,22 @@
   # a graphical session. `regreet`/`gtkgreet` are the graphical swaps.
   services.greetd = {
     enable = true;
+
+    # tuigreet IS a text greeter, and this flag is the module's own switch for
+    # saying so — it defaults to false, which is right for the graphical
+    # greeters and wrong for every TUI one. It gates `StandardInput/Output=tty`
+    # plus TTYPath/TTYReset/TTYVHangup/TTYVTDisallocate on greetd.service, the
+    # same set `getty@` carries. Without them greetd never claims or clears
+    # tty1, so the greeter draws on top of whatever the boot left there and
+    # systemd keeps printing `[ OK ] Started …` over it for every job dispatched
+    # after `Type=idle` gave up waiting — libvirt, the greeter's own user
+    # session, polkit. It reads as a corrupt or half-drawn login screen.
+    #
+    # Note the kernel is NOT the source here: console loglevel is 4, and
+    # `journalctl -k -p err` over the greeter's window is empty. `quiet` and
+    # `boot.consoleLogLevel` would be cargo cult. docs/gotchas.md → Desktop.
+    useTextGreeter = true;
+
     settings.default_session = {
       command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd mango";
       user = "greeter";

@@ -179,6 +179,44 @@ jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev' flake.lock
 
 ## Desktop
 
+### The greeter comes up with boot text drawn through it
+
+`services.greetd.useTextGreeter` defaults to **false**, and nothing warns when a
+TUI greeter is configured without it. tuigreet then runs on a greetd.service with
+no TTY handling whatsoever — no `StandardInput/Output=tty`, no `TTYPath`, no
+`TTYReset`/`TTYVHangup`/`TTYVTDisallocate`, the set `getty@` has always carried.
+So greetd never claims tty1 and never clears it: the greeter paints on top of
+whatever the boot left on that VT, and systemd keeps writing `[ OK ] Started …`
+over it afterwards, because `/dev/console` is the *foreground* VT — the one the
+greeter is on.
+
+`Type=idle` is already set and does not save you. It delays the start until jobs
+are dispatched or 5 s pass, whichever comes first, and does nothing about output
+after that. Everything dispatched later still lands on the greeter:
+
+```
+02:16:56 Started greetd.service          ← tuigreet starts drawing
+02:16:57 Started libvirt legacy monolithic daemon.
+02:16:57 Reached target Graphical Interface.
+02:17:02 Started Session 1 of User greeter.
+02:17:03 Started RealtimeKit Scheduling Policy Service.   ← still printing over it
+```
+
+The fix is one line — `useTextGreeter = true` — and it is the module's own switch
+for "this greeter is a TUI", not a workaround.
+
+**Don't reach for `quiet` or `boot.consoleLogLevel` here.** The kernel was not the
+source: console loglevel is 4, so only priority < 4 reaches the VT, and
+
+```console
+$ journalctl -b -k -p err --since <greetd start> --until <login>
+-- No entries --
+```
+
+Lowering it would have changed nothing while looking exactly like a fix that
+worked, because the next boot's timing varies anyway. Check which stream is
+actually printing before quietening either one.
+
 ### A script committed 644 is a dead key
 
 **Nix preserves the mode bit, so a `bind=` pointing at a non-executable script

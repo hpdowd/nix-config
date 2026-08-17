@@ -1788,15 +1788,42 @@ target entry must not be tidied away.
 The bus name is served for the first time as of this entry: `ActiveProfile`
 reads `power-saver`, `Profiles` lists all three with `Driver=tlp`.
 
-### What is not yet proven
+### Confirmed after the reboot
 
-The greeter fix is verified in the unit and not on screen — greetd is
-`restartIfChanged = false` and only ever draws at boot, so it takes a reboot to
-see. And the *running* watchers are still the pre-rebuild, SIGTERM-immune ones
-(`SigCgt` bit 14 set, started 02:17), because a rebuild does not restart what
-`exec-once` launched. **The next shutdown will therefore still wait its 90
-seconds**, one last time, and be clean from the following boot onward. Killing
-them early needs `-9`, which is the bug restating itself.
+The greeter comes up clean. The reboot that got there **still waited its 90
+seconds**, as expected: a rebuild does not restart what `exec-once` launched, so
+the pre-rebuild watchers were still live. The timeout names its contents, and
+they were the old instance and nothing else —
+
+```
+03:06:31 session-3.scope: Stopping timed out. Killing.
+03:06:31 session-3.scope: Killing process 2921 (bash) with signal SIGKILL.
+03:06:31 session-3.scope: Killing process 63706 (sleep) with signal SIGKILL.
+```
+
+PID 2921 started at 02:17, before the switch. Everything else in the scope had
+already stopped, which is the useful half of the reading: the blocker was one
+script, not a class of them.
+
+Interesting that `scratch-watch.sh` exited cleanly even in its broken form. It
+had an accidental escape hatch the other lacked — `pgrep -x mango || exit 0` at
+the bottom of its loop, which fires once the compositor is gone. So the same bug
+produced a hang in one script and not the other, which is why the first
+shutdown's four survivors were two `window-title.sh` instances rather than one of
+each.
+
+Then proven rather than predicted, on the live process in the live session scope:
+SIGTERM to the running `window-title.sh` killed it and left zero orphaned `mmsg`
+watchers, after which `waybar-restart.sh` brought the module back. A sweep of
+every process in the scope found nothing else that ignores SIGTERM, bar the
+interactive `zsh`, which is by design and exits on SIGHUP when foot closes the
+pty — which is why it never appears in a timeout list.
+
+**`SigCgt` does not distinguish the fixed script from the broken one.** Both trap
+SIGTERM, so bit 14 is set either way; the difference is only whether the handler
+exits. The test is to send the signal and see whether the process is still there,
+which is what `checks/static.sh` now enforces statically and what the paragraph
+above did dynamically.
 
 ### The shape shared by all three
 

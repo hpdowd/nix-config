@@ -1825,6 +1825,24 @@ exits. The test is to send the signal and see whether the process is still there
 which is what `checks/static.sh` now enforces statically and what the paragraph
 above did dynamically.
 
+### Closed
+
+The next shutdown was instant. **90 s → 1 s**, with no timeout logged at all:
+
+```
+03:14:24 reboot requested from client PID 9682 ('reboot')
+03:14:24 Session 3 logged out. Waiting for processes to exit.
+03:14:25 Stopped Session 3 of User henry.
+03:14:25 Reached target System Reboot.
+```
+
+The boot after it is the first with all three fixes live from the start, and all
+three hold: the watchers come from the fixed generation, the greeter draws clean
+with nothing printed over it, `power-profiles-tlp` is active with **zero**
+`ordering cycle` lines in the journal where there were four, and the bus answers
+`balanced` — tracking TLP rather than the boot-time constant, so the daemon is
+not merely running but working. No failed units, system or user.
+
 ### The shape shared by all three
 
 Each failure was invisible in the place you would look for it. The scripts were

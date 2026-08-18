@@ -1,4 +1,15 @@
-# Catppuccin Mocha baseline — global GTK and Qt theming.
+# Global GTK and Qt theming, following the selected scheme.
+#
+# EVERY NAME AND PACKAGE HERE COMES FROM THE THEME FILE. This module used to
+# spell out `catppuccin-mocha-mauve-standard` and friends, which made it the one
+# place a scheme change had to be remembered rather than declared — and a GTK
+# theme name matching nothing falls back to Adwaita silently, so forgetting
+# looked like a theme someone chose. `modules/home/themes/*.nix` names them now
+# and `pkgs/default.nix` resolves them; docs/adr/0032.
+#
+# `themeGtk` and friends are `null` when the scheme's name is a toolkit built-in
+# (Adwaita-dark, KvArcDark) — home-manager takes `package = null` to mean "the
+# theme is already installed", which is exactly true for those.
 #
 # NIX OWNS THE GTK THEME, not the mode scripts. The per-mode GTK machinery
 # selected nothing (both modes called `gtk-apply.sh tiling`, and the `-tiling`
@@ -13,6 +24,9 @@
   ...
 }:
 
+let
+  p = import ./palette.nix;
+in
 {
   qt = {
     enable = true;
@@ -28,14 +42,15 @@
     enable = true;
 
     theme = {
-      # The name is the package's own directory name, not a label — see the
-      # note in pkgs/default.nix. A name matching nothing drops to Adwaita.
-      name = "catppuccin-mocha-mauve-standard";
-      package = pkgs.catppuccin-gtk;
+      # The name is the package's own directory name, not a label — read off the
+      # built package, never constructed from the arguments. A name matching
+      # nothing drops to Adwaita.
+      name = p.packages.gtk.name;
+      package = pkgs.themeGtk;
     };
     iconTheme = {
-      name = "Papirus-Dark";
-      package = pkgs.papirus-icon-theme;
+      name = p.packages.icons.name;
+      package = pkgs.themeIcons;
     };
     font = {
       name = "Hack Nerd Font";
@@ -103,11 +118,12 @@
   home.pointerCursor = {
     enable = true;
     # Rendered bitmaps, so this follows the scheme by being a different package
-    # rather than by taking the palette. `mochaMauve` is the attribute; the
-    # theme directory it installs is what this name must match, and the two are
-    # spelled differently.
-    name = "catppuccin-mocha-mauve-cursors";
-    package = pkgs.catppuccin-cursors.mochaMauve;
+    # rather than by taking the palette. The attribute and the theme directory
+    # it installs are spelled differently — `mochaMauve` against
+    # `catppuccin-mocha-mauve-cursors`, and `capitaine-cursors-themed` against
+    # `Capitaine Cursors (Gruvbox)`, spaces and parentheses included.
+    name = p.packages.cursor.name;
+    package = pkgs.themeCursor;
     size = 24;
     gtk.enable = true;
     x11.enable = true;

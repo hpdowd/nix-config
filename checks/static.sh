@@ -10,12 +10,19 @@
 
 set -uo pipefail
 
-usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel>"
+usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel> <palette-json>"
 SRC=${1:?$usage}
 GEN=${2:?$usage}
 SYS=${3:?$usage}
+# The SELECTED theme, resolved by Nix. Reading hex out of the theme file with
+# sed meant an aliased role (`okColor = green;`) read as "role absent" — four of
+# them did, and went unaudited. docs/adr/0032.
+PALETTE=${4:?$usage}
 
 WAYBAR_DIR="$GEN/home-files/.config/mango/waybar"
+# What home-manager actually wrote. Anything generated is read from HERE rather
+# than from its source under dotfiles/ — several files have no source any more.
+GEN_CFG="$GEN/home-files/.config"
 PROFILE="$GEN/home-path/bin"
 
 PASS=0
@@ -366,18 +373,22 @@ if [[ -d "$MANGO/noctalia" ]]; then
 		if [[ ! -f $defaults ]]; then
 			bad "noctalia ships no Assets/settings-default.json — the scan is broken, not the repo"
 		else
+			# settings.json is hand-written under dotfiles/; settings-pinned.json
+			# is GENERATED, because one of its keys is the colour scheme's name.
+			# Both are read from where they actually land, not from one place.
 			keyerr=""
 			keys=0
-			for f in settings.json settings-pinned.json; do
-				n=$(jq -r '[paths] | length' "$MANGO/noctalia/$f" 2>/dev/null || echo 0)
+			for f in "$MANGO/noctalia/settings.json" \
+				"$GEN_CFG/mango/noctalia/settings-pinned.json"; do
+				n=$(jq -r '[paths] | length' "$f" 2>/dev/null || echo 0)
 				keys=$((keys + n))
 				while read -r p; do
 					[[ -z $p ]] && continue
-					keyerr+="  $f: $p is not a key noctalia has"$'\n'
+					keyerr+="  $(basename "$f"): $p is not a key noctalia has"$'\n'
 				done < <(
 					jq -r --slurpfile d "$defaults" \
 						'paths as $p | select(($d[0] | getpath($p)) == null) | $p | join(".")' \
-						"$MANGO/noctalia/$f" 2>/dev/null
+						"$f" 2>/dev/null
 				)
 			done
 			if [[ $keys -eq 0 ]]; then
@@ -392,7 +403,8 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			# whatever it last loaded — the machine ends up half this palette and
 			# half noctalia purple, which looks like a theme, not a fault.
 			# Resolution mirrors ColorSchemeService.resolveSchemePath().
-			scheme=$(jq -r '.colorSchemes.predefinedScheme // empty' "$MANGO/noctalia/settings-pinned.json")
+			scheme=$(jq -r '.colorSchemes.predefinedScheme // empty' \
+				"$GEN_CFG/mango/noctalia/settings-pinned.json" 2>/dev/null)
 			case "$scheme" in
 			"Noctalia (default)") schemedir="Noctalia-default" ;;
 			"Noctalia (legacy)") schemedir="Noctalia-legacy" ;;
@@ -833,19 +845,16 @@ palette_pair "rofi" \
 # spelling is where copies hid — `d79921` is `0xd79921ff` to mango and
 # `rgb(215, 153, 33)` to fsel and swaync, and a repo-wide grep for the hex found
 # neither.
-GEN_CFG="$GEN/home-files/.config"
-
 # Read the accent from a file that is ITSELF generated from the palette, rather
 # than restating it here — a check carrying its own copy of the value it is
 # checking passes forever and proves nothing.
 ACCENT=$(sed -n 's/^ *accent: *#\([0-9a-f]*\);.*/\1/p' "$GEN_CFG/rofi/colors.rasi" 2>/dev/null)
-# The muted set has no other generated consumer to read it back from, so this
-# one comes from the source. Only the muted `accent` is quoted in palette.nix;
-# the main one is an alias, so this cannot match the wrong line.
-# palette.nix is a DISPATCHER now — one `import` line with no hex in it — so
-# both of the seds that used to read it as text resolve the selected theme file
-# first. The floor below is what makes that safe: a sed that stops matching
-# reports zero rather than passing quietly.
+
+# Everything else comes from the RESOLVED palette. `pal <jq-path>` is the one
+# reader; a path that does not exist yields empty and every consumer of it has a
+# floor, so a renamed key fails loudly rather than scanning for nothing.
+pal() { jq -r "$1 // empty" "$PALETTE" 2>/dev/null; }
+
 SCHEME=$(sed -n 's/^"\(.*\)"$/\1/p' "$SRC/modules/home/scheme.nix" 2>/dev/null | tail -1)
 THEME_FILE="$SRC/modules/home/themes/$SCHEME.nix"
 if [[ -n $SCHEME && -s $THEME_FILE ]]; then
@@ -854,7 +863,7 @@ else
 	bad "scheme.nix names '$SCHEME', which is not a file in modules/home/themes/" \
 		"every palette scan below would read an empty file"
 fi
-MUTED_ACCENT=$(sed -n 's/^ *accent = "\([0-9a-f]*\)".*/\1/p' "$THEME_FILE" 2>/dev/null)
+MUTED_ACCENT=$(pal .muted.accent)
 
 if [[ $ACCENT =~ ^[0-9a-f]{6}$ && $MUTED_ACCENT =~ ^[0-9a-f]{6}$ ]]; then
 	ACCENT_RGB="rgb($((16#${ACCENT:0:2})), $((16#${ACCENT:2:2})), $((16#${ACCENT:4:2})))"
@@ -879,12 +888,63 @@ done <<-EOF
 	mango/universal/colors-tiling.conf|0x${ACCENT}ff|mango (tiling)
 	mango/universal/colors-hud.conf|0x${ACCENT}ff|mango (hud)
 	mango/universal/colors-noctalia.conf|0x${ACCENT}ff|mango (noctalia)
-	nvim/lua/config/palette.lua|#${ACCENT}|nvim
 	fsel/config.toml|${ACCENT_RGB}|fsel
 	swaync/style.css|${ACCENT_RGB}|swaync
 	ncspot/config.toml|#${MUTED_ACCENT}|ncspot
-	equibop/themes/catppuccin.theme.css|#${ACCENT}|equibop
+	equibop/themes/scheme.theme.css|#${ACCENT}|equibop
 EOF
+
+# nvim is the one consumer whose generated file is CONDITIONAL. A scheme that
+# matches its own plugin takes upstream's colours and emits no palette.lua at
+# all (THEME-MIGRATION §3) — so "the file is missing" is correct for three of
+# the five schemes and a failure for the other two. Which case applies is read
+# from the theme, not assumed.
+#
+# The plugin spec is checked either way, because that file is always generated
+# and naming the wrong plugin is the failure that produces a hybrid.
+NVIM_SPEC=$(pal .apps.nvim.spec)
+NVIM_NAME=$(pal .apps.nvim.name)
+NVIM_OVERRIDES=$(jq -r '(.apps.nvim.palette | length) > 0' "$PALETTE" 2>/dev/null)
+CS="$GEN_CFG/nvim/lua/plugins/colorscheme.lua"
+
+if [[ -z $NVIM_SPEC || -z $NVIM_NAME ]]; then
+	bad "could not read apps.nvim from the palette" \
+		"spec='$NVIM_SPEC' name='$NVIM_NAME' — the scans below would pass on an empty needle"
+elif [[ ! -s $CS ]]; then
+	bad "nvim: lua/plugins/colorscheme.lua is missing or empty" \
+		"lazy.nvim would load no colourscheme and nvim would look merely unstyled"
+elif ! grep -qF "\"$NVIM_SPEC\"" "$CS"; then
+	bad "nvim: colorscheme.lua does not name $NVIM_SPEC" "generated, but not from the theme file"
+elif ! grep -qF "vim.cmd.colorscheme(\"$NVIM_NAME\")" "$CS"; then
+	bad "nvim: colorscheme.lua never applies '$NVIM_NAME'" \
+		"the plugin loads and the scheme is never set — nvim falls back in silence"
+else
+	ok "nvim: colorscheme.lua loads $NVIM_SPEC and applies '$NVIM_NAME'"
+fi
+
+# lualine throws at startup on a theme name it cannot resolve, rather than
+# falling back, so the generated names file has to carry one.
+if [[ -z $(sed -n 's/.*lualine = "\([^"]*\)".*/\1/p' "$GEN_CFG/nvim/lua/config/scheme.lua" 2>/dev/null) ]]; then
+	bad "nvim: lua/config/scheme.lua carries no lualine theme" \
+		"lualine errors on an unresolvable theme instead of falling back"
+else
+	ok "nvim: scheme.lua names a lualine theme"
+fi
+
+if [[ $NVIM_OVERRIDES == true ]]; then
+	if [[ ! -s "$GEN_CFG/nvim/lua/config/palette.lua" ]]; then
+		bad "nvim: '$SCHEME' declares palette overrides but no palette.lua was generated"
+	elif ! grep -qF "#${ACCENT}" "$GEN_CFG/nvim/lua/config/palette.lua"; then
+		bad "nvim: palette.lua does not contain #${ACCENT}" "generated, but not from the palette"
+	else
+		ok "nvim: palette.lua is generated from the palette"
+	fi
+elif [[ -e "$GEN_CFG/nvim/lua/config/palette.lua" ]]; then
+	bad "nvim: '$SCHEME' declares no palette overrides, but palette.lua exists" \
+		"a stale override file would recolour the plugin behind the scheme's back"
+else
+	ok "nvim: '$SCHEME' takes its plugin's own colours, and no palette.lua is generated"
+fi
 
 # The mode configs must actually `source=` the generated file. mango skips an
 # include it cannot resolve without a word, so a renamed file or a dropped line
@@ -970,25 +1030,126 @@ else
 	bad "palette hex found in hand-written files" "$(printf '%s\n' "$stray" | sed "s|^$SRC/||")"
 fi
 
+# The artefacts the palette cannot colour: GTK, Kvantum, icon and cursor themes.
+# Each is a NAME some other program resolves internally, and every one of them
+# fails the same way — the program falls back to its own default and looks
+# merely unstyled, which is indistinguishable from a theme someone chose. GTK
+# drops to Adwaita, Kvantum to its built-in style, and a cursor name that
+# matches nothing leaves the X11 default.
+#
+# So: the name a theme declares must exist as a real directory in the built
+# closure. `attr = null` means a toolkit built-in with nothing to install — that
+# is not checkable here and is exempt, which is exactly why the count of them is
+# reported rather than passed over.
+printf '\nTheme packages\n'
+
+# Where each artefact actually LANDS, which is not one place — and for Kvantum
+# it is not ONE place either. A scheme's own Kvantum theme is linked into
+# ~/.config/Kvantum by dotfiles.nix (Kvantum reads that, not XDG_DATA_DIRS),
+# while the built-ins the stand-in schemes name ship inside the style plugin on
+# the profile. Both are searched, so a built-in is verified rather than waved
+# through — which is the whole point of having this check at all.
+pkg_roots() {
+	case $1 in
+	gtk) printf '%s\n' "$GEN/home-path/share/themes" ;;
+	kvantum) printf '%s\n%s\n' "$GEN_CFG/Kvantum" "$GEN/home-path/share/Kvantum" ;;
+	icons | cursor) printf '%s\n' "$GEN/home-path/share/icons" ;;
+	esac
+}
+
+declared=0
+standins=""
+for kind in gtk kvantum icons cursor; do
+	name=$(pal ".packages.$kind.name")
+	attr=$(pal ".packages.$kind.attr")
+	native=$(pal ".packages.$kind.native")
+	if [[ -z $name ]]; then
+		bad "theme packages: '$SCHEME' declares no name for $kind" \
+			"the consumer would fall back to its own default, silently"
+		continue
+	fi
+	declared=$((declared + 1))
+	[[ $native == true ]] || standins+="  $kind → $name ($(pal ".packages.$kind.why"))"$'\n'
+
+	# Search where the running session reads, not the store path the theme file
+	# implies: a package that is declared but never installed fails here. This
+	# runs for `attr = null` too — a toolkit built-in still has to BE there, and
+	# "Adwaita-dark" was caught by exactly this: GTK3 renders it from compiled-in
+	# resources, so it works and no directory for it exists anywhere. A name only
+	# GTK can resolve is a name no check can, so the theme files name a real
+	# package instead.
+	#
+	# `find -L`, and the -L is load-bearing. buildEnv collapses a share/
+	# subdirectory with a single contributor into a SYMLINK to that package, and
+	# merges it into a real directory when several contribute. So share/themes is
+	# a symlink (only the GTK theme provides one) while share/icons is a real
+	# directory — and a plain `find` silently returns nothing for the first and
+	# works for the second. Which of the two you get depends on the scheme, which
+	# is the worst possible way for a check to fail.
+	hit=""
+	while IFS= read -r root; do
+		[[ -z $root ]] && continue
+		if find -L "$root" -maxdepth 1 -name "$name" 2>/dev/null | grep -q .; then
+			hit=${root#"$GEN/"}
+			break
+		fi
+	done < <(pkg_roots "$kind")
+
+	if [[ -n $hit ]]; then
+		ok "$kind: '$name' resolves in $hit"
+	else
+		bad "$kind: '$name' is in none of $(pkg_roots "$kind" | tr '\n' ' ')" \
+			"declared by themes/$SCHEME.nix from '${attr:-a toolkit built-in}' — the app falls back in silence"
+	fi
+done
+
+if [[ $declared -lt 4 ]]; then
+	bad "only $declared of 4 theme packages declared by '$SCHEME'" \
+		"the scan above would pass by finding nothing"
+elif [[ -z $standins ]]; then
+	ok "all 4 theme packages follow '$SCHEME'"
+else
+	# NOT a failure. A stand-in is a deliberate, declared choice — but it is one
+	# nobody can see on screen without knowing to look, so it is stated on every
+	# run rather than left to be discovered.
+	ok "$declared theme packages declared for '$SCHEME'; stand-ins:"$'\n'"$standins"
+fi
+
 # Contrast. THE ONE PROPERTY NOTHING USED TO CHECK — docs/THEME-MIGRATION.md §4
 # said so in as many words: "what it does not catch: whether the new colours are
 # legible". That gap shipped a scheme whose comments sat at 3.36:1, which reads
 # as a considered choice rather than a mistake, because every colour in it was
 # individually plausible.
 #
-# Ratios are WCAG 2.x relative luminance, recomputed here from the theme file on
-# every run rather than copied from whoever last did the arithmetic. The floor
-# is declared BY the theme (`contrastFloor`), because upstream Catppuccin Mocha
-# genuinely does not reach AA on its greys and a global floor would make
-# shipping it faithfully impossible — so the assertion is "this theme is as
-# legible as it claims", plus a hard minimum no theme may go below.
-HARD_MIN=3.0
+# Ratios are WCAG 2.x relative luminance, recomputed here from the RESOLVED
+# palette on every run rather than copied from whoever last did the arithmetic.
+#
+# TWO FLOORS, because two different promises are being made:
+#
+#   contrastFloor  what THIS MACHINE draws text with — the bar, the menus,
+#                  notifications, editor chrome, ncspot's rows
+#   ansiFloor      the sixteen terminal slots, which nothing here draws text in;
+#                  they are what OTHER programs print with, and they are the
+#                  scheme's published identity
+#
+# They were one number until 2026-08-18, which worked only because Catppuccin's
+# ANSI set IS its accent set. Gruvbox's normal red is 2.69:1 by upstream's
+# design, so one combined floor would have had to be 2.6 for that scheme — and
+# `comment`, the role the whole check exists for, could then have rotted to the
+# same place unnoticed. docs/adr/0032.
+#
+# Both floors are declared BY the theme, and there is NO global minimum under
+# them. There was one — 3.0 — and it was removed on 2026-08-18 as an invention:
+# it came in with `mocha-high-contrast`, out of a request for more readable text,
+# and then read like an external requirement. It is not one. Nord ships its
+# comment colour at 1.69:1 and that is Nord; a floor that forbids it is this
+# repo overruling upstream rather than recording it.
+#
+# What the assertion means is therefore exactly and only: **this theme is as
+# legible as it claims to be**. That still catches the thing worth catching — a
+# future edit that dims a role below what its own theme file declares — without
+# deciding for anyone which schemes are allowed to exist.
 
-theme_hex() { sed -n "s/^ *$1 = \"\([0-9a-f]\{6\}\)\";.*/\1/p" "$THEME_FILE" | head -1; }
-
-# `muted` repeats key names the top level also uses (fg, accent, surface), but
-# the top-level ones are unquoted aliases (`fg = fg1;`), so a quoted match is
-# unambiguous. That is the same property MUTED_ACCENT above relies on.
 contrast() {
 	awk -v a="$1" -v b="$2" '
 		function lin(c) { c = c / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
@@ -1005,44 +1166,89 @@ contrast() {
 		}'
 }
 
-FLOOR=$(sed -n 's/^ *contrastFloor = \([0-9.]*\);.*/\1/p' "$THEME_FILE" | head -1)
-THEME_BG=$(theme_hex bg0)
-MUTED_SURFACE=$(sed -n '/muted = {/,/};/s/^ *surface = "\([0-9a-f]\{6\}\)";.*/\1/p' "$THEME_FILE" | head -1)
+FLOOR=$(pal .contrastFloor)
+AFLOOR=$(pal .ansiFloor)
+THEME_BG=$(pal .bg0)
+MUTED_SURFACE=$(pal .muted.surface)
+MUTED_FG=$(pal .muted.fg)
+MUTED_ERR=$(pal .muted.err)
 
-if [[ -z $FLOOR || -z $THEME_BG || -z $MUTED_SURFACE ]]; then
-	bad "could not read contrastFloor/bg0/muted.surface from themes/$SCHEME.nix" \
-		"floor='$FLOOR' bg0='$THEME_BG' muted.surface='$MUTED_SURFACE' — every ratio below would be computed against nothing"
-elif ! awk -v f="$FLOOR" -v m="$HARD_MIN" 'BEGIN { exit !(f >= m) }'; then
-	bad "themes/$SCHEME.nix declares contrastFloor $FLOOR, below the hard minimum $HARD_MIN"
+if [[ -z $FLOOR || -z $AFLOOR || -z $THEME_BG || -z $MUTED_SURFACE || -z $MUTED_FG || -z $MUTED_ERR ]]; then
+	bad "could not read the floors or reference colours from themes/$SCHEME.nix" \
+		"floor='$FLOOR' ansi='$AFLOOR' bg0='$THEME_BG' muted.surface='$MUTED_SURFACE' muted.fg='$MUTED_FG' muted.err='$MUTED_ERR' — every ratio below would be computed against nothing"
 else
-	worst=""; worst_n=""; fails=""
-	# Text roles against bg0, then ncspot's muted set against ITS OWN surface —
-	# ncspot fills whole rows with that colour, so bg0 is the wrong reference and
-	# using it passes values that fail where they are actually drawn.
-	for role in fg0 fg1 fg4 brBlack brWhite comment mauve red green yellow blue magenta cyan; do
-		h=$(theme_hex "$role")
-		if [[ -z $h ]]; then
-			fails+="  $role: no literal hex in themes/$SCHEME.nix (aliased?) — not audited"$'\n'
+	worst=""
+	worst_n=""
+	fails=""
+
+	audit() { # <ratio> <label> <floor>
+		awk -v r="$1" -v f="$3" 'BEGIN { exit !(r < f) }' &&
+			fails+="  $2: $1 < $3"$'\n'
+		if [[ -z $worst ]] || awk -v r="$1" -v w="$worst" 'BEGIN { exit !(r < w) }'; then
+			worst=$1
+			worst_n=$2
+		fi
+	}
+
+	# What this machine draws text with, against `bg0`.
+	for role in fg0 fg1 fg4 brBlack brWhite comment accent okColor warnColor errColor infoColor; do
+		h=$(pal ".$role")
+		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+			fails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
 			continue
 		fi
-		r=$(contrast "$h" "$THEME_BG")
-		awk -v r="$r" -v f="$FLOOR" 'BEGIN { exit !(r < f) }' && fails+="  $role #$h on bg0: $r < $FLOOR"$'\n'
-		if [[ -z $worst ]] || awk -v r="$r" -v w="$worst" 'BEGIN { exit !(r < w) }'; then worst=$r; worst_n=$role; fi
+		audit "$(contrast "$h" "$THEME_BG")" "$role #$h on bg0" "$FLOOR"
 	done
-	for role in fg dim accent ok err; do
-		h=$(sed -n "/muted = {/,/};/s/^ *$role = \"\([0-9a-f]\{6\}\)\";.*/\1/p" "$THEME_FILE" | head -1)
-		if [[ -z $h ]]; then
-			fails+="  muted.$role: no literal hex in themes/$SCHEME.nix — not audited"$'\n'
+
+	# ncspot's muted set against ITS OWN surface — ncspot fills whole rows with
+	# that colour, so bg0 is the wrong reference and using it passes values that
+	# fail where they are actually drawn.
+	for role in fg dim accent ok; do
+		h=$(pal ".muted.$role")
+		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+			fails+="  muted.$role: not a colour in the resolved palette ('$h')"$'\n'
 			continue
 		fi
-		r=$(contrast "$h" "$MUTED_SURFACE")
-		awk -v r="$r" -v f="$FLOOR" 'BEGIN { exit !(r < f) }' && fails+="  muted.$role #$h on muted.surface: $r < $FLOOR"$'\n'
-		if [[ -z $worst ]] || awk -v r="$r" -v w="$worst" 'BEGIN { exit !(r < w) }'; then worst=$r; worst_n="muted.$role"; fi
+		audit "$(contrast "$h" "$MUTED_SURFACE")" "muted.$role #$h on muted.surface" "$FLOOR"
 	done
+
+	# `muted.err` is a BACKGROUND — ncspot sets `error_bg` from it and draws
+	# `error_fg` (= `muted.fg`) on top. Auditing it as a foreground against
+	# `surface` is a pair ncspot never draws, and it passed a live theme whose
+	# error row was **1.28:1**: light grey-blue text on light pink. The check was
+	# not lenient, it was measuring the wrong two colours. docs/adr/0032.
+	audit "$(contrast "$MUTED_FG" "$MUTED_ERR")" "muted.fg on muted.err (ncspot's error row)" "$FLOOR"
+
 	if [[ -n $fails ]]; then
 		bad "themes/$SCHEME.nix has text below its own declared floor of $FLOOR:1" "$fails"
 	else
-		ok "contrast: every text role in '$SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
+		ok "contrast: every UI text role in '$SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
+	fi
+
+	# The sixteen terminal slots. `black` is excluded — it is ANSI 0, a
+	# background tone, and nothing prints text in it.
+	aworst=""
+	aworst_n=""
+	afails=""
+	for role in red green yellow blue magenta cyan white \
+		brRed brGreen brYellow brBlue brMagenta brCyan brWhite; do
+		h=$(pal ".$role")
+		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+			afails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
+			continue
+		fi
+		r=$(contrast "$h" "$THEME_BG")
+		awk -v r="$r" -v f="$AFLOOR" 'BEGIN { exit !(r < f) }' &&
+			afails+="  $role #$h on bg0: $r < $AFLOOR"$'\n'
+		if [[ -z $aworst ]] || awk -v r="$r" -v w="$aworst" 'BEGIN { exit !(r < w) }'; then
+			aworst=$r
+			aworst_n=$role
+		fi
+	done
+	if [[ -n $afails ]]; then
+		bad "themes/$SCHEME.nix has ANSI colours below its own declared ansiFloor of $AFLOOR:1" "$afails"
+	else
+		ok "contrast: every ANSI slot in '$SCHEME' clears its floor of $AFLOOR:1 (worst: $aworst_n at $aworst)"
 	fi
 fi
 

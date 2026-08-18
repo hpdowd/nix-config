@@ -85,61 +85,75 @@ let
   # shape and avoids `recursive = true`, whose failure mode here is destroying
   # the checkout (see unlinkStaleConfigDirs below and docs/adr/0002).
   #
-  # The 19 keys below are catppuccin/nvim's own palette names, which are
-  # Catppuccin's colour vocabulary rather than a plugin invention — so unlike
-  # the gruvbox arrangement this replaced, they line up with what palette.nix
-  # names instead of needing a translation table. checks/static.sh asserts the
-  # generated file carries the accent.
+  # THREE generated files, and the split matters:
   #
-  # `overlay2` is what nvim paints Comment with — established by asking the
-  # running editor (`nvim_get_hl`), after a first pass assumed `overlay0` and was
-  # wrong. Left unset, the most-read dim colour on the machine took upstream's
-  # value, invisible to a palette audit because no file in this repo contained
-  # it: the same class as the twelve copies docs/adr/0028 found. `overlay0` and
-  # `overlay1` carry NonText, Conceal and FoldColumn and follow `brBlack`.
+  #   lua/config/scheme.lua       names only — read by the hand-written lazy.lua
+  #                               and ui.lua, so those two hold no scheme name
+  #   lua/plugins/colorscheme.lua the plugin spec, because a new scheme means a
+  #                               new PLUGIN, not overrides on a foreign one
+  #   lua/config/palette.lua      colours, and only when the theme declares an
+  #                               override map — see below
   #
-  # COMMENTS GO HERE, NOT IN THE STRING BELOW. `#` starts no comment inside a
-  # Nix `` literal and none in Lua either, so a `#` line in the block below is
-  # emitted verbatim into palette.lua and breaks it at load. That shipped once,
-  # past a green `nix flake check`, because the check only grepped for the accent
-  # — hence the parse check on the derivation.
-  #
-  # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire
-  # and lavender. palette.nix does not name them, and the
-  # plugin's own Mocha values for them are correct — this machine IS Mocha.
-  # Adding them here to "finish the job" would put nine more colours in the
-  # palette that no other consumer reads. `mantle` earned its place by
-  # acquiring one — Equibop's recessed background.
+  # WHY THE PLUGIN IS GENERATED. THEME-MIGRATION §3: overriding 16 keys of a
+  # Mocha theme with gruvbox values leaves 10 Catppuccin ones in place, and the
+  # result is a visible hybrid rather than gruvbox. So the theme file names the
+  # plugin whose scheme it IS, and only a theme that DEVIATES from its plugin
+  # (mocha-high-contrast, which lifts Mocha's greys) also supplies a palette.
+  nvimTheme = p.apps.nvim;
+
+  # COMMENTS GO HERE, NOT IN THE STRINGS BELOW. `#` starts no comment inside a
+  # Nix `` literal and none in Lua either, so a `#` line in a block below is
+  # emitted verbatim and breaks the file at load. That shipped once, past a green
+  # `nix flake check`, because the check only grepped for the accent — hence the
+  # parse check on the derivation.
+  nvimScheme = pkgs.writeText "scheme.lua" ''
+    -- GENERATED from modules/home/themes/${import ./scheme.nix}.nix — edit that,
+    -- then rebuild. Names only, no colours: lazy.lua needs the colourscheme to
+    -- fall back to and ui.lua needs lualine's theme, and neither should carry a
+    -- scheme name of its own.
+    return {
+      name = "${nvimTheme.name}",
+      lualine = "${nvimTheme.lualine}",
+    }
+  '';
+
+  # The plugin's own vocabulary on the left, the palette's roles on the right —
+  # the map lives in the theme file because the key names belong to the plugin,
+  # not to this machine. Emitted only when that map is non-empty; a scheme that
+  # matches its plugin takes upstream's values and this file does not exist.
   nvimPalette = pkgs.writeText "palette.lua" ''
     -- GENERATED from modules/home/palette.nix — edit that, then rebuild.
-    -- Consumed by lua/plugins/colorscheme.lua as catppuccin/nvim's
-    -- `color_overrides.mocha`. Not present in dotfiles/nvim/.
+    -- Consumed by lua/plugins/colorscheme.lua as the plugin's own override hook.
     return {
-      base = "#${p.bg0}",
-      mantle = "#${p.mantle}",
-      surface0 = "#${p.bg1}",
-      surface1 = "#${p.bg2}",
-      surface2 = "#${p.bg3}",
-      rosewater = "#${p.fg0}",
-      text = "#${p.fg1}",
-      subtext0 = "#${p.fg4}",
-      subtext1 = "#${p.brWhite}",
-      overlay1 = "#${p.brBlack}",
-      overlay0 = "#${p.brBlack}",
-      overlay2 = "#${p.comment}",
-      mauve = "#${p.accent}",
-      red = "#${p.red}",
-      green = "#${p.green}",
-      yellow = "#${p.yellow}",
-      blue = "#${p.blue}",
-      pink = "#${p.magenta}",
-      teal = "#${p.cyan}",
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (key: role: "  ${key} = \"#${p.${role}}\",") nvimTheme.palette
+    )}
+    }
+  '';
+
+  nvimColorscheme = pkgs.writeText "colorscheme.lua" ''
+    -- GENERATED from modules/home/themes/${import ./scheme.nix}.nix — edit that,
+    -- then rebuild. Not present in dotfiles/nvim/.
+    --
+    -- High priority and `lazy = false` so it loads before anything that reads
+    -- highlight groups at startup.
+    return {
+      {
+        "${nvimTheme.spec}",
+        name = "${nvimTheme.name}",
+        priority = 1000,
+        lazy = false,
+        config = function()
+    ${nvimTheme.setup}
+          vim.cmd.colorscheme("${nvimTheme.name}")
+        end,
+      },
     }
   '';
 
   # The parse check is the point of this being a derivation rather than a copy.
-  # A malformed palette.lua is invisible to every other gate here: `nix flake
-  # check` builds it happily, checks/static.sh greps it for the accent and finds
+  # A malformed generated file is invisible to every other gate here: `nix flake
+  # check` builds it happily, the palette scan greps it for the accent and finds
   # one, and nvim reports a failed plugin config at startup and falls back to no
   # colourscheme — which looks like a theme that did not apply, not a syntax
   # error. `luajit -b … /dev/null` compiles without running, so this is a syntax
@@ -147,9 +161,14 @@ let
   nvimConfig = pkgs.runCommand "nvim-config" { nativeBuildInputs = [ pkgs.luajit ]; } ''
     cp -r ${../../dotfiles/nvim} $out
     chmod -R u+w $out
-    cp ${nvimPalette} $out/lua/config/palette.lua
-    luajit -b $out/lua/config/palette.lua /dev/null \
-      || { echo "generated palette.lua is not valid Lua" >&2; exit 1; }
+    cp ${nvimScheme} $out/lua/config/scheme.lua
+    cp ${nvimColorscheme} $out/lua/plugins/colorscheme.lua
+    ${lib.optionalString (nvimTheme.palette != { }) "cp ${nvimPalette} $out/lua/config/palette.lua"}
+    for f in lua/config/scheme.lua lua/plugins/colorscheme.lua \
+             ${lib.optionalString (nvimTheme.palette != { }) "lua/config/palette.lua"}; do
+      luajit -b "$out/$f" /dev/null \
+        || { echo "generated $f is not valid Lua" >&2; exit 1; }
+    done
   '';
 in
 {
@@ -169,6 +188,74 @@ in
     "mango/universal/colors-tiling.conf".text = mangoColors p.surface;
     "mango/universal/colors-hud.conf".text = mangoColors p.surface;
     "mango/universal/colors-noctalia.conf".text = mangoColors p.overlay;
+
+    # noctalia's pinned settings — merged over its own settings.json by
+    # `scripts/modes/noctalia.sh` on every entry into that mode.
+    #
+    # GENERATED, and it is here rather than under dotfiles/mango/noctalia/
+    # because of ONE key: `predefinedScheme`. noctalia owns roughly half the
+    # screen in its mode and resolves its palette from that name internally, so
+    # a scheme change that misses it leaves the machine half this palette and
+    # half noctalia purple — which looks like a theme, not a fault. The rest of
+    # the file is settings rather than colours and moved with it, because the
+    # alternative is two owners for one path.
+    "mango/noctalia/settings-pinned.json".text = builtins.toJSON {
+      wallpaper.enabled = false;
+      nightLight.enabled = false;
+      idle.enabled = false;
+      general.lockOnSuspend = false;
+      colorSchemes = {
+        syncGsettings = false;
+        useWallpaperColors = false;
+        predefinedScheme = p.apps.noctalia;
+        darkMode = true;
+      };
+      templates = {
+        enableUserTheming = false;
+        activeTemplates = [ ];
+      };
+      plugins.autoUpdate = false;
+      appLauncher.enableClipboardHistory = true;
+      # `keybind` is a STRING in noctalia's schema, not a number — it is the key
+      # the session menu listens for, and a JSON integer here is silently ignored.
+      sessionMenu.powerOptions = [
+        {
+          action = "lock";
+          enabled = true;
+          keybind = "1";
+        }
+        {
+          action = "suspend";
+          enabled = true;
+          keybind = "2";
+        }
+        {
+          action = "hibernate";
+          enabled = true;
+          keybind = "3";
+        }
+        {
+          action = "reboot";
+          enabled = true;
+          keybind = "4";
+        }
+        {
+          action = "logout";
+          enabled = false;
+          keybind = "5";
+        }
+        {
+          action = "shutdown";
+          enabled = true;
+          keybind = "6";
+        }
+        {
+          action = "rebootToUefi";
+          enabled = true;
+          keybind = "7";
+        }
+      ];
+    };
 
     # --- Editors ------------------------------------------------------------
     # lazy-lock.json lives in stdpath("state"). Not the bare directory: the
@@ -296,13 +383,18 @@ in
     # theme installer writes siblings there, and two owners for one path is an
     # activation failure rather than a merge.
     #
+    # `scheme.theme.css`, NOT the scheme's name. The file is generated from
+    # whatever palette is selected, so a name like `catppuccin.theme.css` is
+    # wrong four schemes out of five — and it was already wrong once: the theme
+    # stayed `gruvbox.theme.css` through the 2026-08-18 migration because a
+    # filename is a *name*, not a colour, and the migration was grepping for hex.
+    # A scheme-neutral name cannot go stale, which is the only way to win here.
+    #
     # The lifecycle is the other half of this. `mango/scripts/lib.sh` sets
     # `enabledThemes` on every mode switch, and Equibop ignores a name that
-    # matches no file **without logging** — so the filename below and the one in
-    # that script have to move together. They did not, once: the theme stayed
-    # gruvbox through the 2026-08-18 migration because it is a *name*, not a
-    # colour, and the migration was grepping for hex.
-    "equibop/themes/catppuccin.theme.css".text =
+    # matches no file **without logging** — so this key and that script have to
+    # move together. `checks/static.sh` asserts they agree.
+    "equibop/themes/scheme.theme.css".text =
       builtins.readFile ../../dotfiles/equibop/theme-body.css
       + ''
         /* ---------------------------------------------------------------
@@ -385,13 +477,16 @@ in
     # --- Managed as FILES, not directories -----------------------------------
     # Pins the config read-only while leaving the directory writable for sibling
     # runtime files. Cost: no longer changeable from inside the app.
-    "Kvantum/kvantum.kvconfig".source = ../../dotfiles/Kvantum/kvantum.kvconfig;
-    # From the store, not vendored under dotfiles/. The gruvbox theme it
-    # replaces was a lone .kvconfig this repo carried because nixpkgs had no
-    # package for it; catppuccin-kvantum ships the widget SVG as well, which is
-    # most of what a Kvantum theme is and none of which belongs in git.
-    "Kvantum/catppuccin-mocha-mauve".source =
-      "${pkgs.catppuccin-kvantum}/share/Kvantum/catppuccin-mocha-mauve";
+    #
+    # GENERATED, because the theme name is the scheme's. It was a hand-written
+    # two-line file naming `catppuccin-mocha-mauve`, which made it one of the
+    # places a scheme change had to be remembered — and Kvantum falls back to
+    # its default style for a theme it cannot find, without a word.
+    "Kvantum/kvantum.kvconfig".text = ''
+      # GENERATED from modules/home/palette.nix — edit that, then rebuild.
+      [General]
+      theme=${p.packages.kvantum.name}
+    '';
 
     # theme.nix owns GTK settings, so nwg-look's own state is pinned read-only
     # to stop the GUI fighting it.
@@ -406,6 +501,20 @@ in
     # --- The one genuine holdout ---------------------------------------------
     # corectrl writes its config from the GUI, which is the point of it.
     "corectrl".source = link "corectrl";
+  }
+  # The Kvantum theme itself, from the store — but only when the scheme HAS one.
+  # All four shipped schemes do; a scheme that instead names a Kvantum built-in
+  # (`KvArcDark` and friends, which the style plugin already ships) has nothing
+  # to link, and an entry here would point at a path that does not exist. Kept
+  # because `packages.kvantum.attr = null` is a supported shape — Dracula and Ayu
+  # used it before they were dropped for needing too many stand-ins.
+  #
+  # Not vendored under dotfiles/: the gruvbox theme this arrangement replaced was
+  # a lone .kvconfig this repo carried because nixpkgs had no package for it, and
+  # a Kvantum theme is mostly rendered SVG widget art that does not belong in git.
+  // lib.optionalAttrs (p.packages.kvantum.attr != null) {
+    "Kvantum/${p.packages.kvantum.name}".source =
+      "${pkgs.themeKvantum}/share/Kvantum/${p.packages.kvantum.name}";
   };
 
   # gh, glab-cli, gpu-screen-recorder and opencode hold credentials and are

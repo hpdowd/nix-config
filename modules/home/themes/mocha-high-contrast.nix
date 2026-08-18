@@ -18,7 +18,7 @@
 # ramp below is chosen so it is no worse than Mocha's, and making it legible is
 # a highlight override rather than a colour.
 #
-# WHAT CHANGED, and nothing else did:
+# WHAT CHANGED from `mocha.nix`, and nothing else did:
 #   - `bg0` drops from Mocha's `base` to its `crust` (#1e1e2e → #11111b), which
 #     buys ~1.14x on everything at once. The old `base` becomes `bg1`, so the
 #     background ramp is Mocha's own, shifted one step down.
@@ -26,16 +26,18 @@
 #     saturation: `brBlack` #7f849c → #999eb7, ncspot's `dim` likewise.
 #   - the twelve accents are **byte-identical to Mocha's**. They already passed;
 #     changing them would have made this a different scheme rather than a more
-#     legible one, and the six theme packages (GTK, Kvantum, cursor, icons,
-#     noctalia, yazi) are shared with `mocha` precisely because the hues are.
+#     legible one, and the theme packages below are shared with `mocha`
+#     precisely because the hues are.
 #
 # The numbers are asserted, not asserted-once-and-trusted: `checks/static.sh`
 # recomputes every ratio in this file on each `nix flake check`, so a future
 # edit that dims a grey fails the build rather than the eye.
 rec {
-  # WCAG AAA, asserted by checks/static.sh over every text role in this file.
-  # This is the number the whole theme exists to hold.
-  contrastFloor = 7.0;
+  # --- Legibility, asserted by checks/static.sh -----------------------------
+  # Two floors because two different things are being promised. See
+  # `docs/adr/0032`; `mocha.nix` carries the long version of why they split.
+  contrastFloor = 7.0; # WCAG AAA. The number this whole theme exists to hold.
+  ansiFloor = 8.0; # Mocha's ANSI set IS its accent set, so this costs nothing.
 
   # --- Canonical names ------------------------------------------------------
   bg0 = "11111b"; # crust — the background, one step below Mocha's
@@ -53,8 +55,6 @@ rec {
   # Below `bg0`, for Equibop's pressed controls. Mocha's own crust is `bg0`
   # now, so this is darker than anything Catppuccin names.
   mantle = "09090f";
-
-  mauve = "cba6f7";
 
   black = "313244"; # surface0 — lifted with the rest of the ramp
   red = "f38ba8";
@@ -85,10 +85,14 @@ rec {
   subtext = fg4;
   # The dimmest colour that is still TEXT. 7.08:1 — this is the value the
   # complaint was actually about.
-  # Spelled out rather than aliased to `brBlack`: checks/static.sh reads these
-  # by regex from this file, and an alias reads as "role absent".
+  # Spelled out rather than aliased to `brBlack`, for readability — this was
+  # once load-bearing, because the check read hex from this file with sed and an
+  # alias read as "role absent". It resolves the palette through Nix now.
   comment = "999eb7";
-  accent = mauve;
+  # Mocha's mauve. The key that used to hold it (`mauve`) is gone, because
+  # nothing but the check ever read it, and a name earns its place by acquiring
+  # a consumer.
+  accent = "cba6f7";
 
   okColor = green;
   warnColor = yellow;
@@ -104,16 +108,142 @@ rec {
   # Measured against `surface` below, NOT against `bg0`: ncspot fills whole rows
   # with its raised background, so that is the colour its text actually sits on.
   # Checking these against `bg0` would have passed three values that fail where
-  # they are used — `err` reads 7.05:1 on `surface` and would have looked fine
-  # at 8.6 against the wrong reference.
+  # they are used.
   muted = {
     bg = bg0;
     fg = "b1b8d3"; # 9.01:1 on surface
     dim = "9ea2ba"; # 7.03:1
     accent = "b595dc"; # 7.01:1
     ok = "90c48d"; # 8.84:1
-    err = "e488a3"; # 7.05:1
+    # A BACKGROUND, not text — ncspot draws `error_fg` (= `fg` above) on it.
+    # This was #e488a3 until 2026-08-18, a light pink that put light grey-blue
+    # text at **1.28:1** on the running machine. It passed because the check
+    # measured it against `surface`, a pair ncspot never draws. Now it is
+    # audited as what it is: `fg` on `err` is 7.30:1. docs/adr/0032.
+    err = "352532";
     surface = "171724"; # raised background: status bar, cmdline, playing row
     overlay = "1b1b2a"; # borders, highlight, progress trough
+  };
+
+  # --- Artefacts the palette cannot colour ----------------------------------
+  # Rendered SVG widget art, cursor bitmaps, compiled SCSS and names other
+  # programs resolve internally. No amount of hex here reaches them, so the
+  # scheme names them instead and `checks/static.sh` asserts each one resolves.
+  # Identical to `mocha.nix`: this theme changes greys, not hues.
+  #
+  # `name` is READ OFF THE BUILT PACKAGE, never constructed from the arguments —
+  # `catppuccin-mocha-mauve-standard`, `catppuccin-mocha-mauve-cursors` and
+  # `catppuccin-mocha-mauve` are spelled three different ways from each other
+  # and from the attribute (`mochaMauve`). A GTK theme name matching nothing
+  # falls back to Adwaita and looks merely unstyled.
+  packages = {
+    gtk = {
+      attr = "catppuccin-gtk";
+      override = {
+        accents = [ "mauve" ];
+        variant = "mocha";
+        size = "standard";
+      };
+      name = "catppuccin-mocha-mauve-standard";
+      native = true;
+    };
+    kvantum = {
+      attr = "catppuccin-kvantum";
+      override = {
+        accent = "mauve";
+        variant = "mocha";
+      };
+      name = "catppuccin-mocha-mauve";
+      native = true;
+    };
+    icons = {
+      attr = "papirus-icon-theme";
+      # Papirus has no `mauve`; `violet` is its nearest folder colour.
+      override.color = "violet";
+      name = "Papirus-Dark";
+      native = true;
+    };
+    cursor = {
+      attr = "catppuccin-cursors";
+      sub = "mochaMauve";
+      name = "catppuccin-mocha-mauve-cursors";
+      native = true;
+    };
+    yazi = {
+      owner = "catppuccin";
+      repo = "yazi";
+      rev = "baaf5d1c9427b836fbefd126aa855f9eab7a9d0d";
+      hash = "sha256-L6SApM07CSQk0znEsFP8WaxW+ZHcindXo612r1XcwIg=";
+      file = "themes/mocha/catppuccin-mocha-mauve.toml";
+      native = true;
+    };
+  };
+
+  # --- Applications that hold a theme NAME ----------------------------------
+  # Not packages and not hex — settings whose value is a scheme's name. None of
+  # these show up in a search for colours, which is how the Equibop theme stayed
+  # gruvbox through a whole migration.
+  apps = {
+    # Resolved internally by noctalia's shell against its shipped Assets.
+    noctalia = "Catppuccin";
+
+    # nvim takes the plugin whose scheme this IS, per THEME-MIGRATION §3.
+    # `palette` is non-empty only here and in `mocha.nix`: this theme is a
+    # *deviation* from what the plugin ships, so it overrides the plugin's own
+    # values. A scheme that matches its plugin leaves this empty and takes
+    # upstream's.
+    nvim = {
+      spec = "catppuccin/nvim";
+      name = "catppuccin";
+      lualine = "catppuccin"; # provided by the plugin itself
+      setup = ''
+        require("catppuccin").setup({
+          flavour = "mocha",
+          transparent_background = true,
+          term_colors = true,
+          styles = {
+            comments = { "italic" },
+            conditionals = { "italic" },
+          },
+          color_overrides = { mocha = require("config.palette") },
+        })
+      '';
+      # catppuccin/nvim's OWN palette vocabulary on the left, this file's roles
+      # on the right. `overlay2` is what nvim paints Comment with — established
+      # by asking the running editor (`nvim_get_hl`), not assumed.
+      #
+      # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire and
+      # lavender. This file does not name them and the plugin's own Mocha values
+      # are correct, because this machine IS Mocha.
+      palette = {
+        base = "bg0";
+        mantle = "mantle";
+        surface0 = "bg1";
+        surface1 = "bg2";
+        surface2 = "bg3";
+        rosewater = "fg0";
+        text = "fg1";
+        subtext0 = "fg4";
+        subtext1 = "brWhite";
+        overlay0 = "brBlack";
+        overlay1 = "brBlack";
+        overlay2 = "comment";
+        mauve = "accent";
+        red = "red";
+        green = "green";
+        yellow = "yellow";
+        blue = "blue";
+        pink = "magenta";
+        teal = "cyan";
+      };
+    };
+
+    # Zed ships Gruvbox but NOT Catppuccin, so the extension is load-bearing.
+    # A theme name Zed cannot resolve leaves it on One Dark and logs nothing.
+    zed = {
+      extensions = [ "catppuccin" ];
+      dark = "Catppuccin Mocha";
+      light = "Catppuccin Latte";
+    };
   };
 }

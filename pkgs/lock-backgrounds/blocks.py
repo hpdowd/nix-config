@@ -32,11 +32,25 @@ def hex_to_rgb(h):
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def ramp(stops, steps):
+def ramp(stops, steps, offsets):
     """Piecewise-linear interpolation across `stops`, to `steps` colours.
 
     An odd `steps` over a symmetric ramp puts one entry exactly on the middle
     stop; an even count straddles it, which drags the mean off the base colour.
+
+    ONE CHANNEL IS INTERPOLATED and the other two are derived from it by the
+    fixed `offsets`, so hue preservation is structural rather than a property of
+    how rounding happened to land. Interpolating all three independently and
+    trusting them to agree is what this did until 2026-08-18, and it is wrong:
+    Python's round() is round-half-to-EVEN, so at t=.25 a channel triple of
+    (5, 8, 14) rounds to (6, 10, 16) — offsets (-4, -6) where every other stop
+    has (-3, -6). The three channels share a fractional part but not a parity,
+    and banker's rounding breaks the tie by parity.
+
+    Nothing caught it for two schemes because the arithmetic only diverges when
+    the .5 case lands AND the integer parts differ in parity: gruvbox's #282828
+    is three equal channels and Mocha's #1e1e2e is three even ones. Ayu's
+    #0b0e14 is (11, 14, 20), and it drifted on 4 of 9 tones.
     """
     cols = []
     for i in range(steps):
@@ -44,7 +58,8 @@ def ramp(stops, steps):
         lo = min(int(t), len(stops) - 2)
         f = t - lo
         a, b = hex_to_rgb(stops[lo]), hex_to_rgb(stops[lo + 1])
-        cols.append(tuple(round(a[c] + (b[c] - a[c]) * f) for c in range(3)))
+        r = round(a[0] + (b[0] - a[0]) * f)
+        cols.append(tuple(r + o for o in offsets))
     return cols
 
 
@@ -82,9 +97,13 @@ def main():
             f"{sorted(offsets)} differ, so the ramp shifts colour as well as "
             "lightness"
         )
+    # The one offset triple every stop agrees on. `ramp` builds each tone from
+    # it, so the invariant asserted above holds for the interpolated tones too
+    # and not only for the stops.
+    offset = next(iter(offsets))
 
     gw, gh = (int(v) for v in a.grid.split("x"))
-    pal = ramp(stops, a.steps)
+    pal = ramp(stops, a.steps, offset)
     grid = build(gw, gh, len(pal), random.Random(a.seed))
 
     with open(a.out, "wb") as f:

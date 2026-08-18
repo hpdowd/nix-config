@@ -2169,3 +2169,81 @@ one file, and a second copy is a thing that can drift. `checks/static.sh`
 asserts the handover line survives: deleting it leaves both inhibitors real and
 only an indicator wrong, which is the shape nothing here notices.
 
+---
+
+## 2026-08-18 · Two more schemes, and three checks measuring the wrong thing
+
+`docs/adr/0032`. Adds `gruvbox` and `nord` beside the two Mocha variants, and
+moves the artefacts the palette cannot colour into the theme file that owns them.
+
+`docs/adr/0030` had ended by saying the theme packages were *"the next commit,
+not this one"* — correctly, since both schemes it shipped were Catppuccin and
+shared all of them. A scheme from another family removed that excuse.
+
+### What the scheme now reaches
+
+Before, the GTK theme, Kvantum theme, icons, cursor, yazi flavor, noctalia
+scheme name, nvim plugin and Zed theme were spelled across `theme.nix`,
+`pkgs/default.nix`, two dotfiles, a lua file and a shell script — a six-file
+migration with **nothing checking it**, each half failing by falling back to a
+default that looks like a theme someone chose.
+
+Now a theme declares `packages` and `apps`, `pkgs/default.nix` resolves the
+names, and `checks/static.sh` asserts each resolves to a real directory. Three
+files left `dotfiles/` because they held a *name*, not a colour:
+`Kvantum/kvantum.kvconfig`, `mango/noctalia/settings-pinned.json`,
+`nvim/lua/plugins/colorscheme.lua`. All four schemes were checked one at a time.
+
+### Three defects, none of them visible
+
+The point of the entry: each had shipped, each looked fine, and each needed its
+check corrected before it could be seen.
+
+- **ncspot's error row was 1.28:1.** `muted.err` is a *background* — ncspot
+  draws `error_fg` (= `muted.fg`) on it — but the check measured it against
+  `muted.surface`, a pair ncspot never renders, and reported 7.05:1. Every theme
+  had it, including the one added to fix legibility.
+- **Four roles were never audited.** The check read hex with `sed`, so
+  `okColor = green;` read as "role absent" — all four status roles, in every
+  theme. It now takes the palette resolved by Nix as JSON, which also retired
+  `mauve`: a key only the check ever read.
+- **The lock ramp had a rounding bug.** `blocks.py` interpolated three channels
+  independently; Python's `round()` is round-half-to-**even**, so `(5, 8, 14)`
+  becomes `(6, 10, 16)` at `t=.25`. It only diverges when the half-case lands
+  *and* parities differ, and no shipped scheme can expose it — Gruvbox is three
+  equal channels, Mocha and Nord three even ones. Found while evaluating Ayu.
+  Fixed structurally: one channel is interpolated, the rest derived from fixed
+  offsets. Its checkPhase then failed under *gruvbox*, because ImageMagick writes
+  a neutral ramp as Gray and `mean.g` reads 0 — the earlier generalisation from
+  `R = G = B` had been tested only against tinted schemes.
+
+### Floors: two, and no minimum under them
+
+Gruvbox's normal red is 2.69:1 by upstream's design, so one floor would have
+forced the scheme to declare 2.6 and let `comment` rot to meet it. Split into
+`contrastFloor` (what this machine draws text with) and `ansiFloor` (the terminal
+slots, which nothing here draws text in).
+
+**`HARD_MIN = 3.0` was removed as an invention** — it arrived with
+`mocha-high-contrast` out of a request for readable text, then read like an
+external requirement. It would have forbidden Nord, whose comment colour is
+1.69:1 as published. The rule that replaced it: **upstream values ship as
+published; values this repo derives are chosen to be legible.** Only the ncspot
+`muted` set is in the second category.
+
+Measured: mocha 4.4/7.0, mocha-high-contrast 7.0/8.0, gruvbox 4.0/2.6,
+nord 1.69/3.0.
+
+### What it costs
+
+- **The scheme set.** Requiring every artefact to be native cut noctalia's ten
+  candidates to three. Ayu and Dracula were written, gated, then dropped for
+  three stand-ins each. Adding a fourth means packaging something — Rose Pine
+  needs one GTK theme.
+- **Historic gruvbox was not stock**, if comparing against git history: it
+  vendored the GTK theme, the Kvantum `.kvconfig` and a 916-line yazi flavor,
+  and used Papirus recoloured yellow. Only the cursor is unchanged.
+- Zed is the one pair no check can gate — extension id and theme name both live
+  in Zed's registry.
+- Two of gruvbox's eight muted values were below 3:1 where drawn and were
+  re-derived; they predate the contrast check.

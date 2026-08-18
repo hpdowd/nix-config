@@ -91,13 +91,28 @@ Tier 1 earns its churn three ways: typos become build failures, one option owns
 both the package and its config, and values can be shared —
 `modules/home/palette.nix` is the one palette — whichever of
 `modules/home/themes/*.nix` that `modules/home/scheme.nix` names (`docs/adr/0030`;
-switching is that one string plus a rebuild) — feeding
+switching is that one string plus a rebuild, and five ship: `mocha`,
+`mocha-high-contrast`, `gruvbox`, `nord`) — feeding
 kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the
 lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`, instead
 of the same hex codes transcribed into four files with nothing keeping them in
 step. A **drifted palette looks deliberate**, which is why it gets a check
 rather than a convention: `checks/static.sh` asserts every generated colour is
 used and every reference resolves.
+
+A theme file also declares what the palette **cannot** colour — the GTK, Kvantum,
+icon, cursor and yazi artefacts, and the scheme *names* noctalia, nvim and Zed
+resolve internally (`docs/adr/0032`). These are the half that fails silently:
+every one falls back to its own default and looks merely unstyled. The check
+asserts each name resolves to a real directory. **All four shipped schemes are
+fully native** — `native = false` marks a stand-in and nothing currently uses
+one, which is why the scheme set is what it is: noctalia ships ten colour
+schemes and nixpkgs fully serves only Catppuccin, Gruvbox and Nord.
+
+Each theme declares its own `contrastFloor` and `ansiFloor`, **measured, not
+chosen**, and there is no global minimum under them: the assertion is only "this
+theme is as legible as it claims". Nord's comment colour is 1.69:1 and that is
+Nord.
 
 What is deliberately *not* generated — `nvim`, `mango`, `swaync`, `glow`,
 `nwg-look` (all of which now take their *colours* from the palette even where
@@ -179,7 +194,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
 | about to undo something that looks redundant | `docs/adr/` — twenty records, each carrying the failure that motivated it |
-| changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two |
+| changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |
 | planning the next structural change | `docs/PLAN-idiomatic-nix.md` |

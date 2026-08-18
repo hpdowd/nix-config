@@ -241,9 +241,11 @@ in
   programs.zed-editor = {
     enable = true;
 
-    # Zed has no built-in Catppuccin. Declared here so the theme named in
-    # `userSettings.theme` below can actually resolve.
-    extensions = [ "catppuccin" ];
+    # Zed ships some schemes and not others, so the list comes from the theme
+    # file: Gruvbox is built in and declares `[ ]`; Catppuccin and Nord are
+    # extensions. Declared here so the theme named in `userSettings.theme` below
+    # can actually resolve.
+    extensions = p.apps.zed.extensions;
 
     userSettings = {
       project_panel.dock = "left";
@@ -276,15 +278,19 @@ in
         dark = "JetBrains New UI Icons (Dark)";
       };
 
-      # Gruvbox ships INSIDE Zed; Catppuccin does not, so the extension below is
-      # load-bearing rather than a convenience. A theme name Zed cannot resolve
-      # leaves it on One Dark and logs nothing — the usual shape. Zed installs
-      # extensions on first launch, so the very first start after this change
-      # may show the fallback until it finishes.
+      # A theme name Zed cannot resolve leaves it on One Dark and logs nothing —
+      # the usual shape. Zed installs extensions on first launch, so the very
+      # first start after a scheme change may show the fallback until it
+      # finishes.
+      #
+      # THE ONE PAIR NO CHECK HERE CAN GATE. Both halves live in Zed's own
+      # registry: `checks/static.sh` can assert the theme file names an
+      # extension and a theme, but not that Zed resolves either. Verify by
+      # output after a scheme change — open Zed and look.
       theme = {
         mode = "system";
-        light = "Catppuccin Latte";
-        dark = "Catppuccin Mocha";
+        light = p.apps.zed.light;
+        dark = p.apps.zed.dark;
       };
 
       buffer_font_family = "Hack Nerd Font Mono";
@@ -413,10 +419,13 @@ in
     # Set explicitly, and deleted from 10-aliases.zsh — one owner.
     shellWrapperName = "y";
 
-    flavors.catppuccin = pkgs.catppuccin-yazi;
+    # `scheme`, not the scheme's name: the flavor package follows
+    # modules/home/scheme.nix, so a name here would be wrong four schemes out of
+    # five — the same reason Equibop's generated theme file is `scheme.theme.css`.
+    flavors.scheme = pkgs.themeYazi;
     theme.flavor = {
-      dark = "catppuccin";
-      light = "catppuccin";
+      dark = "scheme";
+      light = "scheme";
     };
   };
 

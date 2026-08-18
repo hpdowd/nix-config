@@ -161,7 +161,16 @@
             ''
               bash ${self}/checks/static.sh ${self} \
                 ${self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage} \
-                ${self.nixosConfigurations.thinkpad.config.system.build.toplevel}
+                ${self.nixosConfigurations.thinkpad.config.system.build.toplevel} \
+                ${
+                  # The selected theme, RESOLVED. The check used to read hex out
+                  # of the theme file with sed, which meant a role written as an
+                  # alias (`okColor = green;`) read as "role absent" and went
+                  # unaudited — four of them did. Nix resolves the `rec` here, so
+                  # the check sees values rather than source text and every role
+                  # is audited however it is spelled. docs/adr/0032.
+                  pkgs.writeText "palette.json" (builtins.toJSON (import ./modules/home/palette.nix))
+                }
               touch $out
             '';
       };

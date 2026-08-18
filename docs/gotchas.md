@@ -1367,24 +1367,69 @@ the scan exists to find, inside the scan. It now extracts the values from the
 palette and **fails below sixteen of them**, so a sed that stops matching is
 loud rather than reassuring.
 
-**Six theme *packages* the palette cannot reach**, and no amount of Nix will
-change that: the GTK theme (upstream's SCSS), GTK4 (follows it), the icon theme
-(Papirus, folder colour set by an overlay `override` to match the accent), the
-cursor (rendered bitmaps), Kvantum (rendered widget SVG) and noctalia
-(`predefinedScheme = "Catppuccin"`, a name its shell resolves) — plus yazi's
-flavor, ~900 hex of third-party syntax theme, now fetched into the store by the
-overlay rather than vendored under `dotfiles/`. For these, changing scheme means
-picking a different upstream artefact, not editing the palette.
-**`docs/THEME-MIGRATION.md` is the runbook** for doing that.
+**The artefacts the palette cannot reach are DECLARED IN THE THEME FILE**, since
+`docs/adr/0032`: the GTK theme, GTK4 (follows it), icons, cursor, Kvantum, yazi's
+flavor, and the names noctalia, nvim and Zed resolve internally. They live in the
+`packages` and `apps` blocks of `modules/home/themes/*.nix`; `pkgs/default.nix`
+resolves them and `checks/static.sh` asserts each resolves to a real directory.
+Before that they were spelled across six files with nothing checking them.
+**`docs/THEME-MIGRATION.md` is the runbook**, and its §2 has the availability
+matrix.
 
-**Three of those package names are spelled three different ways.** The Catppuccin
-attribute is `mochaMauve`, the GTK theme directory is
-`catppuccin-mocha-mauve-standard`, the cursor is `catppuccin-mocha-mauve-cursors`
-and the Kvantum theme is `catppuccin-mocha-mauve`. `theme.nix`, `gtk-apply.sh`,
-`$GTK_THEME` and `kvantum.kvconfig` each name one by hand. **A GTK theme name
-matching nothing falls back to Adwaita without logging**, which looks like a
-theme someone chose. Read the name off the built package rather than constructing
-it: `ls "$(nix eval --raw .#…pkgs.catppuccin-gtk)/share/themes"`.
+**These names are not guessable from the attribute that builds them.** Catppuccin
+is `mochaMauve` → `catppuccin-mocha-mauve-standard` (GTK),
+`catppuccin-mocha-mauve-cursors`, `catppuccin-mocha-mauve` (Kvantum) — four
+spellings. `nordic` ships `Nordic-darker` and `Nordic-Darker` in one package.
+`capitaine-cursors-themed` installs `Capitaine Cursors (Gruvbox)`, parentheses
+included. **A GTK theme name matching nothing falls back to Adwaita without
+logging.** Read the name off the built package:
+`ls "$(nix build --no-link --print-out-paths nixpkgs#<attr>)/share/themes"`.
+
+**A name only the toolkit can resolve is a name no check can.** `Adwaita-dark`
+renders — GTK3 has it compiled in — and no directory for it exists anywhere. If a
+name works on screen but the check cannot find it, that is the check working.
+
+**No shipped scheme uses a `native = false` stand-in, and that is the selection
+criterion.** noctalia constrains the set: it resolves its palette from a name in
+its own shipped Assets, so a scheme it does not ship leaves half the screen on a
+different palette. Of its ten, nixpkgs fully serves Catppuccin, Gruvbox and Nord.
+Rose Pine is the nearest miss, short only a GTK theme.
+
+**ncspot's `muted.err` is a BACKGROUND, and the check measured it as text.** It
+sets `error_bg`, with `error_fg` (= `muted.fg`) on top. The check compared it
+against `muted.surface` — a pair ncspot never renders — and reported 7.05:1 for a
+row measuring **1.28:1** on the running machine. Every theme carried it.
+**A check measuring the wrong two colours is worse than no check, because it
+reports a number.** `docs/adr/0032`.
+
+**Contrast has two floors, and there is no minimum under them.** `contrastFloor`
+is what this machine draws text with; `ansiFloor` is the sixteen terminal slots,
+which nothing here draws text in — gruvbox's normal red is 2.69:1 by upstream's
+design, so one shared floor would have had to be 2.6 and would have let
+`comment` rot to meet it. The global `HARD_MIN = 3.0` was removed 2026-08-18 as
+an invention: it arrived with `mocha-high-contrast` out of a request for readable
+text, then read like an external requirement, and it would have forbidden Nord at
+1.69:1 as published. **Upstream values ship as published; values this repo
+derives are chosen to be legible.**
+
+**Python's `round()` is round-half-to-even, and it broke the lock ramp.** The
+background pool interpolated all three channels independently and trusted them to
+round alike; at `t=.25` the triple `(5, 8, 14)` rounds to `(6, 10, 16)`, a hue
+shift. It only diverges when the half-case lands *and* the integer parts differ
+in parity — gruvbox's `#282828` is three equal channels, Mocha's `#1e1e2e` three
+even ones, so both shipped schemes hid it. It surfaced while evaluating Ayu,
+whose `#0b0e14` is (11, 14, 20) and drifted on 4 of 9 tones — Ayu was not kept,
+but the bug it exposed is real for any palette whose channels differ in parity.
+The ramp now interpolates one channel and derives the others from fixed
+offsets, so hue preservation is structural rather than an accident.
+
+**ImageMagick picks a colorspace from content, and a neutral palette is Gray.**
+The lock pool's own checkPhase failed under gruvbox claiming the green channel
+was 0, when the pixels were correct: `#282828` is `r=g=b`, so the PNG was written
+as Gray and `mean.g` reads 0. The 2026-08-18 pass generalised that check from
+`R = G = B` to per-channel offsets and fixed the tinted case while opening the
+neutral one — both schemes it was tested against were tinted. Now `-type
+TrueColor` on write and `-colorspace sRGB` on every measurement.
 
 **mango's colours need a `rebuild`, not a `mango-reload`.** They are generated
 into `universal/colors-<mode>.conf` and live in the store like everything else
@@ -1401,6 +1446,11 @@ and the dconf keys. `gtk-apply.sh` now only exports `GTK_THEME` to the systemd
 user environment and restarts `xdg-desktop-portal-gtk` (which caches the theme at
 startup). **Never have both setting the theme** — one owner, in either direction.
 See `docs/adr/0004`.
+
+> It **reads the name out of the generated `gtk-3.0/settings.ini`** rather than
+> carrying its own literal, and refuses to export an empty one. A stale literal
+> there would have overridden the correct settings for every user service
+> started afterwards — the export is the more authoritative of the two.
 
 **A GTK theme can be deleted from nixpkgs under you, and the failure is an eval
 error naming a package you never touched.** GTK2 went, taking

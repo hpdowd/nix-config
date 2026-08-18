@@ -3,20 +3,90 @@
 
 # `final`, not `_final`: `lockscreen` below composes `lock-backgrounds` from
 # this same overlay, and only the fixpoint argument sees it.
-final: prev: {
+final: prev:
+
+let
+  # The selected scheme, as data. Same `import` the modules use — an overlay
+  # runs before any module evaluates, so this is the only way in (docs/adr/0030).
+  themeData = import ../modules/home/palette.nix;
+
+  # One of the theme file's `packages.*` entries → a package, or `null` when the
+  # name belongs to a toolkit built-in and there is nothing to install.
+  #
+  # `prev.${d.attr}` rather than a lookup table: an attribute that does not
+  # exist is an eval error naming the attribute, which is the loud failure this
+  # repo wants. `base` is lazy, so the null guard runs first.
+  themePkg =
+    d:
+    let
+      base = if (d.sub or null) == null then prev.${d.attr} else prev.${d.attr}.${d.sub};
+      ov = d.override or { };
+    in
+    if d.attr == null then
+      null
+    else if ov == { } then
+      base
+    else
+      base.override ov;
+in
+
+{
 
   # ==========================================================================
-  # papirus-icon-theme — folders on the accent
+  # theme* — the artefacts the palette cannot colour
   # ==========================================================================
-  # The `papirus-folders` CLI recolours in place and cannot touch a store path;
-  # `color` is the same thing at build time. An overlay, not a call-site
-  # override — two references would otherwise put two Papirus derivations on
-  # XDG_DATA_DIRS with the colour decided by lookup order.
+  # Rendered SVG widget art, cursor bitmaps and compiled SCSS. No hex reaches
+  # them, so the selected theme file NAMES them and this block resolves those
+  # names to packages — one place, so a scheme is still one file to add.
   #
-  # `violet` is Papirus's nearest name to Catppuccin's mauve; Papirus has no
-  # mauve, and its folder set is rendered SVG, so this is a pick from its list
-  # rather than a colour the palette can supply.
-  papirus-icon-theme = prev.papirus-icon-theme.override { color = "violet"; };
+  # AN OVERLAY, not call-site overrides: `themeIcons` is a Papirus recolour for
+  # three of the five schemes, and two references to `papirus-icon-theme.override`
+  # would put two Papirus derivations on XDG_DATA_DIRS with the colour decided
+  # by lookup order. That is what this was before, and it is why it stays here.
+  #
+  # The overlay reads the palette by `import`, which is the same reason
+  # `scheme.nix` is a file rather than a home-manager option — an overlay is
+  # applied before any module evaluates and cannot see `config.*` (docs/adr/0030).
+  #
+  # `attr = null` means "no package": the name is a GTK or Kvantum built-in that
+  # ships with the toolkit. Resolving it to `null` here is what lets theme.nix
+  # and dotfiles.nix set the name without installing anything.
+  themeGtk = themePkg themeData.packages.gtk;
+  themeKvantum = themePkg themeData.packages.kvantum;
+  themeIcons = themePkg themeData.packages.icons;
+  themeCursor = themePkg themeData.packages.cursor;
+
+  # The yazi flavor: a `.yazi` PACKAGE — a directory whose entry point is
+  # `flavor.toml`. Assembled rather than fetched whole because the upstreams
+  # disagree on layout: catppuccin/yazi ships bare per-accent TOMLs under
+  # `themes/<variant>/`, yazi-rs/flavors ships one directory per scheme, and the
+  # single-scheme repos put `flavor.toml` at their root. The theme file gives the
+  # path within its own source, so all three shapes land the same way here.
+  #
+  # `cp` a single named file rather than the directory: a path renamed upstream
+  # then fails the BUILD, where a glob would install nothing and yazi would fall
+  # back to its built-in theme with no error anywhere.
+  #
+  # This replaces a 916-line gruvbox flavor that lived under dotfiles/ as
+  # third-party colour *data* — which `checks/static.sh` exempts from the
+  # no-stray-hex rule, and which nothing here should have been hand-editing.
+  themeYazi =
+    let
+      y = themeData.packages.yazi;
+    in
+    prev.runCommand "yazi-flavor-${y.repo}" { } ''
+      mkdir -p "$out"
+      cp ${
+        prev.fetchFromGitHub {
+          inherit (y)
+            owner
+            repo
+            rev
+            hash
+            ;
+        }
+      }/${y.file} "$out/flavor.toml"
+    '';
 
   # ==========================================================================
   # noctalia-shell — its mango backend still speaks dwl's dead flags
@@ -66,66 +136,6 @@ final: prev: {
       hash = "sha256-WmHrMALgP52OJH1acrB7DMgo/8FMgksPyXpeRL9Q7s0=";
     };
   });
-
-  # ==========================================================================
-  # catppuccin-gtk / catppuccin-kvantum — pinned to one variant each
-  # ==========================================================================
-  # Overlay overrides for the same reason as Papirus above: both are referenced
-  # from more than one place (theme.nix and dotfiles.nix), and a call-site
-  # `.override` at each would build two derivations and put two copies of the
-  # theme on XDG_DATA_DIRS, with lookup order deciding which one renders.
-  #
-  # These replace a VENDORED gruvbox-gtk-theme, which existed only because
-  # nixpkgs dropped that package in 2026-07. Both Catppuccin themes are in
-  # nixpkgs, so there is nothing to vendor — the derivation is gone rather than
-  # retargeted.
-  #
-  # The names these produce are load-bearing and are not guessable from the
-  # arguments: `catppuccin-mocha-mauve-standard` (GTK) and
-  # `catppuccin-mocha-mauve` (Kvantum). theme.nix, gtk-apply.sh, $GTK_THEME and
-  # kvantum.kvconfig all spell them out, and `checks/static.sh` asserts the GTK
-  # one resolves to a real directory — a GTK theme name that matches nothing
-  # falls back to Adwaita and looks merely unstyled.
-  catppuccin-gtk = prev.catppuccin-gtk.override {
-    accents = [ "mauve" ];
-    variant = "mocha";
-    size = "standard";
-  };
-
-  catppuccin-kvantum = prev.catppuccin-kvantum.override {
-    accent = "mauve";
-    variant = "mocha";
-  };
-
-  # ==========================================================================
-  # catppuccin-yazi — the flavor, which nixpkgs does not package
-  # ==========================================================================
-  # `programs.yazi.flavors` takes a `.yazi` PACKAGE — a directory whose entry
-  # point is `flavor.toml`. Upstream ships bare per-accent TOMLs under
-  # `themes/<variant>/`, so the package is assembled here rather than fetched
-  # whole; the file is copied unmodified.
-  #
-  # This replaces a 916-line gruvbox flavor that lived under dotfiles/ as
-  # third-party colour *data* — which `checks/static.sh` exempts from the
-  # no-stray-hex rule, and which nothing here should have been hand-editing.
-  # Out of the repo now, so that exemption covers one thing less.
-  #
-  # `cp` a single named file rather than the directory: a variant renamed
-  # upstream then fails the BUILD, where a glob would install nothing and yazi
-  # would fall back to its built-in theme with no error anywhere.
-  catppuccin-yazi =
-    let
-      src = prev.fetchFromGitHub {
-        owner = "catppuccin";
-        repo = "yazi";
-        rev = "baaf5d1c9427b836fbefd126aa855f9eab7a9d0d";
-        hash = "sha256-L6SApM07CSQk0znEsFP8WaxW+ZHcindXo612r1XcwIg=";
-      };
-    in
-    prev.runCommand "catppuccin-mocha-mauve.yazi" { } ''
-      mkdir -p "$out"
-      cp ${src}/themes/mocha/catppuccin-mocha-mauve.toml "$out/flavor.toml"
-    '';
 
   # ==========================================================================
   # Brother MFC-L3740CDW printer driver
@@ -247,7 +257,11 @@ final: prev: {
             --grid 12x8 --steps 9 --seed "$i" \
             --stops '${stops}' \
             --out block.ppm
-          magick block.ppm -filter Point -resize '1920x1200!' \
+          # `-type TrueColor` so the PNG is RGB whatever the palette is. Without
+          # it ImageMagick picks the colorspace from CONTENT, and a neutral bg0
+          # (gruvbox's #282828 is r=g=b) writes a Gray PNG whose green and blue
+          # channels then read as 0 — see the checkPhase below, which that broke.
+          magick block.ppm -filter Point -resize '1920x1200!' -type TrueColor \
             "pool/$(printf 'lock-%02d' "$i").png"
         done
         runHook postBuild
@@ -273,6 +287,14 @@ final: prev: {
       # shifted band, which is the failure worth catching: earlier attempts sat
       # at 54 and 70. Now per channel, so a ramp that drifted in one channel only
       # cannot average back into range.
+      #
+      # `-colorspace sRGB` on every measurement, belt to the `-type TrueColor`
+      # braces above. ImageMagick reports `mean.g` and `mean.b` as 0 for an image
+      # it considers Gray, so on a NEUTRAL palette this check failed claiming the
+      # green channel was 0 when the pixels were correct. The 2026-08-18 pass
+      # generalised this check from "R = G = B" to per-channel offsets and fixed
+      # the tinted case while opening the neutral one — the two schemes it was
+      # tested against were both tinted.
       doCheck = true;
       checkPhase = ''
         runHook preCheck
@@ -281,16 +303,18 @@ final: prev: {
         for f in pool/*.png; do
           ${prev.lib.concatStrings (
             prev.lib.zipListsWith (name: want: ''
-              mean=$(magick "$f" -format '%[fx:int(mean.${name}*255)]' info:)
+              mean=$(magick "$f" -colorspace sRGB -format '%[fx:int(mean.${name}*255)]' info:)
               [ "$mean" -ge ${toString (want - 1)} ] && [ "$mean" -le ${toString (want + 1)} ] ||
                 { echo "$f: ${name} mean $mean, expected ${toString want}±1 (${tone 0})" >&2; exit 1; }
             '') chanName mid
           )}
-          drifted=$(magick "$f" -unique-colors txt: |
+          drifted=$(magick "$f" -colorspace sRGB -unique-colors txt: |
             grep -oE '#[0-9A-F]{6}' |
             awk 'function v(s, i) { return strtonum("0x" substr(s, i, 2)) }
                  { if (v($0,2) - v($0,4) != ${toString (builtins.elemAt mid 0 - builtins.elemAt mid 1)} ||
-                       v($0,4) - v($0,6) != ${toString (builtins.elemAt mid 1 - builtins.elemAt mid 2)}) n++ }
+                       v($0,4) - v($0,6) != ${
+                         toString (builtins.elemAt mid 1 - builtins.elemAt mid 2)
+                       }) n++ }
                  END { print n+0 }')
           [ "$drifted" -eq 0 ] ||
             { echo "$f: $drifted tones off ${tone 0}'s hue — the ramp shifts colour, not just lightness" >&2; exit 1; }

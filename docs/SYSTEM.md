@@ -279,7 +279,10 @@ The routing table. Find the row, edit the file, apply as in §4.
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
 | Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `mocha-high-contrast` |
-| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the six theme *packages* it cannot reach |
+| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi` |
+| Which scheme | `modules/home/scheme.nix` — one string, naming a file in `modules/home/themes/`. Four ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord` — every one fully native |
+| The GTK / Qt / icon / cursor / yazi theme | the selected theme file's `packages` block — names, not hex, resolved by `pkgs/default.nix` into `themeGtk` and friends (`docs/adr/0032`) |
+| nvim's colourscheme, Zed's theme, noctalia's scheme | the selected theme file's `apps` block |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
 | Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
@@ -395,9 +398,15 @@ for an unconverted config.
 
 `dotfiles/yazi/` was the same shape until the Catppuccin migration and is now
 gone: the flavor is third-party colour data, so it is fetched into the store by
-the overlay (`pkgs.catppuccin-yazi`) instead of being carried in git. That is
-the preferred end state for this category — vendor it only when there is no
-upstream to fetch.
+the overlay (`pkgs.themeYazi`, from the selected theme's `packages.yazi`)
+instead of being carried in git. That is the preferred end state for this
+category — vendor it only when there is no upstream to fetch.
+
+Three more files left `dotfiles/` for the same reason in `docs/adr/0032`, each
+because it held a scheme's **name**: `Kvantum/kvantum.kvconfig`,
+`mango/noctalia/settings-pinned.json` and `nvim/lua/plugins/colorscheme.lua`.
+A name is not a colour, so none of them showed up in a search for hex — which is
+exactly how the Equibop theme stayed gruvbox through a whole migration.
 
 ### What is deliberately NOT generated
 
@@ -405,7 +414,7 @@ Do not "finish the job" without reading these:
 
 | Config | Why it stays a file |
 |---|---|
-| `nvim` | ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed plugins is a *rewrite*, trading `:Lazy sync` for a rebuild per plugin bump. The store path already gives reproducibility |
+| `nvim` | ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed plugins is a *rewrite*, trading `:Lazy sync` for a rebuild per plugin bump. The store path already gives reproducibility. **Three files inside it ARE generated** and merged in the store — `lua/plugins/colorscheme.lua`, `lua/config/scheme.lua` and (conditionally) `lua/config/palette.lua`, because the colourscheme follows `scheme.nix` (`docs/adr/0032`) |
 | `mango` | No module exists, and the mode scripts genuinely need to `cp` into `config.conf` — hence `recursive = true` |
 | `swaync` | `services.swaync` exists and works, but declares the unit that is deliberately **masked**. `autostart.conf` owns swaync's lifecycle so restyles apply on mode switch. Adopting the module flips that ownership and needs its own decision. **Never run both** |
 | waybar CSS | Same reasoning — hand-tuned presentation is data |
@@ -456,7 +465,7 @@ Instead `scripts/modes/noctalia.sh` writes it in two halves that differ in
 | File | Applied | Holds |
 |---|---|---|
 | `noctalia/settings.json` | once, when there is no file at all | preferences — terminal command, changelog popup, telemetry. Yours to change from noctalia's UI afterwards |
-| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the Catppuccin colour scheme |
+| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the colour scheme. **Generated** from the selected theme's `apps.noctalia`, so it is not under `dotfiles/` |
 
 Both are partial and deliberately carry no `settingsVersion`; everything else
 comes from the package's own `Assets/settings-default.json`, and upstream's

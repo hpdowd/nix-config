@@ -30,7 +30,9 @@ end
 require("lazy").setup({
   spec = { { import = "plugins" } },
   lockfile = lockfile,
-  install = { colorscheme = { "catppuccin", "habamax" } },
+  -- The scheme's own name is GENERATED into lua/config/scheme.lua; "habamax"
+  -- ships with nvim and is the fallback if the plugin has not been fetched yet.
+  install = { colorscheme = { require("config.scheme").name, "habamax" } },
   checker = { enabled = false },           -- don't auto-check for plugin updates
   change_detection = { notify = false },
   rocks = { enabled = false },             -- no luarocks (neorg is gone)

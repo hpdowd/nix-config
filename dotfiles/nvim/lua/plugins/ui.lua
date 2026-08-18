@@ -6,7 +6,10 @@ return {
     dependencies = { "nvim-mini/mini.icons" },
     opts = {
       options = {
-        theme = "catppuccin",
+        -- GENERATED name, from modules/home/themes/<scheme>.nix via
+        -- lua/config/scheme.lua. A lualine theme that does not resolve throws
+        -- at startup rather than falling back, so this must not be typed here.
+        theme = require("config.scheme").lualine,
         globalstatus = true,
         section_separators = "",
         component_separators = "",

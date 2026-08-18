@@ -88,3 +88,7 @@ result-*
 # config.toml, and userstate.cbor was only ever written to ~/.config/ncspot/,
 # never here. The copy in the repo was residue from before docs/adr/0003 and
 # had been untracked-but-present ever since; it is deleted rather than ignored.
+
+# Python bytecode, from running pkgs/lock-backgrounds/blocks.py directly
+__pycache__/
+*.pyc

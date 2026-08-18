@@ -9,4 +9,4 @@
 #
 # Must name a file in `./themes/`. A typo is a "file not found" eval error,
 # which is the failure mode this repo wants: loud, before anything is built.
-"mocha-high-contrast"
+"gruvbox"

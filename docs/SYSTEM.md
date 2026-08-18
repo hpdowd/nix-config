@@ -408,6 +408,13 @@ because it held a scheme's **name**: `Kvantum/kvantum.kvconfig`,
 A name is not a colour, so none of them showed up in a search for hex — which is
 exactly how the Equibop theme stayed gruvbox through a whole migration.
 
+`mango/universal/cursor.conf` joined them on 2026-08-18, for the fourth time the
+same way: `universal/settings.conf` named the cursor theme by hand and kept
+Catppuccin's through two scheme changes. It is now generated from
+`config.home.pointerCursor` and `source=`d by `settings.conf`, alongside the
+`colors-*.conf` siblings — so mango, GTK and `~/.icons/default` cannot disagree.
+`docs/gotchas.md` → Theming has why it was invisible.
+
 ### What is deliberately NOT generated
 
 Do not "finish the job" without reading these:

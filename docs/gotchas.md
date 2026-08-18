@@ -1389,6 +1389,30 @@ logging.** Read the name off the built package:
 renders — GTK3 has it compiled in — and no directory for it exists anywhere. If a
 name works on screen but the check cannot find it, that is the check working.
 
+**The cursor has a consumer outside the theme file, and it kept the old scheme's
+name for two migrations.** `dotfiles/mango/universal/settings.conf` set
+`cursor_theme=catppuccin-mocha-mauve-cursors` by hand. Under gruvbox and nord
+that package is not installed at all, and mango does not complain: it passes the
+name to `wlr_xcursor_manager_create`, which falls back to its own default. The
+pointer simply stops matching the scheme, which reads as a cursor someone chose.
+
+The second half is worse. mango `setenv`s `XCURSOR_THEME` from that value
+(`src/config/parse_config.h`), and every client it spawns inherits it — so one
+stale line in a tier-2 file overrode `home.pointerCursor` for the whole session.
+**A terminal hid this**: zsh re-sources `hm-session-vars.sh`, which sets
+`XCURSOR_THEME` back to the correct name, so anything checked from a shell
+reported the right theme while GUI apps launched from a keybind got the wrong
+one. Checking `env | grep XCURSOR` in a terminal is not evidence.
+
+Now generated: `modules/home/dotfiles.nix` emits
+`mango/universal/cursor.conf`, `source=`d by `settings.conf`, reading
+`config.home.pointerCursor` so the compositor cannot disagree with GTK and
+`~/.icons/default` about the theme or the size. `checks/static.sh` asserts the
+generated name equals the scheme's, and that no hand-written file under
+`dotfiles/mango` sets `cursor_theme` again. mango resolves a `source=./…` path
+against the config-dir root at any nesting depth, so the include works from
+inside `universal/`.
+
 **No shipped scheme uses a `native = false` stand-in, and that is the selection
 criterion.** noctalia constrains the set: it resolves its palette from a name in
 its own shipped Assets, so a scheme it does not ship leaves half the screen on a

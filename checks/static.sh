@@ -1115,6 +1115,36 @@ else
 	ok "$declared theme packages declared for '$SCHEME'; stand-ins:"$'\n'"$standins"
 fi
 
+# The cursor has a second consumer the scan above cannot see. mango takes the
+# theme by name in its own config and, finding nothing, hands the name to
+# wlroots and carries on — then `setenv`s XCURSOR_THEME from it for every client
+# it spawns, so a stale name silently overrides home.pointerCursor for the whole
+# session. It sat at `catppuccin-mocha-mauve-cursors` through two scheme changes
+# because nothing here read it. So: the compositor's name must be the SAME name
+# that just resolved, and no hand-written mango file may set it again.
+cursor_name=$(pal '.packages.cursor.name')
+cursor_conf="$GEN_CFG/mango/universal/cursor.conf"
+if [[ ! -f $cursor_conf ]]; then
+	bad "mango cursor: $cursor_conf is not in the built closure" \
+		"universal/settings.conf source=s it; mango would leave the wlroots default"
+else
+	mango_cursor=$(sed -n 's/^cursor_theme=//p' "$cursor_conf")
+	if [[ $mango_cursor == "$cursor_name" ]]; then
+		ok "mango cursor: '$mango_cursor' matches the scheme's cursor theme"
+	else
+		bad "mango cursor: names '$mango_cursor', scheme declares '$cursor_name'" \
+			"the pointer falls back in silence and XCURSOR_THEME follows it"
+	fi
+fi
+
+stray_cursor=$(grep -rln '^[[:space:]]*cursor_theme=' "$SRC/dotfiles/mango" 2>/dev/null || true)
+if [[ -z $stray_cursor ]]; then
+	ok "no hand-written cursor_theme under dotfiles/mango"
+else
+	bad "cursor_theme hardcoded in a hand-written mango file" \
+		"$(printf '%s\n' "$stray_cursor" | sed "s|^$SRC/||") — generate it from home.pointerCursor instead"
+fi
+
 # Contrast. THE ONE PROPERTY NOTHING USED TO CHECK — docs/THEME-MIGRATION.md §4
 # said so in as many words: "what it does not catch: whether the new colours are
 # legible". That gap shipped a scheme whose comments sat at 3.36:1, which reads

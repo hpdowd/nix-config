@@ -590,33 +590,34 @@ in
   # files individually and these coexist with it — but ONLY because the four
   # .jsonc files were deleted from home/mango/waybar/. Two owners for one path
   # is an activation failure, not a merge.
-  xdg.configFile = lib.mapAttrs' (
-    name: value:
-    lib.nameValuePair "mango/waybar/${name}" {
-      source = toWaybar (lib.replaceStrings [ "." ] [ "-" ] name) value;
-    }
-  ) layouts
-  // {
-    # Derived from modules/home/palette.nix, so this file is NOT in
-    # dotfiles/mango/waybar/ — one path, one owner. The names are the bar's own
-    # vocabulary and the style sheets are written against them, which is why
-    # they are spelled out rather than emitted by iterating the palette: a
-    # renamed role should break the build here, not silently stop matching in
-    # a `@import`ed stylesheet where GTK ignores the unknown colour without a
-    # word.
-    "mango/waybar/colors.css".text = ''
-      /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
-         Imported by every style-*.css. */
-      @define-color base    #${p.base};
-      @define-color surface #${p.surface};
-      @define-color overlay #${p.overlay};
-      @define-color text    #${p.text};
-      @define-color subtext #${p.subtext};
-      @define-color accent  #${p.accent};
-      @define-color green   #${p.okColor};
-      @define-color red     #${p.errColor};
-      @define-color yellow  #${p.warnColor};
-      @define-color blue    #${p.infoColor};
-    '';
-  };
+  xdg.configFile =
+    lib.mapAttrs' (
+      name: value:
+      lib.nameValuePair "mango/waybar/${name}" {
+        source = toWaybar (lib.replaceStrings [ "." ] [ "-" ] name) value;
+      }
+    ) layouts
+    // {
+      # Derived from modules/home/palette.nix, so this file is NOT in
+      # dotfiles/mango/waybar/ — one path, one owner. The names are the bar's own
+      # vocabulary and the style sheets are written against them, which is why
+      # they are spelled out rather than emitted by iterating the palette: a
+      # renamed role should break the build here, not silently stop matching in
+      # a `@import`ed stylesheet where GTK ignores the unknown colour without a
+      # word.
+      "mango/waybar/colors.css".text = ''
+        /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
+           Imported by every style-*.css. */
+        @define-color base    #${p.base};
+        @define-color surface #${p.surface};
+        @define-color overlay #${p.overlay};
+        @define-color text    #${p.text};
+        @define-color subtext #${p.subtext};
+        @define-color accent  #${p.accent};
+        @define-color green   #${p.okColor};
+        @define-color red     #${p.errColor};
+        @define-color yellow  #${p.warnColor};
+        @define-color blue    #${p.infoColor};
+      '';
+    };
 }

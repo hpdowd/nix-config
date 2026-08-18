@@ -183,13 +183,16 @@ in
   security.sudo-rs.extraRules = [
     {
       groups = [ "wheel" ];
-      commands = map (c: {
-        command = c;
-        options = [ "NOPASSWD" ];
-      }) [
-        "${powerMode}/bin/power-mode"
-        "${config.system.path}/bin/power-mode"
-      ];
+      commands =
+        map
+          (c: {
+            command = c;
+            options = [ "NOPASSWD" ];
+          })
+          [
+            "${powerMode}/bin/power-mode"
+            "${config.system.path}/bin/power-mode"
+          ];
     }
   ];
 

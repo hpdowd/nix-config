@@ -1993,3 +1993,81 @@ the palette reaching an actual highlight, which reading the generated file does
 not prove.
 
 Not yet done: `rebuild`, `:Lazy sync`, and looking at it.
+
+---
+
+## 2026-08-18 · A scheme you can switch, and one you can read
+
+Two requests in one pass: make the theme selectable rather than edited in place,
+and produce one with enough contrast to read. They turned out to be the same
+piece of work, because the thing that makes a scheme switchable — every colour
+having exactly one home — is also what makes it auditable.
+
+### Switching
+
+`modules/home/scheme.nix` holds a string. `palette.nix` became a dispatcher over
+`modules/home/themes/*.nix` and **kept its interface exactly**: still a flat
+`rec` attrset of bare hex, so all thirteen consumers and the overlay read it
+unchanged. Adding scheme selection touched no consumer, which is the only reason
+it was cheap.
+
+Not a `local.theme` option, and that is the interesting part.
+`pkgs/default.nix` builds the lock ramp by `import`ing the palette, and it is an
+**overlay** — applied before any module evaluates, unable to see `config.*`. An
+option would have reached twelve consumers and missed the thirteenth, and the
+one it missed is the lock screen: the surface with nothing beside it to compare
+against. `docs/adr/0030`.
+
+### Reading
+
+The complaint was accurate and the diagnosis was not obvious. Every *accent* in
+Mocha clears AAA on `base` unaided — it is the **greys** that fail. But the
+first pass got the details wrong twice, and both corrections came from measuring
+rather than reading:
+
+- Comments are `overlay2` (5.81:1), **not** `overlay0` (3.36:1). Read off the
+  plugin source and assumed; `nvim_get_hl` on the running editor said otherwise.
+- The first high-contrast draft shifted the whole background ramp down with
+  `bg0`, which dropped nvim's LineNr to **1.65:1** — darkening the background
+  while also darkening what is drawn on it. Only `bg0` moves now; LineNr is 2.93
+  where Mocha has 2.40.
+
+`mocha-high-contrast` is Mocha's hues on Mocha's own `crust`, with the greys
+lifted until every text role clears 7:1. The twelve accents are byte-identical
+to Mocha's — they already passed, and changing them would have made it a
+different scheme rather than a more legible one.
+
+### The check that should have existed all along
+
+`THEME-MIGRATION.md` §4 used to say, in as many words, *"what it does not catch:
+whether the new colours are legible"*. It does now: WCAG ratios recomputed for
+every text role on every run.
+
+Two details that decided whether it was worth anything:
+
+- **ncspot's `muted` set is measured against its own raised surface**, not
+  `bg0`. ncspot fills whole rows with that colour. Against `bg0` three values
+  passed that fail where they are actually drawn.
+- **The floor is declared by the theme.** Upstream Mocha does not reach WCAG AA
+  on its greys, so a global 4.5 would make it impossible to ship Mocha *as*
+  Mocha. Stating 4.4 in the file is more honest than quietly raising it.
+
+**It failed on its first run against the theme shipped that morning**: ncspot's
+secondary text at 3.13:1, below even Mocha's own declared floor. That value was
+this repo's derivation rather than Catppuccin's, so fixing it cost no fidelity —
+nothing had ever looked at it.
+
+### And one self-inflicted bug worth keeping
+
+A `#` comment written *inside* the `nvimPalette` `''` string was emitted
+verbatim into the generated `palette.lua`, which then would not parse. `nix
+flake check` passed. `checks/static.sh` passed — it greps that file for the
+accent, and the accent was there. nvim's own failure mode is to report a failed
+plugin config and fall back to no colourscheme, which looks like a theme that
+did not apply rather than a syntax error.
+
+The derivation now runs `luajit -b` over the generated file, verified by
+planting the same `#` and watching the build fail. A generated file that no
+gate parses is a gap, not a file.
+
+Palette block: **18 ticks**, up from 16.

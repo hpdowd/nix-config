@@ -8,8 +8,8 @@
 -- the flavour's palette before any highlight is built, so this is not a pile of
 -- highlight overrides layered on top.
 --
--- The palette names 17 of Mocha's 26 keys. The other nine (crust, flamingo,
--- maroon, peach, sky, sapphire, lavender, overlay0, overlay2) keep
+-- The palette names 18 of Mocha's 26 keys. The other eight (crust, flamingo,
+-- maroon, peach, sky, sapphire, lavender, overlay2) keep
 -- upstream's values — and upstream IS Mocha, so unlike the gruvbox arrangement
 -- this replaced, the unnamed keys are already in scheme rather than merely in
 -- family. That is the whole reason §3 of the migration runbook says to swap the

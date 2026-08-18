@@ -35,9 +35,29 @@ and §3 is for a **new scheme**.
 
 ## 1. The palette — one file, thirteen consumers
 
-`modules/home/palette.nix`. Editing it recolours **kitty, foot, imv, swaylock,
-waybar, rofi, mango, nvim, swaync, fsel, ncspot, Equibop and the lock-screen
-background ramp** — no other file needs touching for any of them.
+**To switch between schemes that already exist, edit `modules/home/scheme.nix`
+— one string — and rebuild.** That is the whole operation; §2 and §3 below are
+only for bringing a *new* scheme in.
+
+`modules/home/palette.nix` is a dispatcher over `modules/home/themes/*.nix` and
+still evaluates to the same flat attrset it always did, so all thirteen
+consumers read it unchanged: **kitty, foot, imv, swaylock, waybar, rofi, mango,
+nvim, swaync, fsel, ncspot, Equibop and the lock-screen background ramp**.
+
+Why a file and not a `local.theme` option: `pkgs/default.nix` builds the lock
+ramp and is an **overlay**, so it cannot read `config.*`. An option reaches
+twelve consumers and misses the thirteenth — the one surface nobody looks at
+closely. `docs/adr/0030`.
+
+### Adding a scheme
+
+1. Copy a file in `modules/home/themes/`. Supply **every** key — `rec` makes a
+   missing one an eval error, not a default.
+2. Declare `contrastFloor`, the ratio every text role in it clears.
+3. Point `scheme.nix` at it and run `nix flake check`.
+
+Contrast is asserted now, so an unreadable scheme cannot land quietly the way
+the first one did.
 
 ### Anatomy
 
@@ -193,9 +213,20 @@ its consumer's own spelling; a mango mode config that stopped `source=`ing its
 colours; any palette hex reappearing in a hand-written file under `dotfiles/`;
 and a tinted lock ramp.
 
-**What it does not catch:** whether the new colours are *legible*. Contrast is
-not asserted anywhere. Nor is anything about the six packages in §2 — a
+**Contrast IS caught now**, per theme: every text-bearing role is recomputed
+against what it actually sits on — thirteen against `bg0`, and ncspot's five
+against its own raised surface, because ncspot fills whole rows with that and
+`bg0` is the wrong reference. The floor is declared by the theme, because
+upstream Mocha does not reach WCAG AA on its greys and a global floor would make
+shipping it faithfully impossible.
+
+**What it still does not catch:** anything about the six packages in §2 — a
 half-migrated Kvantum theme passes every check and looks wrong only on screen.
+And it only audits colours the palette *names*. A colour the palette does not
+name escapes to upstream and is invisible here; that is how nvim's comment
+colour sat outside the palette through a whole migration. **Which colour a
+program actually uses is a measurement** — ask it with `nvim_get_hl` or the
+equivalent, do not read it off the theme.
 
 ---
 
@@ -269,11 +300,11 @@ SYS=$(nix eval --raw '.#nixosConfigurations.thinkpad.config.system.build.topleve
 bash checks/static.sh "$PWD" "$G" "$SYS" | sed -n '/Generated palette/,/^$/p'
 ```
 
-Expect 16 ticks in that last block. A count that has *dropped* is the failure
+Expect 18 ticks in that last block. A count that has *dropped* is the failure
 mode this repo is built around: a scan that stops matching passes by finding
 nothing.
 
-One of the 16 exists only to guard that: `read N palette values to scan for`
+One of the 18 exists only to guard that: `read N palette values to scan for`
 reports how many hex values the stray-hex scan pulled **out of `palette.nix`**,
 and fails below 16. The needles are read from the palette rather than listed in
 the check, so changing the scheme does not silently leave the scanner hunting

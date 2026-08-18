@@ -842,7 +842,19 @@ ACCENT=$(sed -n 's/^ *accent: *#\([0-9a-f]*\);.*/\1/p' "$GEN_CFG/rofi/colors.ras
 # The muted set has no other generated consumer to read it back from, so this
 # one comes from the source. Only the muted `accent` is quoted in palette.nix;
 # the main one is an alias, so this cannot match the wrong line.
-MUTED_ACCENT=$(sed -n 's/^ *accent = "\([0-9a-f]*\)".*/\1/p' "$SRC/modules/home/palette.nix" 2>/dev/null)
+# palette.nix is a DISPATCHER now — one `import` line with no hex in it — so
+# both of the seds that used to read it as text resolve the selected theme file
+# first. The floor below is what makes that safe: a sed that stops matching
+# reports zero rather than passing quietly.
+SCHEME=$(sed -n 's/^"\(.*\)"$/\1/p' "$SRC/modules/home/scheme.nix" 2>/dev/null | tail -1)
+THEME_FILE="$SRC/modules/home/themes/$SCHEME.nix"
+if [[ -n $SCHEME && -s $THEME_FILE ]]; then
+	ok "scheme.nix selects '$SCHEME', and themes/$SCHEME.nix exists"
+else
+	bad "scheme.nix names '$SCHEME', which is not a file in modules/home/themes/" \
+		"every palette scan below would read an empty file"
+fi
+MUTED_ACCENT=$(sed -n 's/^ *accent = "\([0-9a-f]*\)".*/\1/p' "$THEME_FILE" 2>/dev/null)
 
 if [[ $ACCENT =~ ^[0-9a-f]{6}$ && $MUTED_ACCENT =~ ^[0-9a-f]{6}$ ]]; then
 	ACCENT_RGB="rgb($((16#${ACCENT:0:2})), $((16#${ACCENT:2:2})), $((16#${ACCENT:4:2})))"
@@ -930,12 +942,12 @@ fi
 # only tracked files, does not — and a check that disagrees with the gate is
 # worse than no check.
 PALETTE_HEX=$(
-	sed -n 's/.*= "\([0-9a-f]\{6\}\)";.*/\1/p' "$SRC/modules/home/palette.nix" 2>/dev/null |
+	sed -n 's/.*= "\([0-9a-f]\{6\}\)";.*/\1/p' "$SRC"/modules/home/themes/*.nix 2>/dev/null |
 		sort -u
 )
 PALETTE_N=$(printf '%s\n' "$PALETTE_HEX" | grep -c . || true)
 if ((PALETTE_N < 16)); then
-	bad "only $PALETTE_N hex values read from palette.nix, expected at least 16" \
+	bad "only $PALETTE_N hex values read from modules/home/themes/, expected at least 16" \
 		"the scan below would pass by finding nothing"
 	PALETTE_HEX="__unreadable__"
 else
@@ -953,9 +965,85 @@ stray=$(
 		done || true
 )
 if [[ -z $stray ]]; then
-	ok "no palette hex outside modules/home/palette.nix and the exempt theme data"
+	ok "no palette hex outside modules/home/themes/ and the exempt theme data"
 else
 	bad "palette hex found in hand-written files" "$(printf '%s\n' "$stray" | sed "s|^$SRC/||")"
+fi
+
+# Contrast. THE ONE PROPERTY NOTHING USED TO CHECK — docs/THEME-MIGRATION.md §4
+# said so in as many words: "what it does not catch: whether the new colours are
+# legible". That gap shipped a scheme whose comments sat at 3.36:1, which reads
+# as a considered choice rather than a mistake, because every colour in it was
+# individually plausible.
+#
+# Ratios are WCAG 2.x relative luminance, recomputed here from the theme file on
+# every run rather than copied from whoever last did the arithmetic. The floor
+# is declared BY the theme (`contrastFloor`), because upstream Catppuccin Mocha
+# genuinely does not reach AA on its greys and a global floor would make
+# shipping it faithfully impossible — so the assertion is "this theme is as
+# legible as it claims", plus a hard minimum no theme may go below.
+HARD_MIN=3.0
+
+theme_hex() { sed -n "s/^ *$1 = \"\([0-9a-f]\{6\}\)\";.*/\1/p" "$THEME_FILE" | head -1; }
+
+# `muted` repeats key names the top level also uses (fg, accent, surface), but
+# the top-level ones are unquoted aliases (`fg = fg1;`), so a quoted match is
+# unambiguous. That is the same property MUTED_ACCENT above relies on.
+contrast() {
+	awk -v a="$1" -v b="$2" '
+		function lin(c) { c = c / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
+		function lum(h,   r, g, b) {
+			r = lin(strtonum("0x" substr(h, 1, 2)))
+			g = lin(strtonum("0x" substr(h, 3, 2)))
+			b = lin(strtonum("0x" substr(h, 5, 2)))
+			return 0.2126 * r + 0.7152 * g + 0.0722 * b
+		}
+		BEGIN {
+			la = lum(a); lb = lum(b)
+			hi = la > lb ? la : lb; lo = la > lb ? lb : la
+			printf "%.2f", (hi + 0.05) / (lo + 0.05)
+		}'
+}
+
+FLOOR=$(sed -n 's/^ *contrastFloor = \([0-9.]*\);.*/\1/p' "$THEME_FILE" | head -1)
+THEME_BG=$(theme_hex bg0)
+MUTED_SURFACE=$(sed -n '/muted = {/,/};/s/^ *surface = "\([0-9a-f]\{6\}\)";.*/\1/p' "$THEME_FILE" | head -1)
+
+if [[ -z $FLOOR || -z $THEME_BG || -z $MUTED_SURFACE ]]; then
+	bad "could not read contrastFloor/bg0/muted.surface from themes/$SCHEME.nix" \
+		"floor='$FLOOR' bg0='$THEME_BG' muted.surface='$MUTED_SURFACE' — every ratio below would be computed against nothing"
+elif ! awk -v f="$FLOOR" -v m="$HARD_MIN" 'BEGIN { exit !(f >= m) }'; then
+	bad "themes/$SCHEME.nix declares contrastFloor $FLOOR, below the hard minimum $HARD_MIN"
+else
+	worst=""; worst_n=""; fails=""
+	# Text roles against bg0, then ncspot's muted set against ITS OWN surface —
+	# ncspot fills whole rows with that colour, so bg0 is the wrong reference and
+	# using it passes values that fail where they are actually drawn.
+	for role in fg0 fg1 fg4 brBlack brWhite comment mauve red green yellow blue magenta cyan; do
+		h=$(theme_hex "$role")
+		if [[ -z $h ]]; then
+			fails+="  $role: no literal hex in themes/$SCHEME.nix (aliased?) — not audited"$'\n'
+			continue
+		fi
+		r=$(contrast "$h" "$THEME_BG")
+		awk -v r="$r" -v f="$FLOOR" 'BEGIN { exit !(r < f) }' && fails+="  $role #$h on bg0: $r < $FLOOR"$'\n'
+		if [[ -z $worst ]] || awk -v r="$r" -v w="$worst" 'BEGIN { exit !(r < w) }'; then worst=$r; worst_n=$role; fi
+	done
+	for role in fg dim accent ok err; do
+		h=$(sed -n "/muted = {/,/};/s/^ *$role = \"\([0-9a-f]\{6\}\)\";.*/\1/p" "$THEME_FILE" | head -1)
+		if [[ -z $h ]]; then
+			fails+="  muted.$role: no literal hex in themes/$SCHEME.nix — not audited"$'\n'
+			continue
+		fi
+		r=$(contrast "$h" "$MUTED_SURFACE")
+		awk -v r="$r" -v f="$FLOOR" 'BEGIN { exit !(r < f) }' && fails+="  muted.$role #$h on muted.surface: $r < $FLOOR"$'\n'
+		if [[ -z $worst ]] || awk -v r="$r" -v w="$worst" 'BEGIN { exit !(r < w) }'; then worst=$r; worst_n="muted.$role"; fi
+	done
+	if [[ -n $fails ]]; then
+		bad "themes/$SCHEME.nix has text below its own declared floor of $FLOOR:1" "$fails"
+	else
+		ok "contrast: every text role in '$SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
+	fi
 fi
 
 printf '\nNetworkManager profiles\n'

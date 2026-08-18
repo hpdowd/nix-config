@@ -278,7 +278,8 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Any colour | `modules/home/palette.nix` — the one Catppuccin Mocha definition. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the six theme *packages* it cannot reach |
+| Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `mocha-high-contrast` |
+| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the six theme *packages* it cannot reach |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
 | Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
@@ -336,8 +337,8 @@ argument is not tidiness:
   installs the package *and* writes the config, so removing it removes both.
   Previously `kitty` was in `packages.nix` while `kitty/` was in
   `dotfiles.nix`, with nothing tying them together.
-- **Values can be shared.** The Catppuccin Mocha palette is one file
-  (`modules/home/palette.nix`) instead of sixteen hex codes transcribed into
+- **Values can be shared.** The palette is one file
+  (`modules/home/palette.nix`, selecting from `modules/home/themes/`) instead of sixteen hex codes transcribed into
   four with nothing keeping them in step — the terminals, the bar's
   `colors.css` and rofi's `colors.rasi` all derive from it, and
   `checks/static.sh` asserts every generated name is used and every reference
@@ -788,7 +789,7 @@ Aliases worth knowing: `cat`→`bat`, `ls`/`ll`/`la`→`eza`, `lf`→`yazi`,
 `zed`→`zeditor`, `z` for zoxide jumping. In `~` only, bare `ls` hides a fixed
 list of clutter directories; `ll`/`la` are the unfiltered escape hatches.
 
-**Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All Catppuccin Mocha,
+**Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All on the selected scheme,
 Hack Nerd Font Mono 11 — kitty additionally takes bold and italic from
 0xProto Nerd Font Mono (bold-italic stays Hack; 0xProto ships none).
 `checks/static.sh` asserts every family named here actually resolves.

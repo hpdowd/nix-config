@@ -85,14 +85,27 @@ let
   # shape and avoids `recursive = true`, whose failure mode here is destroying
   # the checkout (see unlinkStaleConfigDirs below and docs/adr/0002).
   #
-  # The 17 keys below are catppuccin/nvim's own palette names, which are
+  # The 19 keys below are catppuccin/nvim's own palette names, which are
   # Catppuccin's colour vocabulary rather than a plugin invention — so unlike
   # the gruvbox arrangement this replaced, they line up with what palette.nix
   # names instead of needing a translation table. checks/static.sh asserts the
   # generated file carries the accent.
   #
-  # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire,
-  # lavender, overlay0 and overlay2. palette.nix does not name them, and the
+  # `overlay2` is what nvim paints Comment with — established by asking the
+  # running editor (`nvim_get_hl`), after a first pass assumed `overlay0` and was
+  # wrong. Left unset, the most-read dim colour on the machine took upstream's
+  # value, invisible to a palette audit because no file in this repo contained
+  # it: the same class as the twelve copies docs/adr/0028 found. `overlay0` and
+  # `overlay1` carry NonText, Conceal and FoldColumn and follow `brBlack`.
+  #
+  # COMMENTS GO HERE, NOT IN THE STRING BELOW. `#` starts no comment inside a
+  # Nix `` literal and none in Lua either, so a `#` line in the block below is
+  # emitted verbatim into palette.lua and breaks it at load. That shipped once,
+  # past a green `nix flake check`, because the check only grepped for the accent
+  # — hence the parse check on the derivation.
+  #
+  # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire
+  # and lavender. palette.nix does not name them, and the
   # plugin's own Mocha values for them are correct — this machine IS Mocha.
   # Adding them here to "finish the job" would put nine more colours in the
   # palette that no other consumer reads. `mantle` earned its place by
@@ -112,6 +125,8 @@ let
       subtext0 = "#${p.fg4}",
       subtext1 = "#${p.brWhite}",
       overlay1 = "#${p.brBlack}",
+      overlay0 = "#${p.brBlack}",
+      overlay2 = "#${p.comment}",
       mauve = "#${p.accent}",
       red = "#${p.red}",
       green = "#${p.green}",
@@ -122,10 +137,19 @@ let
     }
   '';
 
-  nvimConfig = pkgs.runCommand "nvim-config" { } ''
+  # The parse check is the point of this being a derivation rather than a copy.
+  # A malformed palette.lua is invisible to every other gate here: `nix flake
+  # check` builds it happily, checks/static.sh greps it for the accent and finds
+  # one, and nvim reports a failed plugin config at startup and falls back to no
+  # colourscheme — which looks like a theme that did not apply, not a syntax
+  # error. `luajit -b … /dev/null` compiles without running, so this is a syntax
+  # gate and nothing more.
+  nvimConfig = pkgs.runCommand "nvim-config" { nativeBuildInputs = [ pkgs.luajit ]; } ''
     cp -r ${../../dotfiles/nvim} $out
     chmod -R u+w $out
     cp ${nvimPalette} $out/lua/config/palette.lua
+    luajit -b $out/lua/config/palette.lua /dev/null \
+      || { echo "generated palette.lua is not valid Lua" >&2; exit 1; }
   '';
 in
 {

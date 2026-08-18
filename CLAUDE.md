@@ -89,7 +89,9 @@ never as a side effect of a build.
 
 Tier 1 earns its churn three ways: typos become build failures, one option owns
 both the package and its config, and values can be shared —
-`modules/home/palette.nix` is the one Catppuccin Mocha definition, feeding
+`modules/home/palette.nix` is the one palette — whichever of
+`modules/home/themes/*.nix` that `modules/home/scheme.nix` names (`docs/adr/0030`;
+switching is that one string plus a rebuild) — feeding
 kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the
 lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`, instead
 of the same hex codes transcribed into four files with nothing keeping them in

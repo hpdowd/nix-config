@@ -1468,6 +1468,34 @@ failure is invisible.
 > hand-written file in `~/.config` until 2026-08-18, which is the same shape as
 > the swaylock config that quietly supplied a theme before it.
 
+**A `#` line inside a Nix `''` string is not a comment — and it is not one in
+Lua either.** A comment written into the `nvimPalette` block was emitted
+verbatim into the generated `palette.lua`, which then failed to parse. Every
+gate passed: `nix flake check` built it, `checks/static.sh` grepped it for the
+accent and found one, and nvim reports a failed plugin config and falls back to
+*no colourscheme* — which looks like a theme that did not apply, not a syntax
+error. The derivation now runs `luajit -b` over the result, so a malformed
+generated Lua fails the build. Put the explanation in the Nix source above the
+string, never inside it.
+
+**Which colour a program actually uses is a MEASUREMENT.** nvim paints `Comment`
+with Catppuccin's `overlay2` and NonText/Conceal/FoldColumn with `overlay1` —
+established by asking the running editor (`nvim_get_hl`), after a first pass
+read the plugin's source, assumed `overlay0`, and was wrong by a factor of two
+in contrast. A colour the palette does not *name* escapes to upstream and is
+invisible to every audit here, because no file in this repo contains it. That is
+how the most-read dim colour on the machine sat outside the palette through an
+entire migration.
+
+**Contrast is asserted per theme, and the floor is declared by the theme.**
+`checks/static.sh` recomputes WCAG ratios for every text role on each run —
+against `bg0`, and for ncspot's `muted` set against *its own* raised surface,
+since ncspot fills whole rows with that colour and `bg0` is the wrong reference.
+Checking against `bg0` passed three values that fail where they are drawn. The
+floor is per-theme because upstream Catppuccin Mocha does not reach WCAG AA on
+its greys (`brBlack` is 4.44:1), so a global 4.5 floor would make it impossible
+to ship Mocha as Mocha. `docs/adr/0030`.
+
 **The lock-screen ramp asserts the palette's hue, not greyness.** The background
 pool is a ±6 lightness ramp through `bg0`, and `pkgs/default.nix` fails the
 build if any generated tone drifts off `bg0`'s channel offsets. It read
@@ -1478,8 +1506,10 @@ real: the lock screen is the one surface that can end up wearing a colour the
 palette never named, and nothing about it looks wrong at a glance. If you change
 `bg0`, there is nothing to update here — the ramp is derived from it.
 
-Baseline: **Catppuccin Mocha** (mauve accent), Hack Nerd Font Mono 11 in the
-terminals, with kitty bold/italic in 0xProto Nerd Font Mono. Modes are **tiling**
+Baseline: **whatever `modules/home/scheme.nix` names** — currently
+`mocha-high-contrast`, Catppuccin Mocha's hues on its `crust` with the grey ramp
+lifted to 7:1. `mocha` is the faithful upstream alternative. Hack Nerd Font Mono
+11 in the terminals, with kitty bold/italic in 0xProto Nerd Font Mono. Modes are **tiling**
 and **hud**; the active one is in `~/.local/state/mango/current-mode`.
 
 ---

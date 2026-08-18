@@ -50,6 +50,7 @@ window#waybar.bottom {
 #tray,
 #custom-power,
 #custom-night-mode,
+#custom-idle-inhibitor,
 #custom-phone,
 #custom-power-profile {
     background: transparent;
@@ -267,7 +268,7 @@ window#waybar.bottom {
    cell to the right and no symmetric padding can centre them. Symbols Nerd
    Font Mono gives both a full 2048/2048 advance with the ink inside it. The
    comment that used to sit here claimed the opposite. */
-#idle_inhibitor {
+#custom-idle-inhibitor {
     font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
     padding: 0 8px;
@@ -276,7 +277,11 @@ window#waybar.bottom {
 }
 
 /* The two glyphs differ only by a slash, so the colour carries the state. */
-#idle_inhibitor.activated { color: @yellow; }
+#custom-idle-inhibitor.activated { color: @yellow; }
+
+/* A unit that hit its restart limit has released the inhibitor while the bar
+   still shows the "held" glyph. Red, so it does not read as merely on. */
+#custom-idle-inhibitor.failed { color: @red; }
 
 /* ── Power profile ────────────────────────────────────────────────── */
 

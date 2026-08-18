@@ -225,6 +225,39 @@ in
     Install.WantedBy = [ "graphical-session.target" ];
   };
 
+  # "Do not sleep". Holds a `zwp_idle_inhibit_manager_v1` inhibitor on a bare
+  # wl_surface — the one mechanism mango's ext_idle_notifier honours, and so the
+  # only thing that stops swayidle's ladder from inside the session
+  # (`systemd-inhibit --what=idle` does not reach it at all, SYSTEM.md §9).
+  #
+  # A unit rather than waybar's built-in idle_inhibitor module, which kept the
+  # state as a bool in the bar process and released it on every reload, mode
+  # switch and layout switch — and could only ever be toggled by clicking the
+  # widget, never from a key. docs/adr/0031.
+  #
+  # NO [Install]. Nothing starts this at login: it is switched on by
+  # SUPER+SHIFT+A or a click on the bar, via scripts/system/idle-inhibit.sh,
+  # and an inhibitor that came up on its own would be the failure it exists to
+  # prevent. `PartOf` still ends it with the session.
+  systemd.user.services.wlinhibit = {
+    Unit = {
+      Description = "Hold a Wayland idle inhibitor (keep awake)";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      ExecStart = "${pkgs.wlinhibit}/bin/wlinhibit";
+      # `on-failure`, not `always`: wlinhibit exits 0 on SIGTERM, so a
+      # deliberate `systemctl --user stop` — which is what the toggle does —
+      # must stay stopped. A crash must not: a silently released inhibitor is
+      # exactly the failure mode here, and the bar polls every 30s so a unit
+      # that hits the restart limit shows up rather than lingering as a lie.
+      Restart = "on-failure";
+      RestartSec = 1;
+    };
+  };
+
   services.nextcloud-client = {
     enable = true;
     startInBackground = true;

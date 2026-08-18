@@ -2071,3 +2071,101 @@ planting the same `#` and watching the build fail. A generated file that no
 gate parses is a gap, not a file.
 
 Palette block: **18 ticks**, up from 16.
+
+---
+
+## 2026-08-18 · The idle inhibitor leaves the bar
+
+Started as a question — *what command toggles the waybar idle inhibitor, so I
+can bind a key to it?* — and the answer was **none, and there cannot be one**.
+waybar's built-in `idle_inhibitor` keeps its state as a static bool in the
+waybar process, toggled by a GTK click on the widget and by nothing else.
+`SIGUSR1`/`SIGUSR2` run the configured bar-*visibility* action, the `signal`
+option refreshes `custom/*` modules only, and the `ipc` option is Sway's bar
+protocol. Read from `waybar.5` and `waybar-idle-inhibitor.5` on 0.15.0, not
+from memory.
+
+So the module is now `custom/idle-inhibitor`, the inhibitor is
+`wlinhibit.service`, and `SUPER+SHIFT+A` and the click run the same script.
+`docs/adr/0031`.
+
+### The bug that was already there
+
+Chasing the *other* half — does anything besides waybar's layer surface get
+honoured — turned up a defect nobody had reported. A control run of
+`swayidle timeout 1` fired **zero** times in 15 s, which should have been
+impossible with nothing inhibiting. It was inhibited: a screenshot of the bar
+showed `󰒳`. One `waybar-restart.sh` later the glyph was `󰒲` and the probe fired.
+
+That is the documented behaviour (`gotchas.md` said so) but seeing it happen
+reframes it. **The bar is never visibly wrong** — the glyph and the inhibitor
+die in the same instant, so there is no moment where the icon lies. It just
+silently stops being what you set, on any of `waybar-reload`, a layout switch,
+a mode switch or `SUPER+/`, and `minimal` and `hud` do not carry the module at
+all. The keybind was the request; this was the reason to do it properly.
+
+### Verified by output, both directions, before any rebuild
+
+The one genuinely uncertain thing was whether mango honours an inhibitor on
+wlinhibit's **bare, never-committed `wl_surface`** the way it honours one on
+waybar's layer surface. `idleinhibit_ignore_visible=0` made that a real
+question. Ran as a transient `systemd-run --user` unit against a `timeout 1`
+swayidle probe:
+
+| | idle fires in 15 s |
+|---|---|
+| wlinhibit running | **0** |
+| wlinhibit stopped | **1** |
+
+Same reason as the layer surface, in the end: `checkidleinhibitor` gets
+`c = NULL` and takes the `!c` arm. But it was measured before it was believed.
+
+### What the state living outside the bar costs
+
+The built-in could not show a wrong state; this can. A unit that hits its
+restart limit has released the inhibitor while the bar still draws something.
+Hence three things that would otherwise be over-engineering:
+
+- a `failed` class, **red**, so it does not read as merely on;
+- `interval = 30` *underneath* the `SIGRTMIN+12` signal — the signal makes the
+  toggle instant, the poll is the floor under a unit that died on its own;
+- `idle-inhibit.sh on` re-checks after 0.3 s rather than trusting `systemctl
+  start`, which returns once the process is forked. wlinhibit exits 1 when the
+  compositor advertises no manager, and that lands *after* the return.
+
+`Restart=on-failure`, deliberately not the `always` wlsunset needs: wlinhibit
+exits 0 on SIGTERM, and SIGTERM is what the toggle's off path sends.
+
+### Two smaller things it closed
+
+- **`keep-awake` was the last `fb=none` row in `shell.sh`.** It was noctalia-only
+  precisely because no inhibitor outside noctalia could be reached from a key;
+  it has a fallback now and the bind moved to `universal/bind.conf`. noctalia
+  keeps driving quickshell's own inhibitor — one mechanism serving both would
+  leave the other shell's indicator lying (`docs/adr/0023`).
+- **`checks/static.sh` gained an assertion for a `[Install]` section that must
+  not exist.** An inhibitor armed at every login looks, from the bar, exactly
+  like one you pressed for.
+
+### One owner per mode
+
+First draft left this as a stated caveat — an inhibitor armed in tiling stays
+armed after a switch to noctalia, where noctalia's indicator reads off — on the
+grounds that releasing it would reintroduce the silent mode-switch release the
+change exists to remove. Overruled, correctly: the two can never agree.
+noctalia's IPC is `toggle`/`enable`/`disable`/`enableFor` with **no getter**
+(`IPCService.qml`, 4.7.7), so there is no reading one and setting the other, and
+the losing mode's inhibitor holds the machine awake behind an indicator that
+says it is not.
+
+So `apply_mode` releases wlinhibit entering noctalia. The objection was really
+about *silence*, not about releasing — so it notifies, and the `is-on` guard
+means it only notifies when something was actually held. One-way: coming back
+out cannot restore it, because nothing can ask noctalia what it was holding.
+
+`idle-inhibit.sh` grew an `is-on` verb for the guard rather than letting lib.sh
+run `systemctl is-active wlinhibit.service` itself — the unit name is written in
+one file, and a second copy is a thing that can drift. `checks/static.sh`
+asserts the handover line survives: deleting it leaves both inhibitors real and
+only an indicator wrong, which is the shape nothing here notices.
+

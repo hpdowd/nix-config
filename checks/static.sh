@@ -1286,13 +1286,42 @@ fi
 # module from every layout is silent — the bar is just one icon shorter.
 inhibitor=0
 for cfg in "${CONFIGS[@]}"; do
-	jq -e '.["modules-right"] | index("idle_inhibitor")' "$cfg" >/dev/null 2>&1 &&
+	jq -e '.["modules-right"] | index("custom/idle-inhibitor")' "$cfg" >/dev/null 2>&1 &&
 		inhibitor=$((inhibitor + 1))
 done
 if [[ $inhibitor -eq 0 ]]; then
-	bad "no generated waybar config carries idle_inhibitor — nothing can hold the idle ladder off"
+	bad "no generated waybar config carries custom/idle-inhibitor — nothing can hold the idle ladder off"
 else
-	ok "idle_inhibitor is on the bar in $inhibitor of ${#CONFIGS[@]} layouts"
+	ok "custom/idle-inhibitor is on the bar in $inhibitor of ${#CONFIGS[@]} layouts"
+fi
+
+# ...and the module only REPORTS the inhibitor now; the unit is what holds it.
+# Two ways that pairing breaks silently, so both are asserted. An [Install]
+# section would arm the inhibitor at every login, which is the failure the
+# whole thing exists to prevent and looks from the bar exactly like someone
+# having pressed the key. docs/adr/0031.
+INHIBIT_UNIT="$GEN/home-files/.config/systemd/user/wlinhibit.service"
+if [[ ! -f $INHIBIT_UNIT ]]; then
+	bad "no generated wlinhibit.service — the keep-awake key and the bar toggle both do nothing" "$INHIBIT_UNIT"
+elif grep -q '^WantedBy=' "$INHIBIT_UNIT"; then
+	bad "wlinhibit.service is wanted by a target — the machine would come up already inhibited" \
+		"$(grep -m1 '^WantedBy=' "$INHIBIT_UNIT")"
+else
+	ok "wlinhibit.service exists and starts only on request"
+fi
+
+# ...and apply_mode hands it over on the way into noctalia, which holds its own
+# inhibitor over quickshell with no getter to read it back. Dropping this line
+# is invisible: both inhibitors are real, so the machine still stays awake — it
+# is the OTHER shell's indicator that starts lying. docs/adr/0031.
+LIBSH="$MANGO/scripts/lib.sh"
+if ! grep -q 'idle-inhibit\.sh' "$LIBSH"; then
+	bad "apply_mode does not hand the idle inhibitor over — entering noctalia would leave wlinhibit holding behind its indicator" \
+		"$LIBSH"
+elif ! grep -q 'idle-inhibit\.sh" off' "$LIBSH"; then
+	bad "lib.sh names idle-inhibit.sh but never stops it — the handover tests a state it does not act on" "$LIBSH"
+else
+	ok "apply_mode releases the inhibitor entering noctalia"
 fi
 
 printf '\nFonts\n'

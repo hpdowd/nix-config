@@ -941,13 +941,33 @@ survived two rounds.
 > readdir order — this machine has four supplies and it resolved to `AC` only by
 > luck.
 
-**`idle_inhibitor` is process state — a waybar restart releases it.** The
-toggle is a static bool on a surface that dies with the bar, so `waybar-reload`,
-a mode switch and `SUPER+/` all hand the machine back to the idle ladder, glyph
-included. `minimal` and `hud` do not carry the module, so switching to either
-releases it with nothing to re-arm. Use `systemctl --user stop swayidle` for
-anything that must not be interrupted. `checks/static.sh` asserts at least one
-layout still carries it — dropping it from all eight just shortens the bar.
+**The idle inhibitor used to be process state, and a waybar restart released
+it.** Fixed on 2026-08-18 (docs/adr/0031): it is `wlinhibit.service` now and the
+bar module only reports it, so `waybar-reload`, a layout switch, a mode switch
+and `SUPER+/` all leave it held. Before that the toggle was a static bool on a
+surface that died with the bar — and the glyph went back to `󰒲` at the same
+instant, so the bar was never visibly *wrong*, it just stopped being what you
+set. `minimal` and `hud` still do not carry the module; they no longer need to,
+because `SUPER+SHIFT+A` reaches it in every mode and every layout.
+
+Two things that remain true about it:
+
+- **A `failed` unit has already released the inhibitor.** The state lives
+  outside the thing that draws it now, so the bar can lag reality — hence the
+  red `failed` class and a 30s poll underneath the signal. Red `󰒳` means the
+  ladder is live, whatever the glyph suggests.
+- **Entering noctalia releases it, on purpose.** `SUPER+SHIFT+A` drives
+  quickshell's `IdleInhibitor` in noctalia mode and `wlinhibit` in the other two
+  (docs/adr/0023), and noctalia's IPC has no getter — so the two can never be
+  read into step, and `apply_mode` hands over instead: one owner per mode. You
+  get a notification when it actually released something, and re-arming in
+  noctalia is the same key. **The handover is one-way**: coming back out to
+  tiling or hud does not restore it, because nothing can ask noctalia whether it
+  was holding one.
+
+`checks/static.sh` asserts at least one layout still carries the module, that
+the unit exists, and that it has no `WantedBy=` — an inhibitor armed at login
+looks exactly like one you pressed for.
 
 **When a `custom/*` module is missing from the bar, run its exec by hand and
 check the `text` field is non-empty** — not just that the script succeeds. An

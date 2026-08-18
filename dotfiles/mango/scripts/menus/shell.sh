@@ -36,6 +36,10 @@ fb_dnd() { swaync-client -d; }
 # bar" keys, and each mode's bar is configured by its own thing.
 fb_bar_settings() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
 fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
+# Keep-awake used to be noctalia-only, because the only inhibitor outside it was
+# a bool inside the waybar process with no way in from a key. There is a unit
+# now, so this key works in all three modes. docs/adr/0031.
+fb_keep_awake() { "$MANGO_DIR/scripts/system/idle-inhibit.sh" toggle; }
 
 # The table. `ipc` is a noctalia target and function, two words on purpose —
 # checks/static.sh reads this block and asserts both halves exist. `fb=none`
@@ -58,12 +62,13 @@ bar)            ipc="bar toggle";                  fb=fb_bar_toggle ;;
 control-center) ipc="controlCenter toggle";        fb=none ;;
 calendar)       ipc="calendar toggle";             fb=none ;;
 dock)           ipc="dock toggle";                 fb=none ;;
-# Keep-awake is a real Wayland inhibitor (quickshell's IdleInhibitor over
-# zwp_idle_inhibit_manager_v1, which mango advertises), so it suppresses
-# SWAYIDLE's ladder here, not just noctalia's own idle service — which is
-# pinned off anyway. No fallback: waybar carries an idle_inhibitor module in
-# tiling and hud, and nothing outside a bar holds one.
-keep-awake)     ipc="idleInhibitor toggle";        fb=none ;;
+# Keep-awake. Both halves are a real Wayland inhibitor over
+# zwp_idle_inhibit_manager_v1, which mango advertises — quickshell's own
+# IdleInhibitor in noctalia, wlinhibit.service elsewhere — so either way it
+# suppresses SWAYIDLE's ladder, not just noctalia's (pinned-off) idle service.
+# Each shell keeps its own indicator honest that way; one mechanism driving
+# both would leave the other's icon lying. docs/adr/0031.
+keep-awake)     ipc="idleInhibitor toggle";        fb=fb_keep_awake ;;
 *)
 	echo "usage: ${0##*/} <action> — see the case table in this file" >&2
 	exit 1

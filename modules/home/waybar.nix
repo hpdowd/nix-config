@@ -254,22 +254,28 @@ let
       tooltip = true;
     };
 
-    # "Do not sleep". waybar's built-in module, which holds a real
-    # zwp_idle_inhibit surface — the same mechanism mpv and Firefox use, and the
-    # only one mango's ext_idle_notifier honours. `systemd-inhibit --what=idle`
-    # does not reach swayidle at all (SYSTEM.md §9), so this is the escape hatch
-    # for a long build on battery.
+    # "Do not sleep" — the escape hatch for a long build on battery, and the
+    # only thing that stops swayidle's ladder from inside the session.
     #
-    # Deliberately no `timeout`: an inhibitor that silently expires part-way
-    # through is the failure it exists to prevent.
-    idle_inhibitor = {
-      format = "{icon}";
-      format-icons = {
-        activated = "󰒳";
-        deactivated = "󰒲";
-      };
-      tooltip-format-activated = "Idle inhibited — nothing dims, locks or sleeps";
-      tooltip-format-deactivated = "Idle ladder live — dim 4m, lock 5m, sleep 30m on battery";
+    # Was waybar's built-in `idle_inhibitor`, which held the inhibitor on the
+    # bar's own layer surface. That worked, but the state was a bool in the
+    # waybar PROCESS: it could only be toggled by clicking the widget — waybar
+    # offers no IPC and no signal for it — and it was released, silently, by
+    # every `waybar-reload`, mode switch and layout switch. Now the inhibitor is
+    # a user unit that outlives the bar, this module only reports it, and
+    # SUPER+SHIFT+A reaches the same script. docs/adr/0031.
+    #
+    # `interval` as well as `signal`: the signal makes a toggle instant, and the
+    # poll is the floor. If wlinhibit dies on its own the bar must stop claiming
+    # the machine is held awake within 30s rather than never.
+    "custom/idle-inhibitor" = {
+      format = "{}";
+      exec = "${s}/system/idle-inhibit.sh status";
+      return-type = "json";
+      interval = 30;
+      signal = 12;
+      on-click = "${s}/system/idle-inhibit.sh toggle";
+      tooltip = true;
     };
 
     # Reads TLP's active profile from /run/tlp/last_pwr. Replaced waybar's
@@ -457,7 +463,7 @@ let
         "pulseaudio"
         "backlight"
         "custom/night-mode"
-        "idle_inhibitor"
+        "custom/idle-inhibitor"
         "custom/power-profile"
         "custom/phone"
         "battery"
@@ -482,7 +488,7 @@ let
         "pulseaudio"
         "backlight"
         "custom/night-mode"
-        "idle_inhibitor"
+        "custom/idle-inhibitor"
         "custom/power-profile"
         "battery"
         "tray"

@@ -710,6 +710,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+SHIFT+S` / `SUPER+Delete` | Lock screen |
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
+| `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
@@ -718,16 +719,17 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 
 **noctalia mode only**
 
-These four have no analogue under waybar and swaync, so they are bound in
+These three have no analogue under waybar and swaync, so they are bound in
 `noctalia/bind.conf` and exist only while that mode is selected — a shared bind
-would be a key that does nothing and exits 0 in the other two.
+would be a key that does nothing and exits 0 in the other two. (`SUPER+SHIFT+A`
+was a fourth until 2026-08-18, when the idle inhibitor got a unit the other two
+modes can drive — `docs/adr/0031`.)
 
 | Key | Action |
 |---|---|
 | `SUPER+C` | Control centre |
 | `SUPER+D` | Calendar |
 | `SUPER+SHIFT+D` | Dock |
-| `SUPER+SHIFT+A` | Keep awake — a real Wayland idle inhibitor, so it holds off **swayidle**, not just noctalia's own (pinned-off) idle service. Only here because nothing outside a bar holds one: tiling and hud have waybar's module in 4 of 8 layouts |
 
 ### Waybar
 
@@ -1025,25 +1027,41 @@ battery still hits the 30-minute suspend — it resumes where it left off, but
 network connections will not. Same for anything playing audio without an MPRIS
 interface: a game, a call in an app that publishes none.
 
-#### Holding the ladder off — `idle_inhibitor`
+#### Holding the ladder off — keep awake
 
-The bar carries waybar's **built-in `idle_inhibitor`** (`full` and `focus`
-layouts, between night mode and the power profile). Click to toggle: 󰒲 means the
-ladder is live, 󰒳 in yellow means nothing dims, locks or sleeps.
+**`SUPER+SHIFT+A`, or click the bar's `custom/idle-inhibitor`** (`full` and
+`focus` layouts, between night mode and the power profile). 󰒲 means the ladder
+is live; 󰒳 in yellow means nothing dims, locks or sleeps.
 
-It works where `systemd-inhibit` does not because it holds a
-`zwp_idle_inhibit_manager_v1` inhibitor on waybar's layer surface — the
-mechanism mpv and Firefox use, and the one mango feeds into
-`wlr_idle_notifier_v1_set_inhibited`. **No `timeout`**: an inhibitor that
-silently expires part-way through is the failure it exists to prevent.
+Both run `scripts/system/idle-inhibit.sh toggle`, which starts or stops
+**`wlinhibit.service`**. That unit holds a `zwp_idle_inhibit_manager_v1`
+inhibitor — the mechanism mpv and Firefox use, the one mango feeds into
+`wlr_idle_notifier_v1_set_inhibited`, and the only one that reaches swayidle at
+all. **No timeout, ever**: an inhibitor that silently expires part-way through is
+the failure it exists to prevent.
 
-⚠️ **The state does not survive a waybar restart** — it is a process-lifetime
-bool, and the inhibitor dies with the surface. `waybar-reload`, a mode switch
-and `SUPER+/` all drop it back to "sleep allowed"; `minimal` and `hud` do not
-carry the module at all.
+The unit is the state. It survives `waybar-reload`, both bar switches, a switch
+to `minimal` or `hud` (neither carries the module) and all three desktop modes;
+it ends with the session and not before. Nothing starts it at login.
 
-`systemctl --user stop swayidle` (and `start` after) is the escape hatch nothing
-in the desktop can undo behind your back.
+This used to be waybar's built-in `idle_inhibitor`, whose state was a bool in
+the bar process — clickable and nothing else, and released by every one of those
+events without a word. docs/adr/0031.
+
+⚠️ **Red 󰒳 means the unit FAILED and the ladder is live.** The state lives
+outside the bar now, so the bar reports rather than holds: `systemctl --user
+status wlinhibit`.
+
+**Switching to noctalia releases it.** noctalia holds keep-awake over
+quickshell's own `IdleInhibitor` and exposes no way to read that state back, so
+`apply_mode` hands over rather than leave two inhibitors and one honest
+indicator: one owner per mode, with a notification when it actually released
+something. `SUPER+SHIFT+A` re-arms it in noctalia. Coming back out does **not**
+restore it — the handover is one-way, because noctalia's IPC cannot be asked
+what it is holding.
+
+`systemctl --user stop swayidle` (and `start` after) remains the bigger hammer:
+it stops the ladder rather than inhibiting it.
 
 ### Locking
 
@@ -1397,9 +1415,9 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 
 - **Nothing here can hold off the idle ladder except a Wayland idle inhibitor.**
   `systemd-inhibit --what=idle` does not reach swayidle, so unattended work on
-  battery meets the 30-minute suspend. The bar's `idle_inhibitor` toggle is the
-  in-session answer, but it is released by any waybar restart; the one nothing
-  can undo behind you is `systemctl --user stop swayidle`. See §9.
+  battery meets the 30-minute suspend. `SUPER+SHIFT+A` is the in-session answer
+  and it now survives a waybar restart (docs/adr/0031); `systemctl --user stop
+  swayidle` is still the one nothing in the desktop can undo behind you. See §9.
 - **The spurious s2idle wake source is still unidentified**, and it is what keeps
   `suspend-then-hibernate` off the lid. Standing suspect: the Synaptics
   fingerprint reader — at `1-3`, the *only* device on USB bus 1, with its own

@@ -49,6 +49,24 @@ apply_mode() {
     local mode="$1"
     state_write current-mode "$mode"
 
+    # ONE INHIBITOR OWNER PER MODE. noctalia holds keep-awake over quickshell's
+    # own IdleInhibitor and its IPC offers toggle/enable/disable/enableFor and
+    # NO getter (checked against 4.7.7), so there is no way to read its state
+    # back and keep the two in step. Whichever is not the current mode's would
+    # sit there holding the machine awake with its indicator reading off.
+    #
+    # Handing it over means a mode switch releases the inhibitor, which is the
+    # exact failure docs/adr/0031 was written to remove — so this is the one
+    # place it happens deliberately, and it SAYS SO. The guard is what makes the
+    # message honest: no notification when there was nothing to release.
+    #
+    # One-way. Leaving noctalia does not re-arm wlinhibit, because there is no
+    # getter to ask whether noctalia was holding one.
+    if [ "$mode" = noctalia ] && "$MANGO_DIR/scripts/system/idle-inhibit.sh" is-on; then
+        "$MANGO_DIR/scripts/system/idle-inhibit.sh" off
+        notify-send "Keep awake" "Released entering noctalia — SUPER+SHIFT+A holds it again here"
+    fi
+
     # `install -m 644`, NOT `cp`. ~/.config/mango is a store path, so
     # <mode>.conf is a read-only 0444 file and `cp` gives a new destination the
     # source's mode — the first switch wrote a 0444 config.conf and every

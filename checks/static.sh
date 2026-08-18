@@ -824,6 +824,98 @@ palette_pair "rofi" \
 	"$(sed -n 's/^ *\([a-z-]*\): *#[0-9a-f]*;.*/\1/p' "$GEN/home-files/.config/rofi/colors.rasi" 2>/dev/null | sort -u)" \
 	"$(grep -ohE '@[a-z-]+' "$SRC/dotfiles/rofi/config.rasi" 2>/dev/null | tr -d '@' | sort -u)"
 
+# Every file that is supposed to be derived from the palette, and the colour it
+# must contain. A generated file that goes missing or renders empty is this
+# repo's signature bug: the app falls back to its own defaults and looks merely
+# unstyled, which is indistinguishable from a theme someone chose.
+#
+# The value checked is the accent in each consumer's own spelling, because the
+# spelling is where copies hid — `d79921` is `0xd79921ff` to mango and
+# `rgb(215, 153, 33)` to fsel and swaync, and a repo-wide grep for the hex found
+# neither.
+GEN_CFG="$GEN/home-files/.config"
+
+# Read the accent from a file that is ITSELF generated from the palette, rather
+# than restating it here — a check carrying its own copy of the value it is
+# checking passes forever and proves nothing.
+ACCENT=$(sed -n 's/^ *accent: *#\([0-9a-f]*\);.*/\1/p' "$GEN_CFG/rofi/colors.rasi" 2>/dev/null)
+# The muted set has no other generated consumer to read it back from, so this
+# one comes from the source. Only the muted `accent` is quoted in palette.nix;
+# the main one is an alias, so this cannot match the wrong line.
+MUTED_ACCENT=$(sed -n 's/^ *accent = "\([0-9a-f]*\)".*/\1/p' "$SRC/modules/home/palette.nix" 2>/dev/null)
+
+if [[ $ACCENT =~ ^[0-9a-f]{6}$ && $MUTED_ACCENT =~ ^[0-9a-f]{6}$ ]]; then
+	ACCENT_RGB="rgb($((16#${ACCENT:0:2})), $((16#${ACCENT:2:2})), $((16#${ACCENT:4:2})))"
+else
+	bad "could not read the accent from the palette" \
+		"accent='$ACCENT' muted='$MUTED_ACCENT' — every scan below would pass on an empty needle"
+	ACCENT="__unreadable__"
+	MUTED_ACCENT="__unreadable__"
+	ACCENT_RGB="__unreadable__"
+fi
+
+while IFS='|' read -r path want label; do
+	[[ -z $path ]] && continue
+	if [[ ! -s "$GEN_CFG/$path" ]]; then
+		bad "$label: $path is missing or empty — the consumer falls back to its own theme, silently"
+	elif ! grep -qF "$want" "$GEN_CFG/$path"; then
+		bad "$label: $path does not contain $want" "generated, but not from modules/home/palette.nix"
+	else
+		ok "$label: $path is generated from the palette"
+	fi
+done <<-EOF
+	mango/universal/colors-tiling.conf|0x${ACCENT}ff|mango (tiling)
+	mango/universal/colors-hud.conf|0x${ACCENT}ff|mango (hud)
+	mango/universal/colors-noctalia.conf|0x${ACCENT}ff|mango (noctalia)
+	nvim/lua/config/palette.lua|#${ACCENT}|nvim
+	fsel/config.toml|${ACCENT_RGB}|fsel
+	swaync/style.css|${ACCENT_RGB}|swaync
+	ncspot/config.toml|#${MUTED_ACCENT}|ncspot
+EOF
+
+# The mode configs must actually `source=` the generated file. mango skips an
+# include it cannot resolve without a word, so a renamed file or a dropped line
+# leaves the colours at mango's built-in defaults — which are also dark, also
+# plausible, and nowhere stated to be wrong.
+for mode in tiling hud noctalia; do
+	if grep -qxF "source=./universal/colors-$mode.conf" "$SRC/dotfiles/mango/$mode/$mode.conf" 2>/dev/null; then
+		ok "mango: $mode.conf sources its generated colours"
+	else
+		bad "mango: $mode/$mode.conf does not source ./universal/colors-$mode.conf" \
+			"the generated palette is built and then never read"
+	fi
+done
+
+# The ceiling. Every palette hex below has exactly one home now; a copy
+# reappearing in a hand-written file is the drift the whole arrangement exists
+# to prevent, and it reads as deliberate once it is there.
+#
+# Exempt, deliberately (docs/SYSTEM.md §6): the yazi flavor and the Kvantum
+# theme are third-party colour *data*, and the GTK colors.css files are the
+# Breeze palette, not this one.
+#
+# Tracked files only, via is_tracked — mango/config.conf is written at runtime
+# by the mode scripts from the generated file, so it legitimately holds a copy
+# of the colours and is deliberately untracked (docs/adr/0002). Without this
+# filter a working-tree run reports a failure that `nix flake check`, which sees
+# only tracked files, does not — and a check that disagrees with the gate is
+# worse than no check.
+stray=$(
+	grep -rlniE '(282828|3c3836|504945|665c54|fbf1c7|ebdbb2|a89984|cc241d|98971a|d79921|458588|b16286|689d6a|928374|fb4934|b8bb26|fabd2f|83a598|d3869b|8ec07c)' \
+		"$SRC/dotfiles" 2>/dev/null |
+		grep -vE '/(yazi/flavors|Kvantum|gtk-3\.0|gtk-4\.0)/' |
+		grep -vE '/rofi/config\.rasi$' |
+		while IFS= read -r f; do
+			rel=${f#"$SRC"/}
+			is_tracked "$rel" && printf '%s\n' "$f"
+		done || true
+)
+if [[ -z $stray ]]; then
+	ok "no palette hex outside modules/home/palette.nix and the exempt theme data"
+else
+	bad "palette hex found in hand-written files" "$(printf '%s\n' "$stray" | sed "s|^$SRC/||")"
+fi
+
 printf '\nNetworkManager profiles\n'
 
 # Read the keyfiles the unit will actually write, not the option that produced
@@ -1138,6 +1230,41 @@ else
 		fi
 	fi
 fi
+
+printf '\nShell completions\n'
+
+# `programs.zsh.enableCompletion = false` is deliberate (it drops a duplicate
+# compinit) but it also gates `pathsToLink`, so it silently unlinks share/zsh
+# from both profiles. A missing fpath entry is not an error — completion keeps
+# working on zsh's bundled functions, so nothing reports the loss. Assert a
+# floor on each profile. docs/gotchas.md → nixpkgs and NixOS.
+for spec in "home:$GEN/home-path/share/zsh/site-functions:100" \
+	"system:$SYS/sw/share/zsh/site-functions:20"; do
+	IFS=: read -r label dir floor <<<"$spec"
+
+	if [[ ! -d $dir ]]; then
+		bad "$label profile has no share/zsh/site-functions" \
+			"pathsToLink is missing /share/zsh — every package completion is gone"
+		continue
+	fi
+
+	count=$(find "$dir" -maxdepth 1 -name '_*' -printf . | wc -c)
+	if [[ $count -lt $floor ]]; then
+		bad "$label profile ships only $count completions (floor $floor)" "$dir"
+	else
+		ok "$label profile ships $count completions"
+	fi
+done
+
+# The two that motivated the floor: both came from the NixOS module and both
+# vanished with it.
+for fn in _nix-shell _nixos-option; do
+	if [[ -e "$GEN/home-path/share/zsh/site-functions/$fn" ]]; then
+		ok "$fn is in fpath"
+	else
+		bad "$fn missing — nix-zsh-completions is not in home.packages"
+	fi
+done
 
 # --- signal traps -----------------------------------------------------------
 # A handler trapped on a terminating signal REPLACES that signal's default

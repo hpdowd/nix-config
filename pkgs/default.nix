@@ -167,71 +167,100 @@ final: prev: {
   # gets used is not.
   #
   # 1920x1200 is the panel's native mode, and is load-bearing — see blocks.py.
-  lock-backgrounds = prev.stdenv.mkDerivation {
-    pname = "lock-backgrounds";
-    version = "1";
+  # The ramp is centred on the palette's `bg0` rather than on a literal, so the
+  # lock screen cannot end up the one surface still wearing the old scheme. Only
+  # the centre comes from the palette; ±6 is the spread of the ramp, which is a
+  # property of the gradient and not a colour.
+  #
+  # This works because bg0 is neutral (R=G=B). If it stops being, the `tinted`
+  # check below fails the BUILD — deliberately. A non-neutral lock background is
+  # a legitimate thing to want, but it is a decision, and this is the one place
+  # that would otherwise absorb it silently.
+  lock-backgrounds =
+    let
+      palette = import ../modules/home/palette.nix;
+      mid = prev.lib.fromHexString (builtins.substring 0 2 palette.bg0);
+      # Zero-padded: toHexString 5 is "5", which would build "#555" — a valid
+      # colour, a different one, and nothing downstream would object.
+      byte =
+        v:
+        let
+          h = prev.lib.toLower (prev.lib.toHexString v);
+        in
+        if builtins.stringLength h == 1 then "0${h}" else h;
+      gray = v: "#${byte v}${byte v}${byte v}";
+      stops = "${gray (mid - 6)},${gray mid},${gray (mid + 6)}";
+    in
+    prev.stdenv.mkDerivation {
+      pname = "lock-backgrounds";
+      version = "1";
 
-    dontUnpack = true;
-    nativeBuildInputs = [
-      prev.python3
-      prev.imagemagick
-    ];
+      dontUnpack = true;
+      nativeBuildInputs = [
+        prev.python3
+        prev.imagemagick
+      ];
 
-    buildPhase = ''
-      runHook preBuild
-      mkdir -p pool
-      for i in $(seq 1 24); do
-        python3 ${./lock-backgrounds/blocks.py} \
-          --grid 12x8 --steps 9 --seed "$i" \
-          --stops '#222222,#282828,#2e2e2e' \
-          --out block.ppm
-        magick block.ppm -filter Point -resize '1920x1200!' \
-          "pool/$(printf 'lock-%02d' "$i").png"
-      done
-      runHook postBuild
-    '';
+      buildPhase = ''
+        runHook preBuild
+        mkdir -p pool
+        for i in $(seq 1 24); do
+          python3 ${./lock-backgrounds/blocks.py} \
+            --grid 12x8 --steps 9 --seed "$i" \
+            --stops '${stops}' \
+            --out block.ppm
+          magick block.ppm -filter Point -resize '1920x1200!' \
+            "pool/$(printf 'lock-%02d' "$i").png"
+        done
+        runHook postBuild
+      '';
 
-    # The floor. A pool that generated wrong is invisible at lock time — the
-    # screen just looks slightly off — and every wrong version so far looked
-    # plausible, so check both properties the eye actually reads.
-    #
-    # Neutrality is exact: a tinted ramp is what "the colour still doesn't feel
-    # right" turned out to be, and #282828 is R=G=B.
-    #
-    # The mean is a tolerance, not an equality. The ramp is symmetric about 40,
-    # but 96 blocks drawn from 9 tones vary by ±1 through sampling alone — an
-    # exact test fails on roughly one seed in four. ±1 still catches a shifted
-    # band, which is the failure worth catching: earlier attempts sat at 54
-    # and 70.
-    doCheck = true;
-    checkPhase = ''
-      runHook preCheck
-      n=$(find pool -name '*.png' | wc -l)
-      [ "$n" -eq 24 ] || { echo "pool has $n members, expected 24" >&2; exit 1; }
-      for f in pool/*.png; do
-        mean=$(magick "$f" -format '%[fx:int(mean*255)]' info:)
-        [ "$mean" -ge 39 ] && [ "$mean" -le 41 ] ||
-          { echo "$f: mean $mean, expected 40±1 (#282828)" >&2; exit 1; }
+      # The floor. A pool that generated wrong is invisible at lock time — the
+      # screen just looks slightly off — and every wrong version so far looked
+      # plausible, so check both properties the eye actually reads.
+      #
+      # Both bounds are now computed from the same `mid` the ramp is drawn from,
+      # so the check cannot go stale against a palette change — the failure this
+      # would otherwise invite is a check that still asserts 40 while the ramp
+      # moved, which passes nothing and reports success.
+      #
+      # Neutrality is exact: a tinted ramp is what "the colour still doesn't feel
+      # right" turned out to be, and bg0 is R=G=B.
+      #
+      # The mean is a tolerance, not an equality. The ramp is symmetric about
+      # `mid`, but 96 blocks drawn from 9 tones vary by ±1 through sampling alone
+      # — an exact test fails on roughly one seed in four. ±1 still catches a
+      # shifted band, which is the failure worth catching: earlier attempts sat
+      # at 54 and 70.
+      doCheck = true;
+      checkPhase = ''
+        runHook preCheck
+        n=$(find pool -name '*.png' | wc -l)
+        [ "$n" -eq 24 ] || { echo "pool has $n members, expected 24" >&2; exit 1; }
+        for f in pool/*.png; do
+          mean=$(magick "$f" -format '%[fx:int(mean*255)]' info:)
+          [ "$mean" -ge ${toString (mid - 1)} ] && [ "$mean" -le ${toString (mid + 1)} ] ||
+            { echo "$f: mean $mean, expected ${toString mid}±1 (${gray mid})" >&2; exit 1; }
 
-        tinted=$(magick "$f" -unique-colors txt: |
-          grep -oE '#[0-9A-F]{6}' |
-          awk '{ if (substr($0,2,2) != substr($0,4,2) ||
-                    substr($0,4,2) != substr($0,6,2)) n++ } END { print n+0 }')
-        [ "$tinted" -eq 0 ] ||
-          { echo "$f: $tinted non-neutral tones — the ramp is tinted" >&2; exit 1; }
-      done
-      runHook postCheck
-    '';
+          tinted=$(magick "$f" -unique-colors txt: |
+            grep -oE '#[0-9A-F]{6}' |
+            awk '{ if (substr($0,2,2) != substr($0,4,2) ||
+                      substr($0,4,2) != substr($0,6,2)) n++ } END { print n+0 }')
+          [ "$tinted" -eq 0 ] ||
+            { echo "$f: $tinted non-neutral tones — the ramp is tinted" >&2; exit 1; }
+        done
+        runHook postCheck
+      '';
 
-    installPhase = ''
-      runHook preInstall
-      mkdir -p "$out/share/lock-backgrounds"
-      cp pool/*.png "$out/share/lock-backgrounds/"
-      runHook postInstall
-    '';
+      installPhase = ''
+        runHook preInstall
+        mkdir -p "$out/share/lock-backgrounds"
+        cp pool/*.png "$out/share/lock-backgrounds/"
+        runHook postInstall
+      '';
 
-    meta.description = "Blocky Gruvbox background pool for swaylock";
-  };
+      meta.description = "Blocky Gruvbox background pool for swaylock";
+    };
 
   # ==========================================================================
   # power-profiles-tlp — the PPD bus name, answered from TLP

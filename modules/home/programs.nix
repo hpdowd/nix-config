@@ -221,34 +221,8 @@ in
   # Editors
   # ==========================================================================
 
-  # helix. config.toml was one line; the value was always in themes/gruvbox.toml.
-  #
-  # That theme stays a FILE rather than becoming `programs.helix.themes.gruvbox`
-  # — it is 264 lines of hand-tuned scope mappings, and transcribing it into Nix
-  # attrsets would be a large mechanical edit with a real chance of a silent
-  # typo, in exchange for nothing. Generating config is worth it where the
-  # config is *settings*; a colour scheme is data. The module writes
-  # helix/config.toml and leaves helix/themes/ alone, so the two coexist.
-  programs.helix = {
-    enable = true;
-    settings.theme = "gruvbox";
-    languages = {
-      language-server.pyright = {
-        command = "pyright-langserver";
-        args = [ "--stdio" ];
-      };
-      language = [
-        {
-          name = "python";
-          language-servers = [
-            "pyright"
-            "ruff"
-          ];
-        }
-      ];
-    };
-  };
-  xdg.configFile."helix/themes/gruvbox.toml".source = ../../dotfiles/helix/themes/gruvbox.toml;
+  # nvim is the editor; helix was removed 2026-08-17 (docs/adr/0027). Nothing
+  # here generates nvim config — it is a store-linked tree, see dotfiles.nix.
 
   # zed. This one is a straight WIN over the file it replaces, and the reason is
   # worth knowing because it is the technique to reach for elsewhere.
@@ -443,32 +417,39 @@ in
   # single FILE to keep the directory writable (docs/adr/0003). The module does
   # the same thing for the same reason, so the workaround is now upstream's
   # problem rather than a local special case.
+  #
+  # The colours are the `muted` set from palette.nix, not hex typed here — see
+  # that file for why a desaturated variant is still palette data.
   programs.ncspot = {
     enable = true;
-    settings.theme = {
-      background = "#282828";
-      primary = "#c9b890";
-      secondary = "#7a6a50";
-      title = "#d4a039";
-      playing = "#89aa61";
-      playing_selected = "#89aa61";
-      playing_bg = "#2e2720";
-      highlight = "#3d352c";
-      # `highlight_fg` / `error_fg`, not `highlight_bg` / `error`. ncspot
-      # ignores keys it does not recognise without complaining, so a renamed
-      # key here is a colour that silently reverts to the default.
-      highlight_fg = "#c9b890";
-      error_bg = "#ad401f";
-      error_fg = "#c9b890";
-      statusbar_progress = "#d4a039";
-      statusbar_progress_bg = "#3d352c";
-      statusbar = "#c9b890";
-      statusbar_bg = "#2e2720";
-      cmdline = "#c9b890";
-      cmdline_bg = "#2e2720";
-      search_match = "#d4a039";
-      border = "#3d352c";
-    };
+    settings.theme =
+      let
+        m = gruvbox.muted;
+      in
+      {
+        background = hash m.bg;
+        primary = hash m.fg;
+        secondary = hash m.dim;
+        title = hash m.accent;
+        playing = hash m.ok;
+        playing_selected = hash m.ok;
+        playing_bg = hash m.surface;
+        highlight = hash m.overlay;
+        # `highlight_fg` / `error_fg`, not `highlight_bg` / `error`. ncspot
+        # ignores keys it does not recognise without complaining, so a renamed
+        # key here is a colour that silently reverts to the default.
+        highlight_fg = hash m.fg;
+        error_bg = hash m.err;
+        error_fg = hash m.fg;
+        statusbar_progress = hash m.accent;
+        statusbar_progress_bg = hash m.overlay;
+        statusbar = hash m.fg;
+        statusbar_bg = hash m.surface;
+        cmdline = hash m.fg;
+        cmdline_bg = hash m.surface;
+        search_match = hash m.accent;
+        border = hash m.overlay;
+      };
   };
 
   # imv. Gruvbox hard light background so black SVGs and icons stay visible.

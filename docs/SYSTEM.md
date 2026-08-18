@@ -126,7 +126,7 @@ Two rules follow from this and explain most of the surprises:
 │   ├── options.nix            `local.checkout` — the path this repo lives at
 │   ├── packages.nix           user packages that no program module installs
 │   ├── shell.nix              zsh, aliases, PATH, env, git
-│   ├── programs.nix           GENERATED configs: kitty, foot, helix, zed, htop,
+│   ├── programs.nix           GENERATED configs: kitty, foot, zed, htop,
 │   │                          yazi, ncspot, imv, wlogout. No files in dotfiles/ for these
 │   ├── waybar.nix             GENERATED: the four waybar layouts, from one set
 │   │                          of module definitions
@@ -140,7 +140,7 @@ Two rules follow from this and explain most of the surprises:
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
 │   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
-│   ├── helix/ yazi/ wlogout/  ASSETS ONLY — theme, flavor and icons referenced
+│   ├── yazi/ wlogout/         ASSETS ONLY — flavor and icons referenced
 │   │                          by programs.nix. No config files here
 │   └── corectrl/              the single out-of-store entry
 ├── pkgs/default.nix           the overlay — package overrides and local packages
@@ -225,7 +225,7 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Waybar layouts (`modules/home/waybar.nix`) or CSS | `rebuild`, then `waybar-reload` |
 | kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | `rebuild`, then restart the terminal — no live reload |
-| helix, zed, htop, ncspot, imv, yazi | `rebuild`, then restart the app |
+| zed, htop, ncspot, imv, yazi | `rebuild`, then restart the app |
 | wlogout | `rebuild` only — it is spawned fresh on each invocation |
 | zsh config | `source ~/.config/zsh/conf.d/<file>.zsh`, or a new shell |
 | Neovim plugins | `:Lazy sync` |
@@ -278,12 +278,11 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Any colour | `modules/home/palette.nix` — the one Gruvbox definition. Feeds kitty, foot, the bar's `colors.css` and rofi's `colors.rasi` |
-| kitty, foot, helix, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
-| Helix colour scheme | `dotfiles/helix/themes/gruvbox.toml` — the one helix file that is still data |
+| Any colour | `modules/home/palette.nix` — the one Gruvbox definition. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the five theme *packages* it cannot reach |
+| kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
 | Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
-| Language servers | `modules/home/packages.nix` — shared by nvim **and** helix |
+| Language servers | `modules/home/packages.nix` — nvim takes them from `$PATH` |
 
 ### Desktop
 
@@ -298,7 +297,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout. Its `colors.rasi` is generated the same way |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
-| Launcher entries | `dotfiles/mango/fsel/config.toml`; menu contents are in the `scripts/menus/*.sh` that build them |
+| Launcher entries | fsel's `config.toml` is **generated** in `modules/home/dotfiles.nix`; menu contents are in the `scripts/menus/*.sh` that build them |
 | rofi's look, size or modes | `dotfiles/rofi/config.rasi` — one file for all three desktop modes |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
@@ -318,7 +317,6 @@ file from typed options; **there is no config file in this repo at all.**
 | What | Module |
 |---|---|
 | kitty, foot | `programs.kitty`, `programs.foot` — both fed by `modules/home/palette.nix` |
-| helix | `programs.helix` (the theme stays a file — see below) |
 | zed | `programs.zed-editor` |
 | htop, ncspot, imv, yazi | `programs.htop`, `programs.ncspot`, `programs.imv`, `programs.yazi` |
 | wlogout | `programs.wlogout` |
@@ -352,7 +350,7 @@ The file stays hand-written but lands read-only in the store. Reproducible;
 `~/.config/X` stops depending on this checkout existing. Changes need a
 rebuild.
 
-Currently: `mango` (with `recursive = true`), `nvim`, `swaync`, `glow`, `fsel`,
+Currently: `mango` (with `recursive = true`), `nvim`, `swaync` (body only), `glow`,
 `zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
 `nwg-look`, `rofi/config.rasi` and the `gtk-3.0`/`gtk-4.0` assets.
 
@@ -389,9 +387,9 @@ would remove functionality".
 
 ### Assets — a fourth thing that is not a tier
 
-`dotfiles/helix/`, `dotfiles/yazi/` and `dotfiles/wlogout/` still exist but contain **no
-config**. They hold data a *generated* config points at: helix's 264-line
-`themes/gruvbox.toml`, yazi's `noctalia.yazi` flavor, and wlogout's six PNGs.
+`dotfiles/yazi/` and `dotfiles/wlogout/` still exist but contain **no
+config**. They hold data a *generated* config points at: yazi's
+`noctalia.yazi` flavor and wlogout's six PNGs.
 `programs.nix` references them by relative path, so they end up in the store as
 their own paths. Don't mistake these for unconverted configs.
 
@@ -404,7 +402,6 @@ Do not "finish the job" without reading these:
 | `nvim` | ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed plugins is a *rewrite*, trading `:Lazy sync` for a rebuild per plugin bump. The store path already gives reproducibility |
 | `mango` | No module exists, and the mode scripts genuinely need to `cp` into `config.conf` — hence `recursive = true` |
 | `swaync` | `services.swaync` exists and works, but declares the unit that is deliberately **masked**. `autostart.conf` owns swaync's lifecycle so restyles apply on mode switch. Adopting the module flips that ownership and needs its own decision. **Never run both** |
-| `helix/themes/gruvbox.toml` | A colour scheme is data, not settings. Transcribing 264 lines buys nothing but a chance of a silent typo |
 | waybar CSS | Same reasoning — hand-tuned presentation is data |
 | `glow`, `nwg-look` | No module at this pin |
 | `corectrl` | Writes its own config from the GUI, and that GUI is the program |
@@ -807,16 +804,14 @@ theme into.
 **Editors:** Neovim is `$EDITOR`/`$VISUAL`, so it is what git, `sudoedit`,
 `systemctl edit`, lazygit and yazi all open. It is a hand-rolled lazy.nvim
 config (~18 plugins), and the one large config still hand-written — see
-`dotfiles/nvim/README.md`. Helix is a second option, generated by `programs.helix`
-down to a single setting (`theme = "gruvbox"`), with the theme itself left as a
-file. **Its binary is `hx`, not `helix`** — the desktop entry works while
-typing `helix` in a shell does not. Zed is generated too, but by a module that
-*merges* into a writable `settings.json` rather than linking it.
+`dotfiles/nvim/README.md`. It is now the only editor this repo configures:
+**helix was removed 2026-08-17** (`docs/adr/0027`). Zed is generated too, but by
+a module that *merges* into a writable `settings.json` rather than linking it.
 
-⚠️ **Neither ships language servers.** There is no mason; both take servers from
+⚠️ **nvim ships no language servers.** There is no mason; it takes servers from
 `$PATH`, so every server must be declared in `modules/home/packages.nix`. A
-missing server is skipped in **silence**. `hx --health` is the fastest audit —
-one line per language, `✘` against anything it cannot find. See
+missing server is skipped in **silence** — audit with the `command -v` loop in
+`docs/gotchas.md` → Editors, or `:checkhealth lsp`, and read the *output*. See
 `docs/adr/0007`.
 
 ---
@@ -1297,7 +1292,7 @@ What is running, and who owns it.
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
 | `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp`. **`Restart=always`**, because noctalia SIGTERMs it on every start and systemd counts that as a clean exit (`docs/gotchas.md` → night light) |
 | `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages` |
-| `nextcloud-client` | Cloud sync — stores its credentials in gnome-keyring |
+| `nextcloud-client` | Cloud sync — credentials in gnome-keyring's `Default` collection, config at `~/.config/Nextcloud/`. If it asks you to log in, check the unit's `XDG_CONFIG_HOME` before anything else (`docs/gotchas.md` → Session environment) |
 | `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` — read by rofi, and by noctalia's own clipboard view in `noctalia` mode |
 | `noctalia` | The `noctalia` desktop mode's shell — bar, notifications, panels. **Started only by that mode's autostart**, never at login; `PartOf` the session target. `Restart=on-failure` with a start limit, so it can wedge: `scripts/modes/noctalia-start.sh` clears that on every entry (`docs/adr/0022`) |
 | `mango-session.target` | A marker other units can hang off; started from `autostart.conf` |
@@ -1460,12 +1455,8 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 - **The age key is a single point of failure.** `/var/lib/sops-nix/key.txt` is
   in no repo and no backup; without it `secrets/secrets.yaml` is unreadable.
   See §11.
-- **Helix has no Python type checking.** `pyright` is declared and serves nvim,
-  but helix's defaults are `ty`, `ruff`, `jedi-language-server` and `pylsp` —
-  none of which is pyright. It gets lint and format from `ruff`; `hx --health
-  python` still shows ✘ against three of its four. Deliberately not closed yet.
-  **Always confirm with `hx --health <lang>` rather than assuming a server
-  declared for nvim serves helix too.**
+- ~~Helix has no Python type checking~~ — **moot 2026-08-17.** Helix was
+  removed (`docs/adr/0027`); `pyright` serves nvim, which asked for it.
 - ~~Nothing gates a rebuild~~ — **closed 2026-08-03.** `nix flake check` now
   builds `system.build.toplevel` and the home-manager activation package, so
   `buildEnv` collisions and failing derivations surface before a `switch`.

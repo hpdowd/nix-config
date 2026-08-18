@@ -1,28 +1,6 @@
-:root {
-  --cc-bg: rgba(40, 40, 40, 0.92);
-  --noti-border-color: rgba(255, 255, 255, 0.15);
-  --noti-bg: 40, 40, 40;
-  --noti-bg-alpha: 0.92;
-  --noti-bg-darker: rgb(30, 30, 30);
-  --noti-bg-hover: rgb(50, 50, 50);
-  --noti-bg-focus: rgba(60, 60, 60, 0.6);
-  --noti-close-bg: rgba(255, 255, 255, 0.1);
-  --noti-close-bg-hover: rgba(255, 255, 255, 0.15);
-  --text-color: rgb(235, 219, 178);
-  --text-color-disabled: rgb(150, 150, 150);
-  --bg-selected: rgb(215, 153, 33);
-  --notification-icon-size: 64px;
-  --notification-app-icon-size: calc(var(--notification-icon-size) / 3);
-  --notification-group-icon-size: 32px;
-  --border: 1px solid var(--noti-border-color);
-  --border-radius: 0px;
-  --notification-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3),
-    0 1px 3px 1px rgba(0, 0, 0, 0.7), 0 2px 6px 2px rgba(0, 0, 0, 0.3);
-  --font-size-body: 13px;
-  --font-size-summary: 13px;
-  --hover-transition: background 0.15s ease-in-out;
-  --group-collapse-transition: opacity 400ms ease-in-out;
-}
+/* The `:root` block that was here is GENERATED from
+   modules/home/palette.nix and prepended by modules/home/dotfiles.nix.
+   This file is a FRAGMENT — it is not a usable stylesheet on its own. */
 
 notificationwindow, blankwindow {
   background: transparent;

@@ -37,7 +37,7 @@ nix fmt             # nixfmt (RFC 166)
 and the home-manager activation package, so `buildEnv` collisions and failing
 derivations surface there rather than halfway through a `switch`.
 
-**`dotfiles/` is shrinking by design.** kitty, foot, helix, zed, htop, ncspot,
+**`dotfiles/` is shrinking by design.** kitty, foot, zed, htop, ncspot,
 imv, yazi, wlogout and the waybar layouts are *generated* from `modules/home/`
 and have no file in this repo. If a config is not under `dotfiles/`, that is
 why — grep `modules/home/` for it.
@@ -133,7 +133,7 @@ Everything below assumes you have already run `rebuild`.
 | Switch mode | `~/.config/mango/scripts/modes/<mode>.sh` |
 | zsh | open a new shell, or `source ~/.config/zsh/conf.d/<file>.zsh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
-| foot, helix, zed, htop, ncspot, imv, yazi | restart the app |
+| foot, zed, htop, ncspot, imv, yazi | restart the app |
 | wlogout | nothing — it is spawned fresh each time |
 | Neovim plugins | `:Lazy sync` |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |

@@ -60,6 +60,11 @@
   # per shell.
   programs.zsh.enableCompletion = false;
 
+  # …but that flag also gates `pathsToLink`, so turning it off deleted
+  # share/zsh from every profile and left fpath pointing at nothing.
+  # See docs/gotchas.md → nixpkgs and NixOS.
+  environment.pathsToLink = [ "/share/zsh" ];
+
   security.sudo-rs.enable = true;
   security.sudo.enable = false;
 

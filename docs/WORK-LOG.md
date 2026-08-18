@@ -183,7 +183,8 @@ Not a backlog — these are decisions:
 ```bash
 git -C ~/src/nix-config status --porcelain   # expect empty; ` T ` means clobbered
 nix flake check                              # and ACT on failure
-hx --health | grep -E '^(nix|lua|bash) '     # LSP coverage, both editors
+for s in nil lua-language-server bash-language-server pyright gopls; do \
+  command -v $s >/dev/null || echo "$s MISSING"; done   # expect no output
 ~/.config/mango/scripts/system/power-profile.sh   # `text` must be non-empty
 mmsg dispatch reload_config                  # {"success":true}, not "unknown command"
 ```

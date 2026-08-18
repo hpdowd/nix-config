@@ -67,4 +67,27 @@ rec {
   bg = bg0;
   fg = fg1;
   selBg = bg2;
+
+  # --- Muted set (ncspot) ----------------------------------------------------
+  # ncspot's theme is a deliberately desaturated gruvbox: a TUI that fills whole
+  # rows with its background colours, where the full-strength palette above is
+  # loud enough to read as an error state. These are NOT derived from the values
+  # above and no formula reproduces them — ebdbb2 → c9b890 is not a uniform
+  # scale — so they are named here as their own values rather than computed.
+  #
+  # They live in this file anyway, because the point of it is that **every
+  # colour on this machine has one home**. A muted variant kept next to its one
+  # consumer is exactly how the palette came to exist in three places before
+  # 2026-08-14: it looks local right up until someone changes the scheme and
+  # finds this set still gruvbox.
+  muted = {
+    bg = bg0; # ncspot's `background` — the one value shared with the main set
+    fg = "c9b890"; # dimmed fg1, used for every foreground role
+    dim = "7a6a50"; # secondary text
+    accent = "d4a039"; # dimmed accent — titles, progress, search matches
+    ok = "89aa61"; # dimmed brGreen — the playing track
+    err = "ad401f"; # dimmed red — error background
+    surface = "2e2720"; # raised background: status bar, cmdline, playing row
+    overlay = "3d352c"; # borders, highlight, progress trough
+  };
 }

@@ -15,7 +15,9 @@ a broken thing look identical, so "it ran and exited 0" is not evidence.
 - [Editors](#editors)
 - [Theming](#theming)
 - [Networking](#networking)
-- [Secrets](#secrets)
+- [Secrets](#secrets) — sops, what the flake installs
+- [Credentials and keyrings](#credentials-and-keyrings) — gnome-keyring, what apps save
+- [Session environment](#session-environment) — what user units inherit
 - [Scripts](#scripts)
 
 ---
@@ -144,6 +146,26 @@ installed. Never hardcode `/usr/share/...`. The one safe absolute path is one
 its own store path. GTK draws its missing-image box for a failed CSS `url()`
 **without logging a warning**, so this class of bug is invisible in logs — it was
 reported as "the icons are just square boxes".
+
+**`programs.zsh.enableCompletion = false` deletes every package's completions,
+not just the second `compinit`.** The NixOS module reads
+`environment.pathsToLink = lib.optional cfg.enableCompletion "/share/zsh"`, so
+turning the flag off — done here to drop a duplicate `compinit` worth 219 ms —
+also unlinked `share/zsh` from **both** profiles, and dropped
+`nix-zsh-completions` with it. `/run/current-system/sw/share/zsh` and
+`/etc/profiles/per-user/henry/share/zsh` simply did not exist, leaving one live
+entry in a 20-entry `fpath`: zsh's own store path. Completion therefore still
+*worked* — `git`, `ssh`, filenames, command names all come bundled with zsh —
+so the failure looked like "tab complete is broken sometimes" rather than
+anything missing. `_nix`, `_systemctl`, `_cargo`, `_gh` and ~330 others were
+gone. Both are restored explicitly: `environment.pathsToLink = [ "/share/zsh" ]`
+in `hosts/thinkpad`, and the two completion packages in
+`modules/home/packages.nix`. **A non-existent `fpath` entry is not an error**,
+so the tell is the directory, not a message:
+
+```bash
+ls /run/current-system/sw/share/zsh/site-functions | wc -l   # 0 = broken
+```
 
 **nixpkgs packages ship user units that Arch's did not, and they auto-start.**
 nixpkgs' swaync ships `swaync.service` with `WantedBy=graphical-session.target`,
@@ -1267,10 +1289,10 @@ before believing any zero.
 
 ## Editors
 
-**No mason, and helix ships no servers either — language servers come from
-`$PATH`**, so they must be declared in `modules/home/packages.nix`. A missing
-server is **skipped in silence**: after the migration only `rust-analyzer`
-worked, and nobody noticed for a day. All 12 resolve now.
+**No mason — language servers come from `$PATH`**, so they must be declared in
+`modules/home/packages.nix`. A missing server is **skipped in silence**: after
+the migration only `rust-analyzer` worked, and nobody noticed for a day. All 12
+resolve now.
 
 ```sh
 for s in nil lua-language-server bash-language-server marksman taplo \
@@ -1286,32 +1308,55 @@ with an empty `node_modules`, so it resolves typescript from the workspace or
 on any file outside a project with its own `node_modules`, which looks like the
 server being broken rather than absent.
 
-**The two editors disagree about Python.** nvim asks for `pyright`; helix's
-defaults are `ty`, `ruff`, `jedi-language-server` and `pylsp`, none of which is
-pyright. So helix gets lint and format from `ruff` but **no type checking**.
-Deliberately not closed. **Always confirm with `hx --health <lang>`** rather than
-assuming a server declared for nvim serves helix — it is the fastest audit,
-one line per language with `✘` against anything it cannot find.
-
-**The binary is `hx`, not `helix`.** The desktop entry ships `Exec=hx %F`, so the
-launcher works while typing `helix` does not. Nothing is broken.
+**Helix was removed 2026-08-17** (`docs/adr/0027`) — nvim is the only editor
+this repo configures. Its `hx --health <lang>` was the fastest way to audit
+servers, one line per language with `✘` against anything missing; the surviving
+equivalents are the loop above and `:checkhealth lsp`. Both must be read by
+**output**, not exit status — a missing server is silence either way.
 
 `$EDITOR`/`$VISUAL` are `nvim` — that is what git, `sudoedit`, `systemctl edit`,
 lazygit and yazi invoke, so changing editors means changing those, not adding an
 alias. `mimeapps.list` separately points markdown and shell scripts at
 `nvim.desktop`, which governs GUI double-clicks only.
 
-`nvim` and `helix/themes/gruvbox.toml` stay hand-written on purpose — see
-`docs/SYSTEM.md` §6. See also `docs/adr/0007`.
+`nvim` stays hand-written on purpose — see `docs/SYSTEM.md` §6. See also
+`docs/adr/0007`.
 
 ---
 
 ## Theming
 
-**Terminal colours are generated from a single Nix palette.** kitty and foot are
-built by `modules/home/programs.nix` from one `gruvbox` `let` binding (kitty
-takes `#rrggbb`, foot bare hex). Change the palette there, once — the two files
-used to carry the same sixteen values with nothing keeping them in step.
+**Colours are generated from a single Nix palette** — `modules/home/palette.nix`,
+feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, the
+lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. Change it
+once and rebuild. See `docs/adr/0028`.
+
+**Grepping for a hex code does not find every copy of it.** The 2026-08-17 audit
+found twelve copies the palette was not reaching, in five spellings — mango
+writes `0xd79921ff`, fsel and swaync write `rgb(215, 153, 33)`, and nvim and the
+GTK/Kvantum/cursor/noctalia themes carry no hex at all. A repo-wide grep for
+`d79921` found **neither** decimal copy. `checks/static.sh` now asserts the
+accent is present in each consumer's own spelling, and — the other direction —
+that no palette hex appears anywhere in `dotfiles/` outside the exempt
+third-party theme data (the yazi flavor, Kvantum, the GTK Breeze files).
+
+**Six theme *packages* the palette cannot reach**, and no amount of Nix will
+change that: the GTK theme (upstream's SCSS), GTK4 (follows it), the icon theme
+(Papirus, folder colour set by an overlay `override` to match the accent), the
+cursor (rendered bitmaps), Kvantum (rendered widget SVG) and noctalia
+(`predefinedScheme = "Gruvbox"`, a name its shell resolves) — plus yazi's flavor,
+783 hex of third-party syntax theme. For these, changing scheme means picking a
+different upstream artefact, not editing the palette.
+**`docs/THEME-MIGRATION.md` is the runbook** for doing that.
+
+**mango's colours need a `rebuild`, not a `mango-reload`.** They are generated
+into `universal/colors-<mode>.conf` and live in the store like everything else
+under `dotfiles/mango/`. Reloading alone re-reads the *last* rebuild's copy,
+which looks exactly like the change having had no effect.
+
+**`dotfiles/swaync/style-body.css` is a fragment, not a stylesheet.** Its
+`:root` block is generated from the palette and concatenated on at build time.
+Opening the file and finding no colours defined is the expected state.
 
 **GTK theming is owned by Nix** (`modules/home/theme.nix`), not by the mode
 scripts: both `settings.ini` files, both `gtk.css` files, the Thunar bookmarks
@@ -1440,6 +1485,115 @@ Changing the PIA credentials is `sops` then `rebuild`; `vpn-menu.sh` has no "set
 credentials" entry, because a sops secret is root-installed mode 0400. A fallback
 to a writable file was rejected on purpose — it would leave "no plaintext secret
 outside sops" unenforceable. See `docs/adr/0012`.
+
+---
+
+## Credentials and keyrings
+
+gnome-keyring (`services.gnome.gnome-keyring.enable`, `hosts/thinkpad/default.nix`)
+is the *runtime* credential store, and is the opposite of the section above: sops
+holds what the flake installs, the keyring holds what applications save while
+running. **Nothing here is declarative** — `~/.local/share/keyrings/` is state the
+daemon rewrites itself, so it has no tier and no check.
+
+| File | What it is |
+|---|---|
+| `login.keyring` | the only keyring `pam_gnome_keyring.so` opens. The name is hardcoded on PAM's side: it unlocks *this* file with the password you typed, and re-encrypts it on password change via the `use_authtok` line |
+| `Default.keyring` | an ordinary keyring. Nothing about the name is special to PAM |
+| `default` | **a pointer, not a keyring** — the target of the Secret Service `default` alias. Currently the 7 bytes `Default` |
+| `user.keystore` | not a Secret Service keyring at all: the PKCS#11 token store, for certificates and keys |
+
+A third collection, `session`, appears on the bus with no file — in-memory, discarded at logout.
+
+**The default collection is `Default`, not `login`, and that is correct here.**
+`login.keyring` holds an item labelled `Unlock password for: Default`, with the
+attribute `keyring=LOCAL:/keyrings/Default.keyring`. PAM unlocks `login` at
+greetd (`/etc/pam.d/login` carries `pam_gnome_keyring` at auth, password and
+session; `/etc/pam.d/greetd` substacks it — the same inheritance that makes
+`fprintAuth = false` on `login` cover the greeter), and the daemon then reads
+Default's password out of that item and unlocks it too. Both collections report
+`Locked=false` after login as a result.
+
+The split is an accident of ordering, preserved because it works. Timestamps:
+`Default.keyring` was created 2025-12-05 16:26:15 — the same second the `default`
+pointer was written — when some app asked for the default collection, found no
+alias, and had one created for it. `login.keyring` and `user.keystore` both carry
+2025-12-06 15:13:48, a day later: `pam_gnome_keyring`'s first run. **An alias is
+only set when it is unset**, so it never moved. Both dates are Arch-era.
+
+**Do not "consolidate" by deleting `Default`.** It holds 33 items — three
+Nextcloud tokens, the Chrome/Chromium/Vivaldi/Claude safe-storage keys that
+encrypt every password those browsers saved, IntelliJ, copilot, two Matrix
+accounts, Proton, Spotify, zed — against three in `login`. There is no supported
+bulk move: seahorse has no such operation, and by hand means reconstructing each
+item's attribute set.
+
+Repointing the alias does not achieve anything either. **Applications never ask
+for a keyring by name** — libsecret's `SECRET_COLLECTION_DEFAULT` resolves through
+the `default` file, and *lookups* (`SearchItems`) span every unlocked collection,
+so only *stores* follow the alias. Editing it therefore splits secrets across two
+keyrings while fixing nothing.
+
+The real fragility is the chain's single item. If `login.keyring` is ever
+recreated — password changed by something that bypasses PAM's `use_authtok`, or
+the file deleted — that item goes with it and `Default` starts prompting for a
+password set in December 2025. **Knowing that password independently is the only
+recovery**; restructuring the keyrings is not.
+
+Inspect without decrypting anything:
+
+```bash
+file ~/.local/share/keyrings/*.keyring   # name, item count, creation time
+busctl --user call org.freedesktop.secrets \
+  /org/freedesktop/secrets/collection/Default \
+  org.freedesktop.DBus.Properties Get ss org.freedesktop.Secret.Collection Locked
+```
+
+---
+
+## Session environment
+
+`dotfiles/mango/universal/autostart.conf:1` runs
+`dbus-update-activation-environment --systemd --all`, which copies the
+compositor's **entire** environment into the systemd user manager and the D-Bus
+activation environment. Every user unit started afterwards inherits it. That is
+the point — `WAYLAND_DISPLAY` has to reach the units somehow — and it is the
+trap: **re-running that command from any other shell overwrites the session
+environment with that shell's.**
+
+On 2026-08-16 it was re-run from inside this repo's `nix develop` shell. That put
+`stdenv`, `buildPhase`, `nativeBuildInputs`, `IN_NIX_SHELL` and — the damaging
+one — `XDG_CONFIG_HOME=/tmp/…/scratchpad/cfg` into the manager environment.
+`nextcloud-client.service` started at 00:24:22 and inherited it:
+
+- the client read `$XDG_CONFIG_HOME/Nextcloud/nextcloud.cfg`, found nothing, and
+  **asked to log in** — while the real config, account intact, sat untouched at
+  `~/.config/Nextcloud/`;
+- its login flow handed the same environment to `xdg-open` → `zen-beta`, which
+  takes its profile root from `$XDG_CONFIG_HOME/zen`, found nothing, and **created
+  a new empty profile** — a Zen with no extensions, no logins, no history. Reads
+  exactly like the Arch-carryover profile bug, unrelated cause;
+- noctalia wrote its `settings.json` under `/tmp` for a day, where a reboot would
+  have taken it.
+
+**Three applications, three apparent bugs, one cause, nothing logged anywhere.**
+The tells:
+
+```bash
+systemctl --user show-environment | grep -E '^(stdenv|buildPhase|IN_NIX_SHELL)='   # any hit = poisoned
+tr '\0' '\n' < /proc/$(systemctl --user show <unit> -p MainPID --value)/environ | grep XDG_CONFIG_HOME
+```
+
+The compositor's own environment leaves `XDG_CONFIG_HOME` **unset**; unset or
+`~/.config` are both healthy, any other path is this. Repair is
+`systemctl --user unset-environment <var>…` followed by restarting the affected
+units — but a re-login is what actually rebuilds the environment from scratch,
+and already-running processes keep the old one until they restart.
+
+Two things that make the repair itself misfire: in zsh `for v in $VARS` does
+**not** word-split, so the whole list arrives as one name and every call fails
+with `Invalid environment variable names` (use an explicit list, or `${=VARS}`);
+and `unset-environment` is silent about names that were not set anyway.
 
 ---
 

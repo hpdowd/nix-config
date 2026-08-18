@@ -13,6 +13,9 @@
     with pkgs;
     [
       # --- Shell / CLI core ---------------------------------------------------
+      # Completions the NixOS zsh module used to carry — see hosts/thinkpad.
+      zsh-completions
+      nix-zsh-completions
       bat
       eza
       fd
@@ -51,15 +54,15 @@
       jetbrains.pycharm
 
       # --- Language servers ---------------------------------------------------
-      # nvim is mason-free and helix only *configures* servers, so both take them
-      # from $PATH. A missing one is skipped in silence — audit with `hx --health`.
+      # nvim is mason-free, so servers come from $PATH. A missing one is skipped
+      # in silence — audit with `:checkhealth lsp`, and confirm by output.
       nil # Nix
       lua-language-server
       bash-language-server
       marksman # Markdown
       taplo # TOML
       yaml-language-server
-      pyright # Python; nvim only, helix defaults to ty/ruff/jedi/pylsp
+      pyright # Python type checking
       ruff # Python lint + format
       clang-tools # C/C++ — clangd is here, not in `clang`
       typescript-language-server
@@ -100,7 +103,9 @@
       nodejs
       bun
       go
-      delve # dlv — helix has built-in DAP and is preconfigured for it
+      # dlv. helix's built-in DAP was the only thing wired to this; nvim has no
+      # dap config, so it is now a standalone CLI debugger. Kept deliberately.
+      delve
 
       # --- Kubernetes / cloud -------------------------------------------------
       kubectl

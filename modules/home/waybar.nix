@@ -16,9 +16,9 @@
 # scripts and the power-profile glyph in CLAUDE.md).
 #
 # The JSON and the palette are generated. `style-*.css` stay hand-written files
-# for the same reason helix/themes/gruvbox.toml does — they are hand-tuned
-# presentation, not settings, and transcribing them into Nix attrsets buys
-# nothing but a chance of a silent typo.
+# because they are hand-tuned presentation, not settings, and transcribing them
+# into Nix attrsets buys nothing but a chance of a silent typo. (yazi's flavor
+# is the other file kept on that reasoning — docs/SYSTEM.md §6.)
 #
 # `colors.css` is the exception, and the line between them is worth stating:
 # the style sheets are *rules*, colors.css was thirteen `@define-color` lines

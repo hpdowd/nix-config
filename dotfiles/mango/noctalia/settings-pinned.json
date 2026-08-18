@@ -6,7 +6,7 @@
   "colorSchemes": {
     "syncGsettings": false,
     "useWallpaperColors": false,
-    "predefinedScheme": "Gruvbox",
+    "predefinedScheme": "Catppuccin",
     "darkMode": true
   },
   "templates": { "enableUserTheming": false, "activeTemplates": [] },

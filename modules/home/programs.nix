@@ -54,7 +54,7 @@ let
   # already the second copy (kitty/gruvbox-orange.conf and
   # foot/gruvbox-colors.ini before it) — and the bar carried a third in
   # waybar/colors.css. One file now, shared with the bar and the menus.
-  gruvbox = import ./palette.nix;
+  p = import ./palette.nix;
 
   # kitty wants a leading `#`, foot wants bare hex. One palette, two spellings.
   hash = c: "#${c}";
@@ -105,28 +105,28 @@ in
       enable_audio_bell = "no";
 
       # Colours
-      color0 = hash gruvbox.black;
-      color1 = hash gruvbox.red;
-      color2 = hash gruvbox.green;
-      color3 = hash gruvbox.yellow;
-      color4 = hash gruvbox.blue;
-      color5 = hash gruvbox.magenta;
-      color6 = hash gruvbox.cyan;
-      color7 = hash gruvbox.white;
-      color8 = hash gruvbox.brBlack;
-      color9 = hash gruvbox.brRed;
-      color10 = hash gruvbox.brGreen;
-      color11 = hash gruvbox.brYellow;
-      color12 = hash gruvbox.brBlue;
-      color13 = hash gruvbox.brMagenta;
-      color14 = hash gruvbox.brCyan;
-      color15 = hash gruvbox.brWhite;
-      background = hash gruvbox.bg;
-      foreground = hash gruvbox.fg;
-      cursor = hash gruvbox.fg;
-      cursor_text_color = hash gruvbox.bg;
-      selection_foreground = hash gruvbox.bg;
-      selection_background = hash gruvbox.selBg;
+      color0 = hash p.black;
+      color1 = hash p.red;
+      color2 = hash p.green;
+      color3 = hash p.yellow;
+      color4 = hash p.blue;
+      color5 = hash p.magenta;
+      color6 = hash p.cyan;
+      color7 = hash p.white;
+      color8 = hash p.brBlack;
+      color9 = hash p.brRed;
+      color10 = hash p.brGreen;
+      color11 = hash p.brYellow;
+      color12 = hash p.brBlue;
+      color13 = hash p.brMagenta;
+      color14 = hash p.brCyan;
+      color15 = hash p.brWhite;
+      background = hash p.bg;
+      foreground = hash p.fg;
+      cursor = hash p.fg;
+      cursor_text_color = hash p.bg;
+      selection_foreground = hash p.bg;
+      selection_background = hash p.selBg;
 
       # Tab bar (was tabs.conf, renamed from dank-tabs.conf when DMS was
       # dropped — the name was kept deliberately, the file need not be).
@@ -137,13 +137,13 @@ in
       tab_bar_min_tabs = 2;
       tab_bar_margin_width = "0.0";
       tab_bar_margin_height = "2.5 1.5";
-      tab_bar_margin_color = hash gruvbox.bg;
-      tab_bar_background = hash gruvbox.bg;
-      active_tab_foreground = hash gruvbox.bg;
-      active_tab_background = hash gruvbox.brMagenta;
+      tab_bar_margin_color = hash p.bg;
+      tab_bar_background = hash p.bg;
+      active_tab_foreground = hash p.bg;
+      active_tab_background = hash p.brMagenta;
       active_tab_font_style = "bold";
       inactive_tab_foreground = "#d5c4a1";
-      inactive_tab_background = hash gruvbox.bg;
+      inactive_tab_background = hash p.bg;
       inactive_tab_font_style = "normal";
       tab_activity_symbol = ''" ● "'';
       # The quotes are part of the VALUE, not Nix syntax — kitty needs them to
@@ -179,28 +179,28 @@ in
       };
 
       colors-dark = {
-        foreground = gruvbox.fg;
-        background = gruvbox.bg;
-        selection-foreground = gruvbox.fg;
-        selection-background = gruvbox.selBg;
+        foreground = p.fg;
+        background = p.bg;
+        selection-foreground = p.fg;
+        selection-background = p.selBg;
 
-        regular0 = gruvbox.black;
-        regular1 = gruvbox.red;
-        regular2 = gruvbox.green;
-        regular3 = gruvbox.yellow;
-        regular4 = gruvbox.blue;
-        regular5 = gruvbox.magenta;
-        regular6 = gruvbox.cyan;
-        regular7 = gruvbox.white;
+        regular0 = p.black;
+        regular1 = p.red;
+        regular2 = p.green;
+        regular3 = p.yellow;
+        regular4 = p.blue;
+        regular5 = p.magenta;
+        regular6 = p.cyan;
+        regular7 = p.white;
 
-        bright0 = gruvbox.brBlack;
-        bright1 = gruvbox.brRed;
-        bright2 = gruvbox.brGreen;
-        bright3 = gruvbox.brYellow;
-        bright4 = gruvbox.brBlue;
-        bright5 = gruvbox.brMagenta;
-        bright6 = gruvbox.brCyan;
-        bright7 = gruvbox.brWhite;
+        bright0 = p.brBlack;
+        bright1 = p.brRed;
+        bright2 = p.brGreen;
+        bright3 = p.brYellow;
+        bright4 = p.brBlue;
+        bright5 = p.brMagenta;
+        bright6 = p.brCyan;
+        bright7 = p.brWhite;
       };
 
       key-bindings = {
@@ -240,6 +240,11 @@ in
   # symlinks to work with.
   programs.zed-editor = {
     enable = true;
+
+    # Zed has no built-in Catppuccin. Declared here so the theme named in
+    # `userSettings.theme` below can actually resolve.
+    extensions = [ "catppuccin" ];
+
     userSettings = {
       project_panel.dock = "left";
       outline_panel.dock = "left";
@@ -271,10 +276,15 @@ in
         dark = "JetBrains New UI Icons (Dark)";
       };
 
+      # Gruvbox ships INSIDE Zed; Catppuccin does not, so the extension below is
+      # load-bearing rather than a convenience. A theme name Zed cannot resolve
+      # leaves it on One Dark and logs nothing — the usual shape. Zed installs
+      # extensions on first launch, so the very first start after this change
+      # may show the fallback until it finishes.
       theme = {
         mode = "system";
-        light = "Gruvbox Light";
-        dark = "Gruvbox Dark";
+        light = "Catppuccin Latte";
+        dark = "Catppuccin Mocha";
       };
 
       buffer_font_family = "Hack Nerd Font Mono";
@@ -387,9 +397,9 @@ in
     );
   };
 
-  # yazi. The noctalia flavor is kept as a directory — a `.yazi` flavor is a
-  # package layout (flavor.toml plus assets), which is what the `flavors`
-  # option takes, so there is nothing to transcribe.
+  # yazi. The flavor is a `.yazi` package directory, which is what the `flavors`
+  # option takes — so it is assembled in the overlay from upstream's own file
+  # rather than transcribed. 916 lines of third-party hex, and not ours to edit.
   programs.yazi = {
     enable = true;
 
@@ -403,10 +413,10 @@ in
     # Set explicitly, and deleted from 10-aliases.zsh — one owner.
     shellWrapperName = "y";
 
-    flavors.noctalia = ../../dotfiles/yazi/flavors/noctalia.yazi;
+    flavors.catppuccin = pkgs.catppuccin-yazi;
     theme.flavor = {
-      dark = "noctalia";
-      light = "noctalia";
+      dark = "catppuccin";
+      light = "catppuccin";
     };
   };
 
@@ -424,7 +434,7 @@ in
     enable = true;
     settings.theme =
       let
-        m = gruvbox.muted;
+        m = p.muted;
       in
       {
         background = hash m.bg;
@@ -452,10 +462,11 @@ in
       };
   };
 
-  # imv. Gruvbox hard light background so black SVGs and icons stay visible.
+  # imv. The palette's lightest foreground as the background, so black SVGs and
+  # icons stay visible.
   programs.imv = {
     enable = true;
-    settings.options.background = gruvbox.fg;
+    settings.options.background = p.fg;
   };
 
   # ==========================================================================
@@ -503,7 +514,7 @@ in
       # the one surface whose accent disagreed with the bar, the menus and the
       # window borders — and a drifted palette looks deliberate. `opaque` and
       # `wash` spell the two alpha values the indicator needs.
-      color = opaque gruvbox.bg0;
+      color = opaque p.bg0;
       # The pool is generated at the panel's native 1920x1200, so `fill` scales
       # by exactly 1 and the block edges stay hard. swaylock resamples with
       # CAIRO_FILTER_BILINEAR, so an external output at another resolution gets
@@ -516,24 +527,24 @@ in
       indicator-radius = 100;
       indicator-thickness = 7;
 
-      inside-color = wash gruvbox.bg0;
-      inside-clear-color = wash gruvbox.bg0;
-      inside-ver-color = wash gruvbox.blue;
-      inside-wrong-color = wash gruvbox.errColor;
+      inside-color = wash p.bg0;
+      inside-clear-color = wash p.bg0;
+      inside-ver-color = wash p.blue;
+      inside-wrong-color = wash p.errColor;
 
-      ring-color = opaque gruvbox.accent;
-      ring-clear-color = opaque gruvbox.okColor;
-      ring-ver-color = opaque gruvbox.blue;
-      ring-wrong-color = opaque gruvbox.errColor;
+      ring-color = opaque p.accent;
+      ring-clear-color = opaque p.okColor;
+      ring-ver-color = opaque p.blue;
+      ring-wrong-color = opaque p.errColor;
 
-      key-hl-color = opaque gruvbox.warnColor;
-      bs-hl-color = opaque gruvbox.errColor;
+      key-hl-color = opaque p.warnColor;
+      bs-hl-color = opaque p.errColor;
 
-      text-color = opaque gruvbox.text;
-      text-clear-color = opaque gruvbox.text;
-      text-ver-color = opaque gruvbox.infoColor;
-      text-wrong-color = opaque gruvbox.errColor;
-      text-caps-lock-color = opaque gruvbox.warnColor;
+      text-color = opaque p.text;
+      text-clear-color = opaque p.text;
+      text-ver-color = opaque p.infoColor;
+      text-wrong-color = opaque p.errColor;
+      text-caps-lock-color = opaque p.warnColor;
 
       # Fully transparent — the ring carries the state, the lines only add
       # edges to it.

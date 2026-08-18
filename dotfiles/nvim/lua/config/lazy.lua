@@ -30,7 +30,7 @@ end
 require("lazy").setup({
   spec = { { import = "plugins" } },
   lockfile = lockfile,
-  install = { colorscheme = { "gruvbox", "habamax" } },
+  install = { colorscheme = { "catppuccin", "habamax" } },
   checker = { enabled = false },           -- don't auto-check for plugin updates
   change_detection = { notify = false },
   rocks = { enabled = false },             -- no luarocks (neorg is gone)

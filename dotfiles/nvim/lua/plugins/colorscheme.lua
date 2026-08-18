@@ -1,32 +1,37 @@
--- Gruvbox, transparent (carried over). Set at high priority so it loads first.
+-- Catppuccin Mocha, transparent. Set at high priority so it loads first.
 --
 -- `config.palette` is GENERATED from modules/home/palette.nix and does not
 -- exist in dotfiles/ — a runCommand in modules/home/dotfiles.nix merges it into
 -- this tree. Editing colours here does nothing; edit the palette and rebuild.
 --
--- `palette_overrides` is the plugin's own hook (lua/gruvbox.lua): it replaces
--- entries in the base palette before any highlight is built, so this is not a
--- pile of highlight overrides layered on top. Keys the palette does not name
--- (the *_hard/*_soft variants, faded_*, the orange pair and the diff colours)
--- keep upstream's gruvbox values.
+-- `color_overrides.<flavour>` is the plugin's own hook: it replaces entries in
+-- the flavour's palette before any highlight is built, so this is not a pile of
+-- highlight overrides layered on top.
+--
+-- The palette names 17 of Mocha's 26 keys. The other nine (crust, flamingo,
+-- maroon, peach, sky, sapphire, lavender, overlay0, overlay2) keep
+-- upstream's values — and upstream IS Mocha, so unlike the gruvbox arrangement
+-- this replaced, the unnamed keys are already in scheme rather than merely in
+-- family. That is the whole reason §3 of the migration runbook says to swap the
+-- plugin instead of overriding a foreign one.
 return {
   {
-    "ellisonleao/gruvbox.nvim",
+    "catppuccin/nvim",
+    name = "catppuccin",
     priority = 1000,
     lazy = false,
     config = function()
-      require("gruvbox").setup({
-        terminal_colors = true,
-        undercurl = true,
-        underline = true,
-        bold = true,
-        italic = { strings = true, emphasis = true, comments = true, folds = true },
-        inverse = true,
-        contrast = "",
-        transparent_mode = true,
-        palette_overrides = require("config.palette"),
+      require("catppuccin").setup({
+        flavour = "mocha",
+        transparent_background = true,
+        term_colors = true,
+        styles = {
+          comments = { "italic" },
+          conditionals = { "italic" },
+        },
+        color_overrides = { mocha = require("config.palette") },
       })
-      vim.cmd.colorscheme("gruvbox")
+      vim.cmd.colorscheme("catppuccin")
     end,
   },
 }

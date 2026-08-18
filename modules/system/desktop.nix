@@ -133,10 +133,10 @@
     pavucontrol
 
     # Theming — packages only; the GTK/Qt settings live in theme.nix.
-    gruvbox-gtk-theme # vendored in pkgs/ — nixpkgs dropped it with GTK2
+    catppuccin-gtk # pinned to mocha/mauve by the overlay
     adw-gtk3
     gnome-themes-extra
-    papirus-icon-theme # recoloured yellow by the overlay
+    papirus-icon-theme # recoloured violet by the overlay
     # `papirus-folders` is deliberately absent: it recolours in place, so on a
     # store path it is a no-op that looks like the solution. See pkgs/default.nix.
     libsForQt5.qtstyleplugin-kvantum

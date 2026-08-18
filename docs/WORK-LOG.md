@@ -1853,3 +1853,143 @@ The daemon's absence was reported once, at boot, in a message about
 throughout — a unit whose start job was deleted has not failed. In all three
 cases the answer came from the journal read at the timestamp of the symptom, and
 in none of them from the file that contained the mistake.
+
+---
+
+## 2026-08-18 · Gruvbox → Catppuccin Mocha
+
+The first **new scheme** run through `docs/THEME-MIGRATION.md`, which
+[0028](adr/0028-one-palette-reaches-every-config-it-can.md) had written but
+nothing had yet exercised. The runbook estimated "a day, spread across six
+upstreams". The palette half took one file; the rest of the day was the half the
+runbook exists to warn about.
+
+Chosen on the evidence rather than by taste: the ten schemes noctalia ships were
+ranked by mean OKLCh chroma over their sixteen ANSI colours, and Mocha's
+foreground roles were checked against `base` for contrast before anything was
+edited — every one clears **AAA** (text 11.3, green 11.0, red 7.1). Contrast is
+asserted nowhere in this repo, so it was worth measuring rather than assuming.
+
+### What the runbook got right
+
+Both of its warnings paid for themselves.
+
+**§1: the neutral-`bg0` blocker was real.** Mocha's `#1e1e2e` is blue by 16, and
+the lock ramp asserted `R = G = B` in two places. Generalised to "one hue" rather
+than deleted — [0029](adr/0029-the-lock-ramp-asserts-hue-not-greyness.md) — and
+verified by confirming the *old* gruvbox ramp still passes the new check, and
+that a planted hue-drifting stop set still fails it.
+
+**§3: nvim needed the plugin swapped, not overridden.** `gruvbox.nvim` has 54
+palette keys and the palette names 20; feeding it Mocha values would have left 34
+gruvbox ones in place. Replaced with `catppuccin/nvim`, whose 26 keys are
+Catppuccin's own vocabulary, so the 16 the palette names line up without a
+translation table and the 10 it does not are *already Mocha*.
+
+### What it did not cover
+
+Three things the runbook will now warn the next person about:
+
+- **A retired vendored package un-hides a nixpkgs tombstone.** Deleting the
+  vendored `gruvbox-gtk-theme` from the overlay stopped it shadowing nixpkgs'
+  `throw`, and the eval failed from `modules/system/desktop.nix` — a file the
+  migration had no reason to open, naming the attribute among `systemPackages`.
+- **The stray-hex check carried its own copy of the scheme.** Twenty hardcoded
+  gruvbox values which, left alone, would have matched nothing and reported
+  success: this repo's signature bug, inside the check written to catch it. The
+  needles are now read out of `palette.nix`, with a floor that fails below
+  sixteen. That is the fourteenth tick in the palette block, where the runbook
+  said thirteen.
+- **Three package names, spelled three ways.** `mochaMauve` (attribute),
+  `catppuccin-mocha-mauve-standard` (GTK), `catppuccin-mocha-mauve-cursors`
+  (cursor), `catppuccin-mocha-mauve` (Kvantum) — none derivable from another, all
+  named by hand in four files, and a GTK name matching nothing falls back to
+  Adwaita silently.
+
+### The tail the runbook does not list
+
+A repo-wide grep for `gruvbox` after the six packages were done found **five more
+live references**, none of them in `docs/THEME-MIGRATION.md`'s tables, because
+they are not colours — they are theme *names* held by applications that theme
+themselves:
+
+| Where | Was | Now |
+|---|---|---|
+| `nvim/lua/plugins/ui.lua` | lualine `theme = "gruvbox"` | `"catppuccin"` |
+| `nvim/lua/config/lazy.lua` | `install.colorscheme` fallback | `"catppuccin"` |
+| `programs.nix` | Zed `Gruvbox Dark`/`Light` | `Catppuccin Mocha`/`Latte`, **plus an extension** |
+| `mango/scripts/lib.sh` | Equibop `enabledThemes` | `catppuccin.theme.css`, and the theme itself moved into the repo |
+| `programs.nix` | the palette binding, named `gruvbox` | `p` |
+
+Zed is the one worth recording: **Gruvbox ships inside Zed and Catppuccin does
+not**, so the rename alone would have left Zed on One Dark with nothing logged.
+`programs.zed-editor.extensions = [ "catppuccin" ]` is what makes the theme name
+resolvable, and the first launch after the change may still show the fallback
+while the extension installs.
+
+**Equibop turned out to be repo work, not user work.** The theme in
+`~/.config/equibop/themes/` looked like a downloaded Vencord theme and was not —
+`@author henry`, 136 hand-written lines on the midnight-discord framework, with
+gruvbox hex in a `:root` block and a set of `.hljs` rules. Untracked, in
+`~/.config`, quietly supplying a theme: the same shape as the swaylock config
+that `programs.nix` records having replaced.
+
+So it got the **swaync treatment** rather than a rename — the hand-written
+layout is now `dotfiles/equibop/theme-body.css` with no hex in it, and the
+`:root` block and syntax rules are generated from `palette.nix`. Reversed order
+from swaync's split, because CSS requires `@import` to precede every other rule
+and the framework is imported at the top.
+
+Three things fell out of doing it properly:
+
+- **`mantle` joined the palette.** Discord needs a recessed tone for pressed
+  controls, one step darker than `base`, and the mono ramp had no name for it —
+  `bg0` is its darkest. Mocha names it, so it is a lookup rather than an
+  invention. It reaches nvim too, now that it exists.
+- **The five colour scales are mixed, not typed.** The gruvbox original
+  hand-tuned twenty-five `hsl()` values across five ramps, where a typo and a
+  considered value are indistinguishable. They are now `color-mix` from one
+  palette colour each, so a scheme change moves all five.
+- **Two new assertions.** One that the generated theme carries the accent, and
+  one that **the filename `lib.sh` enables is the filename home-manager
+  generates** — the specific silent failure here, since Equibop ignores a theme
+  name matching no file without logging. Verified by renaming one side and
+  watching it fail.
+
+The old `gruvbox.theme.css` is left in place, inert. It is the only copy of that
+variant and it is the user's own work; nothing reads it once `enabledThemes`
+points elsewhere.
+
+**And it caught us on the first rebuild.** Everything else came up Mocha; Equibop
+did not. The theme was generated, symlinked and correct in
+`~/.config/equibop/themes/`, and `enabledThemes` still said `gruvbox.theme.css`
+— because that line is written by `mode.sh`, and the reload done after the
+rebuild was `mmsg dispatch reload_config`, which reloads the compositor without
+running the mode scripts. A rebuild alone never enables it.
+
+Worth stating plainly, because the static check does **not** cover this: it
+asserts the name `lib.sh` writes matches the file home-manager generates, which
+is a different claim from "the setting was applied". Both halves were correct
+and the theme was still not enabled. The reload tables in `CLAUDE.md` and the
+runbook now carry an Equibop row.
+
+### Also done
+
+The yazi flavor left the repo. It was 916 lines of third-party hex under
+`dotfiles/`, exempted from the stray-hex rule for that reason; it is now fetched
+and assembled into a `.yazi` package by the overlay, so the exemption covers one
+thing less. `programs.nix`'s palette binding, still named `gruvbox` after a
+scheme it no longer held, became `p` — matching the other two modules.
+
+### Verified by output, not exit status
+
+`nix flake check` passes, but that was never the question. The generated tree was
+read directly: mango's `focuscolor=0xcba6f7ff`, fsel's
+`rgb(203, 166, 247)`, nvim's 16-key `palette.lua`; the GTK, cursor and Kvantum
+names resolved to real directories in their packages; the lock pool's per-channel
+means are exactly `30, 30, 46` with all nine tones on `bg0`'s hue; and nvim, run
+headless, reported `colors_name=catppuccin-mocha` with `Keyword.fg=#cba6f7` —
+the palette reaching an actual highlight, which reading the generated file does
+not prove.
+
+Not yet done: `rebuild`, `:Lazy sync`, and looking at it.

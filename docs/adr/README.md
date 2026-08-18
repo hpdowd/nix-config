@@ -40,6 +40,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0026](0026-serve-the-ppd-bus-name-from-tlp.md) | Serve the power-profiles-daemon bus name from TLP, rather than leave it unowned | Accepted (follows [0017](0017-tlp-profiles-not-platform-profile.md), [0005](0005-one-owner-per-daemon.md); closes an inert widget from [0020](0020-noctalia-is-a-desktop-mode.md)) |
 | [0027](0027-one-editor-nvim.md) | One editor: nvim. Helix is removed | Accepted (amends [0009](0009-generated-config-over-linked-files.md), [0007](0007-language-servers-declared.md)) |
 | [0028](0028-one-palette-reaches-every-config-it-can.md) | One palette reaches every config it can; six theme packages it cannot | Accepted (extends [0009](0009-generated-config-over-linked-files.md); follows [0027](0027-one-editor-nvim.md)) |
+| [0029](0029-the-lock-ramp-asserts-hue-not-greyness.md) | The lock ramp asserts the palette's hue, not greyness | Accepted (amends [0018](0018-lock-background-is-a-pool.md); forced by the migration [0028](0028-one-palette-reaches-every-config-it-can.md) enabled) |
 
 ## Format
 

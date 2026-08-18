@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tiling mode — Gruvbox Orange, solid full-width bar.
+# Tiling mode — solid full-width bar.
 #
 # The body is apply_mode() in ../lib.sh: this file and hud.sh were byte-
 # identical apart from two names. Autostart and the keybinds invoke the mode

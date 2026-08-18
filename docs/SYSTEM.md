@@ -278,7 +278,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Any colour | `modules/home/palette.nix` — the one Gruvbox definition. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the five theme *packages* it cannot reach |
+| Any colour | `modules/home/palette.nix` — the one Catppuccin Mocha definition. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. See §6 for the six theme *packages* it cannot reach |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
 | Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
@@ -336,7 +336,7 @@ argument is not tidiness:
   installs the package *and* writes the config, so removing it removes both.
   Previously `kitty` was in `packages.nix` while `kitty/` was in
   `dotfiles.nix`, with nothing tying them together.
-- **Values can be shared.** The Gruvbox palette is one file
+- **Values can be shared.** The Catppuccin Mocha palette is one file
   (`modules/home/palette.nix`) instead of sixteen hex codes transcribed into
   four with nothing keeping them in step — the terminals, the bar's
   `colors.css` and rofi's `colors.rasi` all derive from it, and
@@ -387,11 +387,16 @@ would remove functionality".
 
 ### Assets — a fourth thing that is not a tier
 
-`dotfiles/yazi/` and `dotfiles/wlogout/` still exist but contain **no
-config**. They hold data a *generated* config points at: yazi's
-`noctalia.yazi` flavor and wlogout's six PNGs.
-`programs.nix` references them by relative path, so they end up in the store as
-their own paths. Don't mistake these for unconverted configs.
+`dotfiles/wlogout/` still exists but contains **no config**. It holds data a
+*generated* config points at: wlogout's six PNGs. `programs.nix` references it
+by relative path, so it ends up in the store as its own path. Don't mistake this
+for an unconverted config.
+
+`dotfiles/yazi/` was the same shape until the Catppuccin migration and is now
+gone: the flavor is third-party colour data, so it is fetched into the store by
+the overlay (`pkgs.catppuccin-yazi`) instead of being carried in git. That is
+the preferred end state for this category — vendor it only when there is no
+upstream to fetch.
 
 ### What is deliberately NOT generated
 
@@ -450,7 +455,7 @@ Instead `scripts/modes/noctalia.sh` writes it in two halves that differ in
 | File | Applied | Holds |
 |---|---|---|
 | `noctalia/settings.json` | once, when there is no file at all | preferences — terminal command, changelog popup, telemetry. Yours to change from noctalia's UI afterwards |
-| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the Gruvbox colour scheme |
+| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the Catppuccin colour scheme |
 
 Both are partial and deliberately carry no `settingsVersion`; everything else
 comes from the package's own `Assets/settings-default.json`, and upstream's
@@ -783,7 +788,7 @@ Aliases worth knowing: `cat`→`bat`, `ls`/`ll`/`la`→`eza`, `lf`→`yazi`,
 `zed`→`zeditor`, `z` for zoxide jumping. In `~` only, bare `ls` hides a fixed
 list of clutter directories; `ll`/`la` are the unfiltered escape hatches.
 
-**Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All Gruvbox Dark,
+**Terminals:** foot (default, `SUPER+Return`), kitty, ghostty. All Catppuccin Mocha,
 Hack Nerd Font Mono 11 — kitty additionally takes bold and italic from
 0xProto Nerd Font Mono (bold-italic stays Hack; 0xProto ships none).
 `checks/static.sh` asserts every family named here actually resolves.

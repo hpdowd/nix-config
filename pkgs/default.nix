@@ -6,13 +6,17 @@
 final: prev: {
 
   # ==========================================================================
-  # papirus-icon-theme — Gruvbox-yellow folders
+  # papirus-icon-theme — folders on the accent
   # ==========================================================================
   # The `papirus-folders` CLI recolours in place and cannot touch a store path;
   # `color` is the same thing at build time. An overlay, not a call-site
   # override — two references would otherwise put two Papirus derivations on
   # XDG_DATA_DIRS with the colour decided by lookup order.
-  papirus-icon-theme = prev.papirus-icon-theme.override { color = "yellow"; };
+  #
+  # `violet` is Papirus's nearest name to Catppuccin's mauve; Papirus has no
+  # mauve, and its folder set is rendered SVG, so this is a pick from its list
+  # rather than a colour the palette can supply.
+  papirus-icon-theme = prev.papirus-icon-theme.override { color = "violet"; };
 
   # ==========================================================================
   # noctalia-shell — its mango backend still speaks dwl's dead flags
@@ -64,45 +68,64 @@ final: prev: {
   });
 
   # ==========================================================================
-  # gruvbox-gtk-theme — vendored; nixpkgs removed it
+  # catppuccin-gtk / catppuccin-kvantum — pinned to one variant each
   # ==========================================================================
-  # Dropped 2026-07-22 for depending on gtk-engine-murrine (GTK2). That was only
-  # a `propagatedUserEnvPkgs` entry serving the theme's gtk-2.0/ files, so the
-  # GTK3/4 CSS this system actually uses is unaffected — the upstream repo is
-  # unchanged. Builds `Gruvbox-Yellow-Dark` only, which is the one name
-  # theme.nix, gtk-apply.sh and $GTK_THEME ask for.
-  gruvbox-gtk-theme = prev.stdenvNoCC.mkDerivation {
-    pname = "gruvbox-gtk-theme";
-    version = "0-unstable-2025-10-23";
-
-    src = prev.fetchFromGitHub {
-      owner = "Fausto-Korpsvart";
-      repo = "Gruvbox-GTK-Theme";
-      rev = "578cd220b5ff6e86b078a6111d26bb20ec8c733f";
-      hash = "sha256-RXoPj/aj9OCTIi8xWatG0QpDAUh102nFOipdSIiqt7o=";
-    };
-
-    nativeBuildInputs = [ prev.sassc ];
-    buildInputs = [ prev.gnome-themes-extra ];
-    dontBuild = true;
-
-    postPatch = "patchShebangs themes/install.sh";
-
-    installPhase = ''
-      runHook preInstall
-      mkdir -p $out/share/themes
-      cd themes
-      ./install.sh -n Gruvbox -c dark -t yellow -d "$out/share/themes"
-      runHook postInstall
-    '';
-
-    meta = {
-      description = "GTK theme based on the Gruvbox colour palette";
-      homepage = "https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme";
-      license = prev.lib.licenses.gpl3Plus;
-      platforms = prev.lib.platforms.unix;
-    };
+  # Overlay overrides for the same reason as Papirus above: both are referenced
+  # from more than one place (theme.nix and dotfiles.nix), and a call-site
+  # `.override` at each would build two derivations and put two copies of the
+  # theme on XDG_DATA_DIRS, with lookup order deciding which one renders.
+  #
+  # These replace a VENDORED gruvbox-gtk-theme, which existed only because
+  # nixpkgs dropped that package in 2026-07. Both Catppuccin themes are in
+  # nixpkgs, so there is nothing to vendor — the derivation is gone rather than
+  # retargeted.
+  #
+  # The names these produce are load-bearing and are not guessable from the
+  # arguments: `catppuccin-mocha-mauve-standard` (GTK) and
+  # `catppuccin-mocha-mauve` (Kvantum). theme.nix, gtk-apply.sh, $GTK_THEME and
+  # kvantum.kvconfig all spell them out, and `checks/static.sh` asserts the GTK
+  # one resolves to a real directory — a GTK theme name that matches nothing
+  # falls back to Adwaita and looks merely unstyled.
+  catppuccin-gtk = prev.catppuccin-gtk.override {
+    accents = [ "mauve" ];
+    variant = "mocha";
+    size = "standard";
   };
+
+  catppuccin-kvantum = prev.catppuccin-kvantum.override {
+    accent = "mauve";
+    variant = "mocha";
+  };
+
+  # ==========================================================================
+  # catppuccin-yazi — the flavor, which nixpkgs does not package
+  # ==========================================================================
+  # `programs.yazi.flavors` takes a `.yazi` PACKAGE — a directory whose entry
+  # point is `flavor.toml`. Upstream ships bare per-accent TOMLs under
+  # `themes/<variant>/`, so the package is assembled here rather than fetched
+  # whole; the file is copied unmodified.
+  #
+  # This replaces a 916-line gruvbox flavor that lived under dotfiles/ as
+  # third-party colour *data* — which `checks/static.sh` exempts from the
+  # no-stray-hex rule, and which nothing here should have been hand-editing.
+  # Out of the repo now, so that exemption covers one thing less.
+  #
+  # `cp` a single named file rather than the directory: a variant renamed
+  # upstream then fails the BUILD, where a glob would install nothing and yazi
+  # would fall back to its built-in theme with no error anywhere.
+  catppuccin-yazi =
+    let
+      src = prev.fetchFromGitHub {
+        owner = "catppuccin";
+        repo = "yazi";
+        rev = "baaf5d1c9427b836fbefd126aa855f9eab7a9d0d";
+        hash = "sha256-L6SApM07CSQk0znEsFP8WaxW+ZHcindXo612r1XcwIg=";
+      };
+    in
+    prev.runCommand "catppuccin-mocha-mauve.yazi" { } ''
+      mkdir -p "$out"
+      cp ${src}/themes/mocha/catppuccin-mocha-mauve.toml "$out/flavor.toml"
+    '';
 
   # ==========================================================================
   # Brother MFC-L3740CDW printer driver
@@ -172,14 +195,23 @@ final: prev: {
   # the centre comes from the palette; ±6 is the spread of the ramp, which is a
   # property of the gradient and not a colour.
   #
-  # This works because bg0 is neutral (R=G=B). If it stops being, the `tinted`
-  # check below fails the BUILD — deliberately. A non-neutral lock background is
-  # a legitimate thing to want, but it is a decision, and this is the one place
-  # that would otherwise absorb it silently.
+  # The ramp varies LIGHTNESS ONLY: all three channels move by the same ±6, so
+  # every tone keeps bg0's exact channel offsets and therefore its hue. Under
+  # gruvbox this was a grayscale ramp, because #282828 is neutral and the two
+  # are the same thing there; Catppuccin Mocha's #1e1e2e is not neutral, so the
+  # ramp is now stated as the general case. The check below asserts the offsets
+  # are preserved rather than that they are zero — same guarantee (the lock
+  # screen cannot be the one surface wearing a colour the palette never named),
+  # one fewer assumption about which palette is in use.
   lock-backgrounds =
     let
       palette = import ../modules/home/palette.nix;
-      mid = prev.lib.fromHexString (builtins.substring 0 2 palette.bg0);
+      chan = i: prev.lib.fromHexString (builtins.substring i 2 palette.bg0);
+      mid = [
+        (chan 0)
+        (chan 2)
+        (chan 4)
+      ];
       # Zero-padded: toHexString 5 is "5", which would build "#555" — a valid
       # colour, a different one, and nothing downstream would object.
       byte =
@@ -188,8 +220,14 @@ final: prev: {
           h = prev.lib.toLower (prev.lib.toHexString v);
         in
         if builtins.stringLength h == 1 then "0${h}" else h;
-      gray = v: "#${byte v}${byte v}${byte v}";
-      stops = "${gray (mid - 6)},${gray mid},${gray (mid + 6)}";
+      tone = d: "#" + prev.lib.concatMapStrings (c: byte (c + d)) mid;
+      stops = "${tone (-6)},${tone 0},${tone 6}";
+      # The per-channel bounds the checkPhase asserts, as shell-safe literals.
+      chanName = [
+        "r"
+        "g"
+        "b"
+      ];
     in
     prev.stdenv.mkDerivation {
       pname = "lock-backgrounds";
@@ -224,30 +262,38 @@ final: prev: {
       # would otherwise invite is a check that still asserts 40 while the ramp
       # moved, which passes nothing and reports success.
       #
-      # Neutrality is exact: a tinted ramp is what "the colour still doesn't feel
-      # right" turned out to be, and bg0 is R=G=B.
+      # Hue preservation is exact, and can be. `ramp()` interpolates each channel
+      # from an integer base by the same delta, so the fractional parts agree and
+      # all three round the same way — the offsets survive interpolation without
+      # slack. Upscaling is `-filter Point`, which introduces no new colours.
       #
       # The mean is a tolerance, not an equality. The ramp is symmetric about
       # `mid`, but 96 blocks drawn from 9 tones vary by ±1 through sampling alone
       # — an exact test fails on roughly one seed in four. ±1 still catches a
       # shifted band, which is the failure worth catching: earlier attempts sat
-      # at 54 and 70.
+      # at 54 and 70. Now per channel, so a ramp that drifted in one channel only
+      # cannot average back into range.
       doCheck = true;
       checkPhase = ''
         runHook preCheck
         n=$(find pool -name '*.png' | wc -l)
         [ "$n" -eq 24 ] || { echo "pool has $n members, expected 24" >&2; exit 1; }
         for f in pool/*.png; do
-          mean=$(magick "$f" -format '%[fx:int(mean*255)]' info:)
-          [ "$mean" -ge ${toString (mid - 1)} ] && [ "$mean" -le ${toString (mid + 1)} ] ||
-            { echo "$f: mean $mean, expected ${toString mid}±1 (${gray mid})" >&2; exit 1; }
-
-          tinted=$(magick "$f" -unique-colors txt: |
+          ${prev.lib.concatStrings (
+            prev.lib.zipListsWith (name: want: ''
+              mean=$(magick "$f" -format '%[fx:int(mean.${name}*255)]' info:)
+              [ "$mean" -ge ${toString (want - 1)} ] && [ "$mean" -le ${toString (want + 1)} ] ||
+                { echo "$f: ${name} mean $mean, expected ${toString want}±1 (${tone 0})" >&2; exit 1; }
+            '') chanName mid
+          )}
+          drifted=$(magick "$f" -unique-colors txt: |
             grep -oE '#[0-9A-F]{6}' |
-            awk '{ if (substr($0,2,2) != substr($0,4,2) ||
-                      substr($0,4,2) != substr($0,6,2)) n++ } END { print n+0 }')
-          [ "$tinted" -eq 0 ] ||
-            { echo "$f: $tinted non-neutral tones — the ramp is tinted" >&2; exit 1; }
+            awk 'function v(s, i) { return strtonum("0x" substr(s, i, 2)) }
+                 { if (v($0,2) - v($0,4) != ${toString (builtins.elemAt mid 0 - builtins.elemAt mid 1)} ||
+                       v($0,4) - v($0,6) != ${toString (builtins.elemAt mid 1 - builtins.elemAt mid 2)}) n++ }
+                 END { print n+0 }')
+          [ "$drifted" -eq 0 ] ||
+            { echo "$f: $drifted tones off ${tone 0}'s hue — the ramp shifts colour, not just lightness" >&2; exit 1; }
         done
         runHook postCheck
       '';
@@ -259,7 +305,7 @@ final: prev: {
         runHook postInstall
       '';
 
-      meta.description = "Blocky Gruvbox background pool for swaylock";
+      meta.description = "Blocky background pool for swaylock, on the palette's base tone";
     };
 
   # ==========================================================================

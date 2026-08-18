@@ -236,7 +236,7 @@ in
   # xdg-desktop-portal-gtk, a user unit that ignores settings.ini without
   # GTK_THEME. Must match theme.nix's `gtk.theme.name`.
   systemd.user.sessionVariables = {
-    GTK_THEME = "Gruvbox-Yellow-Dark";
+    GTK_THEME = "catppuccin-mocha-mauve-standard";
     QT_QPA_PLATFORM = "wayland";
     QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
   };

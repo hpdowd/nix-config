@@ -61,6 +61,6 @@ apply_mode() {
     # mode switch.
     local eq="$HOME/.config/equibop/settings/settings.json"
     if [ -f "$eq" ]; then
-        jq '.enabledThemes = ["gruvbox.theme.css"]' "$eq" > "$eq.tmp" && mv "$eq.tmp" "$eq"
+        jq '.enabledThemes = ["catppuccin.theme.css"]' "$eq" > "$eq.tmp" && mv "$eq.tmp" "$eq"
     fi
 }

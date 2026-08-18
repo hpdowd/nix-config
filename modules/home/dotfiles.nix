@@ -38,6 +38,24 @@ let
   # every colour it takes.
   mangoColor = c: "0x${c}ff";
 
+  # One of midnight-discord's five-step colour scales, mixed from a single
+  # palette colour. Steps 2 and 3 are the colour itself — that is the framework's
+  # own shape, not a mistake, and the status vars read step 2.
+  #
+  # `color-mix` rather than five hex literals: the gruvbox original hand-tuned
+  # twenty-five hsl() values across five scales, where a typo and a considered
+  # value look identical. Mixing keeps one source colour per scale, so a palette
+  # change moves all five.
+  scale =
+    name: c:
+    lib.concatStringsSep "\n" [
+      "  --${name}-1: color-mix(in srgb, #${c} 85%, white);"
+      "  --${name}-2: #${c};"
+      "  --${name}-3: #${c};"
+      "  --${name}-4: color-mix(in srgb, #${c} 88%, black);"
+      "  --${name}-5: color-mix(in srgb, #${c} 76%, black);"
+    ];
+
   # The colours mango takes, per mode. Emitted as files the mode configs
   # `source=`, which is mango's own include directive (see the source= block at
   # the top of any mode config) — so the hand-written configs keep the layout
@@ -67,34 +85,40 @@ let
   # shape and avoids `recursive = true`, whose failure mode here is destroying
   # the checkout (see unlinkStaleConfigDirs below and docs/adr/0002).
   #
-  # The 20 keys below are gruvbox.nvim's own palette names. They currently hold
-  # exactly upstream's values, so this is a no-op today and a working lever the
-  # moment palette.nix changes — checks/static.sh asserts the first half of that.
+  # The 17 keys below are catppuccin/nvim's own palette names, which are
+  # Catppuccin's colour vocabulary rather than a plugin invention — so unlike
+  # the gruvbox arrangement this replaced, they line up with what palette.nix
+  # names instead of needing a translation table. checks/static.sh asserts the
+  # generated file carries the accent.
+  #
+  # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire,
+  # lavender, overlay0 and overlay2. palette.nix does not name them, and the
+  # plugin's own Mocha values for them are correct — this machine IS Mocha.
+  # Adding them here to "finish the job" would put nine more colours in the
+  # palette that no other consumer reads. `mantle` earned its place by
+  # acquiring one — Equibop's recessed background.
   nvimPalette = pkgs.writeText "palette.lua" ''
     -- GENERATED from modules/home/palette.nix — edit that, then rebuild.
-    -- Consumed by lua/plugins/colorscheme.lua as gruvbox.nvim's
-    -- `palette_overrides`. Not present in dotfiles/nvim/.
+    -- Consumed by lua/plugins/colorscheme.lua as catppuccin/nvim's
+    -- `color_overrides.mocha`. Not present in dotfiles/nvim/.
     return {
-      dark0 = "#${p.bg0}",
-      dark1 = "#${p.bg1}",
-      dark2 = "#${p.bg2}",
-      dark3 = "#${p.bg3}",
-      light0 = "#${p.fg0}",
-      light1 = "#${p.fg1}",
-      light4 = "#${p.fg4}",
-      gray = "#${p.brBlack}",
-      neutral_red = "#${p.red}",
-      neutral_green = "#${p.green}",
-      neutral_yellow = "#${p.yellow}",
-      neutral_blue = "#${p.blue}",
-      neutral_purple = "#${p.magenta}",
-      neutral_aqua = "#${p.cyan}",
-      bright_red = "#${p.brRed}",
-      bright_green = "#${p.brGreen}",
-      bright_yellow = "#${p.brYellow}",
-      bright_blue = "#${p.brBlue}",
-      bright_purple = "#${p.brMagenta}",
-      bright_aqua = "#${p.brCyan}",
+      base = "#${p.bg0}",
+      mantle = "#${p.mantle}",
+      surface0 = "#${p.bg1}",
+      surface1 = "#${p.bg2}",
+      surface2 = "#${p.bg3}",
+      rosewater = "#${p.fg0}",
+      text = "#${p.fg1}",
+      subtext0 = "#${p.fg4}",
+      subtext1 = "#${p.brWhite}",
+      overlay1 = "#${p.brBlack}",
+      mauve = "#${p.accent}",
+      red = "#${p.red}",
+      green = "#${p.green}",
+      yellow = "#${p.yellow}",
+      blue = "#${p.blue}",
+      pink = "#${p.magenta}",
+      teal = "#${p.cyan}",
     }
   '';
 
@@ -238,13 +262,112 @@ in
     ''
     + builtins.readFile ../../dotfiles/swaync/style-body.css;
 
+    # Equibop (Discord). Same split as swaync above and for the same reason —
+    # a hand-written FRAGMENT carrying layout, with the colours generated onto
+    # the end. Reversed order, though: the fragment leads, because CSS requires
+    # `@import` to precede every other rule and the midnight framework is
+    # imported by URL at the top of it.
+    #
+    # Managed as a FILE inside `themes/`, not as the directory: Equibop's own
+    # theme installer writes siblings there, and two owners for one path is an
+    # activation failure rather than a merge.
+    #
+    # The lifecycle is the other half of this. `mango/scripts/lib.sh` sets
+    # `enabledThemes` on every mode switch, and Equibop ignores a name that
+    # matches no file **without logging** — so the filename below and the one in
+    # that script have to move together. They did not, once: the theme stayed
+    # gruvbox through the 2026-08-18 migration because it is a *name*, not a
+    # colour, and the migration was grepping for hex.
+    "equibop/themes/catppuccin.theme.css".text =
+      builtins.readFile ../../dotfiles/equibop/theme-body.css
+      + ''
+        /* ---------------------------------------------------------------
+           GENERATED from modules/home/palette.nix — edit that, then rebuild.
+           The rules above are hand-written and live in
+           dotfiles/equibop/theme-body.css.
+           --------------------------------------------------------------- */
+        :root {
+          --colors: on;
+
+          /* Text */
+          --text-0: #${p.base}; /* on accent elements */
+          --text-1: #${p.text}; /* important */
+          --text-2: #${p.text}; /* headings */
+          --text-3: #${p.brWhite}; /* normal */
+          --text-4: #${p.subtext}; /* icons, channels */
+          --text-5: #${p.brBlack}; /* muted, timestamps */
+
+          /* Backgrounds. `mantle` is the one tone darker than `base`, for
+             pressed controls; the main surface is `base` itself. */
+          --bg-1: #${p.mantle}; /* darkest — clicked buttons */
+          --bg-2: #${p.surface}; /* dark buttons */
+          --bg-3: #${p.overlay}; /* secondary elements, spacing */
+          --bg-4: #${p.base}; /* main background */
+
+          --hover:         rgba(${channels p.text}, 0.04);
+          --active:        rgba(${channels p.text}, 0.08);
+          --active-2:      rgba(${channels p.text}, 0.05);
+          --message-hover: rgba(${channels p.text}, 0.03);
+
+          /* Accents. Only `--accent-3` is a palette colour; hover and pressed
+             are mixed from it, so the button scale cannot drift from it. */
+          --accent-1: #${p.infoColor}; /* links, accent text */
+          --accent-2: #${p.cyan}; /* small accent elements */
+          --accent-3: #${p.accent}; /* accent buttons */
+          --accent-4: color-mix(in srgb, var(--accent-3) 65%, white);
+          --accent-5: color-mix(in srgb, var(--accent-3) 80%, black);
+          --accent-new: #${p.errColor}; /* mute/deafen/danger */
+
+          --mention:       linear-gradient(to right, color-mix(in hsl, #${p.accent}, transparent 90%) 40%, transparent);
+          --mention-hover: linear-gradient(to right, color-mix(in hsl, #${p.accent}, transparent 95%) 40%, transparent);
+          --reply:         linear-gradient(to right, color-mix(in hsl, #${p.overlay}, transparent 90%) 40%, transparent);
+          --reply-hover:   linear-gradient(to right, color-mix(in hsl, #${p.overlay}, transparent 95%) 40%, transparent);
+
+          /* Status */
+          --online:    var(--green-2);
+          --dnd:       var(--red-2);
+          --idle:      var(--yellow-2);
+          --streaming: var(--purple-2);
+          --offline:   var(--text-4);
+
+          /* Borders */
+          --border-light:  var(--hover);
+          --border:        var(--active);
+          --border-hover:  var(--active);
+          --button-border: hsla(0, 0%, 100%, 0.1);
+
+          /* Colour scales, mixed from one palette colour each rather than
+             hand-tuned hsl() — the gruvbox original had five literals per
+             scale and no way to tell a considered value from a typo. */
+        ${scale "red" p.errColor}
+        ${scale "green" p.okColor}
+        ${scale "blue" p.infoColor}
+        ${scale "yellow" p.warnColor}
+        ${scale "purple" p.accent}
+        }
+
+        /* Code blocks */
+        .hljs { background: #${p.surface} !important; color: #${p.text} !important; }
+        .hljs-keyword, .hljs-selector-tag, .hljs-deletion   { color: #${p.red}; }
+        .hljs-string,  .hljs-addition, .hljs-selector-class { color: #${p.green}; }
+        .hljs-number,  .hljs-literal                        { color: #${p.magenta}; }
+        .hljs-attr,    .hljs-type, .hljs-params             { color: #${p.yellow}; }
+        .hljs-built_in, .hljs-title, .hljs-name             { color: #${p.blue}; }
+        .hljs-function, .hljs-class, .hljs-tag              { color: #${p.cyan}; }
+        .hljs-meta,    .hljs-regexp                         { color: #${p.accent}; }
+        .hljs-comment                                       { color: #${p.brBlack}; font-style: italic; }
+      '';
+
     # --- Managed as FILES, not directories -----------------------------------
     # Pins the config read-only while leaving the directory writable for sibling
     # runtime files. Cost: no longer changeable from inside the app.
     "Kvantum/kvantum.kvconfig".source = ../../dotfiles/Kvantum/kvantum.kvconfig;
-    # Concatenated, not a bare path: `#` opens a Nix comment and would swallow
-    # the semicolon, erroring on the next line.
-    "Kvantum/Gruvbox#".source = ../../dotfiles/Kvantum + "/Gruvbox#";
+    # From the store, not vendored under dotfiles/. The gruvbox theme it
+    # replaces was a lone .kvconfig this repo carried because nixpkgs had no
+    # package for it; catppuccin-kvantum ships the widget SVG as well, which is
+    # most of what a Kvantum theme is and none of which belongs in git.
+    "Kvantum/catppuccin-mocha-mauve".source =
+      "${pkgs.catppuccin-kvantum}/share/Kvantum/catppuccin-mocha-mauve";
 
     # theme.nix owns GTK settings, so nwg-look's own state is pinned read-only
     # to stop the GUI fighting it.

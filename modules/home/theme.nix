@@ -1,4 +1,4 @@
-# Gruvbox Dark baseline — global GTK and Qt theming.
+# Catppuccin Mocha baseline — global GTK and Qt theming.
 #
 # NIX OWNS THE GTK THEME, not the mode scripts. The per-mode GTK machinery
 # selected nothing (both modes called `gtk-apply.sh tiling`, and the `-tiling`
@@ -28,8 +28,10 @@
     enable = true;
 
     theme = {
-      name = "Gruvbox-Yellow-Dark";
-      package = pkgs.gruvbox-gtk-theme;
+      # The name is the package's own directory name, not a label — see the
+      # note in pkgs/default.nix. A name matching nothing drops to Adwaita.
+      name = "catppuccin-mocha-mauve-standard";
+      package = pkgs.catppuccin-gtk;
     };
     iconTheme = {
       name = "Papirus-Dark";
@@ -100,8 +102,12 @@
   # so GTK apps get the cursor declared here rather than inheriting it.
   home.pointerCursor = {
     enable = true;
-    name = "Capitaine Cursors (Gruvbox)";
-    package = pkgs.capitaine-cursors-themed;
+    # Rendered bitmaps, so this follows the scheme by being a different package
+    # rather than by taking the palette. `mochaMauve` is the attribute; the
+    # theme directory it installs is what this name must match, and the two are
+    # spelled differently.
+    name = "catppuccin-mocha-mauve-cursors";
+    package = pkgs.catppuccin-cursors.mochaMauve;
     size = 24;
     gtk.enable = true;
     x11.enable = true;

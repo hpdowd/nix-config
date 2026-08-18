@@ -389,7 +389,7 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			fi
 
 			# A scheme name that resolves to no file leaves the shell on
-			# whatever it last loaded — the machine ends up half Gruvbox and
+			# whatever it last loaded — the machine ends up half this palette and
 			# half noctalia purple, which looks like a theme, not a fault.
 			# Resolution mirrors ColorSchemeService.resolveSchemePath().
 			scheme=$(jq -r '.colorSchemes.predefinedScheme // empty' "$MANGO/noctalia/settings-pinned.json")
@@ -401,7 +401,7 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			*) schemedir="$scheme" ;;
 			esac
 			if [[ -z $scheme ]]; then
-				bad "no predefinedScheme pinned — noctalia would keep its own palette while the rest of the machine is gruvbox"
+				bad "no predefinedScheme pinned — noctalia would keep its own palette while the rest of the machine follows palette.nix"
 			elif [[ -f "$NOCT_SHARE/Assets/ColorScheme/$schemedir/$schemedir.json" ]]; then
 				ok "noctalia's pinned colour scheme ($scheme) ships with the package"
 			else
@@ -871,6 +871,7 @@ done <<-EOF
 	fsel/config.toml|${ACCENT_RGB}|fsel
 	swaync/style.css|${ACCENT_RGB}|swaync
 	ncspot/config.toml|#${MUTED_ACCENT}|ncspot
+	equibop/themes/catppuccin.theme.css|#${ACCENT}|equibop
 EOF
 
 # The mode configs must actually `source=` the generated file. mango skips an
@@ -886,13 +887,41 @@ for mode in tiling hud noctalia; do
 	fi
 done
 
-# The ceiling. Every palette hex below has exactly one home now; a copy
-# reappearing in a hand-written file is the drift the whole arrangement exists
-# to prevent, and it reads as deliberate once it is there.
+# Equibop enables its theme BY FILENAME, from the mode scripts, and ignores a
+# name that matches no file without logging. So the two halves have to agree:
+# the name lib.sh writes into `enabledThemes` must be the name home-manager
+# generates. They are in different languages in different directories, which is
+# exactly the gap a rename walks into.
+eq_theme=$(sed -n "s/.*enabledThemes = \[\\\"\([^\"]*\)\\\"\].*/\1/p" \
+	"$SRC/dotfiles/mango/scripts/lib.sh" 2>/dev/null | head -1)
+if [[ -z $eq_theme ]]; then
+	bad "could not read the Equibop theme name from lib.sh" \
+		"the agreement check below would pass on an empty needle"
+elif [[ -s "$GEN_CFG/equibop/themes/$eq_theme" ]]; then
+	ok "equibop: lib.sh enables $eq_theme, and that file is generated"
+else
+	bad "equibop: lib.sh enables '$eq_theme', which home-manager does not generate" \
+		"Equibop ignores a missing theme silently — Discord just stays unstyled"
+fi
+
+# The ceiling. Every palette hex has exactly one home now; a copy reappearing
+# in a hand-written file is the drift the whole arrangement exists to prevent,
+# and it reads as deliberate once it is there.
 #
-# Exempt, deliberately (docs/SYSTEM.md §6): the yazi flavor and the Kvantum
-# theme are third-party colour *data*, and the GTK colors.css files are the
-# Breeze palette, not this one.
+# The needles are READ FROM palette.nix rather than listed here. A hardcoded
+# list is fine until the scheme changes, at which point it scans for colours the
+# machine no longer uses, matches nothing, and reports success — this repo's
+# signature bug, in the check that exists to catch it. Whoever changes the
+# palette should not also have to remember to change the scanner.
+#
+# Hence the floor immediately below: an empty or short list means the sed
+# stopped matching (a reformat, a renamed block), and every scan after it would
+# pass on an empty needle.
+#
+# Exempt, deliberately (docs/SYSTEM.md §6): the Kvantum theme and the GTK
+# colors.css files, which are Breeze's palette and not this one. The yazi flavor
+# used to be exempt too and is now fetched into the store instead, so it is no
+# longer under dotfiles/ to be scanned.
 #
 # Tracked files only, via is_tracked — mango/config.conf is written at runtime
 # by the mode scripts from the generated file, so it legitimately holds a copy
@@ -900,10 +929,23 @@ done
 # filter a working-tree run reports a failure that `nix flake check`, which sees
 # only tracked files, does not — and a check that disagrees with the gate is
 # worse than no check.
+PALETTE_HEX=$(
+	sed -n 's/.*= "\([0-9a-f]\{6\}\)";.*/\1/p' "$SRC/modules/home/palette.nix" 2>/dev/null |
+		sort -u
+)
+PALETTE_N=$(printf '%s\n' "$PALETTE_HEX" | grep -c . || true)
+if ((PALETTE_N < 16)); then
+	bad "only $PALETTE_N hex values read from palette.nix, expected at least 16" \
+		"the scan below would pass by finding nothing"
+	PALETTE_HEX="__unreadable__"
+else
+	ok "read $PALETTE_N palette values to scan for"
+fi
+
 stray=$(
-	grep -rlniE '(282828|3c3836|504945|665c54|fbf1c7|ebdbb2|a89984|cc241d|98971a|d79921|458588|b16286|689d6a|928374|fb4934|b8bb26|fabd2f|83a598|d3869b|8ec07c)' \
+	grep -rlniE "($(printf '%s\n' "$PALETTE_HEX" | paste -sd'|'))" \
 		"$SRC/dotfiles" 2>/dev/null |
-		grep -vE '/(yazi/flavors|Kvantum|gtk-3\.0|gtk-4\.0)/' |
+		grep -vE '/(Kvantum|gtk-3\.0|gtk-4\.0)/' |
 		grep -vE '/rofi/config\.rasi$' |
 		while IFS= read -r f; do
 			rel=${f#"$SRC"/}

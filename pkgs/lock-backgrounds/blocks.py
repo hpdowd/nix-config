@@ -8,9 +8,16 @@ already 1:1 with the output arrives with its block edges blurred.
 Two invariants, both asserted rather than assumed — each is a mistake that was
 made and shipped-looking during this file's development:
 
-  - every tone is neutral (R=G=B). #282828 is neutral, so a ramp carrying any
-    hue reads as a *different colour*, not as a lighter or darker shade of the
-    background.
+  - every stop sits on ONE hue: the channel offsets (R-G, G-B) are identical
+    across the ramp, so the stops differ only in lightness. A ramp whose hue
+    drifts reads as a *different colour*, not as a lighter or darker shade of
+    the background.
+
+    This was `R=G=B` while the palette was gruvbox, whose base #282828 is
+    neutral. Catppuccin Mocha's #1e1e2e is not, so the invariant is stated as
+    what it always meant — one hue, varying only in lightness — rather than as
+    the grayscale special case of it. A neutral base still satisfies it, with
+    offsets (0, 0).
   - no block equals any of its eight neighbours. Sampling a weighted ramp
     without this left two thirds of the screen as one connected region.
 """
@@ -68,10 +75,13 @@ def main():
     a = p.parse_args()
 
     stops = a.stops.split(",")
-    for s in stops:
-        r, g, b = hex_to_rgb(s)
-        if not r == g == b:
-            sys.exit(f"stop {s} is not neutral (R=G=B); it would tint the base")
+    offsets = {tuple(c - hex_to_rgb(s)[0] for c in hex_to_rgb(s)) for s in stops}
+    if len(offsets) != 1:
+        sys.exit(
+            "stops do not share one hue: channel offsets "
+            f"{sorted(offsets)} differ, so the ramp shifts colour as well as "
+            "lightness"
+        )
 
     gw, gh = (int(v) for v in a.grid.split("x"))
     pal = ramp(stops, a.steps)

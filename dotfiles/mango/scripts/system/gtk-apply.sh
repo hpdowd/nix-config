@@ -27,7 +27,7 @@
 #   - Restarting the GTK portal, which caches the theme at startup and will
 #     otherwise keep serving the old one to Flatpak/portal clients.
 
-GTK_THEME_NAME="Gruvbox-Yellow-Dark"
+GTK_THEME_NAME="catppuccin-mocha-mauve-standard"
 
 systemctl --user set-environment GTK_THEME="$GTK_THEME_NAME"
 systemctl --user restart xdg-desktop-portal-gtk

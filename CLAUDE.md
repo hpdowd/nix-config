@@ -72,6 +72,7 @@ including several theories that looked right and were not.
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
 | foot, zed, htop, ncspot, imv, yazi | restart the app |
 | nvim plugins | `:Lazy sync` |
+| Equibop theme | mode switch — `lib.sh` writes `enabledThemes`; a rebuild alone does not |
 
 Inputs are pinned by `flake.lock`. Re-lock deliberately with `nix flake update`,
 never as a side effect of a build.
@@ -88,13 +89,14 @@ never as a side effect of a build.
 
 Tier 1 earns its churn three ways: typos become build failures, one option owns
 both the package and its config, and values can be shared —
-`modules/home/palette.nix` is the one Gruvbox definition, feeding kitty, foot,
-swaylock, imv, ncspot, nvim, mango, swaync, fsel, the lock-background ramp, the
-bar's `colors.css` and rofi's `colors.rasi`, instead of the same sixteen
-hex codes transcribed into four files with nothing keeping them in step. A
-**drifted palette looks deliberate**, which is why it gets a check rather than
-a convention: `checks/static.sh` asserts every generated colour is used and
-every reference resolves.
+`modules/home/palette.nix` is the one Catppuccin Mocha definition, feeding
+kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the
+lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`, instead
+of the same hex codes transcribed into four files with nothing keeping them in
+step. A **drifted palette looks deliberate**, which is why it gets a check
+rather than a convention: `checks/static.sh` asserts every generated colour is
+used and every reference resolves.
+
 What is deliberately *not* generated — `nvim`, `mango`, `swaync`, `glow`,
 `nwg-look` (all of which now take their *colours* from the palette even where
 the rules stay hand-written) — is listed with its reasons in

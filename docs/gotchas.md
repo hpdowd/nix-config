@@ -1327,7 +1327,7 @@ alias. `mimeapps.list` separately points markdown and shell scripts at
 ## Theming
 
 **Colours are generated from a single Nix palette** — `modules/home/palette.nix`,
-feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, the
+feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the
 lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. Change it
 once and rebuild. See `docs/adr/0028`.
 
@@ -1338,16 +1338,33 @@ GTK/Kvantum/cursor/noctalia themes carry no hex at all. A repo-wide grep for
 `d79921` found **neither** decimal copy. `checks/static.sh` now asserts the
 accent is present in each consumer's own spelling, and — the other direction —
 that no palette hex appears anywhere in `dotfiles/` outside the exempt
-third-party theme data (the yazi flavor, Kvantum, the GTK Breeze files).
+third-party theme data (Kvantum, the GTK Breeze files).
+
+**That scan reads its needles out of `palette.nix`.** It used to carry its own
+list of twenty gruvbox hex values, which would have survived the 2026-08-18
+Catppuccin migration by matching nothing and reporting success — the exact bug
+the scan exists to find, inside the scan. It now extracts the values from the
+palette and **fails below sixteen of them**, so a sed that stops matching is
+loud rather than reassuring.
 
 **Six theme *packages* the palette cannot reach**, and no amount of Nix will
 change that: the GTK theme (upstream's SCSS), GTK4 (follows it), the icon theme
 (Papirus, folder colour set by an overlay `override` to match the accent), the
 cursor (rendered bitmaps), Kvantum (rendered widget SVG) and noctalia
-(`predefinedScheme = "Gruvbox"`, a name its shell resolves) — plus yazi's flavor,
-783 hex of third-party syntax theme. For these, changing scheme means picking a
-different upstream artefact, not editing the palette.
+(`predefinedScheme = "Catppuccin"`, a name its shell resolves) — plus yazi's
+flavor, ~900 hex of third-party syntax theme, now fetched into the store by the
+overlay rather than vendored under `dotfiles/`. For these, changing scheme means
+picking a different upstream artefact, not editing the palette.
 **`docs/THEME-MIGRATION.md` is the runbook** for doing that.
+
+**Three of those package names are spelled three different ways.** The Catppuccin
+attribute is `mochaMauve`, the GTK theme directory is
+`catppuccin-mocha-mauve-standard`, the cursor is `catppuccin-mocha-mauve-cursors`
+and the Kvantum theme is `catppuccin-mocha-mauve`. `theme.nix`, `gtk-apply.sh`,
+`$GTK_THEME` and `kvantum.kvconfig` each name one by hand. **A GTK theme name
+matching nothing falls back to Adwaita without logging**, which looks like a
+theme someone chose. Read the name off the built package rather than constructing
+it: `ls "$(nix eval --raw .#…pkgs.catppuccin-gtk)/share/themes"`.
 
 **mango's colours need a `rebuild`, not a `mango-reload`.** They are generated
 into `universal/colors-<mode>.conf` and live in the store like everything else
@@ -1365,28 +1382,35 @@ user environment and restarts `xdg-desktop-portal-gtk` (which caches the theme a
 startup). **Never have both setting the theme** — one owner, in either direction.
 See `docs/adr/0004`.
 
-**`gruvbox-gtk-theme` is vendored in `pkgs/`, because nixpkgs deleted it.**
-GTK2 went, taking `gtk-engine-murrine` with it, and murrine's reverse
-dependencies were removed rather than fixed — `gruvbox-gtk-theme` and
-`gruvbox-material-gtk-theme` both, on 2026-07-22. The failure is an **eval**
-error naming a package nothing appeared to have touched, on the next
-`nix flake update`; it aborts the whole config before any build starts, so it
-looks far worse than it is. The dependency was only a `propagatedUserEnvPkgs`
-entry serving the theme's `gtk-2.0/` files, so dropping it costs nothing here —
-the vendored derivation is the removed one minus murrine and minus the variant
-plumbing, building `Gruvbox-Yellow-Dark` directly. Upstream
-(Fausto-Korpsvart/Gruvbox-GTK-Theme) is alive and unchanged.
+**A GTK theme can be deleted from nixpkgs under you, and the failure is an eval
+error naming a package you never touched.** GTK2 went, taking
+`gtk-engine-murrine` with it, and murrine's reverse dependencies were removed
+rather than fixed — `gruvbox-gtk-theme` and `gruvbox-material-gtk-theme` both, on
+2026-07-22. It aborts the whole config before any build starts, on the next
+`nix flake update`, so it looks far worse than it is. This repo carried a
+vendored copy (the removed derivation minus murrine) until the Catppuccin
+migration on 2026-08-18 retired it; `catppuccin-gtk` is in nixpkgs, so there is
+nothing to vendor.
+
+> The removal left one trap behind: the vendored attribute had been **shadowing**
+> nixpkgs' tombstone, so deleting it from the overlay un-hid the `throw` and
+> `modules/system/desktop.nix` — which listed the theme among `systemPackages`
+> a long way from `theme.nix` — failed the eval. When retiring a vendored
+> package, grep for the *attribute name* across the whole repo, not just the
+> module you were editing.
 
 > Any theme still carrying a `gtk-2.0/` directory is a candidate to go the same
 > way. The tell is a removal notice in nixpkgs' `pkgs/top-level/aliases.nix`
 > quoting a *transitive* GTK2 dependency, not a problem with the package itself.
 
 **Papirus folder icons are recoloured at build time.** Stock folders are blue,
-which reads as badly broken against Gruvbox — the symptom is Thunar looking
-correctly themed *except* every folder. The usual fix, the `papirus-folders` CLI,
-recolours the theme **in place** and so cannot work: the icon theme is a
-read-only store path, and the tool silently achieves nothing. `pkgs/default.nix`
-overrides the package with `color = "yellow"` instead. It is done in the
+which reads as badly broken against a non-blue scheme — the symptom is Thunar
+looking correctly themed *except* every folder. The usual fix, the
+`papirus-folders` CLI, recolours the theme **in place** and so cannot work: the
+icon theme is a read-only store path, and the tool silently achieves nothing.
+`pkgs/default.nix` overrides the package with `color = "violet"` instead —
+Papirus's nearest name to Catppuccin's mauve, since **the folder colour is chosen
+from Papirus's own list, not supplied as hex**. It is done in the
 **overlay** rather than at the call sites because both `gtk.iconTheme.package`
 and `systemPackages` reference the theme — overriding one would put two Papirus
 derivations on `XDG_DATA_DIRS` and let lookup order pick the folder colour.
@@ -1409,9 +1433,54 @@ is installed correctly. Verify with the application's own resolver —
 Normal/Bold/Italic/Bold-Italic. 0xProto ships no bold-italic, so that one variant
 is Hack by design.
 
-Baseline: **Gruvbox Dark**, Hack Nerd Font Mono 11 in the terminals, with kitty
-bold/italic in 0xProto Nerd Font Mono. Modes are **tiling** (Gruvbox Orange) and
-**hud**; the active one is in `~/.local/state/mango/current-mode`.
+**Some applications hold a theme *name*, and the palette cannot reach those
+either.** Beyond the six packages above: lualine's `theme`, lazy.nvim's
+`install.colorscheme` fallback, Zed's `theme.dark`/`light`, and the Equibop
+`enabledThemes` line in `mango/scripts/lib.sh`. A scheme migration has to grep
+for the old scheme's *name*, not just its hex — none of these carry a colour.
+
+> **Zed is the sharp one: Gruvbox ships inside Zed, Catppuccin does not.**
+> Renaming the theme without `programs.zed-editor.extensions = [ "catppuccin" ]`
+> leaves Zed on One Dark, logging nothing.
+
+**Equibop enables its theme by FILENAME, and ignores a name that matches
+nothing.** `mango/scripts/lib.sh` writes `enabledThemes` on every mode switch,
+and the file it names is generated by `dotfiles.nix` into
+`~/.config/equibop/themes/` — two halves, in different languages, in different
+directories, with nothing but a string in common. Rename one and Discord goes
+unstyled with nothing logged anywhere. `checks/static.sh` now asserts the two
+agree; that assertion exists because the rename is the obvious move and the
+failure is invisible.
+
+> **A rebuild alone does not enable it.** `enabledThemes` is written by the mode
+> scripts, so the generated theme can be sitting in `~/.config/equibop/themes/`,
+> correct and unreferenced, while Discord still wears the old one. It self-heals
+> on the next mode switch; `mmsg dispatch reload_config` on its own does not do
+> it, because that reloads the compositor without running `mode.sh`. This is what
+> the static check cannot catch — it asserts the two *names* agree, not that the
+> setting was ever applied.
+
+> The theme itself is **generated**, on the swaync pattern: hand-written layout
+> in `dotfiles/equibop/theme-body.css` with no hex in it, and the `:root` block
+> plus `.hljs` rules appended from the palette at build time. The fragment leads
+> rather than trails — CSS requires `@import` before every other rule, and the
+> midnight-discord framework is imported at the top of it. It was an untracked
+> hand-written file in `~/.config` until 2026-08-18, which is the same shape as
+> the swaylock config that quietly supplied a theme before it.
+
+**The lock-screen ramp asserts the palette's hue, not greyness.** The background
+pool is a ±6 lightness ramp through `bg0`, and `pkgs/default.nix` fails the
+build if any generated tone drifts off `bg0`'s channel offsets. It read
+`R = G = B` until 2026-08-18 — correct while the base was gruvbox's `#282828`,
+and an outright blocker for Mocha's `#1e1e2e`, which is blue-tinted by 16. The
+check was generalised rather than deleted, because the failure it catches is
+real: the lock screen is the one surface that can end up wearing a colour the
+palette never named, and nothing about it looks wrong at a glance. If you change
+`bg0`, there is nothing to update here — the ramp is derived from it.
+
+Baseline: **Catppuccin Mocha** (mauve accent), Hack Nerd Font Mono 11 in the
+terminals, with kitty bold/italic in 0xProto Nerd Font Mono. Modes are **tiling**
+and **hud**; the active one is in `~/.local/state/mango/current-mode`.
 
 ---
 

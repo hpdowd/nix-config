@@ -15,13 +15,17 @@ it is arranged this way).
 The two cases need different amounts of work, and conflating them is how a
 migration ends up half-done and looking deliberate.
 
+> Worked example: this repo went gruvbox → Catppuccin Mocha on 2026-08-18, which
+> is a **new scheme** — every row in the right-hand column below actually
+> happened. `docs/WORK-LOG.md` has what it cost.
+
 | | **Recolour** | **New scheme** |
 |---|---|---|
-| Example | gruvbox medium → gruvbox hard; a different accent | gruvbox → nord, catppuccin, everforest |
+| Example | mocha → macchiato; a different accent | gruvbox → catppuccin, nord, everforest |
 | `palette.nix` | edit values | edit values |
 | The six theme packages | usually unchanged | **all six must be replaced** |
 | nvim | keep the plugin, overrides carry the change | **swap the plugin** — see §3 |
-| ncspot's `muted` set | re-derive by eye | re-derive by eye |
+| ncspot's `muted` set | re-derive — check whether a formula fits (§1) | re-derive — check whether a formula fits (§1) |
 | Realistic effort | one file, one rebuild | a day, spread across six upstreams |
 
 If you are doing a **recolour**, §1 and §4–6 are the whole job. Everything in §2
@@ -29,11 +33,11 @@ and §3 is for a **new scheme**.
 
 ---
 
-## 1. The palette — one file, twelve consumers
+## 1. The palette — one file, thirteen consumers
 
 `modules/home/palette.nix`. Editing it recolours **kitty, foot, imv, swaylock,
-waybar, rofi, mango, nvim, swaync, fsel, ncspot and the lock-screen background
-ramp** — no other file needs touching for any of them.
+waybar, rofi, mango, nvim, swaync, fsel, ncspot, Equibop and the lock-screen
+background ramp** — no other file needs touching for any of them.
 
 ### Anatomy
 
@@ -43,7 +47,7 @@ not a silently-default colour.
 
 | Block | Keys | Who reads it |
 |---|---|---|
-| Canonical | `bg0`–`bg3`, `fg0`/`fg1`/`fg4`, the 16 ANSI names (`red`…`brWhite`) | the terminals want the full 16; everything else builds from these |
+| Canonical | `bg0`–`bg3`, `fg0`/`fg1`/`fg4`, `mantle`, `mauve`, the 16 ANSI names (`red`…`brWhite`) | the terminals want the full 16; everything else builds from these |
 | Semantic roles | `base`, `surface`, `overlay`, `text`, `subtext`, `accent`, `okColor`, `warnColor`, `errColor`, `infoColor` | the bar, the menus, the compositor borders, swaync |
 | Terminal aliases | `bg`, `fg`, `selBg` | kitty and foot, which named these first |
 | `muted` | `bg`, `fg`, `dim`, `accent`, `ok`, `err`, `surface`, `overlay` | ncspot only |
@@ -52,22 +56,35 @@ not a silently-default colour.
 kitty `#rrggbb`, foot bare, GTK CSS `#`, mango `0xrrggbbaa`, fsel and swaync
 decimal `rgb(r, g, b)` — so the shared form is the one they all build from.
 
+> **Names outside the ramp earn their place by acquiring a consumer.** `mauve`
+> is the accent and `mantle` is Equibop's recessed background; both are
+> Catppuccin's own names, so they are lookups rather than inventions. Do not add
+> the rest of Mocha's 26 to "complete" the set — a colour nothing reads is one
+> the next person assumes is live.
+
 ### Two constraints that are not obvious
 
-**`bg0` must stay neutral (R = G = B), or the build fails.** The lock-screen
-background pool is a grayscale ramp centred on `bg0`, and `pkgs/default.nix`
-asserts every generated PNG is untinted. A tinted `bg0` fails
-`nix flake check` with `non-neutral tones — the ramp is tinted`. This is
-deliberate: a tinted lock background is a legitimate thing to want, but it is a
-decision, and this is the one surface that would otherwise absorb it silently.
-To take it: change the `tinted` check in `pkgs/default.nix` in the same commit,
-and say why.
+**The lock ramp follows `bg0`'s hue, and the build asserts it.** The background
+pool is a ±6 lightness ramp through `bg0`: all three channels move together, so
+every tone keeps `bg0`'s exact channel offsets. `pkgs/default.nix` fails the
+build if any tone drifts off that hue, with `tones off … the ramp shifts colour,
+not just lightness`. Changing `bg0` needs nothing here — the ramp is derived
+from it.
 
-**The `muted` set has no formula.** It is ncspot's deliberately desaturated
-variant — `ebdbb2` → `c9b890` is not a uniform scale, and no darkening function
-reproduces it. Re-pick these eight by eye against the new scheme. They live in
-`palette.nix` rather than next to ncspot precisely so that this step is visible
-rather than discovered later.
+> This check read `R = G = B` until 2026-08-18, because gruvbox's `#282828` is
+> neutral and the two are the same thing there. Mocha's `#1e1e2e` is not, so it
+> was generalised to what it always meant. If you find yourself wanting to
+> delete it rather than generalise it, that is the signal you are about to make
+> the lock screen the one surface wearing a colour the palette never named.
+
+**The `muted` set may or may not have a formula.** It is ncspot's deliberately
+desaturated variant. Under gruvbox no function reproduced it (`ebdbb2` →
+`c9b890` is not a uniform scale) and the eight values were picked by eye; under
+Mocha they are each blended 18% toward `bg0`, which works because Mocha is
+even. **Check which case you are in** rather than assuming the formula carries
+over — if the new scheme's colours vary in saturation the way gruvbox's do, go
+back to picking by eye. They live in `palette.nix` rather than next to ncspot
+precisely so that this step is visible rather than discovered later.
 
 ---
 
@@ -80,16 +97,48 @@ version of this repo in which it could.
 
 | # | What | Where | How to change |
 |---|---|---|---|
-| 1 | **GTK theme** | `modules/home/theme.nix` `gtk.theme` → `pkgs.gruvbox-gtk-theme`, vendored in `pkgs/default.nix` | Point at a different theme package. Ours builds upstream's `install.sh -n Gruvbox -c dark -t yellow`; a different family means a different derivation, not different flags |
+| 1 | **GTK theme** | `modules/home/theme.nix` `gtk.theme` → `pkgs.catppuccin-gtk`, pinned to mocha/mauve in `pkgs/default.nix` | Point at a different theme package. A different family means a different derivation, not different arguments |
 | 2 | **GTK4** | `theme.nix` `gtk4.theme = config.gtk.theme` | Follows #1 automatically. Do not set it to `null` unless you intend GTK4/libadwaita apps to drop to Adwaita |
-| 3 | **Icon theme** | `theme.nix` `gtk.iconTheme` (`Papirus-Dark`), recoloured by the `papirus-icon-theme.override { color = "yellow"; }` in `pkgs/default.nix` | The folder colour is chosen to match the accent. Change the override's `color` when the accent moves |
-| 4 | **Cursor** | `theme.nix` `home.pointerCursor` → `Capitaine Cursors (Gruvbox)` | Rendered bitmaps. Pick a different cursor package |
-| 5 | **Kvantum (Qt)** | `dotfiles/Kvantum/kvantum.kvconfig` (`theme=Gruvbox#`) and the `dotfiles/Kvantum/Gruvbox#/` directory beside it | Drop in the new theme's directory and change the `theme=` line. Largely a rendered SVG of widget art — the hex in `.kvconfig` is a fraction of it |
+| 3 | **Icon theme** | `theme.nix` `gtk.iconTheme` (`Papirus-Dark`), recoloured by the `papirus-icon-theme.override { color = "violet"; }` in `pkgs/default.nix` | The folder colour is chosen to match the accent, from Papirus's own list — it has no `mauve`. Change the override's `color` when the accent moves |
+| 4 | **Cursor** | `theme.nix` `home.pointerCursor` → `pkgs.catppuccin-cursors.mochaMauve` | Rendered bitmaps. Pick a different cursor package |
+| 5 | **Kvantum (Qt)** | `dotfiles/Kvantum/kvantum.kvconfig` (`theme=catppuccin-mocha-mauve`) and the store path linked beside it in `dotfiles.nix` | Change the `theme=` line and the linked package. Largely a rendered SVG of widget art — the hex in `.kvconfig` is a fraction of it |
 | 6 | **noctalia** | `dotfiles/mango/noctalia/settings-pinned.json` → `colorSchemes.predefinedScheme` | A **name** noctalia's shell resolves internally. Use one of its own scheme names; there is no hex to supply |
 
-Plus one file that is colour *data* rather than a package:
+Plus one directory that is colour *data* rather than a package:
 
-| | **yazi flavor** | `dotfiles/yazi/flavors/noctalia.yazi/`, declared at `programs.yazi.flavors` | 783 hex of third-party syntax theme. Replace the flavor directory wholesale; do not hand-edit it |
+| | **yazi flavor** | `pkgs.catppuccin-yazi` in the overlay, declared at `programs.yazi.flavors` | ~900 hex of third-party syntax theme. Fetched and assembled into a `.yazi` package; replace the fetch wholesale, do not hand-edit it |
+
+### And a seventh category: applications that hold a theme *name*
+
+Not packages, not hex — settings whose value is the old scheme's name. `grep -ri
+gruvbox` (or whatever you are leaving) across the whole repo after §2, because
+none of these show up in a search for colours:
+
+| Where | Setting |
+|---|---|
+| `dotfiles/nvim/lua/plugins/ui.lua` | lualine's `theme` |
+| `dotfiles/nvim/lua/config/lazy.lua` | `install.colorscheme` fallback |
+| `modules/home/programs.nix` | Zed's `theme.dark` / `theme.light` |
+| `dotfiles/mango/scripts/lib.sh` | Equibop's `enabledThemes` (a filename) |
+
+Two of these bite:
+
+- **Zed ships Gruvbox and does not ship Catppuccin.** A theme name it cannot
+  resolve leaves it on One Dark, silently. Set
+  `programs.zed-editor.extensions` alongside the name.
+- **Equibop enables its theme by filename**, from `lib.sh`, on every mode
+  switch — and ignores a name matching no file, silently. The theme is generated
+  (`dotfiles/equibop/theme-body.css` plus a palette-generated `:root`), so a
+  recolour needs nothing; a **rename** has to move `lib.sh` and the
+  `xdg.configFile` key together. `checks/static.sh` asserts they agree.
+
+> **Three of the package names are not guessable from the arguments that build
+> them**
+> — `catppuccin-mocha-mauve-standard` (GTK), `catppuccin-mocha-mauve-cursors`
+> (cursor) and `catppuccin-mocha-mauve` (Kvantum) are all spelled differently
+> from each other and from the attribute (`mochaMauve`). Read them off the built
+> package (`ls $out/share/themes`) rather than constructing them; a GTK theme
+> name matching nothing silently falls back to Adwaita.
 
 > **`checks/static.sh` exempts exactly these** from its no-stray-hex rule (the
 > yazi flavor, Kvantum, and the GTK `colors.css` files, which are Breeze's
@@ -101,26 +150,34 @@ Plus one file that is colour *data* rather than a package:
 
 ## 3. nvim — the one partial case
 
-nvim's colours come from the `gruvbox.nvim` plugin, driven through its
-`palette_overrides` hook by a generated `lua/config/palette.lua`. **20 of the
-plugin's 54 palette keys are overridden.** The rest — the `*_hard`/`*_soft`
-variants, `faded_*`, the orange pair, and the diff backgrounds — keep upstream's
-values, because `palette.nix` does not name them.
+nvim's colours come from the `catppuccin/nvim` plugin, driven through its
+`color_overrides.mocha` hook by a generated `lua/config/palette.lua`. **16 of
+Mocha's 26 palette keys are overridden.** The rest — `mantle`, `crust`,
+`flamingo`, `maroon`, `peach`, `sky`, `sapphire`, `lavender`, `overlay0` and
+`overlay2` — keep upstream's values, because `palette.nix` does not name them.
 
 The decision rule:
 
-- **Recolour within gruvbox** → nothing to do. The 20 overridden keys carry the
-  change; the 34 unnamed ones stay in family and nobody notices.
-- **New scheme** → **swap the plugin.** Overriding 20 keys of a gruvbox theme
-  with nord values leaves 34 gruvbox values in place, and the result is a
-  visible hybrid, not a nord colourscheme. Replace `ellisonleao/gruvbox.nvim` in
-  `dotfiles/nvim/lua/plugins/colorscheme.lua`, and either drop
-  `palette_overrides` or re-map `lua/config/palette.lua` in
-  `modules/home/dotfiles.nix` to whatever the new plugin's override hook expects
-  — most have one, and the key names will differ.
+- **Recolour within the family** → nothing to do. The 16 overridden keys carry
+  the change; the 10 unnamed ones stay in family and nobody notices.
+- **New scheme** → **swap the plugin.** Overriding 16 keys of a Mocha theme with
+  nord values leaves 10 Catppuccin values in place, and the result is a visible
+  hybrid, not a nord colourscheme. Replace `catppuccin/nvim` in
+  `dotfiles/nvim/lua/plugins/colorscheme.lua`, and either drop the override or
+  re-map `lua/config/palette.lua` in `modules/home/dotfiles.nix` to whatever the
+  new plugin's hook expects — most have one, and the key names will differ.
 
-Do not try to close the 34-key gap by adding those names to `palette.nix`. They
-are one plugin's internal vocabulary, not this machine's colours.
+This is the step the gruvbox → Catppuccin migration confirmed: overriding 20
+keys of `gruvbox.nvim` with Mocha values would have left 34 gruvbox ones behind.
+
+Do not try to close the 10-key gap by adding those names to `palette.nix`. They
+are one plugin's internal vocabulary, not this machine's colours — and right now
+they are *already correct*, because the plugin's scheme and the palette's are
+the same one. That is a property of matching the plugin to the scheme, not a
+reason to name them.
+
+**After a plugin swap, run `:Lazy sync`.** lazy.nvim fetches at runtime, so the
+rebuild installs the *config* naming a plugin that is not on disk yet.
 
 ---
 
@@ -162,6 +219,7 @@ rebuild's copy, which is indistinguishable from the change having had no effect.
 | foot, ncspot, imv, yazi, zed, htop | restart the app |
 | nvim | restart |
 | swaync | mode switch (`autostart.conf` owns its lifecycle — `docs/adr/0005`) |
+| Equibop | **mode switch** — `lib.sh` writes `enabledThemes`, so a rebuild alone leaves the old theme enabled |
 
 ---
 
@@ -197,7 +255,12 @@ grep -E 'theme-name|cursor' ~/.config/gtk-3.0/settings.ini
 head -3 ~/.config/Kvantum/kvantum.kvconfig      # expect theme=<your theme>
 
 # nvim actually loading the generated palette
-nvim --headless '+lua local p=require("config.palette") print("keys="..vim.tbl_count(p).." dark0="..p.dark0)' +qa
+nvim --headless '+lua local p=require("config.palette") print("keys="..vim.tbl_count(p).." base="..p.base)' +qa
+
+# …and that the plugin actually applied them, which the above does not show.
+nvim --headless '+lua vim.cmd("colorscheme catppuccin")
+  local h = vim.api.nvim_get_hl(0, { name = "Keyword", link = false })
+  print(vim.g.colors_name .. " Keyword.fg=" .. string.format("#%06x", h.fg))' +qa
 ```
 
 ```sh
@@ -206,9 +269,16 @@ SYS=$(nix eval --raw '.#nixosConfigurations.thinkpad.config.system.build.topleve
 bash checks/static.sh "$PWD" "$G" "$SYS" | sed -n '/Generated palette/,/^$/p'
 ```
 
-Expect 13 ticks in that last block. A count that has *dropped* is the failure
+Expect 16 ticks in that last block. A count that has *dropped* is the failure
 mode this repo is built around: a scan that stops matching passes by finding
 nothing.
+
+One of the 16 exists only to guard that: `read N palette values to scan for`
+reports how many hex values the stray-hex scan pulled **out of `palette.nix`**,
+and fails below 16. The needles are read from the palette rather than listed in
+the check, so changing the scheme does not silently leave the scanner hunting
+for the old one — which is the same bug in the check that the check exists to
+find.
 
 ---
 

@@ -1041,6 +1041,19 @@ empty custom module is indistinguishable from an absent one. `custom/power-profi
 emitted `{"text":""}` for a while because its icons were written as literal
 glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
 
+**A waybar module with no CSS rule, and one with an empty `format`, both render
+without erroring.** Since 2026-08-20 `checks/static.sh` asserts both, for every
+module every layout carries: a rule exists in `style-solid.css`, and no `format`
+is the empty string. Both were made in one sitting while adding
+`custom/control-center` — the glyph was lost writing the Nix (there is no
+`\uXXXX` escape, so a bar glyph is literal UTF-8 that an edit can drop) and the
+module built, validated and rendered as nothing.
+
+> The scan reads the module lists out of the generated configs with `jq`, and
+> the keys have to be QUOTED: `.modules-left` is jq for `.modules` minus `left`,
+> which yields null rather than an error — so the first version of the check
+> scanned nothing and only the zero-floor caught it.
+
 **And the inverse: a module invisible for long enough loses its stylesheet.**
 `custom/phone` was listed in the `full` layout and in hud's, but had **no CSS
 rule in either sheet** — not even a place in the shared reset list — for as long as it

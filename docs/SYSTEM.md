@@ -733,6 +733,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
 | `SUPER+C` | Control centre — twelve toggles in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and four rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`) |
+| bar button, `focus` and `minimal` | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode. Not in `full`, which is crowded |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |

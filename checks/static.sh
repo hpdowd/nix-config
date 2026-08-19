@@ -1774,6 +1774,69 @@ else
 	ok "6 generated waybar configs — full, focus and minimal, each top and bottom"
 fi
 
+# Every module a layout carries needs a CSS rule, and every `format` needs
+# something in it. Both failures below are INVISIBLE — waybar renders the bar
+# either way — and both were made while adding `custom/control-center`:
+#
+#   an empty `format` is an empty module. The glyph was lost writing the file
+#   (Nix has no \uXXXX escape, so a bar glyph is a literal UTF-8 byte sequence
+#   that a careless edit drops), and the module still built, still validated,
+#   and still rendered — as nothing.
+#
+#   a module with no rule is not an error, it is a module wearing the bar's
+#   defaults. `custom/phone` went without one for as long as it existed and
+#   nothing caught it. docs/gotchas.md -> Waybar.
+#
+# The id mapping is waybar's own: `custom/foo` -> `#custom-foo`, and every
+# other group prefix is dropped (`wlr/taskbar` -> `#taskbar`).
+css_seen=0
+cssmiss=""
+fmtempty=""
+STYLE_CSS="$WAYBAR_DIR/style-solid.css"
+if [[ ! -s $STYLE_CSS ]]; then
+	bad "style-solid.css is missing from the generation — every rule scan below would find nothing"
+else
+	for cfg in "${CONFIGS[@]}"; do
+		while IFS= read -r m; do
+			[[ -z $m ]] && continue
+			css_seen=$((css_seen + 1))
+			case $m in
+			custom/*) id="#custom-${m#custom/}" ;;
+			*/*) id="#${m#*/}" ;;
+			*) id="#$m" ;;
+			esac
+			grep -qE "^\s*${id}[ ,{:]" "$STYLE_CSS" \
+				|| grep -qxF "$id," "$STYLE_CSS" \
+				|| cssmiss+="  $m -> $id (${cfg##*/})"$'\n'
+			# Quoted keys: `.modules-left` is jq for `.modules` MINUS `left`,
+			# which yields null rather than an error and would empty the scan.
+		done < <(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[]' "$cfg" 2>/dev/null)
+
+		while IFS= read -r m; do
+			[[ -z $m ]] && continue
+			fmtempty+="  $m has an empty format (${cfg##*/})"$'\n'
+		done < <(jq -r 'to_entries[] | select(.value | type == "object") | select(.value.format? == "") | .key' "$cfg" 2>/dev/null)
+	done
+	cssmiss=$(printf '%s' "$cssmiss" | sort -u)
+	fmtempty=$(printf '%s' "$fmtempty" | sort -u)
+
+	if [[ $css_seen -eq 0 ]]; then
+		bad "no modules read from the generated waybar configs — the scan is broken, not the repo"
+	elif [[ -n $cssmiss ]]; then
+		bad "a waybar module a layout carries has no rule in style-solid.css" \
+			"it renders in the bar's defaults, which looks like a styling choice:"$'\n'"$cssmiss"
+	else
+		ok "$css_seen module slots across the layouts all have a rule in style-solid.css"
+	fi
+
+	if [[ -n $fmtempty ]]; then
+		bad "a waybar module has an empty format string" \
+			"it renders as an empty module, which is indistinguishable from one that is merely missing:"$'\n'"$fmtempty"
+	else
+		ok "no waybar module renders an empty format"
+	fi
+fi
+
 # A module whose exec is missing or non-executable renders as an empty module,
 # which reads as the module being absent from the bar.
 missing=""

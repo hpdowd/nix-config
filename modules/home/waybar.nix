@@ -300,6 +300,29 @@ let
       on-click-right = "${s}/system/power-profile-cycle.sh toggle-fanless";
     };
 
+    # The control centre, as a bar button. It runs menus/shell.sh rather than
+    # control-center.sh directly, so the button and SUPER+C go through the ONE
+    # router that knows which surface a mode has — in noctalia mode this reaches
+    # noctalia's own control centre instead (docs/adr/0023, docs/adr/0033). A
+    # bind or an on-click naming the implementation is a dead key in the other
+    # mode that still exits 0.
+    #
+    # No `exec`: there is nothing to report. A custom module with only a format
+    # is a static button, which is why this one cannot render empty the way the
+    # exec-backed ones can.
+    #
+    # U+F1DE (nf-fa-sliders), checked against BOTH bar fonts before picking —
+    # `fc-list ':charset=F1DE' family`. The bar is "3270 Nerd Font" and
+    # "Symbols Nerd Font Mono", NOT the Hack the menus use, and U+F6FF is the
+    # standing proof that assuming coverage is how a glyph becomes a box.
+    # Deliberately not the `bars` glyph: the control centre's own waybar row
+    # already wears that, and two meanings for one glyph is worse than either.
+    "custom/control-center" = {
+      format = "";
+      tooltip = false;
+      on-click = "${s}/menus/shell.sh control-center";
+    };
+
     "custom/phone" = {
       exec = "${s}/kdeconnect/phone-status.sh";
       return-type = "json";
@@ -492,6 +515,7 @@ let
       ];
       right = [
         "custom/notification"
+        "custom/control-center"
         "network"
         "custom/vpn"
         "bluetooth"
@@ -506,7 +530,9 @@ let
       ];
     };
 
-    # minimal — battery, tray and power only.
+    # minimal — battery, tray and power only, plus the one way in to everything
+    # else. This is where a single entry point is worth most: the toggles this
+    # layout drops are exactly the ones the control centre still reaches.
     minimal = mkBar {
       left = [
         "clock"
@@ -515,6 +541,7 @@ let
         "mpris"
       ];
       right = [
+        "custom/control-center"
         "battery"
         "tray"
         "custom/power"

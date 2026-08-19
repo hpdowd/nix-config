@@ -52,6 +52,7 @@ window#waybar.bottom {
 #custom-night-mode,
 #custom-idle-inhibitor,
 #custom-phone,
+#custom-control-center,
 #custom-power-profile {
     background: transparent;
     color: @text;
@@ -226,6 +227,20 @@ window#waybar.bottom {
 }
 
 #custom-notification.notification { color: @yellow; }
+
+/* ── Control centre ───────────────────────────────────────────────── */
+
+/* A static button — no exec, no classes, so this is the whole of it. It gets
+   a rule at all because `custom/phone` went without one for as long as it
+   existed and nothing caught it: a module with no rule is not an error, it is
+   a module wearing the bar's defaults. docs/gotchas.md -> Waybar. */
+#custom-control-center {
+    color: @subtext;
+}
+
+#custom-control-center:hover {
+    color: @accent;
+}
 
 /* ── Bluetooth ────────────────────────────────────────────────────── */
 

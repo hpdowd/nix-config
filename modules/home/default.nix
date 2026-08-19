@@ -54,6 +54,10 @@ in
     ./waybar.nix
     ./dotfiles.nix
     ./theme.nix
+    # The per-mode colour sidecars kitty, foot and rofi reach through a runtime
+    # symlink. Separate from the three above because it is one MECHANISM rather
+    # than one application's config, and splitting it across them hid it.
+    ./mode-theme.nix
   ];
 
   home.username = "henry";

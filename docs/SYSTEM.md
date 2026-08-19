@@ -225,7 +225,8 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Waybar layouts (`modules/home/waybar.nix`) or CSS | `rebuild`, then `waybar-reload` |
 | kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | `rebuild`, then restart the terminal — no live reload |
-| zed, htop, ncspot, imv, yazi | `rebuild`, then restart the app |
+| zed, htop, imv, yazi | `rebuild`, then restart the app |
+| ncspot | `rebuild`; a mode switch re-points `config.toml`, then restart the app |
 | wlogout | `rebuild` only — it is spawned fresh on each invocation |
 | zsh config | `source ~/.config/zsh/conf.d/<file>.zsh`, or a new shell |
 | Neovim plugins | `:Lazy sync` |
@@ -278,11 +279,13 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `mocha-high-contrast` |
-| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi` |
-| Which scheme | `modules/home/scheme.nix` — one string, naming a file in `modules/home/themes/`. Four ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord` — every one fully native |
+| Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `gruvbox`. This is the **artefact** scheme: widget art, icons, cursor, yazi, nvim, Zed, and every colour consumer not listed in the row below |
+| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so `tiling` and `hud` must agree with each other and with it. Only `noctalia` may differ; currently `nord` |
+| The per-mode colours themselves | `modules/home/mode-theme.nix` — generates `kitty/colors-<mode>.conf`, `foot/colors-<mode>` and `rofi/colors-<mode>.rasi`, plus the activation seed for the three links. The colours are **not** in `programs.nix` any more |
+| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
+| Which schemes exist | `modules/home/themes/`. Four ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord` — every one fully native. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
 | The GTK / Qt / icon / cursor / yazi theme | the selected theme file's `packages` block — names, not hex, resolved by `pkgs/default.nix` into `themeGtk` and friends (`docs/adr/0032`) |
-| nvim's colourscheme, Zed's theme, noctalia's scheme | the selected theme file's `apps` block |
+| nvim's colourscheme, Zed's theme, noctalia's scheme | the theme file's `apps` block. nvim and Zed take the **artefact** scheme's; noctalia takes the one `modes.nix` gives its mode, since it runs in that mode only (`docs/adr/0034`) |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
 | Which hand-written dotfiles get linked | `modules/home/dotfiles.nix` |
@@ -298,7 +301,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
 | Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
 | Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
-| rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout. Its `colors.rasi` is generated the same way |
+| rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode (it holds `lines:` too, not only colour). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | fsel's `config.toml` is **generated** in `modules/home/dotfiles.nix`; menu contents are in the `scripts/menus/*.sh` that build them |
@@ -320,9 +323,10 @@ file from typed options; **there is no config file in this repo at all.**
 
 | What | Module |
 |---|---|
-| kitty, foot | `programs.kitty`, `programs.foot` — both fed by `modules/home/palette.nix` |
+| kitty, foot | `programs.kitty`, `programs.foot` — colours come **per mode** from `modules/home/mode-theme.nix`, through a runtime symlink (`docs/adr/0034`), not from `palette.nix` directly |
 | zed | `programs.zed-editor` |
-| htop, ncspot, imv, yazi | `programs.htop`, `programs.ncspot`, `programs.imv`, `programs.yazi` |
+| htop, imv, yazi | `programs.htop`, `programs.imv`, `programs.yazi` |
+| ncspot | `programs.ncspot` — **`settings = { }` deliberately**: that leaves `config.toml` unclaimed for the per-mode symlink (`docs/adr/0034`). One value here re-claims it and breaks activation |
 | wlogout | `programs.wlogout` |
 | swaylock | `programs.swaylock` — **`package = null`**, see §9 |
 | The four waybar layouts | `modules/home/waybar.nix` |
@@ -343,7 +347,7 @@ argument is not tidiness:
 - **Values can be shared.** The palette is one file
   (`modules/home/palette.nix`, selecting from `modules/home/themes/`) instead of sixteen hex codes transcribed into
   four with nothing keeping them in step — the terminals, the bar's
-  `colors.css` and rofi's `colors.rasi` all derive from it, and
+  `colors.css` and rofi's `colors-<mode>.rasi` all derive from it, and
   `checks/static.sh` asserts every generated name is used and every reference
   resolves. Likewise waybar's `full-at` is *read from* the TLP threshold rather
   than copied.
@@ -1447,6 +1451,22 @@ invisible in logs and reported as "X is missing".
 ## 13. Known rough edges
 
 Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
+
+- **noctalia mode wears `nord`; tiling and hud wear `gruvbox`** — set in
+  `modules/home/modes.nix` (`docs/adr/0034`). Following the mode: mango's window
+  chrome, noctalia's own palette, Equibop's theme filename, and kitty, foot,
+  rofi and ncspot through a runtime symlink. **Not** following it, permanently:
+  GTK and Qt widget art, icons, the cursor, yazi, nvim and Zed, which are built
+  artefacts and wear `modules/home/scheme.nix` for the whole machine. So a GTK
+  file dialog in noctalia mode is gruvbox-themed inside nord chrome, and always
+  will be. Set `noctalia = "gruvbox"` and rebuild if you would rather have one
+  look.
+- **foot and ncspot keep their old colours until restarted** across a mode
+  switch. foot 1.27 has no config re-read at all — `SIGUSR1`/`SIGUSR2` only pick
+  between sections it already loaded — so the swap reaches new windows only;
+  ncspot reads `config.toml` once at startup. The mode switch notification names
+  whichever is running; `docs/gotchas.md` → Theming has the detail. kitty
+  reloads in place, and rofi re-reads on every launch.
 
 - **Nothing here can hold off the idle ladder except a Wayland idle inhibitor.**
   `systemd-inhibit --what=idle` does not reach swayidle, so unattended work on

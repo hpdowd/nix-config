@@ -56,6 +56,72 @@ ramp and is an **overlay**, so it cannot read `config.*`. An option reaches
 twelve consumers and misses the thirteenth — the one surface nobody looks at
 closely. `docs/adr/0030`.
 
+### `scheme.nix` is the ARTEFACT scheme; `modes.nix` is the colour one
+
+`modules/home/modes.nix` names a scheme per desktop mode (`docs/adr/0034`).
+Same theme files, same four names, one string per mode. It exists because the
+two halves of a scheme have different lifetimes: artefacts are **built** — SVG
+widget art, compiled SCSS, cursor bitmaps, plugin code — so they cannot follow a
+runtime mode switch and there is one set for the machine. Colour can follow,
+where colour is the *whole* of a consumer's theme.
+
+**Changing `modes.nix` is not a theme migration.** Nothing in §2 or §3 applies:
+a mode scheme needs no packages and no nvim plugin, and the artefact checks
+deliberately do not demand them of it. It is one string, `nix flake check`,
+`rebuild`, then a mode switch.
+
+**What follows it, and what does not:**
+
+| Follows `modes.nix` | Follows `scheme.nix` |
+|---|---|
+| mango chrome (`universal/colors-<mode>.conf`) | waybar, swaync — they do not run in noctalia mode |
+| noctalia's `predefinedScheme` | GTK, Qt, icons, cursor, yazi, nvim, Zed, the lock ramp |
+| kitty, foot, rofi — via a runtime symlink | |
+
+The right-hand column's bottom row is artefact-bound and never moves; the top
+row is a choice, and it is what puts the ceiling on how far `modes.nix` may
+diverge. `checks/static.sh` asserts it: `tiling` and `hud` must name the same
+scheme *and* it must be `scheme.nix`'s. Only `noctalia` may differ.
+
+**The runtime half, in one picture.** `modules/home/mode-theme.nix` generates
+`kitty/colors-<mode>.conf`, `foot/colors-<mode>`, `rofi/colors-<mode>.rasi` and
+`ncspot/colors-<mode>.toml`; `apply_theme()` in `dotfiles/mango/scripts/lib.sh`
+points four links at the current mode's set:
+
+```
+~/.config/kitty/current-theme.conf  ->  kitty/colors-<mode>.conf
+~/.config/foot/themes/noctalia      ->  foot/colors-<mode>
+~/.config/rofi/colors.rasi          ->  rofi/colors-<mode>.rasi
+~/.config/ncspot/config.toml        ->  ncspot/colors-<mode>.toml
+```
+
+Equibop is per-mode too and takes no link: `dotfiles.nix` generates
+`equibop/themes/<mode>.theme.css` and `apply_theme` writes that **name** into
+Equibop's own `settings.json`.
+
+Four things to know before touching any of it:
+
+- **None of those four link paths may become an `xdg.configFile`.** Two owners
+  for one path is an activation failure. `rofi/colors.rasi` was one until
+  2026-08-19 and had to be given up in the same change. For ncspot the same rule
+  reads **`programs.ncspot.settings` must stay `{ }`** — the module claims
+  `config.toml` the moment it holds one value.
+- **A missing link is silent in kitty, rofi and ncspot and FATAL in foot** —
+  foot exits 230 and does not start. `mode-theme.nix` seeds all four at
+  activation for that reason; do not remove the seed. `docs/gotchas.md` →
+  Theming.
+- **foot reaches new windows only, and ncspot only new processes.** No config
+  re-read exists in foot 1.27; ncspot reads `config.toml` once at startup. kitty
+  takes `SIGUSR1`, which `apply_theme` sends; rofi re-reads on every launch.
+- **ncspot's file must be entirely `muted`.** It is the one consumer drawn from
+  a single half of the palette, so `checks/static.sh` asserts every hex in it is
+  a `muted` value — an accent scan alone cannot see a canonical-ramp colour that
+  slipped in.
+
+Every scheme **in service** — the artefact one plus every one `modes.nix` names
+— is contrast-audited, each against its own declared floors. A floor that only
+measured `scheme.nix`'s would pass a mode nobody can read.
+
 ### Adding a scheme
 
 1. Copy a file in `modules/home/themes/`. Supply **every** key — `rec` makes a
@@ -327,10 +393,11 @@ rebuild's copy, which is indistinguishable from the change having had no effect.
 | mango, waybar | `~/.config/mango/scripts/reload.sh`, `mango-reload`, `waybar-reload` |
 | GTK apps | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
-| foot, ncspot, imv, yazi, zed, htop | restart the app |
+| foot, imv, yazi, zed, htop | restart the app |
+| ncspot | mode switch re-points `config.toml`, then restart the app |
 | nvim | restart |
 | swaync | mode switch (`autostart.conf` owns its lifecycle — `docs/adr/0005`) |
-| Equibop | **mode switch** — `lib.sh` writes `enabledThemes`, so a rebuild alone leaves the old theme enabled |
+| Equibop | **mode switch** — `apply_theme` writes `enabledThemes`, so a rebuild alone leaves the old theme enabled |
 
 ---
 
@@ -444,10 +511,12 @@ is cleaner and leaves the repo and the running system agreeing about why.
 
 **Switching to a scheme that already exists:**
 
-1. Edit `modules/home/scheme.nix` — one string.
+1. Edit `modules/home/scheme.nix` — one string. To change what a single desktop
+   mode wears instead, edit `modules/home/modes.nix` (§1) — same names, and none
+   of §2 or §3 applies.
 2. `nix flake check`.
 3. `rebuild`, then reload — rebuild first, always. Equibop and swaync need a
-   **mode switch**, not just a rebuild.
+   **mode switch**, not just a rebuild. So does anything from `modes.nix`.
 
 **Adding a new one:**
 

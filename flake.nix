@@ -163,13 +163,31 @@
                 ${self.nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage} \
                 ${self.nixosConfigurations.thinkpad.config.system.build.toplevel} \
                 ${
-                  # The selected theme, RESOLVED. The check used to read hex out
-                  # of the theme file with sed, which meant a role written as an
-                  # alias (`okColor = green;`) read as "role absent" and went
-                  # unaudited — four of them did. Nix resolves the `rec` here, so
-                  # the check sees values rather than source text and every role
-                  # is audited however it is spelled. docs/adr/0032.
-                  pkgs.writeText "palette.json" (builtins.toJSON (import ./modules/home/palette.nix))
+                  # Every scheme this machine WEARS, RESOLVED. The check used to
+                  # read hex out of the theme file with sed, which meant a role
+                  # written as an alias (`okColor = green;`) read as "role
+                  # absent" and went unaudited — four of them did. Nix resolves
+                  # the `rec` here, so the check sees values rather than source
+                  # text and every role is audited however it is spelled.
+                  # docs/adr/0032.
+                  #
+                  # PLURAL since docs/adr/0034: modes.nix can put a second
+                  # scheme on screen, and a legibility floor that only ever
+                  # audits scheme.nix's would pass a mode nobody can read.
+                  # `schemes` therefore holds the artefact scheme AND every one
+                  # a mode names, deduplicated — so adding a mode scheme cannot
+                  # add an unaudited one.
+                  let
+                    modes = import ./modules/home/modes.nix;
+                    artefact = import ./modules/home/scheme.nix;
+                    names = nixpkgs.lib.unique ([ artefact ] ++ nixpkgs.lib.attrValues modes);
+                  in
+                  pkgs.writeText "schemes.json" (
+                    builtins.toJSON {
+                      inherit artefact modes;
+                      schemes = nixpkgs.lib.genAttrs names (n: import ./modules/home/themes/${n}.nix);
+                    }
+                  )
                 }
               touch $out
             '';

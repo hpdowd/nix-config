@@ -16,6 +16,16 @@ let
 
   p = import ./palette.nix;
 
+  # The colour-only half, per desktop mode (docs/adr/0034). `p` above is the
+  # ARTEFACT scheme and remains the default for everything that is not per-mode;
+  # this resolves a second palette for the two things that are.
+  #
+  # `import ./themes/${...}.nix` rather than a lookup into an attrset of every
+  # theme: an unknown name has to be a file-not-found at eval, and only the
+  # schemes actually named get evaluated.
+  modes = import ./modes.nix;
+  modePalette = mode: import ./themes/${modes.${mode}}.nix;
+
   # Bare "rrggbb" → { r; g; b; } as integers. fsel and swaync both want decimal
   # channels, which is the spelling that let two copies of the palette hide:
   # grepping this repo for `d79921` found neither `rgb(215, 153, 33)`.
@@ -61,23 +71,37 @@ let
   # the top of any mode config) — so the hand-written configs keep the layout
   # and rules and hold no hex at all.
   #
-  # `border` differs by mode deliberately: noctalia mode draws its own heavier
-  # chrome and takes `overlay`, the other two take `surface` (docs/adr/0022).
-  # Everything below `border` is identical across modes and comes from
-  # universal/settings.conf, which is why it was the file that drifted.
-  mangoColors = border: ''
-    # GENERATED from modules/home/palette.nix — edit that, then rebuild.
-    # `source=`d by the mode config. Reloading mango alone re-reads the LAST
-    # rebuild's copy, which looks exactly like the change having had no effect.
-    bordercolor=${mangoColor border}
-    focuscolor=${mangoColor p.accent}
-    rootcolor=${mangoColor p.base}
-    maximizescreencolor=${mangoColor p.okColor}
-    urgentcolor=${mangoColor p.errColor}
-    scratchpadcolor=${mangoColor p.brMagenta}
-    globalcolor=${mangoColor p.brMagenta}
-    overlaycolor=${mangoColor p.brCyan}
-  '';
+  # `borderRole` differs by mode deliberately: noctalia mode draws its own
+  # heavier chrome and takes `overlay`, the other two take `surface`
+  # (docs/adr/0022). Everything below the border is identical in SHAPE across
+  # modes and comes from universal/settings.conf, which is why that is the file
+  # that drifted.
+  #
+  # The SCHEME differs by mode too, from ./modes.nix (docs/adr/0034) — so the
+  # role is named rather than passed as a value: `surface` has to be resolved
+  # against the palette this mode wears, not against the artefact one.
+  #
+  # The header names that scheme. A generated file whose provenance is a
+  # sentence rather than a name is the one that gets edited by hand.
+  modeColors =
+    mode: borderRole:
+    let
+      q = modePalette mode;
+    in
+    ''
+      # GENERATED from modules/home/themes/${modes.${mode}}.nix, selected for the
+      # '${mode}' mode by modules/home/modes.nix — edit those, then rebuild.
+      # `source=`d by the mode config. Reloading mango alone re-reads the LAST
+      # rebuild's copy, which looks exactly like the change having had no effect.
+      bordercolor=${mangoColor q.${borderRole}}
+      focuscolor=${mangoColor q.accent}
+      rootcolor=${mangoColor q.base}
+      maximizescreencolor=${mangoColor q.okColor}
+      urgentcolor=${mangoColor q.errColor}
+      scratchpadcolor=${mangoColor q.brMagenta}
+      globalcolor=${mangoColor q.brMagenta}
+      overlaycolor=${mangoColor q.brCyan}
+    '';
 
   # nvim is linked as ONE directory symlink, so unlike mango there is no way to
   # drop a generated file inside it — home-manager would be claiming a path that
@@ -151,6 +175,119 @@ let
     }
   '';
 
+  # Equibop's theme, per desktop mode (docs/adr/0034 phase 3). Generated HERE
+  # rather than in ./mode-theme.nix, which owns the per-mode halves that need a
+  # runtime SYMLINK: Equibop needs none. It enables a theme by FILENAME out of
+  # its own settings.json, and `apply_theme()` rewrites that on every switch —
+  # an indirection it already had. The rule this follows is the one mango's
+  # colors-<mode>.conf follows two hundred lines up: a generated file lives with
+  # its consumer's other generated config, and `channels` and `scale` above have
+  # other callers in this file.
+  #
+  # `<mode>.theme.css`, NOT the scheme's name and no longer `scheme.theme.css`.
+  # A filename is a *name*, not a colour — which is why the old one was
+  # scheme-neutral, and it was already wrong once as `gruvbox.theme.css`. A mode
+  # name is the same kind of stable, and it is the key `apply_theme` is handed,
+  # so neither side has to learn a scheme name (the boundary rule in
+  # ./mode-theme.nix).
+  equibopTheme =
+    mode: q:
+    # The metadata block, PREPENDED. `@name` is what Equibop shows in its theme
+    # list, so with one file per mode a single hardcoded name would make the
+    # three indistinguishable there — and it had already gone stale as
+    # `Catppuccin Mocha` across two scheme changes, a name being the one thing a
+    # search for hex never finds. A comment may precede the fragment's `@import`
+    # because CSS only requires `@import` to precede RULES.
+    ''
+      /**
+       * @name ${mode} (${modes.${mode}})
+       * @description Generated for the '${mode}' desktop mode from
+       *   modules/home/themes/${modes.${mode}}.nix, using the midnight framework.
+       * @author henry
+       * @version 3.0
+       */
+
+    ''
+    + builtins.readFile ../../dotfiles/equibop/theme-body.css
+    + ''
+      /* ---------------------------------------------------------------
+         GENERATED from modules/home/themes/${modes.${mode}}.nix, for the
+         '${mode}' desktop mode (modules/home/modes.nix) — edit those, then
+         rebuild. The rules above are hand-written and live in
+         dotfiles/equibop/theme-body.css.
+         --------------------------------------------------------------- */
+      :root {
+        --colors: on;
+
+        /* Text */
+        --text-0: #${q.base}; /* on accent elements */
+        --text-1: #${q.text}; /* important */
+        --text-2: #${q.text}; /* headings */
+        --text-3: #${q.brWhite}; /* normal */
+        --text-4: #${q.subtext}; /* icons, channels */
+        --text-5: #${q.brBlack}; /* muted, timestamps */
+
+        /* Backgrounds. `mantle` is the one tone darker than `base`, for
+           pressed controls; the main surface is `base` itself. */
+        --bg-1: #${q.mantle}; /* darkest — clicked buttons */
+        --bg-2: #${q.surface}; /* dark buttons */
+        --bg-3: #${q.overlay}; /* secondary elements, spacing */
+        --bg-4: #${q.base}; /* main background */
+
+        --hover:         rgba(${channels q.text}, 0.04);
+        --active:        rgba(${channels q.text}, 0.08);
+        --active-2:      rgba(${channels q.text}, 0.05);
+        --message-hover: rgba(${channels q.text}, 0.03);
+
+        /* Accents. Only `--accent-3` is a palette colour; hover and pressed
+           are mixed from it, so the button scale cannot drift from it. */
+        --accent-1: #${q.infoColor}; /* links, accent text */
+        --accent-2: #${q.cyan}; /* small accent elements */
+        --accent-3: #${q.accent}; /* accent buttons */
+        --accent-4: color-mix(in srgb, var(--accent-3) 65%, white);
+        --accent-5: color-mix(in srgb, var(--accent-3) 80%, black);
+        --accent-new: #${q.errColor}; /* mute/deafen/danger */
+
+        --mention:       linear-gradient(to right, color-mix(in hsl, #${q.accent}, transparent 90%) 40%, transparent);
+        --mention-hover: linear-gradient(to right, color-mix(in hsl, #${q.accent}, transparent 95%) 40%, transparent);
+        --reply:         linear-gradient(to right, color-mix(in hsl, #${q.overlay}, transparent 90%) 40%, transparent);
+        --reply-hover:   linear-gradient(to right, color-mix(in hsl, #${q.overlay}, transparent 95%) 40%, transparent);
+
+        /* Status */
+        --online:    var(--green-2);
+        --dnd:       var(--red-2);
+        --idle:      var(--yellow-2);
+        --streaming: var(--purple-2);
+        --offline:   var(--text-4);
+
+        /* Borders */
+        --border-light:  var(--hover);
+        --border:        var(--active);
+        --border-hover:  var(--active);
+        --button-border: hsla(0, 0%, 100%, 0.1);
+
+        /* Colour scales, mixed from one palette colour each rather than
+           hand-tuned hsl() — the gruvbox original had five literals per
+           scale and no way to tell a considered value from a typo. */
+      ${scale "red" q.errColor}
+      ${scale "green" q.okColor}
+      ${scale "blue" q.infoColor}
+      ${scale "yellow" q.warnColor}
+      ${scale "purple" q.accent}
+      }
+
+      /* Code blocks */
+      .hljs { background: #${q.surface} !important; color: #${q.text} !important; }
+      .hljs-keyword, .hljs-selector-tag, .hljs-deletion   { color: #${q.red}; }
+      .hljs-string,  .hljs-addition, .hljs-selector-class { color: #${q.green}; }
+      .hljs-number,  .hljs-literal                        { color: #${q.magenta}; }
+      .hljs-attr,    .hljs-type, .hljs-params             { color: #${q.yellow}; }
+      .hljs-built_in, .hljs-title, .hljs-name             { color: #${q.blue}; }
+      .hljs-function, .hljs-class, .hljs-tag              { color: #${q.cyan}; }
+      .hljs-meta,    .hljs-regexp                         { color: #${q.accent}; }
+      .hljs-comment                                       { color: #${q.brBlack}; font-style: italic; }
+    '';
+
   # The parse check is the point of this being a derivation rather than a copy.
   # A malformed generated file is invisible to every other gate here: `nix flake
   # check` builds it happily, the palette scan greps it for the accent and finds
@@ -185,9 +322,13 @@ in
     # The colours, generated. These paths do not exist under dotfiles/mango, so
     # they are new siblings inside the recursive tree rather than a second owner
     # for a linked path — the same arrangement waybar/colors.css already uses.
-    "mango/universal/colors-tiling.conf".text = mangoColors p.surface;
-    "mango/universal/colors-hud.conf".text = mangoColors p.surface;
-    "mango/universal/colors-noctalia.conf".text = mangoColors p.overlay;
+    #
+    # One file per mode, each in the scheme ./modes.nix gives that mode. This is
+    # the first consumer to differ by mode rather than only by border role;
+    # everything else on this machine still wears ./scheme.nix. docs/adr/0034.
+    "mango/universal/colors-tiling.conf".text = modeColors "tiling" "surface";
+    "mango/universal/colors-hud.conf".text = modeColors "hud" "surface";
+    "mango/universal/colors-noctalia.conf".text = modeColors "noctalia" "overlay";
 
     # The cursor, generated for the same reason and with a sharper failure. This
     # was a hand-written line in universal/settings.conf and it named
@@ -226,7 +367,12 @@ in
       colorSchemes = {
         syncGsettings = false;
         useWallpaperColors = false;
-        predefinedScheme = p.apps.noctalia;
+        # From ./modes.nix, not ./scheme.nix. noctalia runs in exactly one
+        # mode, so it needs no runtime swap — but it must agree with the mango
+        # chrome drawn around it, which colors-noctalia.conf now takes from the
+        # same place. A shell in one scheme inside borders in another is the one
+        # result worse than either scheme on its own, and it looks deliberate.
+        predefinedScheme = (modePalette "noctalia").apps.noctalia;
         darkMode = true;
       };
       templates = {
@@ -327,23 +473,13 @@ in
     # presentation and stay written by hand, the palette is data and is derived
     # from modules/home/palette.nix. config.rasi `@import`s this one.
     "rofi/config.rasi".source = ../../dotfiles/rofi/config.rasi;
-    "rofi/colors.rasi".text =
-      let
-        p = import ./palette.nix;
-      in
-      ''
-        /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
-           Imported by config.rasi. The names match waybar/colors.css so the
-           bar and the menus can be reasoned about in one vocabulary. */
-        * {
-            base:    #${p.base};
-            overlay: #${p.overlay};
-            text:    #${p.text};
-            subtext: #${p.subtext};
-            accent:  #${p.accent};
-            urgent:  #${p.errColor};
-        }
-      '';
+
+    # `rofi/colors.rasi` IS NOT DECLARED HERE ANY MORE, and that is the point.
+    # It was generated from the palette until 2026-08-19; it is now a RUNTIME
+    # SYMLINK that apply_theme re-points at `rofi/colors-<mode>.rasi`, so the
+    # menus follow the desktop mode (docs/adr/0034). Declaring it again would be
+    # two owners for one path, which is an activation failure rather than a
+    # merge. The per-mode files it points at are in modules/home/mode-theme.nix.
 
     # Not `services.swaync` — autostart.conf owns the lifecycle so a restyle
     # applies on mode switch. docs/adr/0005.
@@ -392,107 +528,6 @@ in
     ''
     + builtins.readFile ../../dotfiles/swaync/style-body.css;
 
-    # Equibop (Discord). Same split as swaync above and for the same reason —
-    # a hand-written FRAGMENT carrying layout, with the colours generated onto
-    # the end. Reversed order, though: the fragment leads, because CSS requires
-    # `@import` to precede every other rule and the midnight framework is
-    # imported by URL at the top of it.
-    #
-    # Managed as a FILE inside `themes/`, not as the directory: Equibop's own
-    # theme installer writes siblings there, and two owners for one path is an
-    # activation failure rather than a merge.
-    #
-    # `scheme.theme.css`, NOT the scheme's name. The file is generated from
-    # whatever palette is selected, so a name like `catppuccin.theme.css` is
-    # wrong four schemes out of five — and it was already wrong once: the theme
-    # stayed `gruvbox.theme.css` through the 2026-08-18 migration because a
-    # filename is a *name*, not a colour, and the migration was grepping for hex.
-    # A scheme-neutral name cannot go stale, which is the only way to win here.
-    #
-    # The lifecycle is the other half of this. `mango/scripts/lib.sh` sets
-    # `enabledThemes` on every mode switch, and Equibop ignores a name that
-    # matches no file **without logging** — so this key and that script have to
-    # move together. `checks/static.sh` asserts they agree.
-    "equibop/themes/scheme.theme.css".text =
-      builtins.readFile ../../dotfiles/equibop/theme-body.css
-      + ''
-        /* ---------------------------------------------------------------
-           GENERATED from modules/home/palette.nix — edit that, then rebuild.
-           The rules above are hand-written and live in
-           dotfiles/equibop/theme-body.css.
-           --------------------------------------------------------------- */
-        :root {
-          --colors: on;
-
-          /* Text */
-          --text-0: #${p.base}; /* on accent elements */
-          --text-1: #${p.text}; /* important */
-          --text-2: #${p.text}; /* headings */
-          --text-3: #${p.brWhite}; /* normal */
-          --text-4: #${p.subtext}; /* icons, channels */
-          --text-5: #${p.brBlack}; /* muted, timestamps */
-
-          /* Backgrounds. `mantle` is the one tone darker than `base`, for
-             pressed controls; the main surface is `base` itself. */
-          --bg-1: #${p.mantle}; /* darkest — clicked buttons */
-          --bg-2: #${p.surface}; /* dark buttons */
-          --bg-3: #${p.overlay}; /* secondary elements, spacing */
-          --bg-4: #${p.base}; /* main background */
-
-          --hover:         rgba(${channels p.text}, 0.04);
-          --active:        rgba(${channels p.text}, 0.08);
-          --active-2:      rgba(${channels p.text}, 0.05);
-          --message-hover: rgba(${channels p.text}, 0.03);
-
-          /* Accents. Only `--accent-3` is a palette colour; hover and pressed
-             are mixed from it, so the button scale cannot drift from it. */
-          --accent-1: #${p.infoColor}; /* links, accent text */
-          --accent-2: #${p.cyan}; /* small accent elements */
-          --accent-3: #${p.accent}; /* accent buttons */
-          --accent-4: color-mix(in srgb, var(--accent-3) 65%, white);
-          --accent-5: color-mix(in srgb, var(--accent-3) 80%, black);
-          --accent-new: #${p.errColor}; /* mute/deafen/danger */
-
-          --mention:       linear-gradient(to right, color-mix(in hsl, #${p.accent}, transparent 90%) 40%, transparent);
-          --mention-hover: linear-gradient(to right, color-mix(in hsl, #${p.accent}, transparent 95%) 40%, transparent);
-          --reply:         linear-gradient(to right, color-mix(in hsl, #${p.overlay}, transparent 90%) 40%, transparent);
-          --reply-hover:   linear-gradient(to right, color-mix(in hsl, #${p.overlay}, transparent 95%) 40%, transparent);
-
-          /* Status */
-          --online:    var(--green-2);
-          --dnd:       var(--red-2);
-          --idle:      var(--yellow-2);
-          --streaming: var(--purple-2);
-          --offline:   var(--text-4);
-
-          /* Borders */
-          --border-light:  var(--hover);
-          --border:        var(--active);
-          --border-hover:  var(--active);
-          --button-border: hsla(0, 0%, 100%, 0.1);
-
-          /* Colour scales, mixed from one palette colour each rather than
-             hand-tuned hsl() — the gruvbox original had five literals per
-             scale and no way to tell a considered value from a typo. */
-        ${scale "red" p.errColor}
-        ${scale "green" p.okColor}
-        ${scale "blue" p.infoColor}
-        ${scale "yellow" p.warnColor}
-        ${scale "purple" p.accent}
-        }
-
-        /* Code blocks */
-        .hljs { background: #${p.surface} !important; color: #${p.text} !important; }
-        .hljs-keyword, .hljs-selector-tag, .hljs-deletion   { color: #${p.red}; }
-        .hljs-string,  .hljs-addition, .hljs-selector-class { color: #${p.green}; }
-        .hljs-number,  .hljs-literal                        { color: #${p.magenta}; }
-        .hljs-attr,    .hljs-type, .hljs-params             { color: #${p.yellow}; }
-        .hljs-built_in, .hljs-title, .hljs-name             { color: #${p.blue}; }
-        .hljs-function, .hljs-class, .hljs-tag              { color: #${p.cyan}; }
-        .hljs-meta,    .hljs-regexp                         { color: #${p.accent}; }
-        .hljs-comment                                       { color: #${p.brBlack}; font-style: italic; }
-      '';
-
     # --- Managed as FILES, not directories -----------------------------------
     # Pins the config read-only while leaving the directory writable for sibling
     # runtime files. Cost: no longer changeable from inside the app.
@@ -521,6 +556,16 @@ in
     # corectrl writes its config from the GUI, which is the point of it.
     "corectrl".source = link "corectrl";
   }
+  # Equibop (Discord), one theme file per desktop mode. `mapAttrs'` over `modes`
+  # rather than three literal entries like mango's above: those differ by an
+  # argument each (the border role), these differ only by mode, so a mode added
+  # to modes.nix should get its theme with nothing to remember.
+  // lib.mapAttrs' (
+    mode: _:
+    lib.nameValuePair "equibop/themes/${mode}.theme.css" {
+      text = equibopTheme mode (modePalette mode);
+    }
+  ) modes
   # The Kvantum theme itself, from the store — but only when the scheme HAS one.
   # All four shipped schemes do; a scheme that instead names a Kvantum built-in
   # (`KvArcDark` and friends, which the style plugin already ships) has nothing

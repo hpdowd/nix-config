@@ -45,6 +45,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0031](0031-the-idle-inhibitor-outlives-the-bar.md) | The idle inhibitor is a unit, not a bool in the bar | Accepted (extends [0023](0023-noctalia-owns-its-own-actions.md)) |
 | [0032](0032-the-theme-file-owns-its-artefacts.md) | The theme file owns its artefacts, and contrast is measured where it is drawn | Accepted (completes [0030](0030-the-scheme-is-a-file-not-an-option.md); amends [0029](0029-the-lock-ramp-asserts-hue-not-greyness.md)) |
 | [0033](0033-the-control-centre-is-a-reader.md) | The control centre is a reader, not a second owner | Accepted (extends [0023](0023-noctalia-owns-its-own-actions.md); follows [0031](0031-the-idle-inhibitor-outlives-the-bar.md)) |
+| [0034](0034-colour-follows-the-mode-artefacts-do-not.md) | Colour follows the mode; artefacts do not | Accepted (completes [0032](0032-the-theme-file-owns-its-artefacts.md); extends [0030](0030-the-scheme-is-a-file-not-an-option.md)) |
 
 ## Format
 

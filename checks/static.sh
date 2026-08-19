@@ -10,14 +10,33 @@
 
 set -uo pipefail
 
-usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel> <palette-json>"
+usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel> <schemes-json>"
 SRC=${1:?$usage}
 GEN=${2:?$usage}
 SYS=${3:?$usage}
-# The SELECTED theme, resolved by Nix. Reading hex out of the theme file with
-# sed meant an aliased role (`okColor = green;`) read as "role absent" — four of
-# them did, and went unaudited. docs/adr/0032.
-PALETTE=${4:?$usage}
+# Every scheme this machine WEARS, resolved by Nix:
+#
+#   .artefact          modules/home/scheme.nix — the widget art, icons, cursor,
+#                      yazi flavor, nvim plugin and Zed theme
+#   .modes.<mode>      modules/home/modes.nix — the colour-only scheme that mode
+#                      wears (docs/adr/0034)
+#   .schemes.<name>    the resolved theme file for each name either names
+#
+# Resolved by Nix rather than read out of the theme files with sed, because an
+# aliased role (`okColor = green;`) read as "role absent" — four of them did,
+# and went unaudited. docs/adr/0032.
+#
+# PLURAL, and that is the point of the shape: a legibility floor that only ever
+# audited scheme.nix's would pass a mode nobody can read. Whatever `.schemes`
+# holds gets audited, so a scheme cannot enter service unaudited.
+SCHEMES=${4:?$usage}
+
+# `pal <jq-path>` reads the scheme named by $PAL_SCHEME, which defaults to the
+# artefact one. The floor audit re-points it per scheme; nothing else should.
+# A path that does not exist yields empty, and every consumer of it has a floor,
+# so a renamed key fails loudly rather than scanning for nothing.
+PAL_SCHEME=$(jq -r '.artefact // empty' "$SCHEMES" 2>/dev/null)
+pal() { jq -r ".schemes.\"$PAL_SCHEME\"$1 // empty" "$SCHEMES" 2>/dev/null; }
 
 WAYBAR_DIR="$GEN/home-files/.config/mango/waybar"
 # What home-manager actually wrote. Anything generated is read from HERE rather
@@ -233,6 +252,57 @@ else
 	else
 		bad "mode/file mismatch" "$missing"
 	fi
+fi
+
+# And every mode has a colour scheme, both ways. modules/home/dotfiles.nix
+# resolves each as `import ./themes/${modes.${mode}}.nix`, so a MISSING key is
+# already an eval error — what this catches is the direction eval cannot see: a
+# key naming no mode, which is a colour scheme nothing can ever select while
+# reading like a mode that exists. docs/adr/0034.
+mapfile -t MODE_KEYS < <(jq -r '.modes | keys[]' "$SCHEMES" 2>/dev/null)
+if [[ ${#MODE_KEYS[@]} -eq 0 ]]; then
+	bad "no modes read from modules/home/modes.nix — the scan is broken, not the repo"
+elif [[ ${#MODES[@]} -gt 0 ]]; then
+	memiss=""
+	for m in "${MODES[@]}"; do
+		printf '%s\n' "${MODE_KEYS[@]}" | grep -qxF "$m" || memiss+="  $m has no entry in modes.nix"$'\n'
+	done
+	for k in "${MODE_KEYS[@]}"; do
+		printf '%s\n' "${MODES[@]}" | grep -qxF "$k" || memiss+="  modes.nix names '$k', which is not a mode"$'\n'
+	done
+	if [[ -z $memiss ]]; then
+		ok "each of the ${#MODES[@]} modes has a colour scheme in modes.nix, and no others do"
+	else
+		bad "mode/scheme mismatch" "$memiss"
+	fi
+fi
+
+# The ceiling on how far modes.nix may currently diverge. waybar and swaync run
+# in tiling and hud and not in noctalia, and they are the two consumers NOT on
+# the runtime swap — generated once, from scheme.nix. So:
+#
+#   tiling and hud must agree with each other AND with scheme.nix, or a mode
+#   gets a bar from a scheme it is not wearing. Asserted here.
+#
+#   noctalia may differ, and does: it runs neither waybar nor swaync, and
+#   everything it DOES run — its own shell, mango's chrome, kitty, foot, rofi,
+#   ncspot and Equibop — follows modes.nix.
+#
+# If waybar or swaync ever needs to differ by mode, it joins the swap first;
+# this assertion is what makes that a decision rather than a silent half.
+tsch=$(jq -r '.modes.tiling // empty' "$SCHEMES" 2>/dev/null)
+hsch=$(jq -r '.modes.hud // empty' "$SCHEMES" 2>/dev/null)
+if [[ -z $tsch || -z $hsch ]]; then
+	bad "could not read the tiling and hud schemes from modes.nix" \
+		"tiling='$tsch' hud='$hsch' — the agreement below would be asserted about nothing"
+elif [[ $tsch != "$hsch" ]]; then
+	bad "modes.nix gives tiling '$tsch' and hud '$hsch', which do not agree" \
+		"waybar and swaync run in both and are generated once, so one mode would wear the other's bar"
+elif [[ $tsch != "$PAL_SCHEME" ]]; then
+	bad "modes.nix gives tiling and hud '$tsch', but the artefact scheme is '$PAL_SCHEME'" \
+		"waybar, swaync, kitty, foot and rofi still follow scheme.nix — both modes would be half one scheme and half the other"
+else
+	ok "tiling and hud agree on '$tsch', which is what waybar, swaync and the terminals are generated from"
 fi
 
 # Same check the waybar configs get below, for the mango tree: a `bind=` or
@@ -473,6 +543,25 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			else
 				bad "noctalia has no colour scheme named $scheme" \
 					"Assets/ColorScheme/$schemedir/$schemedir.json"
+			fi
+
+			# And it must be the scheme modes.nix gives the noctalia MODE, not the
+			# artefact one. Both halves of that mode's colour now come from the same
+			# line — the shell's own palette here, mango's chrome in
+			# colors-noctalia.conf — and they are generated in different languages in
+			# different files, which is the gap a scheme change walks into. A drift
+			# here is a shell in one scheme inside borders in another, and that reads
+			# as a design rather than a fault. docs/adr/0034.
+			nsch=$(jq -r '.modes.noctalia // empty' "$SCHEMES" 2>/dev/null)
+			nwant=$(jq -r ".schemes.\"$nsch\".apps.noctalia // empty" "$SCHEMES" 2>/dev/null)
+			if [[ -z $nsch || -z $nwant ]]; then
+				bad "could not read the noctalia mode's scheme from modes.nix" \
+					"mode='$nsch' name='$nwant' — the agreement below would be asserted about nothing"
+			elif [[ $scheme != "$nwant" ]]; then
+				bad "noctalia pins '$scheme' but modes.nix gives its mode '$nsch' (= '$nwant')" \
+					"the shell and the mango chrome drawn around it would be in different schemes"
+			else
+				ok "noctalia's pinned scheme matches modes.nix's '$nsch' for its mode"
 			fi
 		fi
 	fi
@@ -886,9 +975,17 @@ palette_pair "waybar" \
 	"$(sed -n 's/^@define-color \([a-z-]*\) .*/\1/p' "$WAYBAR_DIR/colors.css" 2>/dev/null | sort -u)" \
 	"$(grep -ohE '@[a-z-]+' "$SRC"/dotfiles/mango/waybar/style-*.css 2>/dev/null | tr -d '@' | sort -u)"
 
-palette_pair "rofi" \
-	"$(sed -n 's/^ *\([a-z-]*\): *#[0-9a-f]*;.*/\1/p' "$GEN/home-files/.config/rofi/colors.rasi" 2>/dev/null | sort -u)" \
-	"$(grep -ohE '@[a-z-]+' "$SRC/dotfiles/rofi/config.rasi" 2>/dev/null | tr -d '@' | sort -u)"
+# rofi, ONCE PER MODE. `colors.rasi` is a runtime symlink since docs/adr/0034
+# and does not exist in the generation at all; what home-manager writes is one
+# `colors-<mode>.rasi` per mode, and each is a separate file that could
+# separately drop a name. `config.rasi` is shared by every menu in every mode
+# (and holds behaviour as well as colour), so the USED side is the same for all.
+rofi_used=$(grep -ohE '@[a-z-]+' "$SRC/dotfiles/rofi/config.rasi" 2>/dev/null | tr -d '@' | sort -u)
+for m in "${MODE_KEYS[@]}"; do
+	palette_pair "rofi ($m)" \
+		"$(sed -n 's/^ *\([a-z-]*\): *#[0-9a-f]*;.*/\1/p' "$GEN_CFG/rofi/colors-$m.rasi" 2>/dev/null | sort -u)" \
+		"$rofi_used"
+done
 
 # Every file that is supposed to be derived from the palette, and the colour it
 # must contain. A generated file that goes missing or renders empty is this
@@ -899,33 +996,44 @@ palette_pair "rofi" \
 # spelling is where copies hid — `d79921` is `0xd79921ff` to mango and
 # `rgb(215, 153, 33)` to fsel and swaync, and a repo-wide grep for the hex found
 # neither.
-# Read the accent from a file that is ITSELF generated from the palette, rather
-# than restating it here — a check carrying its own copy of the value it is
-# checking passes forever and proves nothing.
-ACCENT=$(sed -n 's/^ *accent: *#\([0-9a-f]*\);.*/\1/p' "$GEN_CFG/rofi/colors.rasi" 2>/dev/null)
+# Read the accent from the RESOLVED palette, not from a hex typed here — a
+# check carrying its own copy of the value it is checking passes forever and
+# proves nothing. It used to be read back out of `rofi/colors.rasi`, one of the
+# generated consumers, because that was the only Nix-resolved value available;
+# `$SCHEMES` is now that value at the source, and `colors.rasi` stopped being a
+# generated file when it became a runtime symlink (docs/adr/0034). Nothing is
+# lost by moving up: the scans below are what prove the generation, and they
+# prove it in each consumer's own spelling.
+ACCENT=$(pal .accent)
 
-# Everything else comes from the RESOLVED palette. `pal <jq-path>` is the one
-# reader; a path that does not exist yields empty and every consumer of it has a
-# floor, so a renamed key fails loudly rather than scanning for nothing.
-pal() { jq -r "$1 // empty" "$PALETTE" 2>/dev/null; }
+# Everything else comes from the RESOLVED palette, via `pal` (defined at the top
+# of this file, alongside the schemes JSON it reads).
 
+# The name is still read out of scheme.nix by hand, and cross-checked against
+# what Nix resolved. Nix would fail to import a theme file that does not exist,
+# so this cannot catch a typo — what it catches is the two drifting apart: a
+# scheme.nix that stopped being the file the build actually read, which would
+# make every message below name the wrong scheme while passing.
 SCHEME=$(sed -n 's/^"\(.*\)"$/\1/p' "$SRC/modules/home/scheme.nix" 2>/dev/null | tail -1)
 THEME_FILE="$SRC/modules/home/themes/$SCHEME.nix"
-if [[ -n $SCHEME && -s $THEME_FILE ]]; then
-	ok "scheme.nix selects '$SCHEME', and themes/$SCHEME.nix exists"
-else
+if [[ -z $SCHEME || ! -s $THEME_FILE ]]; then
 	bad "scheme.nix names '$SCHEME', which is not a file in modules/home/themes/" \
 		"every palette scan below would read an empty file"
+elif [[ $SCHEME != "$PAL_SCHEME" ]]; then
+	bad "scheme.nix says '$SCHEME' but the build resolved '$PAL_SCHEME'" \
+		"every scan below would audit a scheme this machine is not wearing"
+else
+	ok "scheme.nix selects '$SCHEME' as the artefact scheme, and themes/$SCHEME.nix exists"
 fi
-MUTED_ACCENT=$(pal .muted.accent)
-
-if [[ $ACCENT =~ ^[0-9a-f]{6}$ && $MUTED_ACCENT =~ ^[0-9a-f]{6}$ ]]; then
+# The artefact scheme's muted accent used to be read here too, for ncspot. It
+# is per mode now (docs/adr/0034 phase 3) and resolved per scheme inside the
+# swap loop; a copy here would only be a value nothing reads.
+if [[ $ACCENT =~ ^[0-9a-f]{6}$ ]]; then
 	ACCENT_RGB="rgb($((16#${ACCENT:0:2})), $((16#${ACCENT:2:2})), $((16#${ACCENT:4:2})))"
 else
 	bad "could not read the accent from the palette" \
-		"accent='$ACCENT' muted='$MUTED_ACCENT' — every scan below would pass on an empty needle"
+		"accent='$ACCENT' — every scan below would pass on an empty needle"
 	ACCENT="__unreadable__"
-	MUTED_ACCENT="__unreadable__"
 	ACCENT_RGB="__unreadable__"
 fi
 
@@ -939,14 +1047,190 @@ while IFS='|' read -r path want label; do
 		ok "$label: $path is generated from the palette"
 	fi
 done <<-EOF
-	mango/universal/colors-tiling.conf|0x${ACCENT}ff|mango (tiling)
-	mango/universal/colors-hud.conf|0x${ACCENT}ff|mango (hud)
-	mango/universal/colors-noctalia.conf|0x${ACCENT}ff|mango (noctalia)
 	fsel/config.toml|${ACCENT_RGB}|fsel
 	swaync/style.css|${ACCENT_RGB}|swaync
-	ncspot/config.toml|#${MUTED_ACCENT}|ncspot
-	equibop/themes/scheme.theme.css|#${ACCENT}|equibop
 EOF
+# ncspot and Equibop used to be two more rows here, against the ARTEFACT accent.
+# They are per mode since docs/adr/0034 phase 3 and are checked in the swap loop
+# below instead — a row here would now audit whichever mode `tiling` happens to
+# be, and pass a mode nobody had looked at.
+
+# mango's chrome, per mode, each in the scheme modes.nix gives that mode
+# (docs/adr/0034). Deliberately NOT a row in the table above: the needle differs
+# per file now, and checking all three against the artefact accent would pass a
+# mode whose generated colours had silently stayed on the wrong scheme — which
+# is the whole drift the split exists to make visible.
+#
+# `focuscolor`, not `bordercolor`. The border role differs by mode BY DESIGN
+# (surface in tiling and hud, overlay in noctalia — docs/adr/0022), so it is the
+# one line that proves nothing about which scheme produced the file. The accent
+# is the same role in all three.
+modes_seen=0
+while IFS='|' read -r m mscheme; do
+	[[ -z $m ]] && continue
+	modes_seen=$((modes_seen + 1))
+	macc=$(jq -r ".schemes.\"$mscheme\".accent // empty" "$SCHEMES" 2>/dev/null)
+	mconf="$GEN_CFG/mango/universal/colors-$m.conf"
+	if [[ ! $macc =~ ^[0-9a-f]{6}$ ]]; then
+		bad "mango ($m): modes.nix names '$mscheme', which has no accent in the resolved schemes" \
+			"the scan below would pass on an empty needle"
+	elif [[ ! -s $mconf ]]; then
+		bad "mango ($m): colors-$m.conf is missing or empty" \
+			"mango skips a source= it cannot resolve without a word and keeps its own built-in colours"
+	elif ! grep -qxF "focuscolor=0x${macc}ff" "$mconf"; then
+		bad "mango ($m): colors-$m.conf does not carry the accent of '$mscheme' (0x${macc}ff)" \
+			"generated, but not from the scheme modes.nix gives this mode"
+	else
+		ok "mango ($m): colors-$m.conf is generated from '$mscheme'"
+	fi
+done < <(jq -r '.modes | to_entries[] | "\(.key)|\(.value)"' "$SCHEMES" 2>/dev/null)
+if [[ $modes_seen -eq 0 ]]; then
+	bad "no modes read from modules/home/modes.nix — the scan is broken, not the repo"
+fi
+
+# The runtime colour swap — docs/adr/0034 phase 2. kitty, foot and rofi run in
+# every mode and read one fixed path, so each reads through a symlink
+# `apply_theme()` re-points. Three things have to hold, and all three fail
+# silently on their own:
+#
+#   1. the per-mode sidecar exists and carries THAT mode's accent, in that
+#      consumer's own spelling — kitty and rofi want `#rrggbb`, foot wants bare
+#      hex, and the spelling is where copies have hidden before;
+#   2. the config that reads it actually contains the include, or the sidecar is
+#      generated and then never read by anything;
+#   3. the LINK path is not also an xdg.configFile. Two owners for one path is
+#      an activation failure, and `rofi/colors.rasi` was exactly that until this
+#      landed.
+swap_seen=0
+while IFS='|' read -r m mscheme; do
+	[[ -z $m ]] && continue
+	macc=$(jq -r ".schemes.\"$mscheme\".accent // empty" "$SCHEMES" 2>/dev/null)
+	if [[ ! $macc =~ ^[0-9a-f]{6}$ ]]; then
+		bad "swap ($m): no accent resolved for '$mscheme' — the scans below would pass on an empty needle"
+		continue
+	fi
+	# ncspot draws its rows in the `muted` set, not the canonical ramp, so its
+	# needle is a different colour from the same scheme — the one row here where
+	# the main accent would pass a file generated from the wrong palette half.
+	mmacc=$(jq -r ".schemes.\"$mscheme\".muted.accent // empty" "$SCHEMES" 2>/dev/null)
+	if [[ ! $mmacc =~ ^[0-9a-f]{6}$ ]]; then
+		bad "swap ($m): no muted accent resolved for '$mscheme' — the ncspot scan would pass on an empty needle"
+		continue
+	fi
+	# <path>|<needle>|<label>. The needle differs by consumer on purpose.
+	while IFS='|' read -r path want label; do
+		[[ -z $path ]] && continue
+		swap_seen=$((swap_seen + 1))
+		if [[ ! -s "$GEN_CFG/$path" ]]; then
+			bad "swap ($m): $path is missing or empty" \
+				"apply_theme refuses to link a target it cannot find, so the mode switch would leave the colours where they were and say so"
+		elif ! grep -qF "$want" "$GEN_CFG/$path"; then
+			bad "swap ($m): $path does not carry '$mscheme'\''s accent as $want" \
+				"generated, but not from the scheme modes.nix gives this mode"
+		else
+			ok "swap ($m): $label is generated from '$mscheme'"
+		fi
+	done <<-EOF
+		kitty/colors-$m.conf|#${macc}|kitty
+		foot/colors-$m|${macc}|foot
+		rofi/colors-$m.rasi|#${macc}|rofi
+		ncspot/colors-$m.toml|#${mmacc}|ncspot
+		equibop/themes/$m.theme.css|#${macc}|equibop
+	EOF
+
+	# Equibop DISPLAYS `@name` in its theme list, and a name is not a colour: it
+	# read `Catppuccin Mocha` through two scheme changes because every scan here
+	# greps for hex. Generated per mode since docs/adr/0034 phase 3a, so it is
+	# checkable — and with one file per mode, a re-hardcoded name would also make
+	# the three indistinguishable in Equibop's own list.
+	eqfile="$GEN_CFG/equibop/themes/$m.theme.css"
+	if [[ ! -s $eqfile ]]; then
+		: # already reported as missing by the loop above
+	elif grep -qF "@name $m ($mscheme)" "$eqfile"; then
+		ok "swap ($m): equibop announces itself as '$m ($mscheme)'"
+	else
+		bad "swap ($m): equibop's @name is not '$m ($mscheme)'" \
+			"the name Equibop shows has drifted from the mode and scheme that generated the file"
+	fi
+
+	# ncspot is the one consumer drawn ENTIRELY from `muted`, and the needle
+	# above only proves that half was reached — not that nothing else was. A
+	# `p.accent` written where `m.accent` was meant is a colour from the RIGHT
+	# scheme and the WRONG half, which no accent scan can see: the file still
+	# contains the muted accent somewhere. Measured, not assumed — that exact
+	# edit passed every other check here.
+	#
+	# So: every hex in the file must be a value from that scheme's muted set.
+	nfile="$GEN_CFG/ncspot/colors-$m.toml"
+	mapfile -t mvals < <(jq -r ".schemes.\"$mscheme\".muted | to_entries[] | .value" "$SCHEMES" 2>/dev/null)
+	if [[ ${#mvals[@]} -eq 0 ]]; then
+		bad "swap ($m): '$mscheme' resolved no muted colours — the scan below would call every hex a stray"
+	elif [[ ! -s $nfile ]]; then
+		: # already reported as missing by the loop above
+	else
+		stray=""
+		while read -r hex; do
+			[[ -z $hex ]] && continue
+			printf '%s\n' "${mvals[@]}" | grep -qxF "$hex" || stray+=" $hex"
+		done < <(grep -oE '#[0-9a-f]{6}' "$nfile" | tr -d '#' | sort -u)
+		if [[ -z $stray ]]; then
+			ok "swap ($m): every colour in ncspot's config is from '$mscheme''s muted set"
+		else
+			bad "swap ($m): ncspot's config carries colours outside '$mscheme''s muted set:$stray" \
+				"the right scheme and the wrong half of it — the accent scan above cannot see this"
+		fi
+	fi
+done < <(jq -r '.modes | to_entries[] | "\(.key)|\(.value)"' "$SCHEMES" 2>/dev/null)
+if [[ $swap_seen -eq 0 ]]; then
+	bad "no per-mode colour sidecars scanned — the scan is broken, not the repo"
+else
+	ok "$swap_seen per-mode colour sidecars scanned"
+fi
+
+# 2. The include lines. A sidecar nothing reads is the same as no sidecar, and
+# neither kitty nor foot says anything about a colour file it never opened.
+while IFS='|' read -r path want label; do
+	[[ -z $path ]] && continue
+	if [[ ! -s "$GEN_CFG/$path" ]]; then
+		bad "$label: $path is missing — the swap has nothing to reach it through"
+	elif ! grep -qF "$want" "$GEN_CFG/$path"; then
+		bad "$label: $path does not contain '$want'" \
+			"the per-mode colours are generated and then read by nothing; the app keeps its built-in palette"
+	else
+		ok "$label: reads its colours through the runtime link"
+	fi
+done <<-EOF
+	kitty/kitty.conf|include current-theme.conf|kitty
+	foot/foot.ini|include=~/.config/foot/themes/noctalia|foot
+	rofi/config.rasi|@import "colors"|rofi
+EOF
+
+# 3. The four link paths must NOT be in the generation. home-manager would own
+# a path apply_theme re-points on every mode switch, which is two owners for one
+# file — and the rebuild after would either fight it or back it up forever.
+ownerr=""
+for link in kitty/current-theme.conf foot/themes/noctalia rofi/colors.rasi ncspot/config.toml; do
+	[[ -e "$GEN_CFG/$link" ]] && ownerr+="  $link"$'\n'
+done
+if [[ -z $ownerr ]]; then
+	ok "the four runtime colour links are owned by apply_theme alone, not by home-manager"
+else
+	bad "a runtime colour link is also an xdg.configFile — two owners for one path" "$ownerr"
+fi
+
+# And apply_mode has to CALL it. The rows above prove every file exists; this is
+# the one that proves anything reads them at a mode switch. Same shape as the
+# idle-inhibitor assertion, and for the same reason: a mode switch that quietly
+# skips a step looks exactly like a mode switch.
+# SC2016: `$mode` is the literal text being searched for in lib.sh, not a
+# variable to expand here.
+# shellcheck disable=SC2016
+if grep -qE '^\s*apply_theme "\$mode"' "$MANGO/scripts/lib.sh"; then
+	ok "apply_mode re-points the colour links on every mode switch"
+else
+	bad "apply_mode does not call apply_theme" \
+		"the per-mode colours would be generated and the links would never move"
+fi
 
 # nvim is the one consumer whose generated file is CONDITIONAL. A scheme that
 # matches its own plugin takes upstream's colours and emits no palette.lua at
@@ -958,7 +1242,7 @@ EOF
 # and naming the wrong plugin is the failure that produces a hybrid.
 NVIM_SPEC=$(pal .apps.nvim.spec)
 NVIM_NAME=$(pal .apps.nvim.name)
-NVIM_OVERRIDES=$(jq -r '(.apps.nvim.palette | length) > 0' "$PALETTE" 2>/dev/null)
+NVIM_OVERRIDES=$(jq -r "(.schemes.\"$PAL_SCHEME\".apps.nvim.palette | length) > 0" "$SCHEMES" 2>/dev/null)
 CS="$GEN_CFG/nvim/lua/plugins/colorscheme.lua"
 
 if [[ -z $NVIM_SPEC || -z $NVIM_NAME ]]; then
@@ -1004,7 +1288,7 @@ fi
 # include it cannot resolve without a word, so a renamed file or a dropped line
 # leaves the colours at mango's built-in defaults — which are also dark, also
 # plausible, and nowhere stated to be wrong.
-for mode in tiling hud noctalia; do
+for mode in "${MODES[@]}"; do
 	if grep -qxF "source=./universal/colors-$mode.conf" "$SRC/dotfiles/mango/$mode/$mode.conf" 2>/dev/null; then
 		ok "mango: $mode.conf sources its generated colours"
 	else
@@ -1013,21 +1297,35 @@ for mode in tiling hud noctalia; do
 	fi
 done
 
-# Equibop enables its theme BY FILENAME, from the mode scripts, and ignores a
-# name that matches no file without logging. So the two halves have to agree:
-# the name lib.sh writes into `enabledThemes` must be the name home-manager
+# Equibop enables its theme BY FILENAME, from lib.sh, and ignores a name that
+# matches no file without logging. So the two halves have to agree: the name
+# `apply_theme` writes into `enabledThemes` must be the name home-manager
 # generates. They are in different languages in different directories, which is
 # exactly the gap a rename walks into.
-eq_theme=$(sed -n "s/.*enabledThemes = \[\\\"\([^\"]*\)\\\"\].*/\1/p" \
+#
+# Since docs/adr/0034 phase 3 the name is built from the MODE — `$mode.theme.css`
+# — so what has to agree is the suffix, and that every mode has a file wearing
+# it. The per-mode files' CONTENTS are checked in the swap loop above; this is
+# the naming half, which no amount of correct content would save.
+# SC2016: `$mode` is the literal text being searched for in lib.sh, not a
+# variable to expand here.
+# shellcheck disable=SC2016
+eq_suffix=$(sed -n 's/.*--arg t "\$mode\(\.[^"]*\)".*/\1/p' \
 	"$SRC/dotfiles/mango/scripts/lib.sh" 2>/dev/null | head -1)
-if [[ -z $eq_theme ]]; then
+if [[ -z $eq_suffix ]]; then
 	bad "could not read the Equibop theme name from lib.sh" \
-		"the agreement check below would pass on an empty needle"
-elif [[ -s "$GEN_CFG/equibop/themes/$eq_theme" ]]; then
-	ok "equibop: lib.sh enables $eq_theme, and that file is generated"
+		"it is no longer '--arg t \"\$mode<suffix>\"' — the agreement check would pass on an empty needle"
 else
-	bad "equibop: lib.sh enables '$eq_theme', which home-manager does not generate" \
-		"Equibop ignores a missing theme silently — Discord just stays unstyled"
+	eqmiss=""
+	for m in "${MODES[@]}"; do
+		[[ -s "$GEN_CFG/equibop/themes/$m$eq_suffix" ]] || eqmiss+="  $m$eq_suffix"$'\n'
+	done
+	if [[ -z $eqmiss ]]; then
+		ok "equibop: lib.sh enables <mode>$eq_suffix, and every mode has one generated"
+	else
+		bad "equibop: lib.sh enables '<mode>$eq_suffix', which home-manager does not generate for every mode" \
+			"Equibop ignores a missing theme silently — Discord just stays unstyled:"$'\n'"$eqmiss"
+	fi
 fi
 
 # The ceiling. Every palette hex has exactly one home now; a copy reappearing
@@ -1082,6 +1380,32 @@ if [[ -z $stray ]]; then
 	ok "no palette hex outside modules/home/themes/ and the exempt theme data"
 else
 	bad "palette hex found in hand-written files" "$(printf '%s\n' "$stray" | sed "s|^$SRC/||")"
+fi
+
+# The ceiling above has a blind spot, and it is structural rather than a bug:
+# it greps for the hexes the CURRENT themes declare, so a colour NO theme names
+# matches nothing and reads as a pass. `#d5c4a1` — gruvbox's `fg2`, which this
+# palette does not have a role for — sat in programs.nix as kitty's inactive tab
+# foreground through gruvbox -> Catppuccin -> gruvbox, wearing a scheme the
+# machine had stopped running. Found by hand on 2026-08-19 while moving kitty's
+# colours out; nothing in the repo could have found it.
+#
+# So: no six-digit hex literal in any .nix outside modules/home/themes/, which
+# is where colours are declared and the only place they may be spelled. The pass
+# state is zero matches, so the floor is on the number of FILES scanned.
+mapfile -t NIXSCAN < <(
+	find "$SRC/modules" "$SRC/pkgs" -name '*.nix' -not -path '*/themes/*' 2>/dev/null
+)
+if [[ ${#NIXSCAN[@]} -lt 10 ]]; then
+	bad "only ${#NIXSCAN[@]} .nix files found outside themes/ — the scan is broken, not the repo"
+else
+	lithex=$(grep -nHoE '"#?[0-9a-fA-F]{6}"' "${NIXSCAN[@]}" 2>/dev/null | sed "s|^$SRC/||")
+	if [[ -z $lithex ]]; then
+		ok "no hex literal in ${#NIXSCAN[@]} .nix files outside modules/home/themes/"
+	else
+		bad "a colour is spelled outside modules/home/themes/" \
+			"$(printf '%s\n' "$lithex" | tr '\n' ' ') — a hex no theme declares is invisible to the drift ceiling above"
+	fi
 fi
 
 # The artefacts the palette cannot colour: GTK, Kvantum, icon and cursor themes.
@@ -1250,91 +1574,110 @@ contrast() {
 		}'
 }
 
-FLOOR=$(pal .contrastFloor)
-AFLOOR=$(pal .ansiFloor)
-THEME_BG=$(pal .bg0)
-MUTED_SURFACE=$(pal .muted.surface)
-MUTED_FG=$(pal .muted.fg)
-MUTED_ERR=$(pal .muted.err)
-
-if [[ -z $FLOOR || -z $AFLOOR || -z $THEME_BG || -z $MUTED_SURFACE || -z $MUTED_FG || -z $MUTED_ERR ]]; then
-	bad "could not read the floors or reference colours from themes/$SCHEME.nix" \
-		"floor='$FLOOR' ansi='$AFLOOR' bg0='$THEME_BG' muted.surface='$MUTED_SURFACE' muted.fg='$MUTED_FG' muted.err='$MUTED_ERR' — every ratio below would be computed against nothing"
-else
-	worst=""
-	worst_n=""
-	fails=""
-
-	audit() { # <ratio> <label> <floor>
-		awk -v r="$1" -v f="$3" 'BEGIN { exit !(r < f) }' &&
-			fails+="  $2: $1 < $3"$'\n'
-		if [[ -z $worst ]] || awk -v r="$1" -v w="$worst" 'BEGIN { exit !(r < w) }'; then
-			worst=$1
-			worst_n=$2
-		fi
-	}
-
-	# What this machine draws text with, against `bg0`.
-	for role in fg0 fg1 fg4 brBlack brWhite comment accent okColor warnColor errColor infoColor; do
-		h=$(pal ".$role")
-		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
-			fails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
-			continue
-		fi
-		audit "$(contrast "$h" "$THEME_BG")" "$role #$h on bg0" "$FLOOR"
-	done
-
-	# ncspot's muted set against ITS OWN surface — ncspot fills whole rows with
-	# that colour, so bg0 is the wrong reference and using it passes values that
-	# fail where they are actually drawn.
-	for role in fg dim accent ok; do
-		h=$(pal ".muted.$role")
-		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
-			fails+="  muted.$role: not a colour in the resolved palette ('$h')"$'\n'
-			continue
-		fi
-		audit "$(contrast "$h" "$MUTED_SURFACE")" "muted.$role #$h on muted.surface" "$FLOOR"
-	done
-
-	# `muted.err` is a BACKGROUND — ncspot sets `error_bg` from it and draws
-	# `error_fg` (= `muted.fg`) on top. Auditing it as a foreground against
-	# `surface` is a pair ncspot never draws, and it passed a live theme whose
-	# error row was **1.28:1**: light grey-blue text on light pink. The check was
-	# not lenient, it was measuring the wrong two colours. docs/adr/0032.
-	audit "$(contrast "$MUTED_FG" "$MUTED_ERR")" "muted.fg on muted.err (ncspot's error row)" "$FLOOR"
-
-	if [[ -n $fails ]]; then
-		bad "themes/$SCHEME.nix has text below its own declared floor of $FLOOR:1" "$fails"
-	else
-		ok "contrast: every UI text role in '$SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
-	fi
-
-	# The sixteen terminal slots. `black` is excluded — it is ANSI 0, a
-	# background tone, and nothing prints text in it.
-	aworst=""
-	aworst_n=""
-	afails=""
-	for role in red green yellow blue magenta cyan white \
-		brRed brGreen brYellow brBlue brMagenta brCyan brWhite; do
-		h=$(pal ".$role")
-		if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
-			afails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
-			continue
-		fi
-		r=$(contrast "$h" "$THEME_BG")
-		awk -v r="$r" -v f="$AFLOOR" 'BEGIN { exit !(r < f) }' &&
-			afails+="  $role #$h on bg0: $r < $AFLOOR"$'\n'
-		if [[ -z $aworst ]] || awk -v r="$r" -v w="$aworst" 'BEGIN { exit !(r < w) }'; then
-			aworst=$r
-			aworst_n=$role
-		fi
-	done
-	if [[ -n $afails ]]; then
-		bad "themes/$SCHEME.nix has ANSI colours below its own declared ansiFloor of $AFLOOR:1" "$afails"
-	else
-		ok "contrast: every ANSI slot in '$SCHEME' clears its floor of $AFLOOR:1 (worst: $aworst_n at $aworst)"
-	fi
+# Audited for EVERY scheme this machine wears, not only the artefact one.
+# modes.nix can put a second scheme on screen (docs/adr/0034), and a floor that
+# only ever measured scheme.nix's would report a clean bill of health for a mode
+# nobody can read — the check passing by never looking, which is the failure
+# this whole file is built against. `.schemes` holds exactly the in-use set, so
+# a scheme cannot enter service unaudited.
+#
+# Each scheme is measured against ITS OWN declared floors. There is no global
+# minimum under them: the assertion is "this theme is as legible as it claims",
+# and Nord's comment colour is 1.69:1 and that is Nord (docs/adr/0032).
+mapfile -t IN_USE < <(jq -r '.schemes | keys[]' "$SCHEMES" 2>/dev/null)
+if [[ ${#IN_USE[@]} -eq 0 ]]; then
+	bad "no schemes read from the resolved schemes JSON — the scan is broken, not the repo"
 fi
+for PAL_SCHEME in "${IN_USE[@]}"; do
+	FLOOR=$(pal .contrastFloor)
+	AFLOOR=$(pal .ansiFloor)
+	THEME_BG=$(pal .bg0)
+	MUTED_SURFACE=$(pal .muted.surface)
+	MUTED_FG=$(pal .muted.fg)
+	MUTED_ERR=$(pal .muted.err)
+
+	if [[ -z $FLOOR || -z $AFLOOR || -z $THEME_BG || -z $MUTED_SURFACE || -z $MUTED_FG || -z $MUTED_ERR ]]; then
+		bad "could not read the floors or reference colours from themes/$PAL_SCHEME.nix" \
+			"floor='$FLOOR' ansi='$AFLOOR' bg0='$THEME_BG' muted.surface='$MUTED_SURFACE' muted.fg='$MUTED_FG' muted.err='$MUTED_ERR' — every ratio below would be computed against nothing"
+	else
+		worst=""
+		worst_n=""
+		fails=""
+
+		audit() { # <ratio> <label> <floor>
+			awk -v r="$1" -v f="$3" 'BEGIN { exit !(r < f) }' &&
+				fails+="  $2: $1 < $3"$'\n'
+			if [[ -z $worst ]] || awk -v r="$1" -v w="$worst" 'BEGIN { exit !(r < w) }'; then
+				worst=$1
+				worst_n=$2
+			fi
+		}
+
+		# What this machine draws text with, against `bg0`.
+		for role in fg0 fg1 fg4 brBlack brWhite comment accent okColor warnColor errColor infoColor; do
+			h=$(pal ".$role")
+			if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+				fails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
+				continue
+			fi
+			audit "$(contrast "$h" "$THEME_BG")" "$role #$h on bg0" "$FLOOR"
+		done
+
+		# ncspot's muted set against ITS OWN surface — ncspot fills whole rows with
+		# that colour, so bg0 is the wrong reference and using it passes values that
+		# fail where they are actually drawn.
+		for role in fg dim accent ok; do
+			h=$(pal ".muted.$role")
+			if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+				fails+="  muted.$role: not a colour in the resolved palette ('$h')"$'\n'
+				continue
+			fi
+			audit "$(contrast "$h" "$MUTED_SURFACE")" "muted.$role #$h on muted.surface" "$FLOOR"
+		done
+
+		# `muted.err` is a BACKGROUND — ncspot sets `error_bg` from it and draws
+		# `error_fg` (= `muted.fg`) on top. Auditing it as a foreground against
+		# `surface` is a pair ncspot never draws, and it passed a live theme whose
+		# error row was **1.28:1**: light grey-blue text on light pink. The check was
+		# not lenient, it was measuring the wrong two colours. docs/adr/0032.
+		audit "$(contrast "$MUTED_FG" "$MUTED_ERR")" "muted.fg on muted.err (ncspot's error row)" "$FLOOR"
+
+		if [[ -n $fails ]]; then
+			bad "themes/$PAL_SCHEME.nix has text below its own declared floor of $FLOOR:1" "$fails"
+		else
+			ok "contrast: every UI text role in '$PAL_SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
+		fi
+
+		# The sixteen terminal slots. `black` is excluded — it is ANSI 0, a
+		# background tone, and nothing prints text in it.
+		aworst=""
+		aworst_n=""
+		afails=""
+		for role in red green yellow blue magenta cyan white \
+			brRed brGreen brYellow brBlue brMagenta brCyan brWhite; do
+			h=$(pal ".$role")
+			if [[ ! $h =~ ^[0-9a-f]{6}$ ]]; then
+				afails+="  $role: not a colour in the resolved palette ('$h')"$'\n'
+				continue
+			fi
+			r=$(contrast "$h" "$THEME_BG")
+			awk -v r="$r" -v f="$AFLOOR" 'BEGIN { exit !(r < f) }' &&
+				afails+="  $role #$h on bg0: $r < $AFLOOR"$'\n'
+			if [[ -z $aworst ]] || awk -v r="$r" -v w="$aworst" 'BEGIN { exit !(r < w) }'; then
+				aworst=$r
+				aworst_n=$role
+			fi
+		done
+		if [[ -n $afails ]]; then
+			bad "themes/$PAL_SCHEME.nix has ANSI colours below its own declared ansiFloor of $AFLOOR:1" "$afails"
+		else
+			ok "contrast: every ANSI slot in '$PAL_SCHEME' clears its floor of $AFLOOR:1 (worst: $aworst_n at $aworst)"
+		fi
+	fi
+done
+# Back to the artefact scheme, so anything added after this reads the same
+# palette as everything before it.
+PAL_SCHEME=$(jq -r '.artefact // empty' "$SCHEMES" 2>/dev/null)
 
 printf '\nNetworkManager profiles\n'
 

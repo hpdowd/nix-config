@@ -21,18 +21,14 @@ if ! mode_has_waybar; then
     exit 0
 fi
 
-MODE=$(current_mode)
 POSITION=$(waybar_position)
+LAYOUT=$(waybar_layout)
 
-# hud is a mode, but it owns a layout and a stylesheet of its own, so it
-# overrides whatever waybar-layout holds. Every other mode is `tiling`.
-if [ "$MODE" = "hud" ]; then
-    LAYOUT="hud"
-    STYLE="$WAYBAR_DIR/style-hud.css"
-else
-    LAYOUT=$(waybar_layout)
-    STYLE="$WAYBAR_DIR/style-solid.css"
-fi
+# One stylesheet. There were two until hud left (docs/adr/0035): hud was a MODE
+# that also forced a layout and a stylesheet, which is why the layout was
+# picked here rather than simply read from state. Every mode that has a bar now
+# lets the picker choose.
+STYLE="$WAYBAR_DIR/style-solid.css"
 
 CONFIG="$WAYBAR_DIR/config-$LAYOUT-$POSITION.jsonc"
 

@@ -277,32 +277,35 @@ elif [[ ${#MODES[@]} -gt 0 ]]; then
 	fi
 fi
 
-# The ceiling on how far modes.nix may currently diverge. waybar and swaync run
-# in tiling and hud and not in noctalia, and they are the two consumers NOT on
-# the runtime swap — generated once, from scheme.nix. So:
+# The ceiling on how far modes.nix may diverge. waybar and swaync are the two
+# consumers NOT on the runtime swap — generated once, from scheme.nix — and
+# noctalia runs neither. So every OTHER mode has to wear the artefact scheme,
+# or it gets a bar from a scheme it is not wearing.
 #
-#   tiling and hud must agree with each other AND with scheme.nix, or a mode
-#   gets a bar from a scheme it is not wearing. Asserted here.
+# noctalia may differ, and does: everything it runs — its own shell, mango's
+# chrome, kitty, foot, rofi, ncspot and Equibop — follows modes.nix.
 #
-#   noctalia may differ, and does: it runs neither waybar nor swaync, and
-#   everything it DOES run — its own shell, mango's chrome, kitty, foot, rofi,
-#   ncspot and Equibop — follows modes.nix.
+# Derived from modes.nix rather than naming `tiling`, so a mode added later is
+# asserted with nothing to remember. Until hud left (docs/adr/0035) this also
+# had to check tiling and hud against EACH OTHER, because two modes shared one
+# generated bar; with one bar-bearing mode that half is gone.
 #
 # If waybar or swaync ever needs to differ by mode, it joins the swap first;
 # this assertion is what makes that a decision rather than a silent half.
-tsch=$(jq -r '.modes.tiling // empty' "$SCHEMES" 2>/dev/null)
-hsch=$(jq -r '.modes.hud // empty' "$SCHEMES" 2>/dev/null)
-if [[ -z $tsch || -z $hsch ]]; then
-	bad "could not read the tiling and hud schemes from modes.nix" \
-		"tiling='$tsch' hud='$hsch' — the agreement below would be asserted about nothing"
-elif [[ $tsch != "$hsch" ]]; then
-	bad "modes.nix gives tiling '$tsch' and hud '$hsch', which do not agree" \
-		"waybar and swaync run in both and are generated once, so one mode would wear the other's bar"
-elif [[ $tsch != "$PAL_SCHEME" ]]; then
-	bad "modes.nix gives tiling and hud '$tsch', but the artefact scheme is '$PAL_SCHEME'" \
-		"waybar, swaync, kitty, foot and rofi still follow scheme.nix — both modes would be half one scheme and half the other"
+barmodes=0
+barerr=""
+while IFS='|' read -r m msch; do
+	[[ -z $m || $m == noctalia ]] && continue
+	barmodes=$((barmodes + 1))
+	[[ $msch == "$PAL_SCHEME" ]] || barerr+="  $m wears '$msch'"$'\n'
+done < <(jq -r '.modes | to_entries[] | "\(.key)|\(.value)"' "$SCHEMES" 2>/dev/null)
+if [[ $barmodes -eq 0 ]]; then
+	bad "no bar-bearing mode read from modes.nix — the scan is broken, not the repo"
+elif [[ -n $barerr ]]; then
+	bad "a mode running waybar and swaync does not wear the artefact scheme '$PAL_SCHEME'" \
+		"those are generated once, from scheme.nix, so the mode would be half one scheme and half the other:"$'\n'"$barerr"
 else
-	ok "tiling and hud agree on '$tsch', which is what waybar, swaync and the terminals are generated from"
+	ok "the $barmodes mode(s) running waybar and swaync wear '$PAL_SCHEME', which is what those are generated from"
 fi
 
 # Same check the waybar configs get below, for the mango tree: a `bind=` or
@@ -1062,7 +1065,7 @@ EOF
 # is the whole drift the split exists to make visible.
 #
 # `focuscolor`, not `bordercolor`. The border role differs by mode BY DESIGN
-# (surface in tiling and hud, overlay in noctalia — docs/adr/0022), so it is the
+# (surface in tiling, overlay in noctalia — docs/adr/0022), so it is the
 # one line that proves nothing about which scheme produced the file. The accent
 # is the same role in all three.
 modes_seen=0
@@ -1749,11 +1752,26 @@ fi
 
 printf '\nGenerated waybar configs\n'
 
+# Every layout, in both positions. Named rather than counted: a count alone
+# passes when one layout vanishes and another is added twice, and the layout
+# NAMES are what waybar-restart.sh builds its filename from — a missing one is
+# the fallback-to-full path, which logs but keeps running. Was 4 layouts until
+# hud left (docs/adr/0035).
+# CONFIGS stays FULL PATHS — every scan below this point reads the files.
 mapfile -t CONFIGS < <(find "$WAYBAR_DIR" -name 'config-*.jsonc' | sort)
-if [[ ${#CONFIGS[@]} -ne 8 ]]; then
-	bad "expected 8 generated waybar configs (4 layouts x 2 positions), found ${#CONFIGS[@]}"
+cfgmiss=""
+for l in full focus minimal; do
+	for pos in top bottom; do
+		[[ -s "$WAYBAR_DIR/config-$l-$pos.jsonc" ]] || cfgmiss+="  config-$l-$pos.jsonc"$'\n'
+	done
+done
+if [[ -n $cfgmiss ]]; then
+	bad "a generated waybar config is missing" "$cfgmiss"
+elif [[ ${#CONFIGS[@]} -ne 6 ]]; then
+	bad "expected 6 generated waybar configs (3 layouts x 2 positions), found ${#CONFIGS[@]}" \
+		"$(printf '%s ' "${CONFIGS[@]##*/}")"
 else
-	ok "8 generated waybar configs"
+	ok "6 generated waybar configs — full, focus and minimal, each top and bottom"
 fi
 
 # A module whose exec is missing or non-executable renders as an empty module,

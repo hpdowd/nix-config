@@ -327,7 +327,6 @@ in
     # the first consumer to differ by mode rather than only by border role;
     # everything else on this machine still wears ./scheme.nix. docs/adr/0034.
     "mango/universal/colors-tiling.conf".text = modeColors "tiling" "surface";
-    "mango/universal/colors-hud.conf".text = modeColors "hud" "surface";
     "mango/universal/colors-noctalia.conf".text = modeColors "noctalia" "overlay";
 
     # The cursor, generated for the same reason and with a sharper failure. This

@@ -280,7 +280,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
 | Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `gruvbox`. This is the **artefact** scheme: widget art, icons, cursor, yazi, nvim, Zed, and every colour consumer not listed in the row below |
-| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so `tiling` and `hud` must agree with each other and with it. Only `noctalia` may differ; currently `nord` |
+| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently `nord` |
 | The per-mode colours themselves | `modules/home/mode-theme.nix` — generates `kitty/colors-<mode>.conf`, `foot/colors-<mode>` and `rofi/colors-<mode>.rasi`, plus the activation seed for the three links. The colours are **not** in `programs.nix` any more |
 | Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
 | Which schemes exist | `modules/home/themes/`. Four ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord` — every one fully native. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
@@ -524,7 +524,7 @@ Then revert, in order of how easy each is to miss:
 | `scripts/desktop-mode.sh` | drop `"noctalia"` from `MODES=(…)` — keep it one line |
 | `scripts/lib.sh` | delete `mode_has_waybar()` |
 | `scripts/waybar/waybar-{restart,layout,position}.sh` | delete the three guards that call it |
-| `tiling/autostart.conf`, `hud/autostart.conf` | delete the `systemctl --user stop noctalia` line |
+| `tiling/autostart.conf` | delete the `systemctl --user stop noctalia` line |
 | `modules/home/default.nix` | delete `systemd.user.services.noctalia` |
 | `modules/system/desktop.nix` | delete `noctalia-shell` |
 | `modules/home/default.nix` | drop `NOCTALIA_PAM_SERVICE` with the unit |
@@ -552,7 +552,7 @@ A Wayland compositor in the dwl/dwm lineage: tags (workspaces), a master/stack
 layout, keyboard-driven. Config lives in `dotfiles/mango/`, split into:
 
 - **`universal/`** — shared across modes: binds, window rules, tags, settings, autostart
-- **`tiling/`, `hud/`, `noctalia/`** — per-mode compositor config and autostart.
+- **`tiling/`, `noctalia/`** — per-mode compositor config and autostart.
   `noctalia/` carries three more: `bind.conf` (keys that exist in no other
   mode), and `settings.json` + `settings-pinned.json`, which are written into
   `~/.config/noctalia/` rather than linked (§6)
@@ -573,27 +573,27 @@ Three independent switches, all on the `/` key:
 
 | | Options | Bind | State file |
 |---|---|---|---|
-| **Desktop mode** | `tiling`, `hud`, `noctalia` | `SUPER+CTRL+/` | `~/.local/state/mango/current-mode` |
+| **Desktop mode** | `tiling`, `noctalia` | `SUPER+CTRL+/` | `~/.local/state/mango/current-mode` |
 | **Waybar layout** | `full`, `focus`, `minimal` | `SUPER+/` | `~/.local/state/mango/waybar-layout` |
 | **Waybar position** | `top`, `bottom` | `SUPER+SHIFT+/` | `~/.local/state/mango/waybar-position` |
 
-Mode selects the compositor config, autostart set and waybar stylesheet
-(`tiling` → `style-solid.css`, `hud` → `style-hud.css`; there is no third).
-Layout selects which waybar modules are shown. Position moves the bar between
-screen edges.
+Mode selects the compositor config and autostart set. Layout selects which
+waybar modules are shown. Position moves the bar between screen edges. There is
+one stylesheet, `style-solid.css` — hud had a second until `docs/adr/0035`, and
+was also the one mode that overrode the layout pick.
 
-**Mode also selects the look, and noctalia's is not the other two's.** `tiling`
-and `hud` share the flat set — no animations, no gaps, square corners, a 1px
-border. `noctalia` overrides all of it after the `source=` lines: 12px corners
+**Mode also selects the look, and noctalia's is not tiling's.** `tiling` is the
+flat set — no animations, no gaps, square corners, a 1px border. `noctalia` overrides all of it after the `source=` lines: 12px corners
 matching noctalia's own frame radius, 8/12px gaps, a 2px border, zoom open and
 close, and shadows on floating windows. Compositor blur stays off (the amdgpu
 freeze, `docs/gotchas.md` → Power), layer shadows and layer animations stay off
 for anything `^noctalia-` because the shell draws and animates its own panels.
 `docs/adr/0022`.
 
-**`SUPER+/` offers `full`, `focus` and `minimal` only** — the `hud` layout is
-chosen automatically whenever the desktop mode is `hud`, so it is not a
-separate pick.
+**`SUPER+/` offers `full`, `focus` and `minimal`, and every one of them is
+reachable.** That was not true until `docs/adr/0035`: `hud` was a mode that also
+forced its own layout, so a pick made in that mode was stored and then silently
+overridden.
 
 **`noctalia` has no waybar at all**, so `SUPER+/` and `SUPER+SHIFT+/` mean
 "configure the bar" rather than "configure waybar": in noctalia mode they open
@@ -625,16 +625,17 @@ every script that touches them. Each one used to re-derive
 `${XDG_STATE_HOME:-$HOME/.local/state}/mango` and its own fallback value, which
 is exactly how the mode switch broke one-way on 2026-07-31 — one reader
 disagreed with the writers about the path, silently. `lib.sh` also holds
-`apply_mode()`, the body `modes/tiling.sh` and `modes/hud.sh` used to carry as
-a byte-identical copy each.
+`apply_mode()`, the body `modes/tiling.sh` and the since-removed `modes/hud.sh`
+(`docs/adr/0035`) each used to carry as a byte-identical copy.
 
 > **How position actually works:** waybar takes only `-c`, `-s` and `-b` on the
 > command line — `position` is a config key with no flag. So each position is a
 > **separate generated file**, and the script picks between them.
 >
-> The margin mirroring matters: the hud layout uses
-> `"margin-bottom": -28` against a 28px bar to cancel its exclusive zone, and
-> that has to move edges with the bar. It is `atBottom` in `waybar.nix` now.
+> `atBottom` in `waybar.nix` only flips `position` now. It also MIRRORED the
+> vertical margins until `docs/adr/0035`, which mattered for exactly one layout:
+> hud used `"margin-bottom": -28` against a 28px bar to cancel its exclusive
+> zone. Restore the mirroring before adding a layout with a vertical margin.
 >
 > Styling follows automatically — waybar adds its position as a CSS class on the
 > window, so `window#waybar.bottom` in `style-solid.css` moves the separator
@@ -766,10 +767,11 @@ and a layout is a list of names, so a name with no definition is an **eval
 error** rather than an empty module. Per-layout divergences live in a `tweaks`
 attribute at the call site.
 
-> There are two stylesheets, `style-solid.css` and `style-hud.css`. A third,
-> `style.css`, was deleted in 2026-08 as unreachable — `current-mode` only ever
-> holds `tiling` or `hud`, so its fallback branch could never be taken. Check
-> `waybar-restart.sh` can actually reach a file before adding one.
+> There is one stylesheet, `style-solid.css`. `style-hud.css` went with hud
+> (`docs/adr/0035`), and a third, `style.css`, was deleted in 2026-08 as
+> unreachable — `current-mode` never held a value that selected it, so its
+> fallback branch could not be taken. Check `waybar-restart.sh` can actually
+> reach a file before adding one.
 
 Notable custom modules — each is a script under `dotfiles/mango/scripts/`, so if one
 is missing from the bar, **run its script by hand first**:
@@ -811,7 +813,7 @@ is missing from the bar, **run its script by hand first**:
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
-| **swaylock** | Screen lock in tiling and hud, and the fallback in noctalia mode (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
+| **swaylock** | Screen lock in tiling, and the fallback in noctalia mode (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
 | **lockscreen** | The wrapper every lock path actually calls — hands the lock to noctalia in noctalia mode, otherwise picks a background from the pool and execs swaylock (§9, `docs/adr/0018`, `docs/adr/0024`) |
 | **swayidle** | Lock handler *and* idle daemon — `lockscreen` on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
 | **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
@@ -1080,7 +1082,7 @@ all. **No timeout, ever**: an inhibitor that silently expires part-way through i
 the failure it exists to prevent.
 
 The unit is the state. It survives `waybar-reload`, both bar switches, a switch
-to `minimal` or `hud` (neither carries the module) and all three desktop modes;
+to `minimal` (which does not carry the module) and both desktop modes;
 it ends with the session and not before. Nothing starts it at login.
 
 This used to be waybar's built-in `idle_inhibitor`, whose state was a bool in
@@ -1111,7 +1113,7 @@ the wlogout button) and **every lid-close resumed straight to the unlocked
 desktop**.
 
 **Which locker you get follows the desktop mode** (`docs/adr/0024`). In tiling
-and hud it is swaylock, as it always was. In `noctalia` mode, with the unit
+it is swaylock, as it always was. In `noctalia` mode, with the unit
 running, `lockscreen` asks the shell for its own lock screen first — the same
 one `SUPER+Delete` opens — waits a second, and then runs swaylock anyway.
 swaylock exits non-zero exactly when something else already holds the
@@ -1152,7 +1154,7 @@ Both options are **swaylock-effects extensions**, which is why the module sets
 `package = null` — see the trap in `docs/gotchas.md`.
 
 This replaced three separate copies of the same theme: `mango/tiling/swaylock.conf`,
-`mango/hud/swaylock.conf`, and an **untracked** hand-written
+the same file under the since-removed `mango/hud/`, and an **untracked** hand-written
 `~/.config/swaylock/config` that had been quietly supplying the theme to every
 bare `swaylock -f` all along. The per-mode files are deleted; there is one lock
 screen.
@@ -1452,7 +1454,7 @@ invisible in logs and reported as "X is missing".
 
 Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
 
-- **noctalia mode wears `nord`; tiling and hud wear `gruvbox`** — set in
+- **noctalia mode wears `nord`; tiling wears `gruvbox`** — set in
   `modules/home/modes.nix` (`docs/adr/0034`). Following the mode: mango's window
   chrome, noctalia's own palette, Equibop's theme filename, and kitty, foot,
   rofi and ncspot through a runtime symlink. **Not** following it, permanently:

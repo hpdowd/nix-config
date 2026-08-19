@@ -395,11 +395,11 @@ let
 
   # ── Shared bar settings ───────────────────────────────────────────────────
   #
-  # All margins are 0. They used to be `margin-top = 6; margin-left/right = 8`
-  # — a floating bar — but nothing ever rendered that: `waybar-restart.sh` zeroed
-  # all three with sed on every launch, because the only non-hud mode is
-  # `tiling` and tiling wants the bar flush. Those values were residue from the
-  # removed `dms` mode, unreachable for as long as it has been gone.
+  # All margins are 0, for every layout, since hud left (docs/adr/0035). They
+  # used to be `margin-top = 6; margin-left/right = 8` — a floating bar — but
+  # nothing ever rendered that: `waybar-restart.sh` zeroed all three with sed on
+  # every launch, because the only mode with a bar is `tiling` and tiling wants
+  # it flush. Those values were residue from the removed `dms` mode.
   barBase = {
     layer = "top";
     position = "top";
@@ -425,8 +425,8 @@ let
       used = left ++ center ++ right;
       unknown = lib.subtractLists (lib.attrNames modules) used;
       # A tweak for a module this layout does not carry is silently ignored by
-      # waybar — which is how config-hud.jsonc ended up defining a custom/power
-      # it never displayed.
+      # waybar — which is how the old hand-written config-hud.jsonc ended up
+      # defining a custom/power it never displayed.
       deadTweaks = lib.subtractLists used (lib.attrNames tweaks);
       defs = lib.genAttrs used (n: modules.${n} // (tweaks.${n} or { }));
     in
@@ -447,9 +447,9 @@ let
 
   toWaybar = name: value: (pkgs.formats.json { }).generate name value;
 
-  # ── The four layouts ──────────────────────────────────────────────────────
-  # The clock leads modules-left in every non-hud layout and custom/window sits
-  # in the centre, so switching layout with SUPER+/ never moves them.
+  # ── The three layouts ─────────────────────────────────────────────────────
+  # The clock leads modules-left in every layout and custom/window sits in the
+  # centre, so switching layout with SUPER+/ never moves them.
   #
   # These are position-INDEPENDENT. The top/bottom variants are derived below
   # rather than written out.
@@ -523,42 +523,6 @@ let
       tweaks."custom/window".max-length = 80;
     };
 
-    # hud — an overlay strip, not a bar. margin-bottom cancels the exclusive
-    # zone against the 28px height; `atBottom` below mirrors it for the bottom
-    # edge. This is the ONLY layout with a non-zero margin, so it is the only
-    # one that variant actually changes.
-    hud = mkBar {
-      left = [ ];
-      center = [ ];
-      right = [
-        "ext/workspaces"
-        "custom/phone"
-        "battery"
-        "clock"
-      ];
-      bar = {
-        layer = "overlay";
-        height = 28;
-        margin-top = 0;
-        margin-bottom = -28;
-        margin-left = 0;
-        margin-right = 0;
-        exclusive = 0;
-        exclusive-zone = 0;
-      };
-      tweaks = {
-        # Dots rather than numbers — the hud is glanceable, not interactive.
-        "ext/workspaces".format-icons = {
-          active = "●";
-          default = "○";
-          urgent = "!";
-        };
-      };
-      # NOTE: config-hud.jsonc also defined `custom/power` (pointing at
-      # menus/power-menu.sh rather than wlogout) but never listed it in
-      # modules-right, so it has never rendered. Not carried over. To bring it
-      # back, add "custom/power" to `right` and re-add the tweak here.
-    };
   };
 
   # ── Position variants, enumerated at BUILD time ───────────────────────────
@@ -576,16 +540,15 @@ let
   # bottom->top pair renamed the key and renamed it straight back, and the swap
   # had to be routed through a `margin-swap` placeholder to survive.
   #
-  # Enumerating instead: 4 layouts x 2 positions = 8 files, all statically
+  # Enumerating instead: 3 layouts x 2 positions = 6 files, all statically
   # known. The script now only picks a filename.
-  atBottom =
-    bar:
-    bar
-    // {
-      position = "bottom";
-      margin-top = bar.margin-bottom;
-      margin-bottom = bar.margin-top;
-    };
+  # Only `position` differs. The vertical margins used to be MIRRORED here too,
+  # which mattered for exactly one layout: hud cancelled its own exclusive zone
+  # with `margin-bottom = -28`. hud is gone (docs/adr/0035) and every remaining
+  # layout has all four margins at 0, so mirroring them was arithmetic on zero
+  # that read as load-bearing. Restore it before adding any layout with a
+  # non-zero vertical margin.
+  atBottom = bar: bar // { position = "bottom"; };
 
   layouts = lib.listToAttrs (
     lib.concatMap (name: [
@@ -615,11 +578,15 @@ in
       # renamed role should break the build here, not silently stop matching in
       # a `@import`ed stylesheet where GTK ignores the unknown colour without a
       # word.
+      #
+      # `surface` was here until hud left (docs/adr/0035) — style-hud.css was
+      # its only consumer, and a generated colour nothing imports is exactly
+      # what the both-directions assertion in checks/static.sh exists to catch.
+      # Re-add it the moment a stylesheet wants it; the check enforces both ways.
       "mango/waybar/colors.css".text = ''
         /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
            Imported by every style-*.css. */
         @define-color base    #${p.base};
-        @define-color surface #${p.surface};
         @define-color overlay #${p.overlay};
         @define-color text    #${p.text};
         @define-color subtext #${p.subtext};

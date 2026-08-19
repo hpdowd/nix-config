@@ -393,14 +393,11 @@ state_notify() {
 }
 
 state_bar() {
-	# hud owns a layout of its own, chosen by the MODE rather than by
-	# waybar-layout.sh (see waybar-restart.sh). Printing the stored layout there
-	# would name a bar that is not on screen.
-	if [ "$(current_mode)" = hud ]; then
-		printf '%s\t%s' "$ICON_BAR" "hud, $(waybar_position)"
-	else
-		printf '%s\t%s' "$ICON_BAR" "$(waybar_layout), $(waybar_position)"
-	fi
+	# The stored layout is the layout on screen. That was NOT true until hud left
+	# (docs/adr/0035): hud forced its own, so this row had to special-case it or
+	# name a bar nobody could see — and `act_bar` still opened a picker whose
+	# choice that mode then discarded.
+	printf '%s\t%s' "$ICON_BAR" "$(waybar_layout), $(waybar_position)"
 }
 
 # ── Actions ───────────────────────────────────────────────────────────────

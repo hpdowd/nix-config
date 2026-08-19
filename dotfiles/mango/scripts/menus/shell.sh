@@ -20,7 +20,7 @@ set -u
 
 . "$HOME/.config/mango/scripts/lib.sh"
 
-# tiling/hud halves. Functions, not strings: `clipboard` is a pipeline and
+# The tiling half. Functions, not strings: `clipboard` is a pipeline and
 # needs a shell, and quoting a command through a variable does not survive it.
 fb_launcher() { foot -a fsel-launcher -e fsel --detach; }
 fb_lock() { lockscreen -f; }

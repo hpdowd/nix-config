@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Noctalia mode — noctalia-shell replaces waybar and swaync. docs/adr/0020.
-# The body is apply_mode() in ../lib.sh, as for tiling and hud.
+# The body is apply_mode() in ../lib.sh, as for tiling.
 . "$HOME/.config/mango/scripts/lib.sh"
 
 # noctalia rewrites settings.json itself (Commons/Settings.qml writes through a
@@ -33,8 +33,8 @@ DEST="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/settings.json"
 
 # The live shell holds settings in memory and writes the whole file back, so
 # merging underneath a running one would be undone without a word. Entering the
-# mode from tiling or hud always has it stopped (their autostarts stop the
-# unit), so this only trips on a direct re-run of this script — and it says so
+# mode from tiling always has it stopped (its autostart stops the unit), so
+# this only trips on a direct re-run of this script — and it says so
 # rather than reporting a pin it did not apply.
 if systemctl --user is-active --quiet noctalia; then
 	notify-send "Noctalia" "Already running — pinned settings not re-applied"

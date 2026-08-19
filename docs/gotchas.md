@@ -294,7 +294,7 @@ the build.
 **The second claimant of `org.freedesktop.Notifications` does not error — it
 just never receives a notification.** noctalia-shell is a notification daemon as
 well as a bar, so `noctalia/autostart.conf` kills swaync and does not restart it,
-and `tiling/`+`hud/` restart swaync and stop the noctalia unit. ADR 0005 is the
+and `tiling/` restarts swaync and stops the noctalia unit. ADR 0005 is the
 general rule; ADR 0020 is this instance.
 
 Verify by ownership, never by "it started": `busctl --user status
@@ -515,7 +515,7 @@ on a dash-flag `mmsg`.
 *is* tracked.** The mode script does a verbatim `cp tiling/tiling.conf
 config.conf`, so `config.conf` is a *copy of whichever mode is active* — tracking
 it would commit a duplicate that changes on every mode switch. The real files are
-`tiling/tiling.conf` and `hud/hud.conf`. Consequence for a fresh clone: mango
+`tiling/tiling.conf` and `noctalia/noctalia.conf`. Consequence for a fresh clone: mango
 starts on built-in defaults — no waybar, no keybinds — until a mode script has
 run once.
 
@@ -662,8 +662,8 @@ configured this way — just stops appearing.
 
 That config is also the *only* one now: `~/.config/swaylock/config` used to be
 an **untracked** hand-written file that quietly supplied the theme to every bare
-`swaylock -f`, alongside two more copies at `mango/{tiling,hud}/swaylock.conf`
-for the `--config` binds. All three are gone.
+`swaylock -f`, alongside a per-mode copy at `mango/<mode>/swaylock.conf` for
+the `--config` binds. All of them are gone.
 
 **Its colours come from `palette.nix`, and did not until 2026-08-16.** The ring
 and the keypress highlight were gruvbox *orange* (`d65d0e`, `fe8019`) while the
@@ -1013,8 +1013,8 @@ bar module only reports it, so `waybar-reload`, a layout switch, a mode switch
 and `SUPER+/` all leave it held. Before that the toggle was a static bool on a
 surface that died with the bar — and the glyph went back to `󰒲` at the same
 instant, so the bar was never visibly *wrong*, it just stopped being what you
-set. `minimal` and `hud` still do not carry the module; they no longer need to,
-because `SUPER+SHIFT+A` reaches it in every mode and every layout.
+set. `minimal` still does not carry the module; it no longer needs to, because
+`SUPER+SHIFT+A` reaches it in every mode and every layout.
 
 Two things that remain true about it:
 
@@ -1028,7 +1028,7 @@ Two things that remain true about it:
   read into step, and `apply_mode` hands over instead: one owner per mode. You
   get a notification when it actually released something, and re-arming in
   noctalia is the same key. **The handover is one-way**: coming back out to
-  tiling or hud does not restore it, because nothing can ask noctalia whether it
+  tiling does not restore it, because nothing can ask noctalia whether it
   was holding one.
 
 `checks/static.sh` asserts at least one layout still carries the module, that
@@ -1042,8 +1042,8 @@ emitted `{"text":""}` for a while because its icons were written as literal
 glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
 
 **And the inverse: a module invisible for long enough loses its stylesheet.**
-`custom/phone` was listed in the `full` and `hud` layouts but had **no CSS rule
-in either sheet** — not even a place in the shared reset list — for as long as it
+`custom/phone` was listed in the `full` layout and in hud's, but had **no CSS
+rule in either sheet** — not even a place in the shared reset list — for as long as it
 existed. Nothing caught it, because for that whole time `phone-status.sh`'s
 liveness guard could not match a wrapped `kdeconnectd` and the script always took
 its "KDE Connect not running" branch, which emits empty text. Fixing that guard
@@ -1833,7 +1833,7 @@ the default for every colour consumer. `modules/home/modes.nix` names a colour
 scheme **per desktop mode** (`docs/adr/0034`); `noctalia` mode is currently
 `nord`, which reaches mango's chrome and noctalia's own palette and nothing else
 yet. Hack Nerd Font Mono 11 in the terminals, with kitty bold/italic in 0xProto
-Nerd Font Mono. Modes are **tiling**, **hud** and **noctalia**; the active one is
+Nerd Font Mono. Modes are **tiling** and **noctalia** (`docs/adr/0035`); the active one is
 in `~/.local/state/mango/current-mode`.
 
 ---

@@ -80,7 +80,7 @@ deliberately do not demand them of it. It is one string, `nix flake check`,
 
 The right-hand column's bottom row is artefact-bound and never moves; the top
 row is a choice, and it is what puts the ceiling on how far `modes.nix` may
-diverge. `checks/static.sh` asserts it: `tiling` and `hud` must name the same
+diverge. `checks/static.sh` asserts it: every mode that runs waybar must name the same
 scheme *and* it must be `scheme.nix`'s. Only `noctalia` may differ.
 
 **The runtime half, in one picture.** `modules/home/mode-theme.nix` generates

@@ -17,7 +17,7 @@
       nerd-fonts.fira-code # ttf-firacode-nerd
       nerd-fonts.jetbrains-mono # ttf-jetbrains-mono-nerd
       nerd-fonts.symbols-only
-      # mango/waybar/style-solid.css and style-hud.css ask for "3270 Nerd Font"
+      # mango/waybar/style-solid.css asks for "3270 Nerd Font"
       # by name (and style-solid also asks for "Symbols Nerd Font Mono", which
       # `nerd-fonts.symbols-only` above provides). It was not
       # declared here, so the bar would have fallen back to a generic

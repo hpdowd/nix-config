@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply a mode: `mode.sh [tiling|hud]`, defaulting to whatever is current.
+# Apply a mode: `mode.sh [tiling|noctalia]`, defaulting to whatever is current.
 . "$HOME/.config/mango/scripts/lib.sh"
 
 MODE="${1:-$(current_mode)}"

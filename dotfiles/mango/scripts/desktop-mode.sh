@@ -5,8 +5,8 @@
 # 2026-07-31, months after the state moved. The failure was silent and
 # asymmetric: current_mode() never found the file, so it always returned its
 # "tiling" fallback, the menu always marked tiling as active, and the `•` guard
-# below then read picking tiling as "already there" and exited 0. Switching TO
-# hud worked; switching BACK was impossible, with nothing logged.
+# below then read picking tiling as "already there" and exited 0. Switching
+# AWAY worked; switching BACK was impossible, with nothing logged.
 #
 # That is why the path and the fallback now come from lib.sh — one definition,
 # so a reader cannot disagree with a writer about either.
@@ -14,7 +14,7 @@
 
 # One line, and it must stay one line: checks/static.sh reads it with `sed` to
 # cross-check that every mode has its conf and its mode script.
-MODES=("tiling" "hud" "noctalia")
+MODES=("tiling" "noctalia")
 
 menu_entries() {
     local current

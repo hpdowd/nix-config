@@ -24,8 +24,9 @@
 # the Nix→shell boundary carries a *value* that both sides have to agree on —
 # the class of drift `lib.sh` was extracted to stop, and the one that broke the
 # mode switch one-way on 2026-07-31. Keyed by mode, the shell already knows the
-# only argument there is, and tiling and hud sharing a scheme costs one
-# duplicate generated file that nothing reads by hand.
+# only argument there is. Two modes sharing a scheme would cost one duplicate
+# generated file that nothing reads by hand — which is what hud cost until it
+# left (docs/adr/0035), and still the right trade.
 #
 # THE ODD NAMES ARE DELIBERATE, and they are the two that let noctalia's own
 # auto-theming templates be a later toggle rather than a redesign

@@ -26,9 +26,9 @@
 #                  needed already existed.
 #
 # WHAT DOES NOT
-#   waybar and swaync do not run in noctalia mode, so they follow whatever
-#   `tiling` and `hud` agree on. checks/static.sh asserts those two DO agree:
-#   if they ever need to differ, they join the swap first.
+#   waybar and swaync do not run in noctalia mode, so they are generated once
+#   from ./scheme.nix. checks/static.sh asserts every mode that DOES run them
+#   wears that scheme; if one ever needs to differ, it joins the swap first.
 #
 # A FILE rather than a home-manager option, for ./scheme.nix's reason applied
 # one layer along: each value is interpolated into `import ./themes/<name>.nix`,
@@ -41,6 +41,5 @@
 # error; a key naming no mode is a scheme nothing can select.
 {
   tiling = "gruvbox";
-  hud = "gruvbox";
   noctalia = "nord";
 }

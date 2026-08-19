@@ -36,7 +36,7 @@
 #            already makes it reproducible. The store copy is the right answer.
 #   swaync   `services.swaync` declares `systemd.user.services.swaync`, which
 #            is precisely the unit masked in default.nix, because
-#            mango/{tiling,hud}/autostart.conf owns swaync's lifecycle so a
+#            mango/tiling/autostart.conf owns swaync's lifecycle so a
 #            restyle takes effect on mode switch. Converting it flips that
 #            ownership decision; that is an ADR, not a line in a bulk pass.
 #   glow,    no module in nixpkgs' home-manager at this pin.
@@ -452,11 +452,11 @@ in
   # The ONE swaylock config. Every hands-off lock path goes through
   # `lockscreen -f` — swayidle on sleep, wlogout, the binds — and that wrapper
   # execs swaylock, so they all still read this file. It replaces the per-mode
-  # mango/{tiling,hud}/swaylock.conf pair, and an untracked hand-written
+  # per-mode mango/*/swaylock.conf files, and an untracked hand-written
   # ~/.config/swaylock/config that had been quietly supplying the theme.
   #
   # In `noctalia` mode the wrapper hands the lock to noctalia first and this is
-  # the fallback (docs/adr/0024); in tiling and hud it is still the lock screen.
+  # the fallback (docs/adr/0024); in tiling it is still the lock screen.
   #
   # `image` is deliberately NOT set here: the wrapper passes `-i` per lock so
   # the pattern varies (docs/adr/0018). `color` stays as the fallback for when

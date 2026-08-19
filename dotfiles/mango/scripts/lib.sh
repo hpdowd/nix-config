@@ -33,7 +33,7 @@ state_write() {
 }
 
 # The three switches, with their defaults in ONE place.
-current_mode() { state current-mode tiling; }      # tiling | hud | noctalia
+current_mode() { state current-mode tiling; }      # tiling | noctalia
 waybar_layout() { state waybar-layout full; }      # full | focus | minimal
 waybar_position() { state waybar-position top; }   # top | bottom
 
@@ -130,7 +130,8 @@ apply_theme() {
     fi
 }
 
-# Apply a desktop mode. modes/tiling.sh and modes/hud.sh differed only in two
+# Apply a desktop mode. modes/tiling.sh and the since-removed modes/hud.sh
+# (docs/adr/0035) differed only in two
 # names and were otherwise a byte-identical copy of the body below, including
 # the equibop block — so a fix to one silently missed the other.
 apply_mode() {

@@ -524,7 +524,7 @@ Then revert, in order of how easy each is to miss:
 | `modules/home/default.nix` | delete `systemd.user.services.noctalia` |
 | `modules/system/desktop.nix` | delete `noctalia-shell` |
 | `modules/home/default.nix` | drop `NOCTALIA_PAM_SERVICE` with the unit |
-| `scripts/menus/shell.sh` | delete the four `fb=none` rows — control centre, calendar, dock, keep-awake. The rest keep working; the noctalia branch is only reached when the mode is selected |
+| `scripts/menus/shell.sh` | delete the two `fb=none` rows — calendar and dock. Every other row has a fallback and keeps working, `control-center` included; the noctalia branch is only reached when the mode is selected |
 | `pkgs/default.nix` | delete `lockscreen`'s noctalia branch and its `noctalia-shell` runtime input (`docs/adr/0024`); what is left is the swaylock wrapper it was |
 | `pkgs/default.nix` | delete the `noctalia-shell` overrideAttrs — the `mmsg` verb patch (`docs/adr/0025`) |
 
@@ -727,23 +727,28 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
+| `SUPER+C` | Control centre — twelve toggles in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and four rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`) |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
 | Media & brightness keys | Volume, playback, backlight (via wpctl / playerctl / brightnessctl) |
+| `XF86AudioMicMute` | Mic mute. Its state is on the bar (waybar's `pulseaudio`) and in the control centre; the ThinkPad LED is no longer the only place it shows |
 | Power button | Tap hibernates, hold powers off — logind, not a mango bind (§9) |
 
 **noctalia mode only**
 
-These three have no analogue under waybar and swaync, so they are bound in
+These two have no analogue under waybar and swaync, so they are bound in
 `noctalia/bind.conf` and exist only while that mode is selected — a shared bind
-would be a key that does nothing and exits 0 in the other two. (`SUPER+SHIFT+A`
-was a fourth until 2026-08-18, when the idle inhibitor got a unit the other two
-modes can drive — `docs/adr/0031`.)
+would be a key that does nothing and exits 0 in the other two. Both are
+panel-shaped rather than list-shaped, which is why they are the two that stayed.
+
+The list has shrunk twice. `SUPER+SHIFT+A` left on 2026-08-18, when the idle
+inhibitor got a unit the other two modes can drive (`docs/adr/0031`); `SUPER+C`
+left on 2026-08-19, when the control centre turned out to need no new state at
+all — only a list of the owners that already existed (`docs/adr/0033`).
 
 | Key | Action |
 |---|---|
-| `SUPER+C` | Control centre |
 | `SUPER+D` | Calendar |
 | `SUPER+SHIFT+D` | Dock |
 
@@ -771,7 +776,21 @@ is missing from the bar, **run its script by hand first**:
 | `custom/power-profile` | `system/power-profile.sh` | `RTMIN+11` |
 | `custom/night-mode` | `menus/night-mode.sh` | `RTMIN+9` |
 | `custom/phone` | `kdeconnect/phone-status.sh` | 30 s |
+
+> **`phone-status.sh` takes verbs: `status` (the default, so waybar's argument-less
+> `exec` still works) and `ring`.** The KDE Connect device id is written **once**,
+> in that script — the bar's `on-click` and the control centre's row both call
+> `… ring` rather than spelling `kdeconnect-cli -d <id> --ring` again. `ring`
+> `notify-send`s when the phone is unreachable instead of failing silently.
 | `custom/power` | — opens wlogout | — |
+
+> **`pulseaudio` is one module showing two devices.** `{format_source}` in its
+> `format` — and repeated in `format-muted`, which replaces `format` rather than
+> adding to it — is the microphone; `format-source` / `format-source-muted` are
+> its two glyphs, and **both are non-empty on purpose**, because an indicator
+> that vanishes in one state is indistinguishable from a broken one. No script,
+> no `custom/microphone`: PipeWire owns the fact and the bar and the control
+> centre are both readers of it (`docs/gotchas.md` → Waybar, `docs/adr/0033`).
 
 > **Do not reintroduce waybar's built-in `dwl/window` module.** mango 0.15.5
 > dropped the dwl IPC protocol it binds to, and its absence makes waybar
@@ -1331,7 +1350,7 @@ What is running, and who owns it.
 |---|---|
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
 | `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp`. **`Restart=always`**, because noctalia SIGTERMs it on every start and systemd counts that as a clean exit (`docs/gotchas.md` → night light) |
-| `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages` |
+| `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages`. No longer the sole mic indicator: waybar's `pulseaudio` carries `{format_source}` since 2026-08-19, so this unit failing is now visible rather than silent (`docs/gotchas.md` → Waybar) |
 | `nextcloud-client` | Cloud sync — credentials in gnome-keyring's `Default` collection, config at `~/.config/Nextcloud/`. If it asks you to log in, check the unit's `XDG_CONFIG_HOME` before anything else (`docs/gotchas.md` → Session environment) |
 | `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` — read by rofi, and by noctalia's own clipboard view in `noctalia` mode |
 | `noctalia` | The `noctalia` desktop mode's shell — bar, notifications, panels. **Started only by that mode's autostart**, never at login; `PartOf` the session target. `Restart=on-failure` with a start limit, so it can wedge: `scripts/modes/noctalia-start.sh` clears that on every entry (`docs/adr/0022`) |

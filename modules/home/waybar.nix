@@ -209,8 +209,15 @@ let
     };
 
     pulseaudio = {
-      format = "{icon}  {volume}%";
-      format-muted = "  muted";
+      # `{format_source}` is the microphone, and it repeats into `format-muted`
+      # because that REPLACES `format` rather than adding to it. Both source
+      # glyphs are non-empty deliberately. docs/gotchas.md -> Waybar for why
+      # each of those is load-bearing; docs/adr/0033 for why there is no
+      # `custom/microphone`.
+      format = "{icon}  {volume}%  {format_source}";
+      format-muted = "  muted  {format_source}";
+      format-source = ""; # nf-fa-microphone, U+F130
+      format-source-muted = ""; # nf-fa-microphone_slash, U+F131
       tooltip = false;
       on-click = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
       on-click-right = "${s}/menus/volume-menu.sh";
@@ -297,7 +304,10 @@ let
       exec = "${s}/kdeconnect/phone-status.sh";
       return-type = "json";
       interval = 30;
-      on-click = "kdeconnect-cli -d ca2da407b0d74e098414a3a0d76b1502 --ring";
+      # A verb, not `kdeconnect-cli -d <id> --ring`: the device ID belongs in
+      # the script that already holds it, or the bar, the script and the
+      # control-centre row end up with three copies of one string.
+      on-click = "${s}/kdeconnect/phone-status.sh ring";
       on-click-right = "kdeconnect-cli --refresh";
     };
 

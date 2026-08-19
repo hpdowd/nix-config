@@ -40,6 +40,13 @@ fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
 # a bool inside the waybar process with no way in from a key. There is a unit
 # now, so this key works in all three modes. docs/adr/0031.
 fb_keep_awake() { "$MANGO_DIR/scripts/system/idle-inhibit.sh" toggle; }
+# The control centre stopped being noctalia-only on 2026-08-19, the same way
+# keep-awake did: not by reimplementing the panel, but because every toggle it
+# shows already had an owner here and only the SET of them was missing. It is a
+# rofi menu that re-renders after each action rather than a resident surface —
+# the state model is not shared, so the honest version is one that rebuilds.
+# docs/adr/0033.
+fb_control_center() { "$MANGO_DIR/scripts/menus/control-center.sh"; }
 
 # The table. `ipc` is a noctalia target and function, two words on purpose —
 # checks/static.sh reads this block and asserts both halves exist. `fb=none`
@@ -59,7 +66,7 @@ notify-clear)   ipc="notifications clear";         fb=fb_notify_clear ;;
 dnd)            ipc="notifications toggleDND";     fb=fb_dnd ;;
 settings)       ipc="settings toggle";             fb=fb_bar_settings ;;
 bar)            ipc="bar toggle";                  fb=fb_bar_toggle ;;
-control-center) ipc="controlCenter toggle";        fb=none ;;
+control-center) ipc="controlCenter toggle";        fb=fb_control_center ;;
 calendar)       ipc="calendar toggle";             fb=none ;;
 dock)           ipc="dock toggle";                 fb=none ;;
 # Keep-awake. Both halves are a real Wayland inhibitor over

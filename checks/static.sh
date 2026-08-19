@@ -342,6 +342,60 @@ else
 	fi
 fi
 
+# menus/control-center.sh builds its rows from one ROWS array and dispatches by
+# calling `state_<id>` and `act_<id>`. A row whose label or either function is
+# missing RENDERS AND THEN DOES NOTHING: bash reports "command not found" on a
+# stderr nobody reads, and the entry sits there looking installed. The script
+# checks this itself before drawing, which catches it at the first press — this
+# catches it at `nix flake check`, which is before the press.
+#
+# Floor at zero both ways: a renamed array or a changed function prefix would
+# empty one side, and a check that passes by finding nothing is this repo's
+# recurring failure, not a pass. docs/adr/0033.
+CC="$MANGO/scripts/menus/control-center.sh"
+if [[ -f $CC ]]; then
+	# The ids between `ROWS=(` and its closing paren, minus the `-` separators.
+	mapfile -t CC_ROWS < <(
+		sed -n '/^ROWS=(/,/^)/p' "$CC" | sed -n 's/^\t\([a-z][a-z-]*\)$/\1/p' | sort -u
+	)
+	mapfile -t CC_LABELS < <(
+		sed -n 's/^\t\[\([a-z][a-z-]*\)\]=.*/\1/p' "$CC" | sort -u
+	)
+	mapfile -t CC_FNS < <(
+		sed -n 's/^\(state\|act\)_\([a-z][a-z-]*\)() {.*/\1 \2/p' "$CC" | sort -u
+	)
+	if [[ ${#CC_ROWS[@]} -eq 0 || ${#CC_LABELS[@]} -eq 0 || ${#CC_FNS[@]} -eq 0 ]]; then
+		bad "the control centre's rows, labels or functions came back empty — the scan is broken, not the repo" \
+			"rows=${#CC_ROWS[@]} labels=${#CC_LABELS[@]} fns=${#CC_FNS[@]}"
+	else
+		ccerr=""
+		for id in "${CC_ROWS[@]}"; do
+			printf '%s\n' "${CC_LABELS[@]}" | grep -qxF "$id" ||
+				ccerr+="  row $id has no entry in LABEL"$'\n'
+			for half in state act; do
+				printf '%s\n' "${CC_FNS[@]}" | grep -qxF "$half $id" ||
+					ccerr+="  row $id has no ${half}_$id()"$'\n'
+			done
+		done
+		# The other direction: a function or a label with no row is dead code
+		# that reads as a working feature — the shape that hid four unreachable
+		# files here (docs/adr/0014).
+		for id in "${CC_LABELS[@]}"; do
+			printf '%s\n' "${CC_ROWS[@]}" | grep -qxF "$id" ||
+				ccerr+="  LABEL has $id, which ROWS does not list"$'\n'
+		done
+		for pair in "${CC_FNS[@]}"; do
+			printf '%s\n' "${CC_ROWS[@]}" | grep -qxF "${pair##* }" ||
+				ccerr+="  ${pair// /_}() exists, but ROWS does not list ${pair##* }"$'\n'
+		done
+		if [[ -z $ccerr ]]; then
+			ok "all ${#CC_ROWS[@]} control-centre rows have a label, a state_* and an act_*"
+		else
+			bad "control-centre row mismatch" "$ccerr"
+		fi
+	fi
+fi
+
 # --- noctalia mode ----------------------------------------------------------
 # All of this is gated on the mode's directory existing, so removing noctalia
 # (docs/SYSTEM.md §6) removes the checks with it rather than leaving three

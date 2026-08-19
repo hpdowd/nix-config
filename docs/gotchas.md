@@ -800,6 +800,40 @@ all `dlopen`ed by the daemon. Trimming 25 providers to 15 cut the store path
 because the prediction that it would fall was written down as though measured;
 see ADR 0019's status line.
 
+**A menu glyph the menu font lacks is a box, not an error, and `fc-list` is the
+only thing that says so.** `rofi/config.rasi` pins `Hack Nerd Font 11` because
+the menus carry their icons in the entry *text*. Hack Nerd Font does **not**
+cover `nf-fa-network_wired` (U+F6FF), which `menus/network-menu.sh` uses for its
+ethernet entry — fontconfig falls through to `IBM Plex Sans TC`, draws whatever
+that has at the codepoint, and logs nothing. Found on 2026-08-19 while building
+`menus/control-center.sh`, which uses `nf-md-ethernet` (U+F0200) instead, the
+same glyph `waybar.nix`'s `format-ethernet` uses. **`network-menu.sh` is still
+wrong.** Check any new one with `fc-list ':charset=<hex>' family | grep -i hack`
+before it goes in — the nf-fa range is not covered end to end, and the nf-md
+range (U+F0000+) is a different question again.
+
+### `lines: 12` is shared, so a menu that grows a row starts paging
+
+`dotfiles/rofi/config.rasi` sets `lines: 12` on the `listview` as a ceiling, with
+`dynamic: true` shrinking anything shorter. That is right for the menus that are
+genuinely lists — the AP list, clipboard history — where paging is the honest
+answer to "there are more of these than fit".
+
+It is wrong for a menu that is a **set**. Adding the microphone row took
+`menus/control-center.sh` to eleven rows plus two separators, i.e. 13 rendered
+lines, and rofi quietly split it across two pages: the last two toggles were
+gone from a menu whose entire purpose is showing you the whole set at once. The
+symptom is not an error — it is a menu that looks complete and is not.
+
+The fix belongs at the **caller**, not in the shared theme: `control-center.sh`
+passes `-l "${#ROWS[@]}"`, because `render()` prints exactly one line per `ROWS`
+element (a `-` becomes a separator line), so the array length *is* the rendered
+height and a row added later widens the window instead of re-paging. A literal
+`-l 13` would have been the same bug on a timer. `dynamic: true` still applies,
+so this raises a ceiling for one menu rather than forcing a height.
+
+Any fixed-set menu here is exposed the same way as it grows past twelve.
+
 ---
 
 ## Waybar
@@ -993,6 +1027,41 @@ fix makes something appear, check it has a rule. And **`custom/phone` deliberate
 emits empty text when the phone is unreachable**, so the module is absent rather
 than a permanently grey glyph; only `connected` / `warning` / `critical` are
 styled, and `disconnected` / `offline` are unstyled on purpose.
+
+### The microphone was on no surface at all
+
+Until 2026-08-19 `pulseaudio` in `waybar.nix` carried `format`, `format-muted`,
+icons and handlers for the **sink** and no `{format_source}`, and there was no
+`custom/microphone` either. So mic mute state appeared **nowhere on screen**.
+The only indicator on this machine was the ThinkPad LED, driven by the
+`micmute-led` user unit — one `pactl subscribe` loop writing
+`/sys/class/leds/platform::micmute/brightness`.
+
+That is the repo's signature bug pointed at the worst available fact: a dead
+`micmute-led` and a live microphone look **exactly** alike, and the cost of
+reading it wrong is being recorded when you thought you were not. It needed no
+new script — waybar's built-in module already supports `format-source`,
+`format-source-muted` and `{format_source}` inside `format`; the fields were
+simply never filled in. Both the bar and the control centre read PipeWire
+directly, which owns the fact, exactly as they already both read the sink.
+
+Two traps in filling them in, and both produce a bar that looks fine:
+
+- **`format-muted` needs `{format_source}` too.** It is a *replacement* for
+  `format`, not an addition to it, so a placeholder left out of it disappears
+  under that condition — muting the **speakers** would have taken the
+  **microphone** indicator off the bar with them, and nothing anywhere says so.
+  Any placeholder worth putting in `format` has to be repeated into every
+  `format-*` variant that can replace it.
+- **Neither state may render as nothing.** `format-source-muted` defaults to
+  the empty string, which reads as a tidy bar and is the one arrangement that
+  cannot be debugged: "muted" and "the module is broken" become the same
+  picture. Both states carry a glyph — U+F130 live, U+F131 muted.
+
+The `custom/phone` rule directly above is not the counter-example it looks like.
+An absent phone module means *there is no phone*, which nobody can be misled by;
+an absent microphone indicator means one of two things, and only one of them is
+safe.
 
 ---
 
@@ -1796,6 +1865,36 @@ and `unset-environment` is silent about names that were not set anyway.
 repo they existed on this disk only, while `audio.nix` declared a unit whose
 `ExecStart` pointed at one — so a fresh install produced a unit that could not
 start.
+
+### `IFS=$'\t' read` cannot see an empty leading field
+
+TAB is **IFS whitespace**, like space and newline, so bash strips it at the start
+of the input and collapses runs of it. `IFS=$'\t' read -r a b` on `"\toffline"`
+yields `a=offline`, `b=` — not `a=`, `b=offline`. There is no warning, and the
+shape reads as obviously correct.
+
+`menus/control-center.sh`'s `jfields()` pulled several fields out of a waybar
+module's JSON with `jq … | @tsv` and read them exactly that way. Every consumer
+therefore took the **class** as its icon and rendered `?` for a module that had
+answered perfectly — the failure the whole file exists to prevent, living inside
+the helper written to prevent it.
+
+It shipped unnoticed because `night-mode.sh`, `idle-inhibit.sh` and
+`power-profile.sh` always emit a non-empty `text`. **`custom/phone` emits an
+empty `text` as its resting state** (above), so adding the phone row on
+2026-08-19 hit it on the first render — and only because the row was tested
+against all five classes the script can emit, rather than the one the phone
+happened to be in.
+
+The fix is a separator that is **not** whitespace: `jfields` joins on `U+001F`
+and callers use `IFS=$'\037'`, where empty fields survive exactly. `@tsv` went
+with it, so the `gsub` that replaces it is load-bearing too — `@tsv` was also
+escaping the real newline in `custom/phone`'s tooltip, which `read` would
+otherwise stop dead at.
+
+Two `IFS=$'\t'` reads remain in that file and are correct: both take a first
+field that cannot be empty (`eth`/`wifi`/`none`, and an icon that every `state_*`
+guarantees).
 
 ### A cleanup trap that does not `exit` makes the script immune to SIGTERM
 

@@ -1,44 +1,89 @@
 #!/usr/bin/env bash
+# KDE Connect phone status as waybar JSON, and the ONE place the device ID is
+# written. `ring` is a verb here rather than a `kdeconnect-cli -d <id> --ring`
+# in waybar.nix's on-click, because that spelled the ID a second time and the
+# control-centre row would have made it a third — docs/adr/0005, one owner per
+# fact. Bare invocation is `status`, because waybar's `exec` calls it with no
+# argument.
+
 DEVICE="ca2da407b0d74e098414a3a0d76b1502"
+NAME="Galaxy S22+"
 DBUS_SVC="org.kde.kdeconnect"
 DBUS_DEV="/modules/kdeconnect/devices/$DEVICE"
 
-if ! pgrep '^\.?kdeconnectd' >/dev/null 2>&1; then
-    echo '{"text":"","tooltip":"KDE Connect not running","class":"offline"}'
-    exit 0
-fi
+# `comm`, not `-x` and not `-f`: nixpkgs wraps the binary so `comm` is
+# `.kdeconnectd-wrapped`, and `-f` would match this script's own command line.
+# CLAUDE.md -> Writing shell here.
+daemon_up() { pgrep '^\.?kdeconnectd' >/dev/null 2>&1; }
 
-# Empty text, so waybar renders nothing: an unreachable phone is this module's
-# resting state. gotchas.md -> Waybar.
-REACHABLE=$(qdbus $DBUS_SVC $DBUS_DEV org.kde.kdeconnect.device.isReachable 2>/dev/null)
-if [ "$REACHABLE" != "true" ]; then
-    echo '{"text":"","tooltip":"Galaxy S22+ (offline)","class":"disconnected"}'
-    exit 0
-fi
+reachable() {
+	[ "$(qdbus "$DBUS_SVC" "$DBUS_DEV" org.kde.kdeconnect.device.isReachable \
+		2>/dev/null)" = "true" ]
+}
 
-CHARGE=$(qdbus $DBUS_SVC "$DBUS_DEV/battery" charge 2>/dev/null)
-CHARGING=$(qdbus $DBUS_SVC "$DBUS_DEV/battery" isCharging 2>/dev/null)
+do_status() {
+	if ! daemon_up; then
+		echo '{"text":"","tooltip":"KDE Connect not running","class":"offline"}'
+		return
+	fi
 
-if [ -z "$CHARGE" ]; then
-    echo '{"text":"","tooltip":"Galaxy S22+","class":"connected"}'
-    exit 0
-fi
+	# Empty text, so waybar renders nothing: an unreachable phone is this
+	# module's resting state. gotchas.md -> Waybar.
+	if ! reachable; then
+		printf '{"text":"","tooltip":"%s (offline)","class":"disconnected"}\n' "$NAME"
+		return
+	fi
 
-if [ "$CHARGING" = "true" ]; then
-    ICON="󰂄"
-elif [ "$CHARGE" -ge 90 ]; then ICON="󰂂"
-elif [ "$CHARGE" -ge 80 ]; then ICON="󰂁"
-elif [ "$CHARGE" -ge 70 ]; then ICON="󰂀"
-elif [ "$CHARGE" -ge 60 ]; then ICON="󰁿"
-elif [ "$CHARGE" -ge 50 ]; then ICON="󰁾"
-elif [ "$CHARGE" -ge 40 ]; then ICON="󰁽"
-elif [ "$CHARGE" -ge 20 ]; then ICON="󰁼"
-elif [ "$CHARGE" -ge 10 ]; then ICON="󰁻"
-else ICON="󰂎"
-fi
+	local CHARGE CHARGING ICON CLASS
+	CHARGE=$(qdbus "$DBUS_SVC" "$DBUS_DEV/battery" charge 2>/dev/null)
+	CHARGING=$(qdbus "$DBUS_SVC" "$DBUS_DEV/battery" isCharging 2>/dev/null)
 
-CLASS="connected"
-[ "$CHARGE" -le 15 ] && CLASS="critical"
-[ "$CHARGE" -le 30 ] && [ "$CLASS" != "critical" ] && CLASS="warning"
+	if [ -z "$CHARGE" ]; then
+		printf '{"text":"","tooltip":"%s","class":"connected"}\n' "$NAME"
+		return
+	fi
 
-printf '%s\n' "{\"text\":\" $ICON $CHARGE%\",\"tooltip\":\"Galaxy S22+\\nBattery: $CHARGE%\",\"class\":\"$CLASS\"}"
+	if [ "$CHARGING" = "true" ]; then
+	    ICON="󰂄"
+	elif [ "$CHARGE" -ge 90 ]; then ICON="󰂂"
+	elif [ "$CHARGE" -ge 80 ]; then ICON="󰂁"
+	elif [ "$CHARGE" -ge 70 ]; then ICON="󰂀"
+	elif [ "$CHARGE" -ge 60 ]; then ICON="󰁿"
+	elif [ "$CHARGE" -ge 50 ]; then ICON="󰁾"
+	elif [ "$CHARGE" -ge 40 ]; then ICON="󰁽"
+	elif [ "$CHARGE" -ge 20 ]; then ICON="󰁼"
+	elif [ "$CHARGE" -ge 10 ]; then ICON="󰁻"
+	else ICON="󰂎"
+	fi
+
+	CLASS="connected"
+	[ "$CHARGE" -le 15 ] && CLASS="critical"
+	[ "$CHARGE" -le 30 ] && [ "$CLASS" != "critical" ] && CLASS="warning"
+
+	printf '{"text":" %s %s%%","tooltip":"%s\\nBattery: %s%%","class":"%s"}\n' \
+		"$ICON" "$CHARGE" "$NAME" "$CHARGE" "$CLASS"
+}
+
+# Rings the phone, or SAYS WHY IT CANNOT. Both callers — the bar's on-click and
+# the control centre's row — used to get silence when the phone was away, which
+# is indistinguishable from the ring having failed.
+do_ring() {
+	if ! daemon_up; then
+		notify-send "Phone" "KDE Connect is not running"
+		return 1
+	fi
+	if ! reachable; then
+		notify-send "Phone" "$NAME is not connected"
+		return 1
+	fi
+	kdeconnect-cli -d "$DEVICE" --ring
+}
+
+case "${1:-status}" in
+status) do_status ;;
+ring) do_ring ;;
+*)
+	echo "Usage: ${0##*/} <status|ring>"
+	exit 1
+	;;
+esac

@@ -264,7 +264,7 @@ Of those ten, nixpkgs fully serves **three** — surveyed 2026-08-18:
 | | GTK | Kvantum | Icons | Cursor | yazi |
 |---|---|---|---|---|---|
 | **Catppuccin** ✅ | `catppuccin-gtk` | `catppuccin-kvantum` | Papirus/violet | `catppuccin-cursors` | upstream |
-| **Gruvbox** ✅ | `gruvbox-dark-gtk` | `gruvbox-kvantum` | `gruvbox-plus-icons` | Capitaine | upstream |
+| **Gruvbox** ✅ | `gruvbox-gtk-theme` † | `gruvbox-kvantum` | `gruvbox-plus-icons` | Capitaine | upstream |
 | **Nord** ✅ | `nordic` | `nordic` | `nordzy-icon-theme` | Capitaine | `stepbrobd/nord.yazi` |
 | Rose Pine | ❌ | ✅ *(nested under `share/Kvantum/themes/`)* | ✅ | ✅ | upstream |
 | Kanagawa | ❌ | ❌ | ✅ | ❌ | `yaziPlugins.kanagawa` |
@@ -272,6 +272,15 @@ Of those ten, nixpkgs fully serves **three** — surveyed 2026-08-18:
 | Ayu | ❌ | ❌ | Papirus/orange | ❌ | upstream |
 | Tokyo Night | ❌ | ❌ | ❌ | ❌ | — |
 | Eldritch | ❌ | ❌ | ❌ | ❌ | — |
+
+† Built by `pkgs/default.nix` from
+[Fausto-Korpsvart/Gruvbox-GTK-Theme](https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme),
+not taken from nixpkgs. This row read `gruvbox-dark-gtk` until 2026-08-19, and
+that package ships no `gtk-4.0` — so GTK3 was themed, every libadwaita app was
+Adwaita, and the survey above counted it as served. **"nixpkgs has a theme by
+this name" is not the same as "nixpkgs has a usable theme":** check for
+`share/themes/<name>/gtk-4.0/gtk.css`, which `checks/static.sh` now does.
+Nixpkgs has no gruvbox GTK theme that ships one.
 
 Two things that are easy to get wrong here:
 

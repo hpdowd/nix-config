@@ -97,9 +97,18 @@ in
       # deliberately rather than to quieten the warning.
       theme = config.gtk.theme;
 
+      # `dark`, not the `2` home-manager derives from `colorScheme` above:
+      # GTK reads this enum from settings.ini by NICK, and the integer makes
+      # GTK 4.22 log `has a value that cannot be interpreted` and skip the key.
+      # `extraConfig` merges last in home-manager's gtk4 module, so this wins.
+      # The effective scheme is dark either way — the xdg-desktop-portal
+      # `org.freedesktop.appearance` value overrides settings.ini — so this is
+      # noise removal, not a visual change. Upstream writes 2 deliberately
+      # (modules/misc/gtk/lib.nix); drop this when that is fixed.
       extraConfig = {
         gtk-application-prefer-dark-theme = 1;
         gtk-decoration-layout = ":";
+        gtk-interface-color-scheme = "dark";
       };
       extraCss = ''
         * {

@@ -6,6 +6,22 @@
   ...
 }:
 
+let
+  # tuigreet's `--cmd` inherits greetd.service's own file descriptors, which
+  # `useTextGreeter` below points at /dev/tty1 — so the compositor and every
+  # child it spawns write stdout and stderr into the greeter's VT text buffer.
+  # Confirm with `ls -l /proc/$(pgrep -x mango)/fd/1` → /dev/tty1. The text is
+  # invisible while mango holds the VT in graphics mode and shows through the
+  # greeter at the edges of a session, which reads as the overdraw bug below
+  # coming back. It is not that one: this stream is the session's, not PID 1's.
+  #
+  # `systemd-cat`, not /dev/null: output that goes nowhere is this repo's
+  # signature bug. Read it with `journalctl -t mango`. docs/gotchas.md → Desktop.
+  mangoSession = pkgs.writeShellScript "mango-session" ''
+    exec ${pkgs.systemd}/bin/systemd-cat --identifier=mango \
+      ${config.programs.mango.package}/bin/mango
+  '';
+in
 {
   # --- Session / login ------------------------------------------------------
   # tuigreet is a TTY greeter, so it cannot fail in a way that locks you out of
@@ -29,7 +45,7 @@
     useTextGreeter = true;
 
     settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd mango";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd ${mangoSession}";
       user = "greeter";
     };
   };

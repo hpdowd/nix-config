@@ -239,6 +239,38 @@ Lowering it would have changed nothing while looking exactly like a fix that
 worked, because the next boot's timing varies anyway. Check which stream is
 actually printing before quietening either one.
 
+### …and the *session's* output prints there too, which is a different bug
+
+`useTextGreeter` is also what causes this one, and it looks identical from the
+chair. It puts `StandardInput/Output=tty` and `TTYPath=/dev/tty1` on
+greetd.service — correct, tuigreet needs them — and tuigreet's `--cmd` session
+then **inherits those descriptors**. So the compositor and every child it spawns
+write into the greeter's VT text buffer:
+
+```console
+$ ls -l /proc/$(pgrep -x mango)/fd/{0,1,2}
+… /proc/3110/fd/0 -> /dev/tty1
+… /proc/3110/fd/1 -> /dev/tty1
+… /proc/3110/fd/2 -> /dev/tty1
+```
+
+You do not see it while mango holds the VT in graphics mode. You see it at the
+edges of a session — as the compositor comes up over the greeter, and under the
+greeter afterwards, because `TTYVTDisallocate` clears tty1 once at
+**greetd.service start** and never again. Read `sudo cat /dev/vcs1` to get the
+buffer verbatim; it is full of xkbcomp warnings, swaync's startup banner,
+`libva info:` lines and GTK warnings — a page of session noise that reads like a
+boot-time fault because it is sitting on the login screen.
+
+**The tell that separates the two:** PID 1's overdraw is `[ OK ] Started …`
+lines. This one is application text. Fixing the first does nothing for the
+second.
+
+`modules/system/desktop.nix` wraps the session in `systemd-cat --identifier=mango`
+rather than redirecting to `/dev/null` — the noise is diagnostic, and two real
+faults were found in it the first time it was read (the GTK4 theme import below,
+and `gtk-interface-color-scheme`). It is `journalctl -t mango` now.
+
 ### A script committed 644 is a dead key
 
 **Nix preserves the mode bit, so a `bind=` pointing at a non-executable script
@@ -1414,6 +1446,37 @@ alias. `mimeapps.list` separately points markdown and shell scripts at
 ---
 
 ## Theming
+
+### A GTK theme with no `gtk-4.0/` unstyles every libadwaita app, silently
+
+`gtk.gtk4.theme` makes home-manager write an `@import` into
+`~/.config/gtk-4.0/gtk.css` — GTK4 ignores `gtk-theme-name`, so user CSS is the
+only way in. The import names `<theme>/gtk-4.0/gtk.css` inside the package, and
+**nothing checks that the file exists**:
+
+```
+Gtk-WARNING: Theme parser error: gtk.css:5:1-132: Failed to import:
+  Error opening file /nix/store/…-gruvbox-dark-gtk-1.0.2/share/themes/gruvbox-dark/gtk-4.0/gtk.css:
+  No such file or directory
+```
+
+`gruvbox-dark-gtk` ships `gtk-2.0`, `gtk-3.0`, `gtk-3.20` and nothing else. GTK3
+apps are themed, GTK4/libadwaita apps drop to Adwaita, and the only symptom is
+two toolkits looking different — which reads as libadwaita being libadwaita.
+`catppuccin-gtk` and `nordic` both ship `gtk-4.0`, so this was a gruvbox-only
+hole, and it arrived with the scheme rather than with any change to the GTK
+config. Found 2026-08-19, in session output that had been printing to the
+greeter's VT unread — see Desktop, above.
+
+The scan in `checks/static.sh` did not catch it, because it asserted
+`share/themes/<name>` resolves — one directory level above the file that was
+missing. **A theme directory existing is not the same as a theme being
+usable.** It now asserts `<name>/gtk-4.0/gtk.css` is readable as well.
+
+Fixed by building the theme instead: `pkgs/default.nix` packages
+`Fausto-Korpsvart/Gruvbox-GTK-Theme` (`Gruvbox-Dark`), whose installer compiles
+the GTK4 SCSS. Nixpkgs has no gruvbox GTK theme that ships `gtk-4.0` — check
+before assuming a rename will do.
 
 **Colours are generated from a single Nix palette** — `modules/home/palette.nix`,
 feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the

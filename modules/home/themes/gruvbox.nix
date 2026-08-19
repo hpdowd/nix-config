@@ -122,15 +122,18 @@ rec {
   # attribute that builds it.
   #
   # NOT what this scheme used before 2026-08-18, which is worth knowing if you
-  # are comparing against git history: the GTK theme was VENDORED in the overlay
-  # (nixpkgs had dropped `gruvbox-gtk-theme`), Kvantum was a lone hand-carried
+  # are comparing against git history: Kvantum was a lone hand-carried
   # `.kvconfig`, the yazi flavor was 916 vendored lines under `dotfiles/`, and
   # the icons were Papirus recoloured yellow rather than a Gruvbox icon set.
   # Only the cursor is the same package it always was. Nothing here is vendored.
   packages = {
+    # `gruvbox-gtk-theme` is built by pkgs/default.nix, not taken from nixpkgs,
+    # and the reason is GTK4: `gruvbox-dark-gtk` — which this named until
+    # 2026-08-19 — ships no `gtk-4.0`, so libadwaita apps sat on Adwaita while
+    # GTK3 was themed. Nothing said so. docs/gotchas.md → Theming.
     gtk = {
-      attr = "gruvbox-dark-gtk";
-      name = "gruvbox-dark";
+      attr = "gruvbox-gtk-theme";
+      name = "Gruvbox-Dark";
       native = true;
     };
     kvantum = {

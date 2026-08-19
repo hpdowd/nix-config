@@ -1465,10 +1465,13 @@ for kind in gtk kvantum icons cursor; do
 	# works for the second. Which of the two you get depends on the scheme, which
 	# is the worst possible way for a check to fail.
 	hit=""
+	hit_path=""
 	while IFS= read -r root; do
 		[[ -z $root ]] && continue
-		if find -L "$root" -maxdepth 1 -name "$name" 2>/dev/null | grep -q .; then
+		found=$(find -L "$root" -maxdepth 1 -name "$name" 2>/dev/null | head -1)
+		if [[ -n $found ]]; then
 			hit=${root#"$GEN/"}
+			hit_path=$found
 			break
 		fi
 	done < <(pkg_roots "$kind")
@@ -1478,6 +1481,22 @@ for kind in gtk kvantum icons cursor; do
 	else
 		bad "$kind: '$name' is in none of $(pkg_roots "$kind" | tr '\n' ' ')" \
 			"declared by themes/$SCHEME.nix from '${attr:-a toolkit built-in}' — the app falls back in silence"
+	fi
+
+	# One level below the scan above, and the level that actually bit: GTK4
+	# ignores `gtk-theme-name` outright, so home-manager themes it by writing an
+	# `@import` of `<theme>/gtk-4.0/gtk.css` into ~/.config/gtk-4.0/gtk.css.
+	# A theme with no gtk-4.0 directory makes that import fail at parse time and
+	# drops every libadwaita app to Adwaita — with GTK3 still themed, so the two
+	# toolkits merely LOOK different. `gruvbox-dark-gtk` shipped exactly that,
+	# and the directory check above passed it. docs/gotchas.md → Theming.
+	if [[ $kind == gtk && -n $hit_path ]]; then
+		if [[ -r "$hit_path/gtk-4.0/gtk.css" ]]; then
+			ok "gtk: '$name' ships gtk-4.0/gtk.css, so GTK4 apps are themed too"
+		else
+			bad "gtk: '$name' has no gtk-4.0/gtk.css" \
+				"the @import home-manager writes into ~/.config/gtk-4.0/gtk.css fails and libadwaita apps fall back to Adwaita, while GTK3 stays themed"
+		fi
 	fi
 done
 

@@ -13,13 +13,17 @@ let
   # One of the theme file's `packages.*` entries → a package, or `null` when the
   # name belongs to a toolkit built-in and there is nothing to install.
   #
-  # `prev.${d.attr}` rather than a lookup table: an attribute that does not
+  # `final.${d.attr}` rather than a lookup table: an attribute that does not
   # exist is an eval error naming the attribute, which is the loud failure this
   # repo wants. `base` is lazy, so the null guard runs first.
+  #
+  # `final`, not `prev`: `gruvbox-gtk-theme` below is defined by THIS overlay,
+  # and `prev` is nixpkgs before it — a theme file naming an attribute the
+  # overlay adds would not resolve.
   themePkg =
     d:
     let
-      base = if (d.sub or null) == null then prev.${d.attr} else prev.${d.attr}.${d.sub};
+      base = if (d.sub or null) == null then final.${d.attr} else final.${d.attr}.${d.sub};
       ov = d.override or { };
     in
     if d.attr == null then
@@ -87,6 +91,67 @@ in
         }
       }/${y.file} "$out/flavor.toml"
     '';
+
+  # ==========================================================================
+  # gruvbox-gtk-theme — the one shipped scheme nixpkgs cannot dress in GTK4
+  # ==========================================================================
+  # `gruvbox-dark-gtk`, which this replaces, ships gtk-2.0, gtk-3.0 and
+  # gtk-3.20 and stops there. GTK4 reads none of those: it ignores
+  # `gtk-theme-name` entirely, so home-manager themes it by writing an
+  # `@import` of `<theme>/gtk-4.0/gtk.css` into ~/.config/gtk-4.0/gtk.css. That
+  # file did not exist, the import failed at parse time, and every
+  # GTK4/libadwaita app fell back to Adwaita while GTK3 stayed gruvbox — two
+  # toolkits disagreeing, which reads as libadwaita being libadwaita rather
+  # than as a fault. docs/gotchas.md → Theming.
+  #
+  # Nixpkgs has no gruvbox GTK theme that ships gtk-4.0 (`by-name/gr` holds
+  # gruvbox-dark-gtk, gruvbox-dark-icons-gtk, gruvbox-kvantum,
+  # gruvbox-plus-icons — that is all of them), so this builds upstream's SCSS,
+  # the same way nixpkgs builds this author's Everforest theme. It is a
+  # derivation, not vendored CSS: a rename upstream fails the build.
+  gruvbox-gtk-theme = prev.stdenvNoCC.mkDerivation {
+    pname = "gruvbox-gtk-theme";
+    version = "0-unstable-2025-10-23";
+
+    src = prev.fetchFromGitHub {
+      owner = "Fausto-Korpsvart";
+      repo = "Gruvbox-GTK-Theme";
+      rev = "578cd220b5ff6e86b078a6111d26bb20ec8c733f";
+      hash = "sha256-RXoPj/aj9OCTIi8xWatG0QpDAUh102nFOipdSIiqt7o=";
+    };
+
+    nativeBuildInputs = [ prev.sassc ];
+    buildInputs = [ prev.gnome-themes-extra ];
+
+    dontBuild = true;
+    dontFixup = true;
+
+    postPatch = ''
+      patchShebangs themes/install.sh
+    '';
+
+    # One variant, not `--theme all`: nine accents in nine sizes is 5 GB of
+    # store for a machine that wears one. `default` is upstream's own gruvbox
+    # accent — the `-Yellow` variant is a different colour, not this one.
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out/share/themes"
+      themes/install.sh \
+        --dest "$out/share/themes" \
+        --name Gruvbox \
+        --theme default \
+        --color dark \
+        --size standard
+      runHook postInstall
+    '';
+
+    meta = {
+      description = "Gruvbox colour palette for GTK, including GTK4";
+      homepage = "https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme";
+      license = prev.lib.licenses.gpl3Only;
+      platforms = prev.lib.platforms.unix;
+    };
+  };
 
   # ==========================================================================
   # noctalia-shell — its mango backend still speaks dwl's dead flags

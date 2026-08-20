@@ -311,6 +311,15 @@ else
 	ok "the $barmodes mode(s) running waybar and swaync wear '$PAL_SCHEME', which is what those are generated from"
 fi
 
+# no_border_when_single=1 removes EVERY tiled window's border on mango 0.16.0,
+# not just a lone one, and nothing says so. docs/gotchas.md → Desktop → mango
+nbws=$(grep -rn '^[[:space:]]*no_border_when_single[[:space:]]*=[[:space:]]*1' "$MANGO" --include='*.conf' || true)
+if [[ -z $nbws ]]; then
+	ok "no mode config sets no_border_when_single=1"
+else
+	bad "no_border_when_single=1 turns off every tiled border, not just a single window's" "$nbws"
+fi
+
 # Same check the waybar configs get below, for the mango tree: a `bind=` or
 # `exec=` naming a script that is missing — or present but not executable — is
 # a key that does nothing and a daemon that never starts, both exiting 0. Nix

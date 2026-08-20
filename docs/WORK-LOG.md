@@ -2979,3 +2979,35 @@ names the mode, `mango -p` is clean, `reload.sh` returns `{"success":true}`.
 **Five more stale mode counts**, this time in `SYSTEM.md` and `gotchas.md` —
 yesterday's pass only fixed the ones in code. The ADRs keep theirs: those counts
 were true when the ADRs were written, and `docs/adr/0035` records the change.
+
+---
+
+## 2026-08-20 · The active window border was off in tiling mode
+
+`dotfiles/mango/tiling/tiling.conf` carried `no_border_when_single=1`. On mango
+0.16.0 that removes the border from **every** tiled window, not only a lone one.
+noctalia mode has always set it to `0`, so the symptom read as mode-specific.
+
+`check_hit_no_border()` (`src/fetch/client.h`) tests
+`ISSCROLLTILED(c) && visible_scroll_tiling_clients == 1`, and `ISSCROLLTILED` is
+not a scroller-layout test — it is `!floating && !minimized && !killing &&
+!unglobal`, true of ordinary `tile` windows. With three windows visible the
+counter still read 1. Floating windows kept their borders, which is what
+separated the two arms of that condition.
+
+**Measured, because `mmsg get` does not expose `bw`:** `grim` plus a pixel dump
+counting the theme's `focuscolor` and `bordercolor` below the bar. Same three
+windows, `borderpx=1` — `no_border_when_single=0` gives 11,190 border-coloured
+pixels, `=1` gives none.
+
+A nested instance (`XDG_CONFIG_HOME=… WLR_BACKENDS=wayland mango`) sourcing the
+same `universal/*.conf` drew borders correctly, so it cleared the config but did
+not reproduce the bug. What found it was re-pointing `config.conf` at a scratch
+copy and reloading the running compositor. Also ruled out: a stale binary,
+`toggle_render_border`, per-tag `no_render_border`, and per-tag staleness — a
+fresh tag with two new windows was equally borderless.
+
+**The cost:** a single window on a tag now carries a 1px border where it used to
+sit flush. That is what the option existed to prevent, and there is no way to
+keep it without keeping the bug. `checks/static.sh` now fails if either mode
+config sets it back to `1`.

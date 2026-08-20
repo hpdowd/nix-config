@@ -523,6 +523,26 @@ mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'
 Check the return value; it is the only signal you get. `checks/static.sh` fails
 on a dash-flag `mmsg`.
 
+**`no_border_when_single=1` removes every tiled window's border, not just a lone
+one.** Tiling mode ran without an active-window border for as long as it carried
+that line; noctalia mode always set it to `0`, which is why the symptom looked
+mode-specific. The option is read in `check_hit_no_border()`
+(`src/fetch/client.h`), whose first arm is
+`ISSCROLLTILED(c) && visible_scroll_tiling_clients == 1` — and `ISSCROLLTILED` is
+not a scroller-layout test, it is `!floating && !minimized && !killing &&
+!unglobal`, so it holds for ordinary `tile` windows too. With three windows on
+screen the counter still read 1 and every tiled border went. Floating windows kept
+theirs, which is the tell. Verified on mango 0.16.0 by A/B on the live session at
+`borderpx=1`: `0` → 11,190 border-coloured pixels below the bar, `1` → none.
+`checks/static.sh` fails on a mode config that sets it back to `1`.
+
+⚠️ **Sample the framebuffer; do not trust `mmsg get`.** Nothing in the client JSON
+exposes `bw`, so the only way to see whether a border is drawn is `grim` plus a
+pixel dump for the theme's `focuscolor`. A nested instance
+(`XDG_CONFIG_HOME=… WLR_BACKENDS=wayland mango`) did *not* reproduce this, so it
+also cannot be the whole test — bisect against the running session by re-pointing
+`config.conf` at a scratch copy and `mmsg dispatch reload_config`.
+
 **`mango/config.conf` is a symlink, gitignored, and the file it points at *is*
 tracked.** `apply_mode` re-points it with `ln -sfn` on every mode switch
 (`docs/adr/0040`), so **`readlink ~/.config/mango/config.conf` names the active

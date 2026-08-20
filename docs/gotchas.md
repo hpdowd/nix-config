@@ -2005,6 +2005,41 @@ in `~/.local/state/mango/current-mode`.
 
 ---
 
+### `xrdb` failing a cosmetic reload aborts the whole home-manager generation
+
+`nixos-rebuild switch` returned **exit 4** with the switch already applied, and
+the only clue was two lines in the journal:
+
+```
+xrdb: Connection refused
+xrdb: Can't open display ':1'
+home-manager-henry.service: Main process exited, code=exited, status=1/FAILURE
+```
+
+home-manager's `xresources` module hangs an `onChange` on `.Xresources` that
+guards with `[[ -v DISPLAY ]]` and then runs `xrdb -merge`. **Set is not the
+same as reachable**: on a Wayland session `DISPLAY` can name a socket that is
+not there, so the guard passes, `xrdb` exits 1, and the activation script — which
+runs under `set -e` — takes the whole generation down with it. The switch had
+already happened, so the system was fine and the report said otherwise.
+
+Two things made it routine rather than a curiosity:
+
+- `.Xresources` carries `Xcursor.theme`, so **every scheme change rewrites it**
+  and fires the hook (`docs/adr/0041`).
+- The `DISPLAY=:1` was itself wrong — see *Session environment* below, which is
+  the more expensive half of this and was found by chasing this.
+
+`modules/home/theme.nix` overrides the hook with `lib.mkForce` and an `|| true`.
+Nothing in this session loads `.Xresources` — `xsession.profileExtra` does not
+run here — so the merge is best-effort by definition and must not be able to
+abort anything.
+
+**Key the override by `config.xresources.path`, not `".Xresources"`.** That
+option is an *absolute* path, and home-manager writes `home.file.${cfg.path}`;
+a relative key defines a second, sourceless entry instead of overriding the
+first, and the failure is an eval error about `.source` having no value.
+
 ## Networking
 
 Full detail in `docs/SYSTEM.md` §9. The three things that mislead:

@@ -138,6 +138,29 @@ in
     x11.enable = true;
   };
 
+  # home-manager's own `onChange` for this file guards on `[[ -v DISPLAY ]]` and
+  # then runs `xrdb -merge`. SET is not the same as REACHABLE: on a Wayland
+  # session DISPLAY can name a socket that is not there, the guard passes, xrdb
+  # exits 1, and — because the activation script runs under `set -e` — the whole
+  # generation fails. `nixos-rebuild` then reports exit 4 with the switch
+  # already applied, which reads as a broken system rather than a failed
+  # cosmetic reload.
+  #
+  # This file carries `Xcursor.theme`, so every scheme change rewrites it and
+  # fires the hook (docs/adr/0041 made that routine). Nothing in this session
+  # loads .Xresources anyway — `xsession.profileExtra` does not run here — so
+  # the merge is best-effort by definition and must not be able to abort
+  # anything. docs/gotchas.md → Theming.
+  # Keyed by `config.xresources.path`, which is an ABSOLUTE path and not
+  # `.Xresources` — home-manager's own module writes `home.file.${cfg.path}`,
+  # and a relative key here defines a second, sourceless file entry instead of
+  # overriding that one. The failure is an eval error naming `.source`.
+  home.file.${config.xresources.path}.onChange = lib.mkForce ''
+    if [[ -v DISPLAY ]]; then
+      ${lib.getExe pkgs.xrdb} -merge ${config.xresources.path} || true
+    fi
+  '';
+
   # Kvantum's config is owned by dotfiles.nix — two modules cannot both own the
   # path.
 }

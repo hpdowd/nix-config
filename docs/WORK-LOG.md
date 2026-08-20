@@ -2723,3 +2723,33 @@ evidence the plan cited it as: a writable tree keeps whatever anything ever
 wrote there, including links to things that no longer exist.
 
 The gate is now **116 assertions across 14 sections**.
+
+---
+
+## 2026-08-20 · logseq is gone, and the insecure pin names its real consumer
+
+Plan item 4 (§5c). Pure subtraction: `logseq` out of `packages.nix`,
+`"electron-39.8.10"` out of `permittedInsecurePackages`, and that block's
+comment rewritten.
+
+**Both of the plan's claims were re-checked rather than inherited**, since one
+of them was deleting an application:
+
+- `electron-39.8.10` had exactly one referrer, `logseq-0.10.15`. `electron-40.10.5`
+  had exactly one, `winboat-0.9.0`. The old comment blamed "your Arch install
+  carries electron40-bin too", which was wrong about the consumer *and* was
+  present-tense Arch narration on a machine where Arch has been gone since
+  `docs/adr/0008`.
+- logseq really had no data: 0 entries under `graphs/`, `config.edn` is `{}`,
+  `preferences.json` is all nulls, no `journals/` anywhere under `$HOME`. Opened
+  once on 2026-07-23, never used.
+
+**Verified against the built closure instead of waiting for a switch** — same
+evidence, sooner: `electron-39` and `logseq` are both absent from the new
+`toplevel`, `electron-40` is still present because winboat still needs it.
+
+The replacement comment carries the rule rather than the history: *name the
+consumer; an entry that outlives its consumer is an exemption nobody is
+holding*, with `nix-store --query --referrers` as the way to check. That is the
+5d class treated at the source — three lines of rule where there were nine of
+narration, and the nine were wrong.

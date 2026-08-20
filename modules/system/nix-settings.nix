@@ -49,17 +49,12 @@
 
   nixpkgs.config.allowUnfree = true; # steam, spotify, vscode, obsidian, teams…
 
-  # Logseq is pinned to Electron 39.8.10, which nixpkgs marks insecure (known
-  # unpatched CVEs in the bundled Chromium). Arch shipped you the same binary
-  # without saying anything — this isn't a new risk, just a newly visible one.
-  # Nix refuses to build it unless you opt in explicitly:
+  # Insecure Electron pins nixpkgs will not build without an explicit opt-in.
+  # Name the consumer: an entry that outlives its consumer is an exemption
+  # nobody is holding. `nix-store --query --referrers` says who.
   nixpkgs.config.permittedInsecurePackages = [
-    "electron-39.8.10" # logseq
-    "electron-40.10.5" # (your Arch install carries electron40-bin too)
+    "electron-40.10.5" # winboat
   ];
-  # Remove this line and drop `logseq` from modules/home/packages.nix if you'd
-  # rather not run it. Obsidian and silverbullet are both installed and cover
-  # much of the same ground.
 
   # Optional but recommended for a laptop: build in the background at low
   # priority so a rebuild doesn't make the machine unusable.

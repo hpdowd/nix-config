@@ -339,7 +339,7 @@ matching cannot pass.
 **Verify**: temporarily point one duplicate at a different derivation — the
 check must name it.
 
-### 5c — overlay and pin hygiene
+### 5c — overlay and pin hygiene ✅ DONE 2026-08-20
 
 Two of the three are now answered:
 
@@ -377,10 +377,16 @@ Two of the three are now answered:
   of the 5d class**: present-tense second-person Arch narration on a machine
   where Arch has been gone since ADR 0008.
 
-  **Steps**: drop `logseq` from `packages.nix:156` and `"electron-39.8.10"` from
-  `nix-settings.nix:57`; rewrite the block's comment to name winboat and drop the
-  second person. **Verify**: `nix-store -qR /run/current-system | grep
-  electron-39` comes back empty after the switch.
+  **✅ DONE 2026-08-20.** Both claims re-checked by `--referrers` rather than
+  inherited: `electron-39.8.10` had exactly one consumer (`logseq-0.10.15`) and
+  `electron-40.10.5` exactly one (`winboat-0.9.0`) — nothing Arch-shaped in
+  either. logseq's emptiness re-checked too: 0 graphs, `config.edn` is `{}`,
+  `preferences.json` all nulls, no `journals/` anywhere.
+
+  Verified against the **built** closure rather than waiting for a switch, which
+  is the same evidence sooner: `electron-39` and `logseq` are both absent from
+  the new `toplevel`, and `electron-40` is still there because winboat still
+  needs it.
 
 ### 5d — comments → ADRs 🔶 MOSTLY DONE 2026-08-12, and not holding
 
@@ -598,8 +604,8 @@ the first attempt returned the same answer for all 12 cases.
 | ~~1~~ | ~~**6a** the floor on `static.sh` itself~~ | ✅ 2026-08-20 |
 | ~~2~~ | ~~**3b** `mango -p` check~~ | ✅ 2026-08-20 |
 | ~~3~~ | ~~**3a** mango config selection~~ | ✅ 2026-08-20 |
-| 4 | **5c** drop logseq, name winboat | pure subtraction, no migration — **next** |
-| 5 | **5b** one owner per package | `distrobox`, then the divergence assertion |
+| ~~4~~ | ~~**5c** drop logseq, name winboat~~ | ✅ 2026-08-20 |
+| 5 | **5b** one owner per package | `distrobox`, then the divergence assertion — **next** |
 | 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` |
 | 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate |
 | 8 | **5d** comments | the five files listed, then stop |

@@ -180,14 +180,5 @@ rec {
       palette = { };
     };
 
-    zed = {
-      # Zed ships neither Nord nor a light Nord. The repeated name is
-      # deliberate — this machine runs dark (`gtk.colorScheme = "dark"`), so the
-      # light slot is never resolved, and naming a foreign light theme there
-      # would be the drift this arrangement exists to prevent.
-      extensions = [ "nord" ];
-      dark = "Nord";
-      light = "Nord";
-    };
   };
 }

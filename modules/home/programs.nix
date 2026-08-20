@@ -18,6 +18,10 @@ let
   # waybar/colors.css. One file now, shared with the bar and the menus.
   p = import ./palette.nix;
 
+  # The scheme's NAME, not its colours — Zed's generated theme is named for it
+  # and `userSettings.theme` has to say the same word. docs/adr/0041.
+  scheme = import ./scheme.nix;
+
   # swaylock wants `rrggbbaa` and has no separate opacity setting, so the alpha
   # is part of every colour it takes. Two are used: solid, and the wash behind
   # the indicator that lets the background pool through.
@@ -193,11 +197,14 @@ in
   programs.zed-editor = {
     enable = true;
 
-    # Zed ships some schemes and not others, so the list comes from the theme
-    # file: Gruvbox is built in and declares `[ ]`; Catppuccin and Nord are
-    # extensions. Declared here so the theme named in `userSettings.theme` below
-    # can actually resolve.
-    extensions = p.apps.zed.extensions;
+    # No theme extension: the theme is GENERATED from the palette and written
+    # into ~/.config/zed/themes/ by `themes` below. docs/adr/0041.
+    extensions = [ ];
+
+    # The generated theme, named for the scheme. `themes` accepts a store path,
+    # so this is the derivation itself rather than an attrset Nix has to
+    # re-serialise.
+    themes.${scheme} = pkgs.themeZed;
 
     userSettings = {
       project_panel.dock = "left";
@@ -230,19 +237,21 @@ in
         dark = "JetBrains New UI Icons (Dark)";
       };
 
-      # A theme name Zed cannot resolve leaves it on One Dark and logs nothing —
-      # the usual shape. Zed installs extensions on first launch, so the very
-      # first start after a scheme change may show the fallback until it
-      # finishes.
+      # A theme name Zed cannot resolve leaves it on One Dark and logs nothing.
+      # That used to be unguardable — the theme came from Zed's own registry,
+      # so this file could assert that a name was DECLARED and nothing more,
+      # and the first launch after a scheme change showed the fallback while
+      # the extension installed. The theme is generated into the generation
+      # now, so `checks/static.sh` asserts the file exists, carries this
+      # palette, and is named what this names. docs/adr/0041.
       #
-      # THE ONE PAIR NO CHECK HERE CAN GATE. Both halves live in Zed's own
-      # registry: `checks/static.sh` can assert the theme file names an
-      # extension and a theme, but not that Zed resolves either. Verify by
-      # output after a scheme change — open Zed and look.
+      # `light` and `dark` are the same name deliberately: one theme is
+      # generated, `appearance` is dark, and this machine runs dark
+      # (`gtk.colorScheme = "dark"`), so the light slot is never resolved.
       theme = {
         mode = "system";
-        light = p.apps.zed.light;
-        dark = p.apps.zed.dark;
+        light = scheme;
+        dark = scheme;
       };
 
       buffer_font_family = "Hack Nerd Font Mono";

@@ -273,6 +273,48 @@ The interface is 72 lines, about 35 variables:
 
 ---
 
+### Phase 3.5 — yazi and Zed ✅ done 2026-08-20
+
+Not in the original plan. Both turned out to be **pure colour data**, which is
+the test `docs/adr/0041` actually set, and both were blocking Heartbox: neither
+publishes a Heartbox version, so leaving them named meant two artefacts that
+could never follow a new scheme.
+
+**yazi** — `pkgs/yazi-flavor.nix`, 220 lines of colour and nothing else.
+`packages.yazi` is gone from all four theme files; it used to be four unrelated
+upstreams pinned by rev and hash, agreeing on the schema and nothing else.
+Three role assignments differ from what the fetched flavours had, and only
+where upstream's pick was not a role: gruvbox put `fg0` on the notification
+**warning** title and its pink on the **error** one.
+
+*The glyph trap, exactly as `CLAUDE.md` describes it.* The powerline
+separators were typed as characters and **both vanished silently** — the line
+looked identical. They are `\ue0be` written literally now: a lone backslash is
+not an escape in a Nix indented string, so the text reaches the TOML unchanged
+and TOML resolves it, which is how upstream spells it too. Verified by parsing
+the generated TOML and dumping codepoints.
+
+**Zed** — `pkgs/zed-theme.py`, 135 style keys, 43 syntax keys, 8 players, at
+exact parity with Zed's own theme (diffed both ways, nothing missing, nothing
+invented — the count assertion caught one key I had made up).
+
+*Authored from roles, not transformed from Zed's own theme.* Substituting into
+Zed's Gruvbox was the obvious route and it is wrong: that file holds **63
+distinct colours** for a palette with about twenty, because its values have
+drifted — `#fb4a35` where gruvbox is `#fb4934`, and three different spellings
+of its yellow. Mapping them back would copy somebody else's rounding into every
+scheme this repo ever wears.
+
+*This closed a hole the repo had written down as unclosable.* The theme used to
+come from Zed's extension registry, and `modules/home/programs.nix` said so:
+"**THE ONE PAIR NO CHECK HERE CAN GATE**" — both halves lived on Zed's servers,
+so the gate could assert a name was declared and nothing more. A theme written
+into the generation is gateable like everything else, and now is: it exists, it
+carries the palette, and the name `settings.json` asks for is the name the
+theme declares. `apps.zed` is gone from the theme files.
+
+---
+
 ### Phase 4 — icons stay named, and the theme file says so
 
 Decided, not deferred (`docs/adr/0041`). Upstreams parameterise only the folder

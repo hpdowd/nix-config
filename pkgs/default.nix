@@ -10,6 +10,47 @@ let
   # runs before any module evaluates, so this is the only way in (docs/adr/0030).
   themeData = import ../modules/home/palette.nix;
 
+  # The palette as JSON, for the two generators written in Python. ONE
+  # definition: `colloid-palette.py` and `zed-theme.py` both index it by role
+  # name, and a role present for one and absent for the other is a KeyError at
+  # build time in whichever runs second. docs/adr/0041.
+  paletteJson = prev.writeText "palette.json" (
+    builtins.toJSON {
+      inherit (themeData)
+        bg0
+        bg1
+        bg2
+        bg3
+        fg0
+        fg1
+        fg4
+        mantle
+        comment
+        accent
+        black
+        red
+        green
+        yellow
+        blue
+        magenta
+        cyan
+        white
+        brBlack
+        brRed
+        brGreen
+        brYellow
+        brBlue
+        brMagenta
+        brCyan
+        brWhite
+        okColor
+        warnColor
+        errColor
+        infoColor
+        ;
+    }
+  );
+
   # One of the theme file's `packages.*` entries → a package, or `null` when the
   # name belongs to a toolkit built-in and there is nothing to install.
   #
@@ -70,6 +111,19 @@ in
   # published could not be adopted at all. `packages.yazi` is gone from the
   # theme files with them.
   themeYazi = prev.writeTextDir "flavor.toml" (import ./yazi-flavor.nix themeData);
+
+  # Zed's theme, written from the palette. Zed loads user themes from
+  # ~/.config/zed/themes/, so this replaces an EXTENSION from Zed's registry —
+  # which `modules/home/programs.nix` recorded as the one pair no check here
+  # could gate, both halves living on Zed's servers. A theme in the generation
+  # is gateable like everything else. docs/adr/0041.
+  themeZed =
+    let
+      scheme = import ../modules/home/scheme.nix;
+    in
+    prev.runCommand "zed-theme-${scheme}.json" { } ''
+      ${prev.python3}/bin/python3 ${./zed-theme.py} ${paletteJson} "${scheme}" "$out"
+    '';
 
   # ==========================================================================
   # paletteCursors — the cursor set, recoloured from the palette
@@ -382,38 +436,6 @@ in
     let
       p = themeData;
       themeName = "${import ../modules/home/scheme.nix}-gtk";
-      paletteJson = prev.writeText "palette.json" (
-        builtins.toJSON {
-          inherit (p)
-            fg0
-            fg1
-            fg4
-            comment
-            bg0
-            bg1
-            bg2
-            bg3
-            mantle
-            accent
-            red
-            green
-            yellow
-            blue
-            magenta
-            cyan
-            brRed
-            brGreen
-            brYellow
-            brBlue
-            brMagenta
-            brCyan
-            okColor
-            warnColor
-            errColor
-            infoColor
-            ;
-        }
-      );
       scss = prev.runCommand "colloid-palette.scss" { } ''
         ${prev.python3}/bin/python3 ${./colloid-palette.py} ${paletteJson} "$out"
       '';

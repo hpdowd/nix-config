@@ -203,12 +203,5 @@ rec {
       palette = { };
     };
 
-    # Gruvbox ships INSIDE Zed, so no extension is needed — the inverse of
-    # Catppuccin. An empty list here is a statement, not an oversight.
-    zed = {
-      extensions = [ ];
-      dark = "Gruvbox Dark";
-      light = "Gruvbox Light";
-    };
   };
 }

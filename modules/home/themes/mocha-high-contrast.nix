@@ -229,12 +229,5 @@ rec {
       };
     };
 
-    # Zed ships Gruvbox but NOT Catppuccin, so the extension is load-bearing.
-    # A theme name Zed cannot resolve leaves it on One Dark and logs nothing.
-    zed = {
-      extensions = [ "catppuccin" ];
-      dark = "Catppuccin Mocha";
-      light = "Catppuccin Latte";
-    };
   };
 }

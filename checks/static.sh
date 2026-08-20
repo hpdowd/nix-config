@@ -1989,6 +1989,58 @@ else
 	fi
 fi
 
+# Zed's theme is generated now (docs/adr/0041). This is the check
+# modules/home/programs.nix used to say could not exist: the theme came from
+# Zed's extension REGISTRY, so this file could assert that a name was declared
+# and nothing else — both halves lived on Zed's servers. A theme written into
+# the generation is gateable like every other artefact.
+#
+# Three things, and the third is the one that used to be impossible: the theme
+# file is there, it carries this palette, and the name `settings.json` will ask
+# for is the name the theme actually declares.
+zed_theme="$GEN_CFG/zed/themes/$PAL_SCHEME.json"
+if [[ ! -s $zed_theme ]]; then
+	bad "zed: no generated theme at zed/themes/$PAL_SCHEME.json" \
+		"$zed_theme — Zed falls back to One Dark and logs nothing"
+else
+	zd_bg=$(pal '.bg0')
+	zd_accent=$(pal '.accent')
+	zd_name=$(jq -r '.themes[0].name // empty' "$zed_theme" 2>/dev/null)
+	zd_keys=$(jq -r '(.themes[0].style | keys | length) // 0' "$zed_theme" 2>/dev/null)
+
+	# 136 = 135 style keys plus `syntax`. A floor, not an equality: Zed adding
+	# keys should not fail this, but a generator that stopped emitting must.
+	if [[ -z $zd_name || $zd_keys -lt 136 ]]; then
+		bad "zed: the generated theme is not shaped like one" \
+			"name='$zd_name' style keys=$zd_keys (expected 136) — $zed_theme"
+	elif [[ $zd_name != "$PAL_SCHEME" ]]; then
+		bad "zed: the generated theme calls itself '$zd_name', not '$PAL_SCHEME'" \
+			"settings.json asks for the scheme name, so Zed would resolve nothing"
+	elif ! grep -qi "$zd_bg" "$zed_theme" || ! grep -qi "$zd_accent" "$zed_theme"; then
+		bad "zed: the generated theme does not carry this palette's colours" \
+			"expected #$zd_bg (bg0) and #$zd_accent (accent) in $zed_theme"
+	else
+		ok "zed: '$zd_name' is generated, carries '$PAL_SCHEME''s colours, and has $zd_keys style keys"
+	fi
+
+	# And the settings that will actually be merged ask for that theme. Both
+	# come from scheme.nix in the same file, so this cannot drift today — it is
+	# here because the pair is what broke before, on a name nothing checked.
+	zed_settings=$(grep -oE '/nix/store/[a-z0-9]+-zed-user-settings' "$GEN/activate" 2>/dev/null | head -1)
+	if [[ -z $zed_settings || ! -r $zed_settings ]]; then
+		bad "zed: could not find the zed-user-settings store path in the activation script" \
+			"the scan is broken, not the repo"
+	else
+		zd_dark=$(jq -r '.theme.dark // empty' "$zed_settings" 2>/dev/null)
+		if [[ $zd_dark == "$zd_name" ]]; then
+			ok "zed: settings.json asks for '$zd_dark', which is the theme that ships"
+		else
+			bad "zed: settings.json asks for '$zd_dark' but the theme is '$zd_name'" \
+				"Zed leaves itself on One Dark and logs nothing"
+		fi
+	fi
+fi
+
 # The cursor has a second consumer the scan above cannot see. mango takes the
 # theme by name in its own config and, finding nothing, hands the name to
 # wlroots and carries on — then `setenv`s XCURSOR_THEME from it for every client

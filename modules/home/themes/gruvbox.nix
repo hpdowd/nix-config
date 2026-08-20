@@ -116,16 +116,17 @@ rec {
     overlay = "3d352c"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts the palette cannot colour ----------------------------------
-  # All five native — the bar every shipped scheme has to clear. `name` is read
-  # off the built package; note that none of the five is guessable from the
-  # attribute that builds it.
+  # --- Artefacts: four named, one generated ---------------------------------
+  # All five native — the bar every shipped scheme has to clear. Four are NAMED:
+  # `name` is read off the built package, and none of the four is guessable from
+  # the attribute that builds it. The cursor is GENERATED from the colours above
+  # (docs/adr/0041), which is why its name is the one that follows a rule.
   #
   # NOT what this scheme used before 2026-08-18, which is worth knowing if you
   # are comparing against git history: Kvantum was a lone hand-carried
   # `.kvconfig`, the yazi flavor was 916 vendored lines under `dotfiles/`, and
   # the icons were Papirus recoloured yellow rather than a Gruvbox icon set.
-  # Only the cursor is the same package it always was. Nothing here is vendored.
+  # Nothing here is vendored.
   packages = {
     # `gruvbox-gtk-theme` is built by pkgs/default.nix, not taken from nixpkgs,
     # and the reason is GTK4: `gruvbox-dark-gtk` — which this named until
@@ -147,10 +148,17 @@ rec {
       native = true;
     };
     cursor = {
-      attr = "capitaine-cursors-themed";
-      # Spaces and parentheses in a theme directory name. Read off the package;
-      # constructing it from the attribute would produce none of these.
-      name = "Capitaine Cursors (Gruvbox)";
+      # GENERATED from this file's own colours — docs/adr/0041. `paletteCursors`
+      # recolours the Volantes art from the palette, so unlike the four names
+      # around it this one does not have to exist in nixpkgs.
+      #
+      # The name is `<scheme>-cursors`, which the derivation builds from
+      # scheme.nix. Still written out rather than constructed: a copy of this
+      # file that forgets to change it fails the artefact check by name, which
+      # is the loud failure. checks/static.sh also asserts the built theme
+      # carries THIS palette's colours.
+      attr = "paletteCursors";
+      name = "gruvbox-cursors";
       native = true;
     };
     yazi = {

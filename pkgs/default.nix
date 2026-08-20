@@ -93,6 +93,161 @@ in
     '';
 
   # ==========================================================================
+  # paletteCursors — the cursor set, recoloured from the palette
+  # ==========================================================================
+  # docs/adr/0041. catppuccin/cursors carries the Volantes art (GPL-2) as 68
+  # SVGs in which every colour is one of three sentinel hexes, so the recolour
+  # is a string replace and any palette can wear it. Upstream reaches that
+  # through `whiskers` and three Tera templates — a layer whose whole job is
+  # resolving Catppuccin FLAVOUR NAMES, which this repo does not have.
+  #
+  # The build half is upstream's own `scripts/`, run unpatched: hotspots, the
+  # eleven scales, xcursorgen and the 113 aliases. The hotspot is a hidden
+  # `<path id="hotspot">` read through QSvgRenderer's element TRANSFORM — a
+  # regex over its `d=` gets it wrong wherever there is one, and the symptom is
+  # a click point a pixel off that nobody reports.
+  #
+  # THE SENTINEL COUNTS ARE ASSERTED, before and after. A `sed` that stops
+  # matching leaves a complete, valid, UNRECOLOURED set: the build succeeds,
+  # the theme resolves, the artefact check finds its directory, and the pointer
+  # is still Catppuccin mauve. Exact numbers rather than a floor because the
+  # source is pinned by rev — they can only move when it is bumped, which is
+  # exactly when they should be looked at again.
+  paletteCursors =
+    let
+      p = themeData;
+      themeName = "${import ../modules/home/scheme.nix}-cursors";
+
+      # A light body over a dark outline, which is what this machine already
+      # wears (capitaine) — so phase 1 changes the SOURCE of the colour and not
+      # the look, and can be judged against a cursor already on screen.
+      # `inner = accent` is the bolder alternative and is this one line.
+      inner = p.fg0;
+      border = p.base;
+
+      # Upstream's own `special_map`, in this palette's roles: the accent that
+      # marks what a cursor MEANS — red on `not-allowed`, green on `copy`.
+      # Anything unlisted takes `accent`, which covers the 24 progress and wait
+      # frames (upstream gives them `lavender`, its accent).
+      special = {
+        alias = p.magenta;
+        "context-menu" = p.warnColor;
+        copy = p.okColor;
+        "dnd-no-drop" = p.errColor;
+        help = p.infoColor;
+        "no-drop" = p.errColor;
+        "not-allowed" = p.errColor;
+        pirate = p.errColor;
+        "wayland-cursor" = p.warnColor;
+        "x-cursor" = p.errColor;
+      };
+    in
+    prev.stdenvNoCC.mkDerivation {
+      pname = "palette-cursors";
+      version = "2.0.0";
+
+      src = prev.fetchFromGitHub {
+        owner = "catppuccin";
+        repo = "cursors";
+        rev = "v2.0.0";
+        hash = "sha256-qis6p+/m7+DdRDYzLq9yB2eZGpfZe5z5xRsa/1HoIG4=";
+      };
+
+      nativeBuildInputs = [
+        prev.inkscape
+        prev.xcursorgen
+        prev.zip
+        (prev.python3.withPackages (ps: [ ps.pyside6 ]))
+      ];
+
+      # inkscape and fontconfig both write under HOME and the sandbox has none.
+      buildPhase = ''
+        runHook preBuild
+        export HOME="$TMPDIR"
+        patchShebangs scripts
+
+        # The source still speaks in sentinels. Checked BEFORE substituting, so
+        # a bumped rev that recolours the art upstream fails here rather than
+        # producing a set this palette never touched.
+        # `|| true` on every grep here, and it is load-bearing: stdenv runs
+        # this under `set -eo pipefail`, and grep exits 1 when it matches
+        # NOTHING — which is the passing case for the second check below.
+        # Without it the assertion kills the build precisely when it succeeds,
+        # with no output at all. Cost one debugging round on 2026-08-20.
+        while read -r sentinel want; do
+          have=$(grep -lr "$sentinel" src/svgs/ | wc -l || true)
+          if [ "$have" -ne "$want" ]; then
+            echo "paletteCursors: $sentinel is in $have of the source SVGs, expected $want." >&2
+            echo "  The upstream art has changed. Re-check the mapping before bumping the rev." >&2
+            exit 1
+          fi
+        done <<'EOF'
+        FF0000 68
+        00FF00 52
+        0000FF 34
+        EOF
+
+        declare -A special=(
+        ${prev.lib.concatStringsSep "\n" (prev.lib.mapAttrsToList (n: v: "  [${n}]=\"${v}\"") special)}
+        )
+
+        mkdir -p "svgs/${themeName}"
+        for f in src/svgs/*.svg; do
+          b=$(basename "$f" .svg)
+          # `progress-01` and `wait-07` are frames of one cursor, so the map is
+          # keyed by the cursor rather than the frame.
+          key="''${b%-[0-9][0-9]}"
+          sp="''${special[$key]-${p.accent}}"
+          sed -e "s/FF0000/${inner}/g" \
+              -e "s/00FF00/${border}/g" \
+              -e "s/0000FF/$sp/g" \
+              "$f" > "svgs/${themeName}/$b.svg"
+        done
+
+        # Nothing unrecoloured survived, and all 68 arrived.
+        left=$(grep -lr 'FF0000\|00FF00\|0000FF' "svgs/${themeName}/" | wc -l || true)
+        n=$(find "svgs/${themeName}" -name '*.svg' | wc -l)
+        if [ "$left" -ne 0 ] || [ "$n" -ne 68 ]; then
+          echo "paletteCursors: $left file(s) still hold a sentinel, and $n of 68 SVGs were written." >&2
+          exit 1
+        fi
+
+        cat > "svgs/${themeName}/index.theme" <<EOF
+        [Icon Theme]
+        Name=${themeName}
+        Comment=Volantes cursors, recoloured from modules/home/palette.nix
+        EOF
+
+        scripts/build-cursors \
+          "svgs/${themeName}" "pngs/${themeName}" "hl/${themeName}" "dist/${themeName}"
+        runHook postBuild
+      '';
+
+      installPhase = ''
+        runHook preInstall
+        install -dm755 "$out/share/icons"
+        cp -r "dist/${themeName}" "$out/share/icons/${themeName}"
+        cp -f AUTHORS LICENSE "$out/share/icons/${themeName}/"
+
+        # `index.theme` is copied by upstream's OUTER `build` script, not by
+        # `scripts/build-cursors` — which `rm -rf`s the output directory first,
+        # so it has to land after. Without it the directory exists and holds
+        # every cursor, the artefact check in checks/static.sh finds it by
+        # name, and GTK and wlroots resolve NOTHING and fall back in silence.
+        # Found exactly that way on 2026-08-20.
+        cp -f "svgs/${themeName}/index.theme" "$out/share/icons/${themeName}/"
+        test -s "$out/share/icons/${themeName}/index.theme"
+        runHook postInstall
+      '';
+
+      meta = {
+        description = "Volantes cursors recoloured from this repo's palette";
+        license = prev.lib.licenses.gpl2Only;
+        platforms = prev.lib.platforms.linux;
+      };
+    };
+
+  # ==========================================================================
   # gruvbox-gtk-theme — the one shipped scheme nixpkgs cannot dress in GTK4
   # ==========================================================================
   # `gruvbox-dark-gtk`, which this replaces, ships gtk-2.0, gtk-3.0 and

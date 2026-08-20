@@ -31,7 +31,37 @@ together, in the same commit as the generator:
 
 ## Phases
 
-### Phase 1 — cursor
+### Phase 1 — cursor ✅ done 2026-08-20
+
+**Landed.** `paletteCursors` in `pkgs/default.nix`; all four theme files take
+their cursor from it; two new assertions in `checks/static.sh`. Built against
+`gruvbox` and looked at.
+
+| | |
+|---|---|
+| Build | **18 s**, 12 MB — the open question below is answered, and the answer is that it does not matter |
+| Gate | `nix flake check` 74 s, all checks passing |
+| Output | 46 cursors + 74 alias links, from 68 source SVGs (`progress` and `wait` are 12 frames each) |
+
+**Two failures found by building it, both of the class this repo is named for:**
+
+- **`grep` exits 1 when it matches nothing, which is the PASSING case** for the
+  "no sentinel survived" assertion — and stdenv runs the build under
+  `set -eo pipefail`. The check killed the build precisely when it succeeded,
+  with no output whatsoever. Every grep in that derivation now ends `|| true`,
+  and says why.
+- **`index.theme` was missing from the output.** Upstream copies it in its
+  *outer* `build` script, not the `scripts/build-cursors` this repo calls — and
+  that one `rm -rf`s its output directory first. The result passed the existing
+  artefact check (which only looks for the directory by name) while resolving to
+  nothing in GTK and wlroots. Now copied, asserted in the derivation, and
+  asserted again in the gate.
+
+**Four negative tests, all failing with the right message:** upstream art
+changed (sentinel count), a substitution that stops matching, `index.theme`
+removed, and an artefact wearing another palette's colours.
+
+The original notes follow.
 
 The cheapest and the most verifiable, which is why it goes first.
 
@@ -74,10 +104,15 @@ assembly step cannot be hand-rolled from `xcursorgen` alone.
 - **Look at it.** `hyprcursor`/X11 cursors at 24px are where a bad `accent`
   choice shows up, and nothing automated sees it.
 
-**Open:** whether `special` should be `infoColor` or `warnColor`. Upstream maps
-it per-cursor from a `special_map` (help → blue, copy → green, not-allowed →
-red), which is more considered than one role. Reproducing that map is ~20 lines
-and worth it.
+**Settled:** upstream's per-cursor `special_map` was reproduced rather than
+collapsing it to one role — help → `infoColor`, copy → `okColor`,
+not-allowed → `errColor`, progress and wait → `accent`. Ten entries and a
+default.
+
+**Also settled:** the body is `fg0` over a `base` outline, not `accent`.
+That keeps phase 1 a change of where the colour comes FROM rather than a change
+of look, which is what made it judgeable against the capitaine cursors it
+replaced. `inner = p.accent` in `pkgs/default.nix` is the bolder alternative.
 
 ---
 
@@ -203,10 +238,11 @@ one. Stopping after any phase leaves a working machine.
 
 ## Open questions
 
-- **Build cost, unmeasured.** 68 SVGs × 6 sizes through `resvg`, plus `sassc`
-  over Colloid, per scheme in service, on every `nix flake check` that misses
-  cache. Measure after phase 1 and record it here; if it is minutes, the
-  generators may need to be flake outputs built once rather than closure inputs.
+- ~~**Build cost, unmeasured.**~~ **Answered by phase 1: 18 s and 12 MB** for
+  the cursor set — 68 SVGs at eleven scales through inkscape, which was the
+  step expected to hurt. `nix flake check` went from 41 s to 74 s cold. No
+  reason to move the generators out of the closure. Re-measure at phase 3;
+  `sassc` over Colloid is the remaining unknown.
 - **Whether `pkgs/default.nix` is still the right home.** It is an overlay, so
   it cannot read `config.*` — which is exactly why `scheme.nix` is a file
   (`docs/adr/0030`) and why this works at all. But it is about to grow three

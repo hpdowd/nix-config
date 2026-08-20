@@ -125,9 +125,9 @@ rec {
     overlay = "1b1b2a"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts the palette cannot colour ----------------------------------
-  # Rendered SVG widget art, cursor bitmaps, compiled SCSS and names other
-  # programs resolve internally. No amount of hex here reaches them, so the
+  # --- Artefacts: four named, one generated ---------------------------------
+  # Rendered SVG widget art, compiled SCSS and names other programs resolve
+  # internally. No amount of hex here reaches those four, so the
   # scheme names them instead and `checks/static.sh` asserts each one resolves.
   # Identical to `mocha.nix`: this theme changes greys, not hues.
   #
@@ -136,6 +136,10 @@ rec {
   # `catppuccin-mocha-mauve` are spelled three different ways from each other
   # and from the attribute (`mochaMauve`). A GTK theme name matching nothing
   # falls back to Adwaita and looks merely unstyled.
+  #
+  # The cursor is the EXCEPTION and no longer a name at all: it is generated
+  # from the colours above (docs/adr/0041), so it is the one artefact this file
+  # colours rather than names.
   packages = {
     gtk = {
       attr = "catppuccin-gtk";
@@ -164,9 +168,10 @@ rec {
       native = true;
     };
     cursor = {
-      attr = "catppuccin-cursors";
-      sub = "mochaMauve";
-      name = "catppuccin-mocha-mauve-cursors";
+      # Generated from this file's colours — docs/adr/0041, and see gruvbox.nix
+      # for what `paletteCursors` is and why the name is spelled out.
+      attr = "paletteCursors";
+      name = "mocha-high-contrast-cursors";
       native = true;
     };
     yazi = {

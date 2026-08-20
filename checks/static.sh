@@ -1765,6 +1765,15 @@ for kind in gtk kvantum icons cursor; do
 		fi
 	done < <(pkg_roots "$kind")
 
+	# Kept for the two cursor-specific assertions after the loop, which need
+	# the resolved path and not just the fact that one was found. An `if` and
+	# not `[[ … ]] && …`: the bare form returns 1 for every other `kind`, which
+	# is a landmine for the next person who adds `set -e` (CLAUDE.md → shell).
+	if [[ $kind == cursor ]]; then
+		cursor_path=$hit_path
+		cursor_theme=$name
+	fi
+
 	if [[ -n $hit ]]; then
 		ok "$kind: '$name' resolves in $hit"
 	else
@@ -1799,6 +1808,49 @@ else
 	# nobody can see on screen without knowing to look, so it is stated on every
 	# run rather than left to be discovered.
 	ok "$declared theme packages declared for '$SCHEME'; stand-ins:"$'\n'"$standins"
+fi
+
+# The cursor is GENERATED from the palette now (docs/adr/0041), which buys two
+# failures the "does the directory exist" scan above cannot see. Both were found
+# by hand on 2026-08-20, which is why they are assertions and not a paragraph.
+#
+#   index.theme      copied by upstream's OUTER build script, not by the
+#                    `scripts/build-cursors` this repo calls — and that one
+#                    `rm -rf`s its output directory first. Without it the
+#                    directory exists, holds all 46 cursors, passes the scan
+#                    above, and resolves to NOTHING in GTK and wlroots.
+#   the colours      a substitution that stops matching leaves a complete,
+#                    valid, UNRECOLOURED set. The build asserts its own
+#                    sentinels; this asserts the installed theme belongs to the
+#                    palette this machine is actually wearing.
+if [[ -n ${cursor_path:-} ]]; then
+	if [[ -s "$cursor_path/index.theme" ]]; then
+		ok "cursor: '$cursor_theme' ships index.theme, so GTK and wlroots can resolve it"
+	else
+		bad "cursor: '$cursor_theme' has no index.theme" \
+			"the directory resolves and holds every cursor, and every consumer falls back in silence"
+	fi
+
+	# `cursors_scalable/default/default.svg` is the plain pointer, which carries
+	# `fg0` as its body and `base` as its outline — the two roles paletteCursors
+	# substitutes into all 68 files. Reading the SVG rather than the xcursor
+	# binary: the bitmaps are rendered FROM these, so a match here proves the
+	# substitution ran, and the binaries cannot disagree with their own source.
+	cur_svg="$cursor_path/cursors_scalable/default/default.svg"
+	cur_body=$(pal '.fg0')
+	cur_edge=$(pal '.base')
+	if [[ ! -r $cur_svg ]]; then
+		bad "cursor: no cursors_scalable/default/default.svg to read colours from" \
+			"$cur_svg — the scan is broken, not the repo"
+	elif [[ -z $cur_body || -z $cur_edge ]]; then
+		bad "cursor: could not read fg0/base from the resolved palette" \
+			"body='$cur_body' edge='$cur_edge' — the check below would pass on nothing"
+	elif grep -qi "$cur_body" "$cur_svg" && grep -qi "$cur_edge" "$cur_svg"; then
+		ok "cursor: the built theme carries '$PAL_SCHEME''s own #$cur_body on #$cur_edge"
+	else
+		bad "cursor: the built theme does not carry this palette's colours" \
+			"expected #$cur_body (fg0) and #$cur_edge (base) in $cur_svg — the recolour did not reach the artefact"
+	fi
 fi
 
 # The cursor has a second consumer the scan above cannot see. mango takes the

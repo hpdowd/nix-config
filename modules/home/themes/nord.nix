@@ -124,11 +124,11 @@ rec {
     overlay = "3f4757"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts the palette cannot colour ----------------------------------
-  # All four are native, and all four come from `nordic` or a Nord-specific
-  # package — no stand-ins. `nordic` alone ships the GTK theme, the Kvantum
-  # theme and a cursor set, which is why it is the only scheme here whose
-  # artefacts mostly come from one derivation.
+  # --- Artefacts: four named, one generated ---------------------------------
+  # All native, no stand-ins. `nordic` ships both the GTK and the Kvantum theme,
+  # which is why this scheme's artefacts mostly come from one derivation — its
+  # cursor no longer does, being generated from the colours above
+  # (docs/adr/0041).
   #
   # `name` is read off the built package, never constructed from the attribute.
   packages = {
@@ -153,10 +153,10 @@ rec {
       native = true;
     };
     cursor = {
-      attr = "capitaine-cursors-themed";
-      # The same package gruvbox uses, which ships a Nord variant. Spaces and
-      # parentheses in the directory name; read off the package.
-      name = "Capitaine Cursors (Nord)";
+      # Generated from this file's colours — docs/adr/0041, and see gruvbox.nix
+      # for what `paletteCursors` is and why the name is spelled out.
+      attr = "paletteCursors";
+      name = "nord-cursors";
       native = true;
     };
     yazi = {

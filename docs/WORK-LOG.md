@@ -2602,99 +2602,93 @@ assertions, both confirmed against planted defects before being called landed.
 ### 6a — `static.sh` asserts its own size
 
 `ASSERTION_FLOOR` beside the summary, failing when `PASS + FAIL` drops below it.
-Every scan *inside* the file already had a floor; the file as a whole had none,
-so deleting a section printed a smaller number and exited green. A floor, not a
+Every scan inside the file already had a floor; the file as a whole had none, so
+deleting a section printed a smaller number and exited green. A floor, not a
 ratchet — adding assertions stays a one-line change. `docs/adr/0039`.
 
 **Confirmed**: with the *Fonts* section deleted, `112 passed, 0 failed` is now
-followed by `✗ only 112 assertions ran, floor is 115` and exit 1. The identical
-deletion exited **0** before the change — the hole was real, not theoretical.
+followed by `✗ only 112 assertions ran, floor is 115` and exit 1. The same
+deletion exited **0** before the change, so the hole was real.
 
 ### 3b — every mango mode config parses under the real binary
 
 New *Mango config parse* section. The mango tree is copied out of the built home
-closure into a fake `HOME`, each mode's conf is installed as `config.conf`, and
-`mango -p` runs with **no `-c`**. Fails on any stderr, floors on modes parsed.
+closure into a fake `HOME`, each mode's conf is staged as `config.conf`, and
+`mango -p` runs with **no `-c`**. It fails on any stderr and floors on modes
+parsed.
 
-**Fails on stderr, not on the exit status**, which is the whole point: `-p`
-exits **0** for a `source=` it cannot open. That is the live failure mode — a
-sourced file that goes missing costs you its binds, silently, and the session
-starts anyway.
+**Fails on stderr, not on the exit status**, because `-p` exits **0** for a
+`source=` it cannot open. That is the case worth catching: a sourced file goes
+missing, its binds stop working, and the session starts anyway.
 
-**Two departures from the plan as written, both improvements:**
+**Two departures from the plan as written, both better:**
 
 - **`pkgs.mango` did not go into `nativeBuildInputs`.** mango is already in the
   system profile, so the check reads `$SYS/sw/bin/mango` the way the rofi check
-  reads `$SYS/sw/bin/rofi`. No dependency edge, and it validates the binary that
+  reads `$SYS/sw/bin/rofi`. No dependency edge, and it tests the binary that
   will actually run.
-- **The read-only store bites twice, in two different places.** Measured
-  separately after the first write-up ran them together: `--no-preserve=mode`
-  is about the copied **directory** being 0555, which fails on the *first*
-  mode; `install -m 644` instead of `cp` is about the tree being symlinks
-  *into* the store, so a plain `cp` inherits **0444** and fails on the
-  *second*. Only the second is the scar `lib.sh` carries. Neither guard covers
-  the other.
+- **`--no-preserve=mode` is not enough on its own.** The first probe copied a
+  mode conf to `config.conf` with plain `cp` and the second mode failed with
+  `permission denied` — the 0444 store inheritance that `lib.sh` carries
+  `install -m 644` for, reproduced from scratch inside the check.
 
 **Confirmed both ways**: renaming `universal/tag.conf` (mango: stderr, exit 0)
 and adding `notakey=1` to `tiling.conf` (mango: stderr, exit 1). Each fails the
-check naming the mode; the first names both modes, since both source it.
+check naming the mode; the first names both, since both source it.
 
 The gate is now **115 assertions across 14 sections**.
 
-### A correction to yesterday's own measurement
+### A correction to this morning's own measurement
 
-The rewrite dated today reported the Nix comment problem as *widening*, "ratio
-0.56 → 0.60". **It has not widened.** 0.56 counted comments against
+The plan rewrite dated today reported the Nix comment problem as *widening*,
+"ratio 0.56 → 0.60". It has not widened. 0.56 counted comments against
 `total − comments`; 0.60 counted them against code with blanks removed. Two
-denominators, one arrow, and the sign came out backwards. Measured identically
-on both sides, the ratio **fell** — 0.56 → 0.53, or 0.64 → 0.60, depending on
-convention. Comments grew 55% (1,436 → 2,222) while code grew 64%
+different denominators, so the arrow pointed the wrong way. Measured the same
+way on both sides the ratio **fell** — 0.56 → 0.53, or 0.64 → 0.60, depending
+which you use. Comments grew 55% (1,436 → 2,222) while code grew 64%
 (2,245 → 3,681).
 
-§5d's conclusion survives and is arguably strengthened: **judge on absolute
-comment count, because the ratio can improve while the reading burden grows by
-786 lines.** But the evidence given for it was wrong, and a plan that measures
-badly is worse than one that does not measure — it is the same class of failure
-as a check that passes by finding nothing. The table now shows both numbers with
-their denominators named, and *How to verify* carries the loop that produced
-them.
+§5d's conclusion still holds: judge on absolute comment count, since the ratio
+can improve while there are 786 more lines to read. But the evidence given for
+it was wrong. The table now shows both numbers with their denominators named,
+and *How to verify* carries the loop that produced them.
 
 ---
 
 ## 2026-08-20 · `config.conf` selects instead of duplicating — Phase 3 closed
 
 Plan item 3. `apply_mode`'s `install -m 644 <mode>/<mode>.conf config.conf`
-became `ln -sfn`, which was the last runtime **write** into `~/.config/mango`.
+became `ln -sfn`, removing the last runtime **write** into `~/.config/mango`.
 `docs/adr/0040`. Phase 3 is closed.
 
 Why it is cheap: mango is still launched with no `-c`, so `cli_config_path`
 stays empty and every `./` still resolves against `$HOME/.config/mango/`. All
-**20** `source=` lines keep working untouched, and nothing about session startup
-changes — so unlike the IPC alternative, this was validatable without a logout.
+**20** `source=` lines work untouched and session startup does not change, so
+this could be checked in-session rather than after a logout.
 
-### Two things the plan did not call for, both required
+### Two things the plan did not ask for, both needed
 
-- **A guard, because the swap silently loses a failure signal.** `ln -sfn` to a
-  missing target **succeeds**; the copy it replaced failed loudly. A dangling
+- **A guard, because the swap loses a failure signal.** `ln -sfn` to a missing
+  target **succeeds**; the copy it replaced failed loudly. A dangling
   `config.conf` drops mango to built-in defaults with no keybinds. So
-  `apply_mode` checks `[ -s <mode>.conf ]` first — and does it **before
-  `state_write`**, because recording a mode that was not applied is precisely
-  the one-way switch this file's own header exists to foreclose.
+  `apply_mode` checks `[ -s <mode>.conf ]` first, and does it **before
+  `state_write`**, so a mode that was not applied does not get recorded as
+  active.
 - **A second assertion, on the link itself.** Absence from the generation is not
-  enough. A revert to `install`/`cp` would *work*, and would quietly reintroduce
-  the staleness — a copy goes out of date the moment a rebuild re-points
-  `<mode>.conf`, and nothing says so. Both assertions were confirmed against
-  planted defects: reverting the `ln -sfn`, and adding a second owner for
-  `mango/config.conf` as an `xdg.configFile`.
+  enough. Reverting to `install`/`cp` would work, and would bring back the
+  staleness — a copy goes out of date as soon as a rebuild re-points
+  `<mode>.conf`, with nothing reporting it. Both assertions were confirmed
+  against planted defects: reverting the `ln -sfn`, and adding a second owner
+  for `mango/config.conf` as an `xdg.configFile`.
 
 ### The check now stages a symlink, not a copy
 
-Yesterday's `mango -p` check staged each mode's conf with `install -m 644` —
-which reproduced the 0444 scar from scratch, and was written up as a finding. It
-is gone: production's `config.conf` is a symlink now, so the check stages a
-symlink too. That is simpler *and* a faithful reproduction rather than an
-approximation. `cp -r --no-preserve=mode` stays, and is a different trap
-entirely — the copied **directory** is 0555, so nothing can be created in it.
+Yesterday's `mango -p` check staged each mode's conf with `install -m 644`,
+reproducing the 0444 scar from scratch. That is gone: production's
+`config.conf` is a symlink now, so the check stages a symlink too, which is
+simpler and matches what actually runs. `cp -r --no-preserve=mode` stays, for a
+different problem — the copied **directory** is 0555, so nothing can be created
+in it.
 
 ### Verified without touching the session
 
@@ -2710,19 +2704,17 @@ the package ships its default under `$out/etc/`, which never lands there.
 
 ⚠️ **Migration is lazy.** `[ -e ]` follows symlinks and finds the existing
 regular file, so a rebuild leaves `config.conf` a copy until the next mode
-switch re-points it. Harmless — a stale copy is still a valid config — but
-`readlink` returns nothing until then.
+switch. Harmless — a stale copy is still a valid config — but `readlink`
+returns nothing until then.
 
-### The walker residue, which was not what it looked like
+### The walker residue was not what it looked like
 
 `rm -rf ~/.config/mango/walker` was step 5. `rmdir` refused it: the directory
 was not empty. It held `config.toml`, a **dangling symlink** into a `configs/`
 directory that left with walker on 2026-08-14 (`docs/adr/0021`). An `ls | head`
-had shown it as empty. Removed after looking at it — and it is exactly the
-evidence the plan cited it as: a writable tree keeps whatever anything ever
-wrote there, including links to things that no longer exist.
-
-The gate is now **116 assertions across 14 sections**.
+had shown it as empty. Removed after looking at it. This is what the plan cited
+it as: a writable tree keeps whatever anything ever wrote there, including links
+to things that no longer exist.
 
 ---
 
@@ -2733,25 +2725,24 @@ Plan item 4 (§5c). Pure subtraction: `logseq` out of `packages.nix`,
 comment rewritten.
 
 **Both of the plan's claims were re-checked rather than inherited**, since one
-of them was deleting an application:
+of them meant deleting an application:
 
-- `electron-39.8.10` had exactly one referrer, `logseq-0.10.15`. `electron-40.10.5`
-  had exactly one, `winboat-0.9.0`. The old comment blamed "your Arch install
-  carries electron40-bin too", which was wrong about the consumer *and* was
-  present-tense Arch narration on a machine where Arch has been gone since
-  `docs/adr/0008`.
+- `electron-39.8.10` had exactly one referrer, `logseq-0.10.15`.
+  `electron-40.10.5` had exactly one, `winboat-0.9.0`. The old comment blamed
+  "your Arch install carries electron40-bin too", which named the wrong consumer
+  and was present-tense Arch narration on a machine where Arch has been gone
+  since `docs/adr/0008`.
 - logseq really had no data: 0 entries under `graphs/`, `config.edn` is `{}`,
   `preferences.json` is all nulls, no `journals/` anywhere under `$HOME`. Opened
   once on 2026-07-23, never used.
 
 **Verified against the built closure instead of waiting for a switch** — same
 evidence, sooner: `electron-39` and `logseq` are both absent from the new
-`toplevel`, `electron-40` is still present because winboat still needs it.
+`toplevel`, `electron-40` is still there because winboat still needs it.
 
-The replacement comment carries the rule rather than the history: *name the
-consumer; an entry that outlives its consumer is an exemption nobody is
-holding*, with `nix-store --query --referrers` as the way to check. That is the
-5d class treated at the source — three lines of rule where there were nine of
+The replacement comment carries the rule instead of the history: name the
+consumer beside each entry, drop the entry when that package goes, and use
+`nix-store --query --referrers` to check. Three lines of rule replacing nine of
 narration, and the nine were wrong.
 
 ---
@@ -2759,9 +2750,9 @@ narration, and the nine were wrong.
 ## 2026-08-20 · One owner per package, asserted as divergence
 
 Plan item 5 (§5b). `distrobox` dropped from `packages.nix`, keeping
-`virtualisation.nix`'s — it is a user application by the first rule but inert
-without the podman that module enables, and the two should be removable
-together. The rule now lives in `packages.nix`'s header, where it was missing.
+`virtualisation.nix`'s — it is a user application by the first rule, but it does
+nothing without the podman that module enables, so both should be removable at
+once. The rule now lives in `packages.nix`'s header, where it was missing.
 
 ### The assertion is on divergence, not duplication
 
@@ -2769,23 +2760,22 @@ Both package lists resolve at eval, so `flake.nix` passes `packages.json` —
 name → store path for each — the way `schemes.json` already went. The check
 flags a name in **both** lists whose paths **differ**.
 
-That distinction is the whole design. The naive intersection is 20 names,
-because `environment.systemPackages` is 240 entries of which most are NixOS
-module defaults rather than this repo's doing. Twenty findings on day one is
-the check nobody reads; one is a check with an answer. 19 of the 20 are
-byte-identical and correctly ignored.
+That is the design. The naive intersection is 20 names, because
+`environment.systemPackages` is 240 entries of which most are NixOS module
+defaults rather than this repo's doing. 19 of the 20 are byte-identical, so
+flagging all of them would be noise nobody reads.
 
 The exception is `bind`: the system carries the `host` output as a NixOS
 default, `packages.nix` declares `dnsutils` for `dig`. Different outputs of one
-derivation, so which `host` you get *is* PATH order — real, understood, and not
-ours to fix. Recorded in `PKG_EXCEPTIONS` with its reason, in the shape
-`statix.toml` already uses, and **matched on the name with the version
-stripped** so a version bump cannot silently retire the exemption.
+derivation, so PATH order decides which `host` you get. Real, understood, and
+not ours to fix. Recorded in `PKG_EXCEPTIONS` with its reason, in the shape
+`statix.toml` uses, and **matched on the name with the version stripped** so a
+version bump cannot quietly retire the exemption.
 
 ### Verified against two planted defects, one per failure mode
 
 - **Divergence**: `jq` overridden on the home side only — the check names
-  `jq-1.8.2` and prints *both* store paths.
+  `jq-1.8.2` and prints both store paths.
 - **The scan breaking**: the jq expression's `.system` key renamed — `only 0
   packages in both lists — the scan is broken, not the repo`. The floor is 10,
   well under today's 20, because the intersection is mostly NixOS defaults and
@@ -2806,16 +2796,15 @@ devShell-only binary from an ordinary shell exits 127 silently.
 
 **The plan said to extend all three aliases with
 `nvd diff /run/current-system /nix/var/nix/profiles/system`. That is wrong for
-`rebuild`, and wrong in this repo's signature way.** `switch` *activates*, so
-after it those two paths are the **same** store path — measured on this machine,
-they are identical right now — and the diff prints nothing, every time,
-indistinguishable from "nothing changed". A command added to make change visible
-would have been silent exactly when it mattered.
+`rebuild`.** `switch` activates, so after it those two paths are the **same**
+store path — measured on this machine, they are identical — and the diff prints
+nothing every time. A command added to show what changed would have shown
+nothing exactly when something did.
 
 So the two aliases take different arguments: `rebuild` captures
 `prev=$(readlink -f /run/current-system)` before switching; `rebuild-boot` keeps
-the plain form, because `boot` does not activate and there the two genuinely
-differ. `rebuild-test` stays bare — no profile generation, nothing to diff.
+the plain form, because `boot` does not activate and there the two differ.
+`rebuild-test` stays bare — no profile generation, nothing to diff.
 
 `$(…)` and `"$prev"` survive a Nix `''…''` string untouched; only `${` is
 interpolation. Confirmed by reading the evaluated alias rather than assuming.
@@ -2832,10 +2821,10 @@ predicate and rebuilding until it went green:**
   `hardware.enableAllFirmware` in `boot.nix:56`, and all for hardware this
   ThinkPad does not have.
 
-They are listed rather than worked around: the predicate is a record of what is
-actually permitted, not of what was intended. That the firmware is unfree *and*
-useless here is a separate question, untouched — but now visible, which it was
-not under a blanket `true`. That is the entire argument for the change.
+They are listed rather than worked around, so the predicate records what is
+actually permitted. That the firmware is unfree *and* useless here is a separate
+question, untouched — but visible now, which it was not under a blanket `true`.
+That is the argument for the change.
 
 **Verified**: adding `discord` fails with `Refusing to evaluate package
 'discord-1.0.153' … because it has an unfree license`.
@@ -2852,9 +2841,9 @@ continuation style. No semantics moved.
 ### Measure the residue with `git diff -w`, not `git diff -w -B`
 
 `-B` marks whole-file rewrites and re-reports every line of them. The same tree
-reads as **194 lines in 9 files** under `-w`, and **741 in 13** under `-w -B` —
-which looks like four times the semantic residue and is not. The plan
-recommended `-B` in three places; all three are corrected.
+reads as **194 lines in 9 files** under `-w`, and **741 in 13** under `-w -B`,
+which overstates the semantic residue about fourfold. The plan recommended `-B`
+in three places; all three are corrected.
 
 ### Neither exclusion the plan budgeted for was needed
 
@@ -2864,19 +2853,19 @@ recommended `-B` in three places; all three are corrected.
   and keeps the glob **exact** — the tempting `cpu*` also matches a future
   `cpuidle/cpufreq`. Verified to resolve the same 12 paths.
 - **`menus/shell.sh` took the expansion.** 16 aligned `case` arms became 80
-  lines. So no file carries an exclusion, and there is no standing asterisk on
-  the formatter.
+  lines. No file carries an exclusion, so the formatter has no standing
+  asterisk.
 
 ### Two scans broke, and not for the reason the plan gave
 
 The plan predicted `static.sh:397` would break because *shfmt indents case
 arms*. It does not — arms stay at column 0. What broke both scans was the
-`;`-splitting moving `ipc=` onto the **next line**. And there were two, not one:
-the IPC-pair scan at `:761` read `ipc=` off that same line.
+`;`-splitting moving `ipc=` onto the **next line**. And there were two: the
+IPC-pair scan at `:761` read `ipc=` off that same line.
 
-Both failed loudly on their floors rather than passing empty, which is the only
-reason this was a five-minute fix. The action scan is now `awk` keyed on the arm
-label; the IPC scan anchors on `ipc=` alone, which is all it ever wanted.
+Both failed loudly on their floors instead of passing empty, which is why it was
+a five-minute fix. The action scan is now `awk` keyed on the arm label; the IPC
+scan anchors on `ipc=` alone, which is all it ever wanted.
 
 ### The duplicate-bind scan counted the wrong thing
 
@@ -2886,8 +2875,8 @@ spelling it matches ever changed, `srcs` would come back empty, the inner loop
 would do nothing, and the counter would still reach 2 — printing `ok` for a scan
 that had read almost nothing.
 
-Now floored on **binds**. Confirmed by changing the spelling to `include=`:
-the scan drops from **232 binds to 2** and fails, where before it passed.
+Now floored on **binds**. Confirmed by changing the spelling to `include=`: the
+scan drops from **232 binds to 2** and fails, where before it passed.
 
 ### The gate
 
@@ -2903,7 +2892,7 @@ prints the diff.
 
 ## 2026-08-20 · The comment pass, and eight stale counts it found instead
 
-Plan item 8 (§5d), and the last of the eight. **195 comment lines removed, 73
+Plan item 8 (§5d), the last of the eight. **195 comment lines removed, 73
 added — net −122** across the five named files. Every cut was checked against
 the ADRs, `gotchas.md` and `SYSTEM.md` first; every one was already argued
 there, several twice:
@@ -2916,22 +2905,22 @@ there, several twice:
 | `waybar.nix` header + position variants | `docs/adr/0009`, `docs/adr/0028`, `SYSTEM.md` §6 |
 | `power.nix` TLP bounds + the systemd cycle | `gotchas.md` → Power, which has the journal output |
 
-### The `on Arch` / `your` grep found nothing, and that was the surprise
+### The `on Arch` / `your` grep found nothing
 
 The plan said to grep for `on Arch` and `your` first, "that is where the wrong
-ones are". Two hits, both legitimate. The 2026-08-12 pass had taken that class
-already.
+ones are". Two hits, both legitimate. The 2026-08-12 pass had already taken that
+class.
 
-**What this pass found instead is worse, because it reads as current.** Eight
-stale counts, all wrong the same way — hud's removal (`docs/adr/0035`) and the
-scheme set settling at four:
+**What this pass found instead is harder to spot, because it reads as current.**
+Eight stale counts, all from hud's removal (`docs/adr/0035`) and the scheme set
+settling at four:
 
 - "this key works in **all three modes**" — two.
 - "unlike **the other two modes**" (noctalia.conf), "**the other two** take
   `surface`" (dotfiles.nix) — one other, in both cases.
 - "correct for **three of the five schemes**" (static.sh), "a Papirus recolour
-  for **three of the five**" (pkgs/default.nix) — four schemes, and it is two
-  in both cases, not three.
+  for **three of the five**" (pkgs/default.nix) — four schemes, and two in both
+  cases, not three.
 - "one of **three actions** with `fb=none`" — there are three, but the sentence
   had drifted anyway.
 - `SYSTEM.md` claimed **four waybar layouts in three places**. There are three
@@ -2939,21 +2928,19 @@ scheme set settling at four:
 - Two theme files said the plugin's Mocha values are right "because **this
   machine IS Mocha**". This machine is gruvbox. It is the *theme* that is Mocha.
 
-None of that is prose style. It is documentation stating something untrue in a
-confident voice, which is the same failure class as a check that passes by
-finding nothing. Every one was fixed by **counting** — `ls
+That is documentation stating something untrue, which is the same problem as a
+check that passes by finding nothing. Every one was fixed by **counting** — `ls
 modules/home/themes/`, the layout attrs, `grep -c 'fb=none'` — not by reading.
 
 ⚠️ **`SYSTEM.md`'s mango row was stale from earlier the same day**: it still
-said the mode scripts "genuinely need to `cp` into `config.conf`". `docs/adr/0040`
-made that a link six hours earlier. Documentation goes stale from your own
-commits fastest.
+said the mode scripts "genuinely need to `cp` into `config.conf`".
+`docs/adr/0040` had made that a link six hours earlier.
 
 ### A correction to the verification instrument
 
 Both `drvPath`s are unchanged for every `.nix` edit — bisected, not assumed.
 But three of the stale-count fixes were in **`dotfiles/` files, which are store
-content**: a comment there is data by definition and legitimately moves the
+content**: a comment there is part of the build input and legitimately moves the
 hash. The first run showed both hashes moving and looked like a failed comment
 pass; stashing `dotfiles/` and re-running showed the Nix side clean.
 
@@ -2964,6 +2951,31 @@ so.
 
 All eight items in *Suggested order* are done. `nix flake check` is **117
 assertions across 15 sections**, and the definition of done is met except for
-one line that never had evidence and still does not: *a fresh clone plus the age
-key reproduces a working machine*. That needs a VM, not a commit, and it is now
-marked as the one open item rather than sitting in a list of ticks.
+one line that never had evidence: *a fresh clone plus the age key reproduces a
+working machine*. That needs a VM, not a commit, and it is now marked as the one
+open item.
+
+---
+
+## 2026-08-20 · Prose pass, and the live checks after the rebuild
+
+No behaviour change.
+
+**The comments and docs written today used rhetorical phrasing where a plain
+statement was shorter** — "is the check nobody reads", "not a thing somebody
+silenced", "indistinguishable from", "and that is the point", "The conclusion
+survives; the evidence didn't". Rewritten to say what happens, across nine code
+comments, both new ADRs and these work-log entries. Henry asked for this
+directly; it applies to future writing here too.
+
+**Live verification, which needed the rebuild:** `config.conf` was still the
+pre-migration regular file, as `docs/adr/0040` predicted — converted by hand
+after checking it was byte-identical to `tiling/tiling.conf`. `readlink` now
+names the mode, `mango -p` is clean, `reload.sh` returns `{"success":true}`.
+`nvd` resolves in a login shell. `electron-39` and `logseq` are absent from
+`/run/current-system`, `electron-40` is present for winboat.
+`./verify-claims.sh`: 2 passed, 0 failed.
+
+**Five more stale mode counts**, this time in `SYSTEM.md` and `gotchas.md` —
+yesterday's pass only fixed the ones in code. The ADRs keep theirs: those counts
+were true when the ADRs were written, and `docs/adr/0035` records the change.

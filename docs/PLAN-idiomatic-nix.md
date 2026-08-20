@@ -57,14 +57,14 @@ absolute burden is up by half:
 | `checks/static.sh` | — | **2,402 lines** | the gate is now the second-largest body of shell in the repo |
 
 ⚠️ **The 2026-08-20 rewrite of this table read "ratio 0.56 → 0.60" and called
-that a widening. It was neither.** 0.56 counted comments against
-`total − comments`; 0.60 counted them against code with blanks removed — two
-denominators, one arrow, and the sign came out backwards. Measured the same way
-on both sides the ratio *fell*, under either convention (0.56 → 0.53, or
-0.64 → 0.60). Comments grew slightly slower than the code they sit in. What is
-true is the absolute number: 786 more comment lines than the pass that was
-supposed to remove them. Re-measure with the loop in *How to verify* below;
-do not carry these forward.
+that a widening. It was not.** 0.56 counted comments against `total − comments`;
+0.60 counted them against code with blanks removed, so the two numbers are not
+comparable and the change came out with the wrong sign. Measured the same way on
+both sides the ratio *fell*, under either convention (0.56 → 0.53, or
+0.64 → 0.60): comments grew slightly slower than the code around them. The
+number that did get worse is the absolute one — 786 more comment lines than
+before the pass that was supposed to remove them. Re-measure with the loop in
+*How to verify* below rather than carrying these forward.
 
 Two conclusions follow, and they are the shape of what is left:
 
@@ -98,8 +98,8 @@ Stated so they don't get reintroduced as improvements:
 - **No re-enabling statix's `repeated_keys`.** `statix.toml` says why; it fires
   69 times against standard NixOS module style.
 - **No splitting `checks/static.sh`**, at 2,402 lines. A section in its own file
-  is a section that can stop being sourced, and a check that stops running is
-  indistinguishable from one that passes. Phase 6 is the answer instead.
+  can stop being sourced, and a check that stops running looks the same as one
+  that passes. Phase 6 handles this instead.
 - **No adopting `nh`.** A wrapper in the critical path of every rebuild is a
   thing you debug during a rebuild. §5f.
 
@@ -335,16 +335,15 @@ keep `virtualisation.nix:32`.**
 **Write the assertion, not the rule** — but not the obvious one. Both lists are
 readable at eval, and the naive intersection is **21 names**, because
 `environment.systemPackages` is 240 entries of which most are NixOS module
-defaults, not this repo's. Twenty-one findings on day one is the check nobody
-reads.
+defaults, not this repo's. Reporting all 21 would be noise nobody reads.
 
 **Assert divergence, not duplication:** flag a name in both lists whose
 **store paths differ**. Measured today that is exactly one — `bind`, where the
 system carries the `host` output as a NixOS default and `packages.nix:120`
-declares `dnsutils` for `dig`. Real (which `host` you get is PATH order) and not
-this repo's doing, so it is an exception with a reason next to it, in the shape
-`statix.toml` already uses. Everything else, `distrobox` included, is
-byte-identical and correctly ignored.
+declares `dnsutils` for `dig`. PATH order decides which `host` you get, so it is
+real, but it is upstream's arrangement rather than ours — an exception with a
+reason next to it, in the shape `statix.toml` uses. Everything else, `distrobox`
+included, is byte-identical and correctly ignored.
 
 **Landed** as the *Package ownership* section. `packages.json` is passed to
 `static.sh` the way `schemes.json` already was — both name→outPath maps,
@@ -502,8 +501,7 @@ And one check breaks, loudly: `static.sh:397` reads that table with
 It has a floor, so it fails rather than passing empty. One-line fix, in the same
 commit.
 
-**The rest of the gate's source-scraping survives**, which was the real question
-— audited, not assumed. `fn_body` counts brace depth rather than matching
+**The rest of the gate's source-scraping survives** — audited, not assumed. `fn_body` counts brace depth rather than matching
 indentation; the `MODES=`, `rofi -dmenu` and control-centre `ROWS=` scans are
 format-brittle but every one has a floor. The floor discipline already defends
 this.
@@ -558,11 +556,11 @@ every rebuild, and when it breaks you debug your rebuild tool mid-rebuild.
 exits 127 — silently, this repo's signature bug — so moving it into
 `packages.nix` is part of the change, not a follow-up.
 
-**Landed**, but ⚠️ **the command this plan specified is wrong for `rebuild`, and
-wrong in this repo's signature way.** `switch` *activates*, so afterwards
-`/run/current-system` and `/nix/var/nix/profiles/system` are **the same path** —
-measured, they are — and diffing them prints nothing every time, which is
-indistinguishable from "nothing changed". The two aliases need different
+**Landed**, but ⚠️ **the command this plan specified is wrong for `rebuild`.**
+`switch` activates, so afterwards `/run/current-system` and
+`/nix/var/nix/profiles/system` are **the same path** — measured, they are — and
+diffing them prints nothing every time. A command added to show what changed
+would show nothing exactly when something did. The two aliases need different
 arguments:
 
 | Alias | Diff | Why |

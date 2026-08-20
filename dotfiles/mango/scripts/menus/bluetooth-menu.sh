@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bluetooth manager menu
 
-MENU=(rofi -dmenu -no-custom)
+. "$HOME/.config/mango/scripts/lib.sh"
 
 BT=$'\uf294 '    # fa-bluetooth
 SCAN=$'\uf021 '  # fa-refresh
@@ -101,7 +101,8 @@ menu+="────────────────────────�
 menu+="${GEAR}  Bluetooth manager"
 
 # ── Show ───────────────────────────────────────────────────────────────
-choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "$BT")
+# Paired plus everything discoverable, so capped rather than fitted.
+choice=$(printf '%s' "$menu" | rofi_menu 15 -no-custom -p "$BT")
 [ -z "$choice" ] && exit 0
 
 # ── Handle ─────────────────────────────────────────────────────────────

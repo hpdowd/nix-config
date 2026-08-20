@@ -2452,3 +2452,32 @@ Its remaining three phases are **decided against, not pending**:
 
 The rule for the next row is the one that earned the first four: build it when a
 fact is **invisible everywhere**, the way mic mute was. None of these three is.
+### The menus get the focus border the compositor cannot draw
+
+Reported from use: the menu did not separate from the windows behind it, which
+on this theme are the same colour. Three facts explain it, and only the last is
+a preference:
+
+- **rofi 2.0 is a layer surface.** `mmsg get all-clients` does not list it while
+  it is visible, and `layer_name:rofi` is what reaches it — so mango draws no
+  border, and the two `windowrule=…,appid:Rofi` lines in `rule.conf` match
+  nothing. **They are dead and were not removed** in this pass.
+- **The desktop is flat by decision** — `shadows=0`, `layer_shadows=0` — so
+  there is nothing but that border.
+- It was `@overlay`: **1.67:1** in gruvbox, **1.45:1** in nord, against a
+  `#3c3836` unfocused mango border at 1.27:1.
+
+Now `@subtext` — 5.30:1 gruvbox, 7.37:1 mocha, 8.42:1 mocha-high-contrast,
+9.25:1 nord. All four audited, not just the selected one.
+
+**`@accent` was tried first and rejected in use.** The argument for it was good
+— it *is* mango's `focuscolor`, on the surface that is always focused when
+visible — and it was still wrong: a saturated ring reads as an alert, not an
+edge. `bg3` and `comment` are the calmer candidates and both fall to 1.69:1 in
+nord, i.e. back to the border being replaced, so `@subtext` is the only
+palette role that is neutral AND legible in every scheme. A filled accent chip
+for the prompt was tried in the same pass and reverted; the prompt is plain
+accent text again. rofi cannot derive a shade from a variable — `@accent / 50%`
+and `@accent % 50%` are both parse errors — so a softer version of a palette
+colour is not available without hardcoding a hex, which per-mode theming forbids.
+

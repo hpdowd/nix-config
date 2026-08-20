@@ -106,10 +106,27 @@ configuration {
   highlight:                   bold;
 }
 
+/* THE MENU HAS TO DRAW ITS OWN EDGE. rofi 2.0 is a LAYER SURFACE —
+ * `layerrule=...,layer_name:rofi` in universal/rule.conf is what reaches it,
+ * and `mmsg get all-clients` does not list it while it is on screen — so mango
+ * draws no border on it, and the `windowrule=...,appid:Rofi` pair above those
+ * matches nothing. With `shadows=0` and `layer_shadows=0` there is nothing else
+ * separating the menu from a window the same colour behind it.
+ *
+ * @subtext, NOT @overlay and NOT @accent, and the middle is the point. @overlay
+ * was 1.67:1 in gruvbox and 1.45:1 in nord — invisible against @base, which is
+ * what most windows here are. @accent is legible (5.94:1) and IS mango's
+ * `focuscolor`, but a saturated ring reads as an alert rather than an edge.
+ * @subtext is achromatic: it loses the hue and keeps the separation.
+ *
+ * Measured across every scheme in service, not just the selected one:
+ * gruvbox 5.30:1, mocha 7.37:1, mocha-high-contrast 8.42:1, nord 9.25:1.
+ * `bg3` and `comment` were the other candidates and both collapse in nord
+ * (1.69:1), which is the border this replaced. */
 window {
   background-color: @base;
   border:           1px;
-  border-color:     @overlay;
+  border-color:     @subtext;
   border-radius:    0;
   padding:          0;
   width:            40em;
@@ -152,10 +169,22 @@ entry {
 }
 
 listview {
-  /* `lines` is a ceiling, not a height: `dynamic` shrinks the list to its
-   * contents, so a three-item menu is three items tall on its own. This is
-   * what replaced the --maxheight every walker call had to carry and re-guess
-   * whenever a menu grew an entry. */
+  /* `lines` IS A FIXED HEIGHT, and the comment that used to sit here said the
+   * opposite. `dynamic` does not fit the list to its contents — rofi's own
+   * docs: "True if the size should change when FILTERING the list" — so every
+   * menu rendered twelve rows tall whatever it held: a two-entry mode picker
+   * with ten blank rows, and the control centre paging the moment it grew a
+   * thirteenth row. Measured on 2026-08-20 at 2, 6, 15 and 30 entries: the
+   * window never changed size.
+   *
+   * `-l` cannot fix it either. On rofi 2.0 the theme overrides the command
+   * line, so the `-l` a caller passes is accepted and ignored. `-theme-str`
+   * is the override that works, and lib.sh's `rofi_menu` is where it lives —
+   * every hand-built menu sizes itself to its input through that.
+   *
+   * This value is therefore the CAP for the callers that do NOT go through
+   * rofi_menu: `rofi -show drun|run|window|calc|emoji`, which are unbounded
+   * lists where paging is the honest answer. docs/gotchas.md -> rofi. */
   lines:     12;
   dynamic:   true;
   scrollbar: false;

@@ -5,7 +5,7 @@
 # an `nmcli con modify` here would persist a shadowing copy into /etc and
 # silently un-declare the profile. See docs/adr/0013.
 
-MENU=(rofi -dmenu -no-custom)
+. "$HOME/.config/mango/scripts/lib.sh"
 VPN_STATE="/run/user/$(id -u)/mango-vpn"
 
 SHIELD=$'\uf132 '
@@ -44,7 +44,7 @@ while IFS= read -r line; do
 done <"$tmpdir/all"
 
 # ── Show ───────────────────────────────────────────────────────────────
-choice=$(printf '%s' "${vpn_list%$'\n'}" | "${MENU[@]}" -p "${SHIELD}")
+choice=$(printf '%s' "${vpn_list%$'\n'}" | rofi_menu 20 -no-custom -p "${SHIELD}")
 [ -z "$choice" ] && exit 0
 
 # ── Helpers ────────────────────────────────────────────────────────────

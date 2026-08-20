@@ -24,7 +24,9 @@ set -u
 # needs a shell, and quoting a command through a variable does not survive it.
 fb_launcher() { foot -a fsel-launcher -e fsel --detach; }
 fb_lock() { lockscreen -f; }
-fb_clipboard() { cliphist list | rofi -dmenu -no-custom -p "clipboard" | cliphist decode | wl-copy; }
+# 12: cliphist keeps hundreds of entries and this is the menu that would fill
+# the screen. Filtering is the way in, as with the access-point list.
+fb_clipboard() { cliphist list | rofi_menu 12 -no-custom -p "clipboard" | cliphist decode | wl-copy; }
 fb_emoji() { rofi -show emoji; }
 fb_network() { "$MANGO_DIR/scripts/menus/network-menu.sh"; }
 fb_bluetooth() { "$MANGO_DIR/scripts/menus/bluetooth-menu.sh"; }

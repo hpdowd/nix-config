@@ -25,7 +25,7 @@ menu_entries() {
     done
 }
 
-CHOICE=$(menu_entries | rofi -dmenu -no-custom -p "Waybar layout") || exit 0
+CHOICE=$(menu_entries | rofi_menu 20 -no-custom -p "Waybar layout") || exit 0
 [[ "$CHOICE" == *"  •" ]] && exit 0
 name="${CHOICE//  •/}"
 name="${name// /}"

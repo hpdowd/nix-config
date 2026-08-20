@@ -305,7 +305,8 @@ the flag that once destroyed 65 tracked files in this repo.
 **relative** `source=` lines (`./universal/settings.conf`), so `config.conf`
 cannot move out of `~/.config/mango/` until those are absolute. Full sequence:
 
-1. Rewrite the 8 `source=` lines in `tiling.conf` / `hud.conf` to absolute.
+1. Rewrite the `source=` lines in `tiling.conf` to absolute. (Was "8 lines
+   across `tiling.conf` / `hud.conf`" — hud left with `docs/adr/0035`.)
 2. Point mango at `~/.local/state/mango/config.conf` — the greetd command is
    `tuigreet --cmd mango`, so this touches session startup.
 3. Handle the fresh-machine case (no `config.conf` until a mode script runs —
@@ -317,10 +318,14 @@ cannot move out of `~/.config/mango/` until those are absolute. Full sequence:
 
 ### Also worth doing here
 
-- **`reload.sh` and the menu scripts should source `lib.sh`** for `MANGO_DIR`
-  too — partly done, finish it.
-- **`vpn-menu.sh` carries 4 of the 24 shellcheck findings** and is the largest
-  remaining SC2015 cluster. Fold into Phase 0.5.
+- ~~**`reload.sh` and the menu scripts should source `lib.sh`**~~ ✅ **DONE
+  2026-08-20.** Five menu scripts started sourcing it when `rofi_menu` landed,
+  and the four dead `MENU=(rofi -dmenu …)` arrays went with them. Audited after:
+  **no script under `scripts/` re-derives `MANGO_DIR` or `STATE_DIR`**, which is
+  what the item was actually asking for. The fifteen that still do not source
+  `lib.sh` need nothing from it.
+- ~~**`vpn-menu.sh` carries 4 of the 24 shellcheck findings**~~ ✅ **DONE.** The
+  gate reports **43 scripts clean**; there is no SC2015 cluster left.
 
 ---
 

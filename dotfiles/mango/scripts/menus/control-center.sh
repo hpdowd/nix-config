@@ -130,7 +130,9 @@ declare -A LABEL=(
 # added later widens the window instead of silently reintroducing page two.
 # `dynamic: true` in the theme still shrinks the list to its contents, so this
 # is a ceiling being raised for one menu, not a height being forced.
-MENU=(rofi -dmenu -no-custom -l "${#ROWS[@]}" -p "Control")
+# 24 is a ceiling this menu will not reach — checks/static.sh asserts ROWS
+# stays under it, because growing past it pages again and pages silently.
+CC_MAX_LINES=24
 
 # ── State ─────────────────────────────────────────────────────────────────
 #
@@ -562,7 +564,7 @@ dispatch() {
 }
 
 while [ "$close" -eq 0 ]; do
-	choice=$(render | "${MENU[@]}") || exit 0
+	choice=$(render | rofi_menu "$CC_MAX_LINES" -no-custom -p "Control") || exit 0
 	[ -n "$choice" ] || exit 0
 	dispatch "$choice" || true
 done

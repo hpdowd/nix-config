@@ -301,11 +301,12 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
 | Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
 | Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
-| rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode (it holds `lines:` too, not only colour). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
+| rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode. Its `lines: 12` is a **fixed height** and only the cap for `rofi -show drun\|run\|window\|calc\|emoji`; hand-built menus size themselves through `lib.sh`'s `rofi_menu <max>` (`-theme-str`, since `-l` loses to the theme — `docs/gotchas.md` → rofi). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | fsel's `config.toml` is **generated** in `modules/home/dotfiles.nix`; menu contents are in the `scripts/menus/*.sh` that build them |
-| rofi's look, size or modes | `dotfiles/rofi/config.rasi` — one file for all three desktop modes |
+| rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for all three desktop modes |
+| how tall a menu is | `lib.sh`'s `rofi_menu <max>`, at the call site — **not** `config.rasi`, and never `-l` |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
 ---

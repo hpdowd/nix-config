@@ -33,7 +33,7 @@ do_toggle() {
 do_menu() {
   CHOICE=$(printf \
     "  2700K   Candlelight\n  3000K   Warm\n  3500K   Evening\n  4000K   Soft white\n  4500K   Neutral\n  6500K   (off)" |
-    rofi -dmenu -no-custom -p "Night mode")
+    rofi_menu 20 -no-custom -p "Night mode")
 
   [ -z "$CHOICE" ] && exit 0
 

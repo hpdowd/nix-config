@@ -2,14 +2,18 @@
 # Network manager menu — WiFi, Ethernet, VPN
 # Instant open via cache; rescan re-launches with fresh data.
 
-MENU=(rofi -dmenu -no-custom)
+. "$HOME/.config/mango/scripts/lib.sh"
 CACHE=/tmp/network-menu-cache.txt
 
 SEP=$'────────────────────────'
 WIFI=$' '   # fa-wifi
 LOCK=$' '   # fa-lock
 SHIELD=$' ' # fa-shield (FA4)
-NET=$' '    # fa-network-wired
+NET=$'\U000F0200 ' # nf-md-ethernet. NOT nf-fa-network_wired (U+F6FF):
+                  # Hack Nerd Font does not cover it and fontconfig falls
+                  # through to Unifont Sample, drawing a box with nothing
+                  # logged. Escape, not a literal, like the other menus.
+                  # gotchas.md -> rofi; waybar's format-ethernet is the same glyph.
 SCAN=$' '   # fa-refresh
 DISC=$' '   # fa-unlink
 GEAR=$' '   # fa-cog
@@ -119,7 +123,9 @@ else
   echo "$menu" >"$CACHE"
 fi
 
-choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "$WIFI")
+# 12, not the entry count: this list is every access point in range and there
+# is no upper bound on that. Filtering is the way through a long one.
+choice=$(printf '%s' "$menu" | rofi_menu 12 -no-custom -p "$WIFI")
 [ -z "$choice" ] && exit 0
 
 # ── Helpers for handling choice ───────────────────────────────────────
@@ -214,7 +220,11 @@ case "$choice" in
       # answer, so it must not carry `-no-custom` — with it, Enter returns
       # nothing and the connection attempt runs with an empty password. Empty
       # stdin is deliberate; rofi returns the input when no row matches.
-      pass=$(printf '' | rofi -dmenu -password -p "${LOCK}  ${ssid}")
+      # `lines: 0` — there is nothing to list, and the theme's default would
+      # draw twelve empty rows under a password box. Not rofi_menu: that adds
+      # a floor of one row, and this is the one prompt that wants none.
+      pass=$(printf '' | rofi -dmenu -password \
+        -theme-str 'listview { lines: 0; }' -p "${LOCK}  ${ssid}")
       [ -z "$pass" ] && exit 0
       if ! nmcli dev wifi connect "$ssid" password "$pass" 2>/dev/null; then
         sleep 0.5

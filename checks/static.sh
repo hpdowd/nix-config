@@ -469,6 +469,57 @@ if [[ -f $CC ]]; then
 	fi
 fi
 
+# --- rofi menu sizing -------------------------------------------------------
+# Every hand-built menu sizes itself through lib.sh's `rofi_menu`, which passes
+# `-theme-str`. A caller reaching for `rofi -dmenu` directly gets the theme's
+# fixed `lines: 12` instead — blank rows under a short menu, silent paging on a
+# long one, and `-l` does NOT fix it (the theme wins on rofi 2.0).
+# docs/gotchas.md -> rofi.
+mapfile -t ROFI_RAW < <(
+	grep -rn 'rofi -dmenu' "$MANGO/scripts" | grep -v '^\S*:[0-9]*:[[:space:]]*#'
+)
+# lib.sh's own definition, and network-menu.sh's password prompt, which must not
+# take -no-custom and sizes itself to zero rows by hand.
+mapfile -t ROFI_BARE < <(
+	printf '%s\n' "${ROFI_RAW[@]}" |
+		grep -v '/lib\.sh:' | grep -v -- '-password' | grep -v '^$'
+)
+if [[ ${#ROFI_RAW[@]} -eq 0 ]]; then
+	bad "no 'rofi -dmenu' call sites found at all — the scan is broken, not the repo"
+elif [[ ${#ROFI_BARE[@]} -gt 0 ]]; then
+	bad "${#ROFI_BARE[@]} menu(s) call 'rofi -dmenu' directly instead of rofi_menu" \
+		"they render at the theme's fixed 12 lines whatever they hold:"$'\n'"$(printf '  %s\n' "${ROFI_BARE[@]}")"
+else
+	ok "every hand-built rofi menu sizes itself through rofi_menu"
+fi
+
+# `-l` is accepted and ignored on rofi 2.0. A caller that reaches for it has
+# written a size that does nothing, which is worse than not writing one.
+mapfile -t ROFI_DASHL < <(grep -rn -- 'rofi[^|]* -l ' "$MANGO/scripts" | grep -v '^\S*:[0-9]*:[[:space:]]*#')
+if [[ ${#ROFI_DASHL[@]} -gt 0 ]]; then
+	bad "a rofi call passes -l, which rofi 2.0's theme overrides and ignores" \
+		"$(printf '  %s\n' "${ROFI_DASHL[@]}")"
+else
+	ok "no rofi call relies on -l, which this rofi ignores"
+fi
+
+# The control centre's ceiling has to stay above its row count, or it pages —
+# and it pages SILENTLY, which is how a thirteenth row got added without anyone
+# noticing page two had come back.
+if [[ -f $CC ]]; then
+	cc_cap=$(sed -n 's/^CC_MAX_LINES=\([0-9]\+\).*/\1/p' "$CC" | head -1)
+	cc_rendered=$(sed -n '/^ROWS=(/,/^)/p' "$CC" | sed -n 's/^\t\(-\|[a-z][a-z-]*\)$/\1/p' | grep -c '')
+	if [[ -z $cc_cap || $cc_rendered -eq 0 ]]; then
+		bad "could not read the control centre's ceiling or its rendered height — the scan is broken" \
+			"cap=[$cc_cap] rendered=[$cc_rendered]"
+	elif [[ $cc_rendered -gt $cc_cap ]]; then
+		bad "the control centre renders $cc_rendered lines but caps rofi at $cc_cap" \
+			"everything past line $cc_cap is on page two, and nothing says so"
+	else
+		ok "the control centre renders $cc_rendered lines, under its $cc_cap ceiling"
+	fi
+fi
+
 # --- Weather ----------------------------------------------------------------
 # Four things each invisible when wrong. docs/adr/0038.
 WEATHER_SH="$MANGO/scripts/system/weather.sh"

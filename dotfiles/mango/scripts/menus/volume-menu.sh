@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Volume menu — set volume, toggle mute, switch sinks, enable amplification
 
-MENU=(rofi -dmenu -no-custom)
+. "$HOME/.config/mango/scripts/lib.sh"
 
 VOL=$'\uf028 '   # fa-volume-up
 MUTE=$'\uf026 '  # fa-volume-off
@@ -65,7 +65,7 @@ menu+="${SEP}"$'\n'
 menu+="${GEAR}  Audio settings (pavucontrol)"
 
 # ── Show ───────────────────────────────────────────────────────────────
-choice=$(printf '%s' "$menu" | "${MENU[@]}" -p "${VOL} ${vol_pct}%")
+choice=$(printf '%s' "$menu" | rofi_menu 20 -no-custom -p "${VOL} ${vol_pct}%")
 [ -z "$choice" ] && exit 0
 
 # ── Handle ─────────────────────────────────────────────────────────────

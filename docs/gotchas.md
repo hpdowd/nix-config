@@ -766,6 +766,46 @@ result with `grep ^auth /etc/pam.d/sudo`; the tokens are `timeout=` and
 `rofi` replaced walker and elephant on 2026-08-14 (ADR 0021). The walker
 findings are kept below the rule, because the *shape* of each recurs.
 
+**rofi 2.0 is a layer surface, so `windowrule` cannot reach it.** It passes the
+literal `rofi` as its `zwlr_layer_surface` namespace, which is why
+`layerrule=...,layer_name:rofi` works — and why `mmsg get all-clients` does not
+list it while it is on screen. mango therefore draws **no border** on it. The
+`windowrule=isfloating:1,appid:Rofi` / `isnoborder:1,appid:Rofi` pair in
+`universal/rule.conf` could never match and was removed on 2026-08-20;
+`isnoborder` in particular said the opposite of what happens.
+
+The consequence is visual and was live for months: with `shadows=0` and
+`layer_shadows=0`, rofi's own 1px `@overlay` edge was the only thing separating
+the menu from a window the same colour behind it — 1.67:1 in gruvbox, 1.45:1 in
+nord. It wears `@subtext` now: **5.30–9.25:1 across the four schemes**, and
+achromatic on purpose. `@accent` is equally legible and is mango's own
+`focuscolor`, but a saturated ring reads as an alert rather than an edge;
+`bg3` and `comment` are calmer still and both collapse to 1.69:1 in nord, which
+is the border being replaced.
+
+**`lines` is a fixed height, `dynamic` does not fit to contents, and `-l` is
+ignored.** All three at once, which is why every menu on this machine was
+twelve rows tall whatever it held — a two-entry mode picker with ten blank rows
+under it, and the control centre paging the moment it grew a thirteenth row,
+silently.
+
+- **`dynamic: true` is about FILTERING.** rofi's own docs: "True if the size
+  should change when filtering the list, False if it should keep the original
+  height." It does not size the list to its entry count. The comment in
+  `config.rasi` claimed the opposite for as long as the file existed.
+- **`-l` loses to the theme.** On rofi 2.0 `listview { lines: … }` overrides the
+  command line, so a caller's `-l` is accepted, ignored, and exits 0.
+  `rofi -dump-theme -l 15` still prints `lines: 12`, which is the cheap way to
+  see it. **`-theme-str 'listview { lines: N; }'` is the override that works.**
+- Measured 2026-08-20 at 2, 6, 15 and 30 entries: the window never changed size.
+
+`lib.sh`'s **`rofi_menu <max>`** is the one place that override lives — entries
+on stdin, sized to them, capped at `max`. Every hand-built menu goes through it
+and `checks/static.sh` asserts so, along with "no caller passes `-l`" and "the
+control centre's row count stays under its ceiling". The theme's `lines: 12`
+remains, and is now only the cap for `rofi -show drun|run|window|calc|emoji`,
+where the list is unbounded and paging is the honest answer.
+
 **A rofi plugin listed as its own package is a plugin rofi never loads.**
 nixpkgs `rofi` is a `symlinkJoin` over `rofi-unwrapped` that adds
 `-plugin-path` pointing into its own `lib/rofi`, so a `rofi-calc` sitting
@@ -851,8 +891,11 @@ cover `nf-fa-network_wired` (U+F6FF), which `menus/network-menu.sh` uses for its
 ethernet entry — fontconfig falls through to `IBM Plex Sans TC`, draws whatever
 that has at the codepoint, and logs nothing. Found on 2026-08-19 while building
 `menus/control-center.sh`, which uses `nf-md-ethernet` (U+F0200) instead, the
-same glyph `waybar.nix`'s `format-ethernet` uses. **`network-menu.sh` is still
-wrong.** Check any new one with `fc-list ':charset=<hex>' family | grep -i hack`
+same glyph `waybar.nix`'s `format-ethernet` uses. **Fixed in
+`network-menu.sh` on 2026-08-20** — it wears U+F0200 too, written as a
+`$'\U000F0200'` escape rather than a literal, and `fc-match ':charset=f6ff'`
+was resolving to `Unifont Sample`. Check any new one with
+`fc-list ':charset=<hex>' family | grep -i hack`
 before it goes in — the nf-fa range is not covered end to end, and the nf-md
 range (U+F0000+) is a different question again.
 

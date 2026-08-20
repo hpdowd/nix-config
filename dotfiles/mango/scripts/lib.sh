@@ -37,6 +37,32 @@ current_mode() { state current-mode tiling; }      # tiling | noctalia
 waybar_layout() { state waybar-layout full; }      # full | focus | minimal
 waybar_position() { state waybar-position top; }   # top | bottom
 
+# Run `rofi -dmenu` sized to its own input. Entries on stdin, the choice on
+# stdout, `$1` the ceiling, everything after it passed through to rofi.
+#
+# `-theme-str`, NOT `-l`. On rofi 2.0 the THEME overrides the command line, so
+# the `-l` menus passed here was accepted and ignored: every menu rendered
+# `lines: 12` tall whatever it held — a two-entry picker with ten blank rows
+# below it, and the control centre paging silently the moment it grew past
+# twelve. `dynamic: true` does not fix that; it governs resize while FILTERING,
+# not fit-to-contents. docs/gotchas.md -> rofi.
+#
+# THE CEILING IS PER MENU AND ALWAYS EXPLICIT. A fixed picker wants no cap worth
+# hitting; a list that comes from the machine — access points, paired devices,
+# the clipboard — must not grow to the height of the screen.
+rofi_menu() {
+	local max=$1 entries n
+	shift
+	entries=$(cat)
+	# `grep -c ''` counts a final line with no newline, which `wc -l` does not.
+	n=$(printf '%s\n' "$entries" | grep -c '')
+	if [ "$n" -gt "$max" ]; then n=$max; fi
+	# Not zero: rofi draws the prompt and nothing else, which reads as a menu
+	# that failed to load rather than one with nothing to offer.
+	if [ "$n" -lt 1 ]; then n=1; fi
+	printf '%s\n' "$entries" | rofi -dmenu -theme-str "listview { lines: $n; }" "$@"
+}
+
 # noctalia mode runs its own bar, so the three waybar scripts must refuse
 # rather than start one over it. Here, not in each of them, for the reason the
 # header gives: a reader and a writer that disagree fail silently.

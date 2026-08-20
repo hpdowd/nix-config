@@ -305,7 +305,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | fsel's `config.toml` is **generated** in `modules/home/dotfiles.nix`; menu contents are in the `scripts/menus/*.sh` that build them |
-| rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for all three desktop modes |
+| rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for both desktop modes |
 | how tall a menu is | `lib.sh`'s `rofi_menu <max>`, at the call site — **not** `config.rasi`, and never `-l` |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
 
@@ -746,11 +746,11 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 
 These two have no analogue under waybar and swaync, so they are bound in
 `noctalia/bind.conf` and exist only while that mode is selected — a shared bind
-would be a key that does nothing and exits 0 in the other two. Both are
+would be a key that does nothing and exits 0 in tiling. Both are
 panel-shaped rather than list-shaped, which is why they are the two that stayed.
 
 The list has shrunk twice. `SUPER+SHIFT+A` left on 2026-08-18, when the idle
-inhibitor got a unit the other two modes can drive (`docs/adr/0031`); `SUPER+C`
+inhibitor got a unit tiling can drive too (`docs/adr/0031`); `SUPER+C`
 left on 2026-08-19, when the control centre turned out to need no new state at
 all — only a list of the owners that already existed (`docs/adr/0033`).
 
@@ -1467,7 +1467,7 @@ invisible in logs and reported as "X is missing".
 
 ## 13. Known rough edges
 
-Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
+Things that are true today and worth knowing. *(Reviewed 2026-08-20.)*
 
 - **noctalia mode wears `nord`; tiling wears `gruvbox`** — set in
   `modules/home/modes.nix` (`docs/adr/0034`). Following the mode: mango's window
@@ -1523,7 +1523,7 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
   named this exact failure as the thing that support avoided. Nothing to be done
   short of writing a QML widget against `mmsg watch` — noctalia's plugin system
   is the other route and it clones git repositories at runtime, which 0020
-  rejected. Tag state is still reachable from waybar in the other two modes.
+  rejected. Tag state is still reachable from waybar in tiling mode.
 
   **The same dead path empties `CompositorService.windows`**, which is what
   `MangoService.updateWindows()` assigns, so anything reading the window list

@@ -1107,7 +1107,7 @@ Two things that remain true about it:
   red `failed` class and a 30s poll underneath the signal. Red `󰒳` means the
   ladder is live, whatever the glyph suggests.
 - **Entering noctalia releases it, on purpose.** `SUPER+SHIFT+A` drives
-  quickshell's `IdleInhibitor` in noctalia mode and `wlinhibit` in the other two
+  quickshell's `IdleInhibitor` in noctalia mode and `wlinhibit` in tiling
   (docs/adr/0023), and noctalia's IPC has no getter — so the two can never be
   read into step, and `apply_mode` hands over instead: one owner per mode. You
   get a notification when it actually released something, and re-arming in

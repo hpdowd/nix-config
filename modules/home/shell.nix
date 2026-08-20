@@ -84,12 +84,11 @@
     # is worth a line. `&&`, so a failed rebuild does not diff a system it did
     # not build.
     #
-    # THE TWO TAKE DIFFERENT ARGUMENTS, and the obvious pair is wrong for one of
-    # them. `switch` ACTIVATES, so afterwards /run/current-system and
-    # /nix/var/nix/profiles/system are the same path and diffing them prints
-    # nothing, every time, indistinguishable from "nothing changed". So capture
-    # the old system first. `boot` does not activate, so there the two genuinely
-    # differ and the plain form is right.
+    # THE TWO TAKE DIFFERENT ARGUMENTS. `switch` activates, so afterwards
+    # /run/current-system and /nix/var/nix/profiles/system are the same path
+    # and diffing them always prints nothing — so capture the old system first.
+    # `boot` does not activate, so there the two differ and the plain form
+    # works.
     #
     # rebuild-test is deliberately bare: it creates no profile generation, so
     # there is nothing to diff against.

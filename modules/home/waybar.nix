@@ -2,11 +2,10 @@
 #
 # Each module is defined ONCE in `modules` below and a layout is a list of
 # names; `lib.genAttrs` emits definitions for exactly the names a layout uses.
-# So an unused definition cannot linger, and A NAME WITH NO DEFINITION IS AN
-# EVAL ERROR rather than a module that renders as nothing — which is this
-# repo's signature bug, and the reason for generating these at all. Four
-# hand-maintained .jsonc files drifted anyway: `custom/window` carried
-# max-length 60 in two and 80 in a third. docs/adr/0009.
+# An unused definition cannot linger, and A NAME WITH NO DEFINITION IS AN EVAL
+# ERROR instead of a module that renders as nothing. That is why these are
+# generated: the four hand-maintained .jsonc files drifted, and `custom/window`
+# ended up with max-length 60 in two and 80 in a third. docs/adr/0009.
 #
 # `style-*.css` stay hand-written (rules, not settings) while `colors.css` is
 # generated (data that also lived in two other files): docs/SYSTEM.md §6 for

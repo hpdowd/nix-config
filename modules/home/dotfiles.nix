@@ -616,13 +616,12 @@ in
     );
 
   # THE BOOTSTRAP, mirroring seedModeTheme in ./mode-theme.nix. `apply_mode`
-  # re-points config.conf on a mode SWITCH, so a fresh machine has none until
-  # the first one — and mango with no config.conf falls back to
-  # $SYSCONFDIR/mango/config.conf, which does not exist here, leaving a session
-  # on built-in defaults with no keybinds at all. `[ -e ]` follows symlinks, so
-  # a dangling link is repaired too. Seeded to `tiling`, hard-coded, matching
-  # current_mode()'s fallback — reading current-mode here would add a fourth
-  # reader of that state for nothing. docs/adr/0040.
+  # re-points config.conf on a mode switch, so a fresh machine has none until
+  # the first switch. mango then falls back to /etc/mango/config.conf, which
+  # does not exist on NixOS, and starts with no keybinds. `[ -e ]` follows
+  # symlinks, so a dangling link is repaired too. Seeded to `tiling`,
+  # hard-coded, matching current_mode()'s fallback; reading current-mode here
+  # would add a fourth reader of that state. docs/adr/0040.
   home.activation.seedModeConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     [ -e "$HOME/.config/mango/config.conf" ] \
       || run ln -sfn "$HOME/.config/mango/tiling/tiling.conf" "$HOME/.config/mango/config.conf"

@@ -52,11 +52,10 @@
   # is something you find out about later, if at all. A predicate turns that
   # into a build error naming the package.
   #
-  # Longer than the application list on purpose, and that is the point: six of
-  # these were found only by setting the predicate and rebuilding until it went
-  # green. nixpkgs splits some apps across several derivations, and
-  # `hardware.enableAllFirmware` (boot.nix) drags in unfree firmware for
-  # hardware this machine does not have.
+  # Longer than the application list. Six of these were found only by setting
+  # the predicate and rebuilding until it went green: nixpkgs splits some apps
+  # across several derivations, and `hardware.enableAllFirmware` (boot.nix)
+  # drags in unfree firmware for hardware this machine does not have.
   nixpkgs.config.allowUnfreePredicate =
     p:
     builtins.elem (lib.getName p) [
@@ -81,9 +80,9 @@
       "github-copilot-cli"
 
       # Not asked for directly. corefonts is steam's `fontPackages`; the rest
-      # are hardware.enableAllFirmware, for hardware this ThinkPad has none of.
-      # Listed rather than worked around — the predicate is a record of what is
-      # actually permitted, not of what was intended.
+      # come from hardware.enableAllFirmware, for hardware this ThinkPad does
+      # not have. Listed rather than worked around, so the predicate records
+      # what is actually permitted.
       "corefonts"
       "broadcom-bt-firmware"
       "b43-firmware"
@@ -93,8 +92,8 @@
     ];
 
   # Insecure Electron pins nixpkgs will not build without an explicit opt-in.
-  # Name the consumer: an entry that outlives its consumer is an exemption
-  # nobody is holding. `nix-store --query --referrers` says who.
+  # Name the consumer beside each one, and drop the entry when that package
+  # goes. `nix-store --query --referrers <path>` says who needs it.
   nixpkgs.config.permittedInsecurePackages = [
     "electron-40.10.5" # winboat
   ];

@@ -4,15 +4,14 @@
 # ONE OWNER PER PACKAGE. A package is installed by exactly one of: its
 # `programs.*` module, a `home.packages` entry here, or
 # `environment.systemPackages`. User applications go in home; things needed
-# before login or by a system unit go in system — and a tool that is inert
-# without a system service lives with that service, so it can be removed
-# together with it. That last clause is why `distrobox` sits in
-# virtualisation.nix beside the podman it is useless without.
+# before login or by a system unit go in system. A tool that does nothing
+# without a system service goes with that service, so both can be removed at
+# once — that is why `distrobox` is in virtualisation.nix, next to podman.
 #
 # Two copies resolving to the same store path are harmless until one side is
-# overridden or pinned, at which point which binary you get is PATH order.
-# `checks/static.sh` asserts the divergence rather than the duplication —
-# 20 names are in both lists and 19 of them are byte-identical.
+# overridden or pinned; then PATH order decides which binary you get.
+# `checks/static.sh` checks for divergence, not duplication — 20 names are in
+# both lists and 19 are byte-identical.
 {
   config,
   pkgs,

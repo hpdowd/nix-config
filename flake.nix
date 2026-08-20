@@ -204,8 +204,8 @@
                   # grepping two files. The check flags a name in both lists whose
                   # paths DIFFER — duplication is harmless until one side is
                   # overridden or pinned, and the naive intersection is 20 names
-                  # of which 19 are byte-identical NixOS module defaults.
-                  # Twenty findings on day one is the check nobody reads.
+                  # of which 19 are byte-identical NixOS module defaults —
+                  # too much noise to be worth reporting.
                   let
                     cfg = self.nixosConfigurations.thinkpad.config;
                     idx =

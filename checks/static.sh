@@ -1155,14 +1155,13 @@ fi
 
 printf '\nMango config parse\n'
 
-# Every mango config actually parsed by the binary that will run it. A broken
-# `source=` is the failure this is for: mango prints [ERROR] to a stderr nobody
-# reads, EXITS 0, and starts with that file's binds missing — a keybind that
-# does nothing, which is this repo's signature failure.
+# Every mango config, parsed by the binary that will run it. The case this
+# catches: a broken `source=` makes mango print [ERROR] to stderr, exit 0, and
+# start without that file's binds. The keys just stop working.
 #
-# So: fail on any stderr, NOT on the exit status. Both were confirmed against
-# planted defects — a renamed universal/*.conf gives stderr with exit 0, an
-# unknown keyword gives stderr with exit 1.
+# So fail on any stderr, not on the exit status. Confirmed against planted
+# defects — a renamed universal/*.conf gives stderr with exit 0, an unknown
+# keyword gives stderr with exit 1.
 #
 # Fake HOME and NO `-c`, which reproduces production exactly. Two traps this
 # sidesteps rather than manages:
@@ -1192,10 +1191,10 @@ else
 			parse_err+="  $m/$m.conf is not in the generation"$'\n'
 			continue
 		fi
-		# A LINK, because that is what apply_mode makes (docs/adr/0040) — staging
-		# a copy here would validate a shape production no longer has. Checked,
-		# because a failed stage leaves the PREVIOUS mode's config.conf in place
-		# and mango would parse that again: a green check for a file never read.
+		# A link, matching apply_mode (docs/adr/0040). Staging a copy would test
+		# a shape production no longer has. Checked, because a failed stage
+		# leaves the previous mode's config.conf in place and mango would parse
+		# that one again, passing for a file it never read.
 		if ! ln -sfn "$src" "$MHOME/.config/mango/config.conf"; then
 			parse_err+="  $m: could not stage config.conf"$'\n'
 			continue
@@ -2506,13 +2505,13 @@ printf '\nPackage ownership\n'
 # ONE OWNER PER PACKAGE (modules/home/packages.nix header). Asserted as
 # DIVERGENCE, not duplication: 20 names are in both lists and 19 resolve to the
 # same store path, because environment.systemPackages is mostly NixOS module
-# defaults rather than this repo's doing. Flagging all 20 is the check nobody
-# reads; flagging the one whose paths differ is the check that matters, because
-# there the binary you get is decided by PATH order.
+# defaults rather than this repo's doing. Flagging all 20 would be noise.
+# Flagging the one whose paths differ is useful: there the binary you get
+# depends on PATH order.
 #
 # <name>|<why> — a divergence that is real, understood and not ours to fix.
-# Same shape statix.toml uses. Keep this list short; an entry is a thing
-# somebody decided, not a thing somebody silenced.
+# Same shape statix.toml uses. Keep this list short and give every entry a
+# reason.
 PKG_EXCEPTIONS=(
 	# The system carries bind's `host` output as a NixOS default; packages.nix
 	# declares `dnsutils` for `dig`. Different outputs of one derivation, so
@@ -2559,9 +2558,9 @@ else
 fi
 
 # Every scan above has a floor; this file had none, so deleting a whole section
-# printed a smaller number and exited green — the Phase 4 class inside the gate
-# itself. A floor, not a ratchet: adding assertions stays a one-line change, and
-# this is raised deliberately in the commit that adds them.
+# printed a smaller number and exited green. A floor, not a ratchet: adding
+# assertions stays a one-line change, and this number is raised in the commit
+# that adds them.
 # 117 on 2026-08-20. docs/adr/0039.
 ASSERTION_FLOOR=117
 

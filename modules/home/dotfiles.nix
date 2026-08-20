@@ -26,6 +26,11 @@ let
   modes = import ./modes.nix;
   modePalette = mode: import ./themes/${modes.${mode}}.nix;
 
+  # The name noctalia resolves its palette by, for the mode it runs in. One
+  # binding, because it is the file NAME, the directory name and the value of
+  # `predefinedScheme`, and those three have to be the same word.
+  noctaliaScheme = (modePalette "noctalia").apps.noctalia;
+
   # Bare "rrggbb" → { r; g; b; } as integers. fsel and swaync both want decimal
   # channels, which is the spelling that let two copies of the palette hide:
   # grepping this repo for `d79921` found neither `rgb(215, 153, 33)`.
@@ -362,6 +367,78 @@ in
     # half noctalia purple — which looks like a theme, not a fault. The rest of
     # the file is settings rather than colours and moved with it, because the
     # alternative is two owners for one path.
+    # noctalia's own scheme file for whatever the noctalia MODE wears, written
+    # from that theme rather than fetched. docs/adr/0041.
+    #
+    # `ColorSchemeService.qml` scans this directory with `find -L … -mindepth 2
+    # -name '*.json'`, so a managed FILE at `<Name>/<Name>.json` is found and
+    # the parent stays writable for noctalia's own downloader — two owners for
+    # one directory is the activation failure docs/adr/0002 records.
+    #
+    # Written for EVERY mode scheme, not only the ones noctalia lacks: a file
+    # here shadows nothing (the package's own Assets are searched first for a
+    # name that exists there), and generating only the missing ones would make
+    # the set depend on which version of noctalia is pinned.
+    #
+    # `light` is the dark scheme repeated. `settings-pinned.json` pins
+    # `darkMode = true`, so only `dark` is ever read; emitting the key keeps the
+    # file the shape noctalia's own schemes are, and flipping darkMode gets a
+    # dark scheme rather than a missing one.
+    "noctalia/colorschemes/${noctaliaScheme}/${noctaliaScheme}.json".text =
+      let
+        q = modePalette "noctalia";
+        variant = {
+          mPrimary = "#${q.accent}";
+          mOnPrimary = "#${q.fg1}";
+          mSecondary = "#${q.blue}";
+          mOnSecondary = "#${q.bg0}";
+          mTertiary = "#${q.magenta}";
+          mOnTertiary = "#${q.bg0}";
+          mError = "#${q.errColor}";
+          mOnError = "#${q.fg1}";
+          mSurface = "#${q.bg0}";
+          mOnSurface = "#${q.fg1}";
+          mSurfaceVariant = "#${q.bg1}";
+          mOnSurfaceVariant = "#${q.comment}";
+          mOutline = "#${q.fg4}";
+          mShadow = "#${q.mantle}";
+          mHover = "#${q.bg2}";
+          mOnHover = "#${q.fg1}";
+          terminal = {
+            normal = {
+              black = "#${q.black}";
+              red = "#${q.red}";
+              green = "#${q.green}";
+              yellow = "#${q.yellow}";
+              blue = "#${q.blue}";
+              magenta = "#${q.magenta}";
+              cyan = "#${q.cyan}";
+              white = "#${q.white}";
+            };
+            bright = {
+              black = "#${q.brBlack}";
+              red = "#${q.brRed}";
+              green = "#${q.brGreen}";
+              yellow = "#${q.brYellow}";
+              blue = "#${q.brBlue}";
+              magenta = "#${q.brMagenta}";
+              cyan = "#${q.brCyan}";
+              white = "#${q.brWhite}";
+            };
+            foreground = "#${q.fg1}";
+            background = "#${q.bg0}";
+            selectionFg = "#${q.fg1}";
+            selectionBg = "#${q.selBg}";
+            cursorText = "#${q.bg0}";
+            cursor = "#${q.fg0}";
+          };
+        };
+      in
+      builtins.toJSON {
+        dark = variant;
+        light = variant;
+      };
+
     "mango/noctalia/settings-pinned.json".text = builtins.toJSON {
       wallpaper.enabled = false;
       nightLight.enabled = false;
@@ -375,7 +452,7 @@ in
         # chrome drawn around it, which colors-noctalia.conf now takes from the
         # same place. A shell in one scheme inside borders in another is the one
         # result worse than either scheme on its own, and it looks deliberate.
-        predefinedScheme = (modePalette "noctalia").apps.noctalia;
+        predefinedScheme = noctaliaScheme;
         darkMode = true;
       };
       # Off permanently, not pending — docs/adr/0036. Every template either

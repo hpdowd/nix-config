@@ -707,13 +707,36 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			"Rose Pine") schemedir="Rosepine" ;;
 			*) schemedir="$scheme" ;;
 			esac
+			# TWO places it may live, because a scheme no longer has to be one
+			# noctalia ships: `ColorSchemeService` scans the package's Assets AND
+			# `~/.config/noctalia/colorschemes`, and dotfiles.nix writes the mode
+			# scheme into the second (docs/adr/0041). Heartbox is the first scheme
+			# here that exists only in the generation.
+			noct_gen="$GEN_CFG/noctalia/colorschemes/$schemedir/$schemedir.json"
 			if [[ -z $scheme ]]; then
 				bad "no predefinedScheme pinned — noctalia would keep its own palette while the rest of the machine follows palette.nix"
 			elif [[ -f "$NOCT_SHARE/Assets/ColorScheme/$schemedir/$schemedir.json" ]]; then
 				ok "noctalia's pinned colour scheme ($scheme) ships with the package"
+			elif [[ -s $noct_gen ]]; then
+				# Generated, so it is worth asserting it is a SCHEME and not just a
+				# file: noctalia reads `.dark` or `.light` by darkMode and renders
+				# whatever it finds, so an object missing the half in use leaves the
+				# shell on its last palette without a word.
+				nsch_bg=$(jq -r '.dark.mSurface // empty' "$noct_gen" 2>/dev/null)
+				nsch_keys=$(jq -r '(.dark | keys | length) // 0' "$noct_gen" 2>/dev/null)
+				want_bg="#$(pal '.bg0')"
+				if [[ $nsch_keys -lt 16 ]]; then
+					bad "noctalia's generated scheme ($scheme) has $nsch_keys keys under .dark, expected at least 16" \
+						"$noct_gen — noctalia renders what it finds and falls back for the rest"
+				elif [[ ${nsch_bg,,} != "${want_bg,,}" ]]; then
+					bad "noctalia's generated scheme ($scheme) has mSurface $nsch_bg, not $want_bg" \
+						"the shell would be a different scheme from the mango chrome around it"
+				else
+					ok "noctalia's pinned colour scheme ($scheme) is generated into the config, with $nsch_keys keys"
+				fi
 			else
 				bad "noctalia has no colour scheme named $scheme" \
-					"Assets/ColorScheme/$schemedir/$schemedir.json"
+					"neither Assets/ColorScheme/$schemedir/$schemedir.json nor $noct_gen"
 			fi
 
 			# And it must be the scheme modes.nix gives the noctalia MODE, not the

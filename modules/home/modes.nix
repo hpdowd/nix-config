@@ -19,6 +19,6 @@
 # Every key must be a mode in MODES in dotfiles/mango/scripts/desktop-mode.sh,
 # and every mode there a key here — asserted both ways.
 {
-  tiling = "gruvbox";
-  noctalia = "nord";
+  tiling = "heartbox";
+  noctalia = "heartbox";
 }

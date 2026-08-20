@@ -279,12 +279,12 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Shell options | `dotfiles/zsh/conf.d/00-options.zsh` |
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
-| Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `gruvbox`. This is the **artefact** scheme: widget art, icons, cursor, yazi, nvim, Zed, and every colour consumer not listed in the row below |
-| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently `nord` |
+| Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `heartbox`. This is the **artefact** scheme: the built artefacts, the icon set, nvim, and every colour consumer not listed in the row below |
+| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently both are `heartbox` |
 | The per-mode colours themselves | `modules/home/mode-theme.nix` — generates `kitty/colors-<mode>.conf`, `foot/colors-<mode>` and `rofi/colors-<mode>.rasi`, plus the activation seed for the three links. The colours are **not** in `programs.nix` any more |
 | Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
-| Which schemes exist | `modules/home/themes/`. Four ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord` — every one fully native. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
-| The GTK / Qt / icon / cursor / yazi theme | the selected theme file's `packages` block — names, not hex, resolved by `pkgs/default.nix` into `themeGtk` and friends (`docs/adr/0032`) |
+| Which schemes exist | `modules/home/themes/`. Five ship: `heartbox`, `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`. All native but `heartbox`'s icon set, which is the repo's one stand-in (`native = false`) and is reported on every run. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
+| The GTK / Qt / cursor theme | GENERATED from the selected theme file's colours by `pkgs/default.nix` — `paletteGtk`, `paletteKvantum`, `paletteCursors` (`docs/adr/0041`). yazi's flavour and Zed's theme are written the same way. Only the **icon set** is still a name in the `packages` block |
 | nvim's colourscheme, Zed's theme, noctalia's scheme | the theme file's `apps` block. nvim and Zed take the **artefact** scheme's; noctalia takes the one `modes.nix` gives its mode, since it runs in that mode only (`docs/adr/0034`) |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
@@ -402,10 +402,11 @@ by relative path, so it ends up in the store as its own path. Don't mistake this
 for an unconverted config.
 
 `dotfiles/yazi/` was the same shape until the Catppuccin migration and is now
-gone: the flavor is third-party colour data, so it is fetched into the store by
-the overlay (`pkgs.themeYazi`, from the selected theme's `packages.yazi`)
-instead of being carried in git. That is the preferred end state for this
-category — vendor it only when there is no upstream to fetch.
+gone. It was fetched from a third-party repo for a while; since `docs/adr/0041`
+it is **written from the palette** by `pkgs/yazi-flavor.nix`, because a flavour
+is 220 lines of colour and nothing else. That is the preferred end state for
+this category: generate it if it is only colour, fetch it if it is not, and
+vendor it only if neither works.
 
 Three more files left `dotfiles/` for the same reason in `docs/adr/0032`, each
 because it held a scheme's **name**: `Kvantum/kvantum.kvconfig`,
@@ -1473,11 +1474,11 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-20.)*
   `modules/home/modes.nix` (`docs/adr/0034`). Following the mode: mango's window
   chrome, noctalia's own palette, Equibop's theme filename, and kitty, foot,
   rofi and ncspot through a runtime symlink. **Not** following it, permanently:
-  GTK and Qt widget art, icons, the cursor, yazi, nvim and Zed, which are built
-  artefacts and wear `modules/home/scheme.nix` for the whole machine. So a GTK
-  file dialog in noctalia mode is gruvbox-themed inside nord chrome, and always
-  will be. Set `noctalia = "gruvbox"` and rebuild if you would rather have one
-  look.
+  GTK and Qt widget art, the icon set and nvim, which are built artefacts and
+  wear `modules/home/scheme.nix` for the whole machine. A mode that names a
+  different scheme therefore gets a GTK file dialog in the machine's scheme
+  inside that mode's chrome. Both modes name `heartbox` today, so the question
+  does not arise; set them apart and it does.
 - **foot and ncspot keep their old colours until restarted** across a mode
   switch. foot 1.27 has no config re-read at all — `SIGUSR1`/`SIGUSR2` only pick
   between sections it already loaded — so the swap reaches new windows only;

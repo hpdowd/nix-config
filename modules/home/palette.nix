@@ -24,28 +24,33 @@
 #                   design, and one combined floor would drag the first down to
 #                   meet it (docs/adr/0032)
 #   the colours     canonical ramp, semantic roles, terminal aliases, `muted`
-#   packages        GTK, Kvantum, icon, cursor and yazi artefacts, BY NAME
-#   apps            noctalia, nvim and Zed, which hold a scheme's NAME rather
+#   packages        the GTK, Kvantum and cursor artefacts, which name the
+#                   overlay derivations that BUILD them from the colours above,
+#                   plus the icon set, which is still a name (docs/adr/0041)
+#   apps            noctalia and nvim, which hold a scheme's NAME rather
 #                   than its colours
 #
-# `packages` and `apps` are the half the palette cannot reach: rendered SVG
+# `packages` and `apps` were the half the palette could not reach — rendered SVG
 # widget art, cursor bitmaps, compiled SCSS, and names other programs resolve
-# internally. Before 2026-08-18 they were spelled out across theme.nix,
-# pkgs/default.nix, two dotfiles and a shell script, which made a scheme change
-# a six-file migration with no gate on getting it wrong. `pkgs/default.nix`
-# resolves the package names; `checks/static.sh` asserts each one exists.
+# internally. Most of that turned out to be reachable after all: the GTK theme,
+# the Kvantum theme and the cursor set are BUILT from these colours, and yazi's
+# flavour and Zed's theme are written from them and left this file entirely
+# (docs/adr/0041). What remains here is one artefact nobody can generate — the
+# icon set, because upstreams parameterise the folder hue and nothing else, and
+# app icons are brand colours — and two names.
 #
 # `native = false` on a `packages` entry marks a STAND-IN: an artefact that does
-# not follow this scheme at all, only a neutral that does not fight it. **No
-# shipped scheme uses one.** That is the selection criterion rather than a happy
-# accident — noctalia ships ten colour schemes and nixpkgs fully serves three of
-# them (Catppuccin, Gruvbox, Nord), so those are the three here. The marker and
-# the check that counts them stay, for whatever is added next.
+# not follow this scheme at all, only a neutral that does not fight it.
+# `heartbox` is the first scheme to use one, for its icons, and
+# `checks/static.sh` reports every stand-in on every run rather than passing
+# over it.
 #
 # ── Adding a scheme ─────────────────────────────────────────────────────────
 #
 # Copy a file in `./themes/`, replace the values, point `scheme.nix` at it, and
-# run `nix flake check` — which asserts every text role clears its declared
-# floor and every artefact it names resolves, so an unreadable or half-packaged
-# scheme cannot land quietly. `docs/THEME-MIGRATION.md` is the runbook.
+# run `nix flake check` — which asserts every artefact it names resolves AND
+# that every generated one carries these colours, so a half-applied scheme
+# cannot land quietly. A scheme no longer has to exist as a package anywhere:
+# `heartbox.nix` is the worked example, being a colour scheme and nothing else.
+# `docs/THEME-MIGRATION.md` is the runbook.
 import ./themes/${import ./scheme.nix}.nix

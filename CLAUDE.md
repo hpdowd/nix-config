@@ -92,8 +92,8 @@ Tier 1 earns its churn three ways: typos become build failures, one option owns
 both the package and its config, and values can be shared —
 `modules/home/palette.nix` is the one palette — whichever of
 `modules/home/themes/*.nix` that `modules/home/scheme.nix` names (`docs/adr/0030`;
-switching is that one string plus a rebuild, and four ship: `mocha`,
-`mocha-high-contrast`, `gruvbox`, `nord`) — feeding
+switching is that one string plus a rebuild, and five ship: `heartbox`,
+`mocha`, `mocha-high-contrast`, `gruvbox`, `nord`) — feeding
 swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's
 `colors.css` — and, *per mode*, kitty, foot, rofi, ncspot, Equibop and mango, instead
 of the same hex codes transcribed into four files with nothing keeping them in
@@ -101,19 +101,25 @@ step. A **drifted palette looks deliberate**, which is why it gets a check
 rather than a convention: `checks/static.sh` asserts every generated colour is
 used and every reference resolves.
 
-A theme file also declares what the palette **cannot** colour — the GTK, Kvantum,
-icon, cursor and yazi artefacts, and the scheme *names* noctalia, nvim and Zed
-resolve internally (`docs/adr/0032`). These are the half that fails silently:
-every one falls back to its own default and looks merely unstyled. The check
-asserts each name resolves to a real directory. **All four shipped schemes are
-fully native** — `native = false` marks a stand-in and nothing currently uses
-one, which is why the scheme set is what it is: noctalia ships ten colour
-schemes and nixpkgs fully serves only Catppuccin, Gruvbox and Nord.
+**Most of what the palette could not colour is now generated from it**
+(`docs/adr/0041`). The GTK theme, the Kvantum theme and the cursor set are built
+in `pkgs/default.nix` from the theme file's own values; yazi's flavour and Zed's
+theme are written from them; only the **icon set** is still a name a program
+resolves internally, plus noctalia's and nvim's. A theme file that names nothing
+buildable is still adoptable, which `heartbox` is the first scheme to prove — it
+exists as a colour scheme and nowhere else.
+
+Those names are the half that fails silently: each falls back to its own default
+and looks merely unstyled, so the check asserts every one resolves and every
+generated artefact carries this palette's colours. `native = false` marks a
+**stand-in**, and `heartbox`'s icon set is the first — reported on every run
+rather than left to be noticed.
 
 Each theme declares its own `contrastFloor` and `ansiFloor`, **measured, not
 chosen**, and there is no global minimum under them: the assertion is only "this
-theme is as legible as it claims". Nord's comment colour is 1.69:1 and that is
-Nord. Every scheme **in service** is audited, not just the selected one — see
+theme is as legible as it claims", which means it **cannot fail a new scheme** —
+it catches a regression within one, and nothing more. Nord's comment colour is
+1.69:1, Heartbox's is 1.72:1, and those are Nord and Heartbox. Every scheme **in service** is audited, not just the selected one — see
 below.
 
 **`scheme.nix` is the artefact scheme; `modules/home/modes.nix` is the colour

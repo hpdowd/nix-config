@@ -315,7 +315,21 @@ theme declares. `apps.zed` is gone from the theme files.
 
 ---
 
-### Phase 4 — icons stay named, and the theme file says so
+### Phase 4 — icons stay named ✅ done 2026-08-20
+
+A no-op for the four schemes that were already here: all of them have a native
+icon set, so the `native = false` marker had nothing to mark. `heartbox` is the
+first scheme to use one, and `checks/static.sh` reports it on every run:
+
+```
+✓ 4 theme packages declared for 'heartbox'; stand-ins:
+  icons → Papirus-Dark (no Heartbox icon set exists; neutral dark that does
+  not fight red on near-black)
+```
+
+The original notes follow.
+
+#### Why it stays named
 
 Decided, not deferred (`docs/adr/0041`). Upstreams parameterise only the folder
 and accent hue; app icons are brand colours that must not follow a palette.
@@ -330,7 +344,33 @@ should read as a decision rather than a gap.
 
 ---
 
-### Phase 5 — `heartbox`
+### Phase 5 — `heartbox` ✅ done 2026-08-20
+
+**Landed, and the machine wears it.** `modules/home/themes/heartbox.nix`;
+`scheme.nix` and both modes in `modes.nix` name it; noctalia's scheme file is
+generated into `~/.config/noctalia/colorschemes/`; one check widened.
+`nix flake check`: **124 assertions, 0 failing**.
+
+Flipping it broke exactly **one** assertion, which is the whole point of having
+built the generators first — `noctalia has no colour scheme named Heartbox`,
+the check that asserted a pinned scheme ships **with the package**. It now
+accepts a scheme generated into the config, and asserts that what it finds is a
+scheme rather than merely a file: at least 16 keys under `.dark`, and an
+`mSurface` equal to this palette's `bg0`.
+
+Measured, not chosen: `contrastFloor` **1.72** (`brBlack` #4a3a3e, upstream's
+own — the same situation `nord.nix` records at 1.69) and `ansiFloor` **3.8**
+(normal red #e02030, the accent, at 3.87:1).
+
+Four values are derived and each says so in the file: `mantle` (upstream
+publishes nothing below `mSurface`), `bg3`, the whole `muted` set, and
+`errColor`. That last one is a deliberate departure — upstream sets `mError`
+equal to `mPrimary`, so urgent and focused would be the same colour, and mango
+draws `urgentcolor` and `focuscolor` side by side.
+
+The original notes follow.
+
+#### Original plan
 
 Only now. Flipping earlier means judging three new generators against a palette
 nobody has seen on this machine, where wrong and unfamiliar are the same thing.

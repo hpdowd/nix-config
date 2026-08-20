@@ -20,9 +20,11 @@ migration ends up half-done and looking deliberate.
 > happened. `docs/WORK-LOG.md` has what it cost.
 
 > **Switching between schemes that ALREADY EXIST is one line.** Edit
-> `modules/home/scheme.nix`, `nix flake check`, `rebuild`, reload per §5. Four
-> schemes ship: `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`.
-> Everything below is about bringing a *new* one in.
+> `modules/home/scheme.nix`, `nix flake check`, `rebuild`, reload per §5. Five
+> schemes ship: `heartbox`, `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`.
+> Everything below is about bringing a *new* one in — which since
+> `docs/adr/0041` is mostly writing one file, because the artefacts are built
+> from it rather than found.
 
 | | **Recolour** | **New scheme** |
 |---|---|---|
@@ -203,98 +205,79 @@ precisely so that this step is visible rather than discovered later.
 
 ---
 
-## 2. The five theme packages — declared, not migrated
+## 2. The artefacts — three built, two written, one named
 
-These are **not hex this repo owns**. Each is an upstream artefact — compiled
-SCSS, rendered SVG widget art, cursor bitmaps, or a name another program
-resolves internally. `palette.nix` cannot reach any of them, and there is no
-version of this repo in which it could.
+**This section used to be the hard half of a migration, and it is now the
+short one.** Until `docs/adr/0041` a theme file *named* six upstream
+artefacts — compiled SCSS, rendered SVG widget art, cursor bitmaps, a yazi
+flavour, a Zed theme — and a scheme with no upstream for one of them could not
+be adopted. Most of that was a property of the implementation rather than the
+problem.
 
-**They live in the theme file's `packages` block.** Before `docs/adr/0032` they
-were spelled out across `theme.nix`, `pkgs/default.nix`, two dotfiles and a
-shell script, and a scheme change was a six-file migration with nothing checking
-it. Now each is an attribute plus a name, `pkgs/default.nix` resolves them into
-`themeGtk`/`themeKvantum`/`themeIcons`/`themeCursor`/`themeYazi`, and
-`checks/static.sh` asserts every name resolves to a real directory in the built
-closure.
+| What | How | Where |
+|---|---|---|
+| **GTK theme** | BUILT — Colloid compiled against a `_color-palette-default.scss` written from the palette | `pkgs/colloid-palette.py` |
+| **Kvantum (Qt)** | BUILT — Kvantum's achromatic `KvantumAlt` art tinted onto the `mantle`→`fg0` ramp, `[GeneralColors]` written from the roles | `pkgs/kvantum-recolour.py` |
+| **Cursor** | BUILT — the Volantes art recoloured through its three sentinel hexes | `paletteCursors` in `pkgs/default.nix` |
+| **yazi flavour** | WRITTEN — 220 lines of colour, no upstream involved | `pkgs/yazi-flavor.nix` |
+| **Zed theme** | WRITTEN — 135 style keys, 43 syntax keys, at parity with Zed's own | `pkgs/zed-theme.py` |
+| **noctalia scheme** | WRITTEN into `~/.config/noctalia/colorschemes/` | `modules/home/dotfiles.nix` |
+| **Icon set** | NAMED, and staying that way | `packages.icons` |
 
-| # | What | Declared as | Note |
-|---|---|---|---|
-| 1 | **GTK theme** | `packages.gtk` — `attr` + theme directory `name` | GTK4 follows it automatically via `gtk4.theme = config.gtk.theme` |
-| 2 | **Icon theme** | `packages.icons`, with an `override.color` where the package is a recolour | Papirus has no `mauve`; `violet` and `orange` are picks from *its* list |
-| 3 | **Cursor** | `packages.cursor`, `sub` for a sub-attribute | Rendered bitmaps |
-| 4 | **Kvantum (Qt)** | `packages.kvantum` | Linked into `~/.config/Kvantum` by `dotfiles.nix`, and `kvantum.kvconfig` is generated from the same name |
-| 5 | **yazi flavor** | `packages.yazi` — `owner`/`repo`/`rev`/`hash`/`file` | ~900 hex of third-party syntax theme, assembled into a `.yazi` package |
+The three built ones are named in `packages` as `paletteGtk`, `paletteKvantum`
+and `paletteCursors`, with a `name` of `<scheme>-gtk` / `-kvantum` /
+`-cursors` — so unlike the names below, those three follow a rule.
+
+**Only the icon set is still a genuine name**, and that is a decision rather
+than a gap: upstreams parameterise the folder and accent hue and nothing else,
+and the rest of an icon set is app *brand* colours that must not follow a
+scheme.
 
 Plus the `apps` block, for settings whose value is a scheme's **name**:
-`noctalia` (resolved internally against its shipped Assets), `nvim` (§3) and
-`zed`.
+`noctalia` and `nvim` (§3).
 
-### Three traps, all still live
-
-> **The names are not guessable from the arguments that build them.**
-> `catppuccin-mocha-mauve-standard` (GTK), `catppuccin-mocha-mauve-cursors`
-> (cursor) and `catppuccin-mocha-mauve` (Kvantum) are spelled three different
-> ways from each other and from the attribute (`mochaMauve`); and
-> `capitaine-cursors-themed` installs `Capitaine Cursors (Gruvbox)`, spaces and
-> parentheses included. **Read the name off the built package**
-> (`ls $out/share/themes`) rather than constructing it.
+### Three traps, two still live
 
 > **A name only the toolkit can resolve is a name no check can.** `Adwaita-dark`
 > renders fine — GTK3 has it compiled in — and no directory for it exists
-> anywhere, so nothing can verify it. The stand-in schemes name `adw-gtk3-dark`
-> instead, which is a real directory. If a name you want passes visually but the
+> anywhere, so nothing can verify it. If a name you want passes visually but the
 > check cannot find it, that is the check working.
 
 > **`native = false` means a stand-in**, not a broken entry: an artefact that
 > does not follow the scheme, only a neutral that does not fight it. Say why in
 > the `why` field. The check prints them on every run, because otherwise the
 > only way to notice is to look at the screen and already know.
+> `heartbox`'s icons are the only one.
+
+> ~~**The names are not guessable from the arguments that build them.**~~ Still
+> true of the icon set, and no longer the recurring hazard it was — the three
+> built artefacts are named by rule, so there is one name left to read off a
+> package instead of five.
 
 ### Which schemes are actually available
 
-**noctalia is the binding constraint.** It resolves its palette from a name in
-its own shipped `Assets/ColorScheme/`, so a scheme it does not ship leaves half
-the screen on a different palette in noctalia mode. That fixes the candidate set
-at its ten: Ayu, Catppuccin, Dracula, Eldritch, Gruvbox, Kanagawa,
-Noctalia-default, Nord, Rose Pine, Tokyo Night.
+**Any of them.** That sentence replaces a survey, and the survey is worth
+keeping in mind for what it says about how constraints get inherited.
 
-Of those ten, nixpkgs fully serves **three** — surveyed 2026-08-18:
+Until 2026-08-20 two things fixed the candidate set. noctalia resolved its
+palette from its own shipped `Assets/ColorScheme/`, which capped the choice at
+the ten it ships; and of those ten, nixpkgs fully served **three** — Catppuccin,
+Gruvbox and Nord — so those were the three that existed here. Neither constraint
+survives: noctalia also scans `~/.config/noctalia/colorschemes/`, which the
+config now writes into, and the artefacts are built rather than found.
 
-| | GTK | Kvantum | Icons | Cursor | yazi |
-|---|---|---|---|---|---|
-| **Catppuccin** ✅ | `catppuccin-gtk` | `catppuccin-kvantum` | Papirus/violet | `catppuccin-cursors` | upstream |
-| **Gruvbox** ✅ | `gruvbox-gtk-theme` † | `gruvbox-kvantum` | `gruvbox-plus-icons` | Capitaine | upstream |
-| **Nord** ✅ | `nordic` | `nordic` | `nordzy-icon-theme` | Capitaine | `stepbrobd/nord.yazi` |
-| Rose Pine | ❌ | ✅ *(nested under `share/Kvantum/themes/`)* | ✅ | ✅ | upstream |
-| Kanagawa | ❌ | ❌ | ✅ | ❌ | `yaziPlugins.kanagawa` |
-| Dracula | ❌ dropped with gtk-engine-murrine | ❌ `dracula-qt5-theme` is a qt5ct *colour scheme*, not a Kvantum theme | ✅ | ❌ | upstream |
-| Ayu | ❌ | ❌ | Papirus/orange | ❌ | upstream |
-| Tokyo Night | ❌ | ❌ | ❌ | ❌ | — |
-| Eldritch | ❌ | ❌ | ❌ | ❌ | — |
+`heartbox` is the proof. It exists as a colour scheme in
+`noctalia-dev/noctalia-colorschemes` and **nowhere else** — no GTK theme, no
+Kvantum theme, no cursor set, no nvim plugin, no Zed theme, no yazi flavour, and
+it is not in noctalia-shell either. It wears all six.
 
-† Built by `pkgs/default.nix` from
-[Fausto-Korpsvart/Gruvbox-GTK-Theme](https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme),
-not taken from nixpkgs. This row read `gruvbox-dark-gtk` until 2026-08-19, and
-that package ships no `gtk-4.0` — so GTK3 was themed, every libadwaita app was
-Adwaita, and the survey above counted it as served. **"nixpkgs has a theme by
-this name" is not the same as "nixpkgs has a usable theme":** check for
-`share/themes/<name>/gtk-4.0/gtk.css`, which `checks/static.sh` now does.
-Nixpkgs has no gruvbox GTK theme that ships one.
+What a new scheme actually needs now:
 
-Two things that are easy to get wrong here:
-
-- **`nordic` alone supplies GTK, Kvantum *and* cursors**, and spells the GTK and
-  Kvantum theme names differently from each other — `Nordic-darker` against
-  `Nordic-Darker`. Read both off the package.
-- **`yazi-rs/flavors` is not the universal source.** The official collection
-  ships only Catppuccin and Dracula. Nord, Gruvbox and the rest live in
-  single-scheme repos with `flavor.toml` at the root. Assuming otherwise
-  produces a build that fetches fine and copies a path that is not there.
-
-Rose Pine is the nearest miss — legible as published (worst role 3.38:1) and
-short only a GTK theme. Adding it means one `native = false`, plus a small
-change to the Kvantum search root for its nested layout.
+- **A full sixteen-slot terminal palette.** This is the real constraint, and it
+  is the one that is left. A scheme published as material roles only leaves the
+  ANSI set to invention.
+- **A `muted` set**, which is this repo's derivation for every scheme anyway.
+- **An icon set that does not fight it**, or `native = false` and a reason.
 
 ## 3. nvim — swap the plugin
 

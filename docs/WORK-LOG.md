@@ -2247,3 +2247,87 @@ nord 1.69/3.0.
   in Zed's registry.
 - Two of gruvbox's eight muted values were below 3:1 where drawn and were
   re-derived; they predate the contrast check.
+
+---
+
+## 2026-08-19 → 2026-08-20 · Colour per mode, a control centre, and one mode fewer
+
+**5 commits, `66e9779` → `5af3bb3`.** ADRs [0033](adr/0033-the-control-centre-is-a-reader.md),
+[0034](adr/0034-colour-follows-the-mode-artefacts-do-not.md),
+[0035](adr/0035-hud-is-removed.md). Checks: 89 → 105 assertions.
+
+### The control centre (0033)
+
+Twelve toggles in one rofi list on `SUPER+C`, plus a bar button in `focus` and
+`minimal`. Not a reimplementation of noctalia's panel: every fact it shows
+already had one owner, and the row reads that owner. Microphone and phone
+joined the bar in the same pass, because a row may only join once the fact has
+a home. `phone-status.sh` gained verbs so the device id stays written once.
+
+### Colour follows the mode (0034)
+
+Mode switching stays at **runtime**. A rebuild per mode buys only the artefact
+half, which was already one line in `scheme.nix`, and costs the switch plus a
+branch in four modules.
+
+So the scheme split in two. `scheme.nix` keeps the artefacts; `modes.nix` names
+a scheme per mode for everything whose theme is wholly colour — mango's chrome,
+noctalia's palette, Equibop's theme filename, and kitty, foot, rofi and ncspot
+through runtime links `apply_theme()` re-points. Keyed by **mode**, never by
+scheme: a scheme name on the Nix→shell boundary is the drift `lib.sh` exists to
+stop.
+
+Three findings, measured rather than assumed:
+
+- **foot does not fail silently** on a dangling include — exit 230, no
+  terminal. That makes the activation seed load-bearing for *having* a
+  terminal. kitty is silent, and worse than assumed: every colour drops to a
+  built-in default.
+- **The contrast floors audited one scheme while the machine wore two.**
+  `flake.nix` now passes every scheme in service. Nord's numbers had never been
+  measured.
+- **An accent needle cannot see the wrong half of the right scheme.** ncspot is
+  drawn entirely from `muted`; `p.accent` where `m.accent` was meant passed
+  every existing assertion. Every hex in its config must now be a `muted`
+  value. Equibop's `@name` had read `Catppuccin Mocha` through two scheme
+  changes — generated per mode now, and asserted.
+
+### hud removed (0035)
+
+299 lines of code deleted, 113 added. Unused was not the argument; **hud was
+the only instance of four mechanisms**, one of which was a bug. It was the only
+mode that also forced a *layout*, so in hud mode the layout picker wrote a
+choice that the next restart discarded — accepted, recorded, invisible. It was
+also the only second stylesheet, the only layout with a non-zero margin, and
+the second of two modes running waybar, so 0034's divergence ceiling had to
+assert `tiling` and `hud` agreed with each other. That ceiling is now one
+comparison, derived from `modes.nix` rather than naming a mode.
+
+Two things the **checks** found, not a person: `surface` in `waybar/colors.css`
+became a colour nothing imported once `style-hud.css` was gone, and the
+config-count assertion still expected 4 layouts × 2 positions. That count names
+its layouts now — a bare count passes when one vanishes and another is emitted
+twice.
+
+### Also
+
+GTK4 was unthemed and had been for two schemes: `gruvbox-dark-gtk` ships no
+`gtk-4.0/`, and GTK4 ignores `gtk-theme-name`, so libadwaita apps sat on Adwaita
+while GTK3 looked right. The scheme now names `gruvbox-gtk-theme`, built by the
+overlay. `gtk4`'s `color-scheme` was also an integer where GTK 4.22 wants the
+nick. And tuigreet's `--cmd` inherits greetd's file descriptors, so the
+compositor's stdout and stderr were being written into the greeter's VT buffer.
+
+### What it cost
+
+- **Twelve negative tests** across the three ADRs, all failed correctly before
+  landing. Two checks were themselves wrong first: a CSS scan that read nothing
+  because `.modules-left` is jq for `.modules` minus `left`, and a config scan
+  broken by switching `find` to basenames. Only the zero floors caught either.
+- **Two silent failures while adding twenty lines** of waybar module — a glyph
+  lost writing the Nix (no `\uXXXX` escape; it is literal UTF-8), and a module
+  with no CSS rule. Both are asserted now, for every module every layout
+  carries.
+- **896 lines of comment added, then 147 removed** in a trimming pass. The
+  target in `CLAUDE.md` is a one-line reason plus a pointer; the reasoning
+  belongs in the ADR. `mode-theme.nix` went 244 → 178 lines, `modes.nix` 45 → 24.

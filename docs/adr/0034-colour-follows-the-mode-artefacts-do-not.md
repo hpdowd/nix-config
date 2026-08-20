@@ -1,6 +1,8 @@
 # 0034 — Colour follows the mode; artefacts do not
 
-**Status:** Accepted (2026-08-19)
+**Status:** Accepted (2026-08-19). Superseded in part by
+[0035](0035-hud-is-removed.md): `hud` is gone, so where this record pairs
+`tiling` and `hud`, read `tiling` alone.
 
 Completes [0032](0032-the-theme-file-owns-its-artefacts.md) (the theme file owns
 its artefacts) by drawing the line that record implied but did not need: the two
@@ -96,8 +98,8 @@ is one sidecar per distinct scheme and `apply_theme <scheme>`, and it is wrong:
 it makes a scheme *name* cross the Nix→shell boundary, which is a value both
 sides must spell identically — the drift `lib.sh` was extracted to stop, and
 what broke the mode switch one-way on 2026-07-31. Keyed by mode, the shell
-already holds the only argument there is. `tiling` and `hud` sharing a scheme
-costs one duplicate generated file that nothing reads by hand.
+already holds the only argument there is; two modes sharing a scheme cost one
+duplicate generated file that nothing reads by hand.
 
 **The two odd link names are what make noctalia's own templates a later toggle
 rather than a redesign.** `current-theme.conf` is exactly what noctalia's kitty
@@ -107,20 +109,17 @@ post-hook `ln -sf`s, and that hook refuses to touch an unwritable `kitty.conf`.
 difference between a no-op and this repo silently ceasing to own the file. The
 name holds gruvbox in tiling mode and that is correct.
 
-**waybar and swaync stay on `scheme.nix`, so the divergence still has a ceiling
-and the ceiling is asserted.** They do not run in noctalia mode and are
-generated once, so `tiling` and `hud` must name the same scheme *and* it must be
-`scheme.nix`'s. Only `noctalia` may differ. What it cannot reach remains the
-artefact half — GTK and Qt widget art, icons, cursor, yazi, nvim, Zed — and that
-is permanent, not pending.
+**waybar and swaync stay on `scheme.nix`, so the divergence has a ceiling and
+the ceiling is asserted.** They do not run in noctalia mode and are generated
+once, so every mode that runs them must wear `scheme.nix`'s scheme; only
+`noctalia` may differ. What no mode can reach is the artefact half — widget art,
+icons, cursor, yazi, nvim, Zed — and that is permanent, not pending.
 
 **Every scheme in service is audited, not just the selected one.** `flake.nix`
-passed `checks/static.sh` a single resolved palette; it now passes the artefact
-scheme *and* every scheme a mode names, deduplicated. A legibility floor that
-only ever measured `scheme.nix`'s would have reported a clean bill of health for
-a mode nobody can read — the check passing by never looking, which is the exact
-failure the floors exist to prevent. Each is still measured against **its own**
-declared floors: the assertion is "this theme is as legible as it claims", and
+passed `checks/static.sh` one resolved palette; it now passes the artefact
+scheme and every scheme a mode names. A floor measuring only `scheme.nix`'s
+would report a clean bill of health for a mode nobody can read — the check
+passing by never looking. Each is measured against **its own** declared floors:
 Nord's comment colour is 1.69:1 and that is Nord
 ([0032](0032-the-theme-file-owns-its-artefacts.md)).
 
@@ -213,41 +212,31 @@ launch and needs nothing.
    links, `checks/static.sh` asserts each sidecar carries its mode's accent in
    that consumer's own spelling, that each config still contains its include,
    and that none of the three link paths is also an `xdg.configFile`.
-3a. **Done.** Equibop and ncspot on the same mechanism, which turned out to be
-   two different mechanisms:
+3a. **Done.** Equibop and ncspot, which turned out to need two different
+   mechanisms.
 
-   - **Equibop needed no link.** It enables a theme by *filename* out of its own
-     `settings.json`, which the mode switch already rewrote — the indirection
-     the other four had to be given, it already had. So the generated file is
-     `equibop/themes/<mode>.theme.css` and `apply_theme` writes the name. It is
-     generated in `dotfiles.nix` rather than `mode-theme.nix`, with the `scale`
-     and `channels` helpers that have other callers there; the rule is that a
-     generated file lives with its consumer's other generated config, which is
-     where mango's `colors-<mode>.conf` already was.
-   - **ncspot's whole config IS its theme**, so the link is `config.toml`
-     itself. That is affordable only because the home-manager module wraps its
-     `xdg.configFile` in `mkIf (cfg.settings != { })` — `settings = { }`
-     installs the package and claims no path, so tier 1 keeps the half that
-     matters and gives up only the typing on twenty strings. One value there
-     re-claims the path and breaks activation; the check asserts it stays out of
-     the generation, and `gotchas.md` records why the empty set is load-bearing.
-   - **The accent needle could not see the failure that actually matters here.**
-     ncspot is drawn entirely from the `muted` set, and `p.accent` written where
-     `m.accent` was meant is a colour from the *right scheme and the wrong half*
-     — the file still contains the muted accent somewhere, so every existing
-     assertion passed. Measured, not theorised. The check now asserts every hex
-     in ncspot's config is a value from that scheme's `muted` set, which is only
-     stateable because ncspot is the one consumer drawn from a single half.
-   - **ncspot cannot reload either**, and worse than foot: it reads
-     `config.toml` once at startup, so a running one keeps its colours until
-     restarted. The notification names whichever of foot and ncspot is actually
-     running, so the message stays true rather than listing caveats nobody has
-     open.
+   **Equibop needed no link** — it enables a theme by *filename* from its own
+   `settings.json`, which the mode switch already rewrote. Generated in
+   `dotfiles.nix`, with its consumer's other generated config.
+
+   **ncspot's whole config IS its theme**, so the link is `config.toml` itself.
+   Affordable only because the module wraps its `xdg.configFile` in
+   `mkIf (cfg.settings != { })`: an empty set installs the package and claims
+   no path. One value there breaks activation.
+
+   **The accent needle could not see the failure that matters.** ncspot is
+   drawn entirely from `muted`, so `p.accent` where `m.accent` was meant is the
+   right scheme and the wrong half — measured, it passed every other
+   assertion. Every hex in its config must now be a `muted` value. Equibop's
+   `@name` had likewise read `Catppuccin Mocha` through two scheme changes; it
+   is generated per mode now, and asserted.
+
+   **ncspot cannot reload**, and worse than foot: it reads `config.toml` once
+   at startup. The notification names whichever of the two is running.
 
    Three negative tests before it landed — a renamed Equibop suffix, a
-   `programs.ncspot.settings` value re-claiming `config.toml`, and ncspot
-   generated from the canonical ramp instead of `muted`. All three failed
-   correctly.
+   `settings` value re-claiming `config.toml`, and ncspot generated from the
+   canonical ramp. All three failed correctly.
 
 3b. **Not done, and gated on a decision.** noctalia's auto-theming templates,
    restricted to the hookless or guard-satisfied set — never `mango` or `yazi`,

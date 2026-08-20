@@ -1,44 +1,23 @@
-# The colour scheme each desktop mode wears — the COLOUR-ONLY half of theming.
+# The scheme each desktop mode wears — the COLOUR-ONLY half. docs/adr/0034.
 #
-# `./scheme.nix` names the ARTEFACT scheme: GTK and Kvantum widget art, the icon
-# set, cursor bitmaps, the yazi flavor, the nvim plugin and the Zed theme. Those
-# are rendered SVG, compiled SCSS and plugin code — built, not coloured — so
-# they cannot follow a mode switch, and there is one of them for the machine.
+# ./scheme.nix names the ARTEFACT scheme (widget art, icons, cursor, yazi,
+# nvim, Zed). Those are built, so they cannot follow a mode switch; there is
+# one set for the machine. This file is the half that can follow one, where
+# colour is the WHOLE of a consumer's theme.
 #
-# This file names the other half, per mode: colour, where colour is the WHOLE of
-# a consumer's theme. docs/adr/0034 is the decision and the scope line.
+# FOLLOWS THIS FILE   mango's chrome and noctalia's predefinedScheme, both at
+#                     build time; kitty, foot, rofi and ncspot through a
+#                     runtime symlink, and Equibop through a filename, both
+#                     re-pointed by apply_theme() — see ./mode-theme.nix.
+# DOES NOT            waybar and swaync, which noctalia does not run and which
+#                     are generated once from ./scheme.nix. checks/static.sh
+#                     asserts every mode that DOES run them wears that scheme.
 #
-# WHAT FOLLOWS THIS FILE TODAY
-#   mango chrome   universal/colors-<mode>.conf, generated per mode
-#   noctalia       colorSchemes.predefinedScheme in settings-pinned.json.
-#                  noctalia runs in exactly ONE mode, so it needs no runtime
-#                  swap — only the right name at build time. Left on scheme.nix
-#                  it would contradict the mango chrome drawn around it, which
-#                  is the one arrangement worse than either scheme alone.
-#   kitty, foot,   ./mode-theme.nix generates one sidecar per mode for each,
-#   rofi, ncspot   reached through a runtime symlink `apply_theme()` in
-#                  dotfiles/mango/scripts/lib.sh re-points on every switch.
-#                  These four run in EVERY mode and read one fixed path, which
-#                  is why they need the indirection and mango does not.
-#   Equibop        ./dotfiles.nix generates <mode>.theme.css, and apply_theme
-#                  writes the NAME into Equibop's own settings.json. Per mode
-#                  like the four above, but with no link: the indirection it
-#                  needed already existed.
+# A FILE, not an option, for ./scheme.nix's reason: each value is interpolated
+# into `import ./themes/<name>.nix`, so a typo is a file-not-found at EVAL.
 #
-# WHAT DOES NOT
-#   waybar and swaync do not run in noctalia mode, so they are generated once
-#   from ./scheme.nix. checks/static.sh asserts every mode that DOES run them
-#   wears that scheme; if one ever needs to differ, it joins the swap first.
-#
-# A FILE rather than a home-manager option, for ./scheme.nix's reason applied
-# one layer along: each value is interpolated into `import ./themes/<name>.nix`,
-# so a typo is a file-not-found at EVAL. An option typed `str` would accept
-# "gruvbxo" and leave the failure to whichever consumer read it first.
-#
-# Every key here must be a mode in `MODES` in
-# dotfiles/mango/scripts/desktop-mode.sh, and every mode there must be a key
-# here — asserted both ways by checks/static.sh. A mode with no entry is an eval
-# error; a key naming no mode is a scheme nothing can select.
+# Every key must be a mode in MODES in dotfiles/mango/scripts/desktop-mode.sh,
+# and every mode there a key here — asserted both ways.
 {
   tiling = "gruvbox";
   noctalia = "nord";

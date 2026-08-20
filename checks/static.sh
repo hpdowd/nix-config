@@ -1091,19 +1091,14 @@ if [[ $modes_seen -eq 0 ]]; then
 	bad "no modes read from modules/home/modes.nix — the scan is broken, not the repo"
 fi
 
-# The runtime colour swap — docs/adr/0034 phase 2. kitty, foot and rofi run in
-# every mode and read one fixed path, so each reads through a symlink
-# `apply_theme()` re-points. Three things have to hold, and all three fail
-# silently on their own:
+# The runtime colour swap — docs/adr/0034. Three things have to hold, each
+# silent on its own:
 #
-#   1. the per-mode sidecar exists and carries THAT mode's accent, in that
-#      consumer's own spelling — kitty and rofi want `#rrggbb`, foot wants bare
-#      hex, and the spelling is where copies have hidden before;
-#   2. the config that reads it actually contains the include, or the sidecar is
-#      generated and then never read by anything;
-#   3. the LINK path is not also an xdg.configFile. Two owners for one path is
-#      an activation failure, and `rofi/colors.rasi` was exactly that until this
-#      landed.
+#   1. the sidecar exists and carries THAT mode's accent in that consumer's own
+#      spelling — copies have hidden in the spelling before;
+#   2. the config that reads it still contains the include;
+#   3. the LINK path is not also an xdg.configFile — two owners for one path is
+#      an activation failure, and `rofi/colors.rasi` was one until adr/0034.
 swap_seen=0
 while IFS='|' read -r m mscheme; do
 	[[ -z $m ]] && continue
@@ -1141,11 +1136,8 @@ while IFS='|' read -r m mscheme; do
 		equibop/themes/$m.theme.css|#${macc}|equibop
 	EOF
 
-	# Equibop DISPLAYS `@name` in its theme list, and a name is not a colour: it
-	# read `Catppuccin Mocha` through two scheme changes because every scan here
-	# greps for hex. Generated per mode since docs/adr/0034 phase 3a, so it is
-	# checkable — and with one file per mode, a re-hardcoded name would also make
-	# the three indistinguishable in Equibop's own list.
+	# Equibop DISPLAYS `@name`, and a name is not a colour — it read `Catppuccin
+	# Mocha` through two scheme changes because every scan here greps for hex.
 	eqfile="$GEN_CFG/equibop/themes/$m.theme.css"
 	if [[ ! -s $eqfile ]]; then
 		: # already reported as missing by the loop above
@@ -1156,14 +1148,10 @@ while IFS='|' read -r m mscheme; do
 			"the name Equibop shows has drifted from the mode and scheme that generated the file"
 	fi
 
-	# ncspot is the one consumer drawn ENTIRELY from `muted`, and the needle
-	# above only proves that half was reached — not that nothing else was. A
-	# `p.accent` written where `m.accent` was meant is a colour from the RIGHT
-	# scheme and the WRONG half, which no accent scan can see: the file still
-	# contains the muted accent somewhere. Measured, not assumed — that exact
-	# edit passed every other check here.
-	#
-	# So: every hex in the file must be a value from that scheme's muted set.
+	# ncspot is drawn ENTIRELY from `muted`, and the needle above only proves
+	# that half was reached. `p.accent` where `m.accent` was meant is the right
+	# scheme and the wrong half — measured, it passed every other check here.
+	# So every hex in the file must be a `muted` value.
 	nfile="$GEN_CFG/ncspot/colors-$m.toml"
 	mapfile -t mvals < <(jq -r ".schemes.\"$mscheme\".muted | to_entries[] | .value" "$SCHEMES" 2>/dev/null)
 	if [[ ${#mvals[@]} -eq 0 ]]; then
@@ -1300,16 +1288,10 @@ for mode in "${MODES[@]}"; do
 	fi
 done
 
-# Equibop enables its theme BY FILENAME, from lib.sh, and ignores a name that
-# matches no file without logging. So the two halves have to agree: the name
-# `apply_theme` writes into `enabledThemes` must be the name home-manager
-# generates. They are in different languages in different directories, which is
-# exactly the gap a rename walks into.
-#
-# Since docs/adr/0034 phase 3 the name is built from the MODE — `$mode.theme.css`
-# — so what has to agree is the suffix, and that every mode has a file wearing
-# it. The per-mode files' CONTENTS are checked in the swap loop above; this is
-# the naming half, which no amount of correct content would save.
+# Equibop enables its theme BY FILENAME and ignores a name matching no file,
+# without logging. The name apply_theme writes must be one home-manager
+# generates — two languages, two directories, one string. The name is the
+# MODE's since adr/0034, so what must agree is the suffix, for every mode.
 # SC2016: `$mode` is the literal text being searched for in lib.sh, not a
 # variable to expand here.
 # shellcheck disable=SC2016
@@ -1775,20 +1757,12 @@ else
 fi
 
 # Every module a layout carries needs a CSS rule, and every `format` needs
-# something in it. Both failures below are INVISIBLE — waybar renders the bar
-# either way — and both were made while adding `custom/control-center`:
+# something in it. Both are INVISIBLE — waybar renders the bar either way — and
+# both were made in one sitting adding `custom/control-center`: the glyph was
+# dropped writing the Nix (no \uXXXX escape, so it is literal UTF-8), and a new
+# module has no rule until someone writes one. docs/gotchas.md -> Waybar.
 #
-#   an empty `format` is an empty module. The glyph was lost writing the file
-#   (Nix has no \uXXXX escape, so a bar glyph is a literal UTF-8 byte sequence
-#   that a careless edit drops), and the module still built, still validated,
-#   and still rendered — as nothing.
-#
-#   a module with no rule is not an error, it is a module wearing the bar's
-#   defaults. `custom/phone` went without one for as long as it existed and
-#   nothing caught it. docs/gotchas.md -> Waybar.
-#
-# The id mapping is waybar's own: `custom/foo` -> `#custom-foo`, and every
-# other group prefix is dropped (`wlr/taskbar` -> `#taskbar`).
+# Ids are waybar's own: `custom/foo` -> `#custom-foo`, other prefixes dropped.
 css_seen=0
 cssmiss=""
 fmtempty=""

@@ -419,20 +419,13 @@ in
     };
   };
 
-  # ncspot. Only the theme was ever configured, and since docs/adr/0034 phase 3
-  # the theme is PER MODE — so `config.toml` is a runtime symlink `apply_theme()`
-  # re-points, and the per-mode files it points at are in ./mode-theme.nix.
+  # ncspot's theme is per mode since docs/adr/0034, so `config.toml` is a
+  # runtime symlink apply_theme() re-points; the files are in ./mode-theme.nix.
   #
-  # `settings = { }` is what makes that possible and is NOT a leftover: the
-  # module wraps its `xdg.configFile."ncspot/config.toml"` in
-  # `mkIf (cfg.settings != { })`, so an empty set installs the package and
-  # claims no path. One value here would re-claim it, and two owners for one
-  # path is an activation failure rather than a merge.
-  #
-  # What that preserves is the reason ncspot was converted to a module at all:
-  # it writes `userstate.cbor` next to its config, so the DIRECTORY has to stay
-  # writable while the config does not (docs/adr/0003). A symlinked file inside
-  # a writable directory is the same arrangement, reached a different way.
+  # `settings = { }` is LOAD-BEARING, not leftover: the module wraps its
+  # `xdg.configFile` in `mkIf (cfg.settings != { })`, so an empty set installs
+  # the package and claims no path. One value here re-claims it and breaks
+  # activation. docs/gotchas.md -> Theming.
   programs.ncspot = {
     enable = true;
     settings = { };

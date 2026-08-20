@@ -175,21 +175,13 @@ let
     }
   '';
 
-  # Equibop's theme, per desktop mode (docs/adr/0034 phase 3). Generated HERE
-  # rather than in ./mode-theme.nix, which owns the per-mode halves that need a
-  # runtime SYMLINK: Equibop needs none. It enables a theme by FILENAME out of
-  # its own settings.json, and `apply_theme()` rewrites that on every switch —
-  # an indirection it already had. The rule this follows is the one mango's
-  # colors-<mode>.conf follows two hundred lines up: a generated file lives with
-  # its consumer's other generated config, and `channels` and `scale` above have
-  # other callers in this file.
+  # Equibop's theme, per desktop mode (docs/adr/0034). Here rather than in
+  # ./mode-theme.nix because Equibop needs no symlink — it enables a theme by
+  # FILENAME from its own settings.json, which apply_theme() rewrites — and
+  # because `channels` and `scale` above have other callers in this file.
   #
-  # `<mode>.theme.css`, NOT the scheme's name and no longer `scheme.theme.css`.
-  # A filename is a *name*, not a colour — which is why the old one was
-  # scheme-neutral, and it was already wrong once as `gruvbox.theme.css`. A mode
-  # name is the same kind of stable, and it is the key `apply_theme` is handed,
-  # so neither side has to learn a scheme name (the boundary rule in
-  # ./mode-theme.nix).
+  # Named for the MODE, never the scheme: a filename is a name, not a colour,
+  # and this one was already stale once as `gruvbox.theme.css`.
   equibopTheme =
     mode: q:
     # The metadata block, PREPENDED. `@name` is what Equibop shows in its theme

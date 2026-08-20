@@ -223,7 +223,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — thirty-five records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — thirty-eight records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |
@@ -241,3 +241,18 @@ Route new material by kind: a **decision** becomes an ADR, a **failure** goes in
 code comment — `docs/PLAN-idiomatic-nix.md` §5d is moving 1,417 lines of narrative
 comment out of the Nix, so adding more works against that. A one-line reason plus
 a pointer is the target.
+
+### Write it short
+
+Documentation, comments and commit messages here are **direct and concise**. The
+argument lives in one place — the ADR or the gotchas entry — and everything else
+points at it. Writing it twice is not thoroughness; it is two copies that drift.
+
+- **Comments: a one-line reason plus a pointer.** `# <what and why>. docs/adr/00NN`
+  A file past ~30% comment is a signal to move text out, not a well-documented
+  file. Never restate in a comment what the ADR beside it already argues.
+- **ADRs run ~100 lines.** Context, Decision, Consequences, and the failure that
+  motivated it. Past 200 is an outlier worth trimming.
+- **Prefer the assertion to the paragraph.** A check in `checks/static.sh` that
+  fails when a fact stops being true is worth more than three sentences asking
+  the reader to remember it — and it is shorter.

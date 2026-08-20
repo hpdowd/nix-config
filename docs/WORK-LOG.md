@@ -2358,3 +2358,25 @@ a blocklist that would need updating whenever upstream adds a template.
 - `DESIGN-per-mode-theming.md` deleted — the scratch note that carried these
   measurements between sessions.
 
+### Night light stops at the noctalia boundary (0037)
+
+Reported from use: switching to noctalia with night light on left a warm screen
+with nothing in that mode able to change it — wlsunset's controls are the bar
+and the control centre, and its own night light is pinned off.
+`noctalia-start.sh` now stops the unit on every entry, beside the waybar and
+swaync handovers, and notifies. Not restored on the way out; the two
+alternatives are in `docs/adr/0037`.
+
+**Every entry, not just a switch.** The unit is
+`WantedBy=graphical-session.target`, so logging straight into noctalia produced
+this with no mode script running — putting the stop in `apply_mode` would have
+fixed the reported case and missed that one.
+
+### What it cost
+
+- **Two negative tests.** Removing the stop line gave 106 passed / 1 failed,
+  naming it. The `pkill` branch needed no test: it fired on the first run,
+  against this script's own *comment* about noctalia pkilling wlsunset. The grep
+  strips comments now — a scan that reads prose fails on a file that is correct,
+  which costs as much trust as one that passes on a file that is not.
+

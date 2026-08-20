@@ -718,6 +718,31 @@ if [[ -d "$MANGO/noctalia" ]]; then
 		fi
 	fi
 
+	# Three files must agree on one unit name — the home-manager unit,
+	# night-mode.sh's `UNIT=`, and the stop in noctalia-start.sh — and nothing
+	# errors when they stop: `is-active` answers "inactive" for a unit that does
+	# not exist, so the guard silently stops matching. docs/adr/0037.
+	NOCT_START="$MANGO/scripts/modes/noctalia-start.sh"
+	NIGHT_SH="$MANGO/scripts/menus/night-mode.sh"
+	nl_unit=$(sed -n 's/^UNIT=\([A-Za-z0-9@._-]*\).*/\1/p' "$NIGHT_SH" | head -1)
+	if [[ -z $nl_unit ]]; then
+		bad "no UNIT= read from night-mode.sh — the scan is broken, not the repo" "$NIGHT_SH"
+	elif [[ ! -f "$GEN_CFG/systemd/user/$nl_unit" ]]; then
+		bad "night-mode.sh drives $nl_unit but the generation has no such user unit" \
+			"$GEN_CFG/systemd/user/$nl_unit"
+	elif ! grep -q "systemctl --user stop ${nl_unit%.service}" "$NOCT_START"; then
+		bad "noctalia mode does not stop $nl_unit — night light would stay on in the one mode that cannot reach it" \
+			"$NOCT_START"
+	elif grep -v '^[[:space:]]*#' "$NOCT_START" | grep -q "pkill.*${nl_unit%.service}"; then
+		# Restart=always undoes a kill three seconds later — docs/gotchas.md →
+		# night light. Comments stripped first: the script explains that
+		# noctalia pkills wlsunset, and this matched that sentence.
+		bad "noctalia-start.sh pkills ${nl_unit%.service}; Restart=always brings it straight back" \
+			"$NOCT_START"
+	else
+		ok "noctalia mode stops $nl_unit, the unit night-mode.sh drives"
+	fi
+
 	# `layerrule=…,layer_name:X` naming a namespace nothing creates is a rule
 	# that never fires and never says so — the same class as the rofi layer
 	# rules that matched nothing for months (docs/WORK-LOG.md). noctalia's

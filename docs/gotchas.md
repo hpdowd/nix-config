@@ -455,6 +455,18 @@ journalctl --user -u noctalia | grep 'Killed stale wlsunset'
 systemctl --user show wlsunset -p NRestarts -p ActiveState
 ```
 
+### A night light left on in tiling was unreachable in noctalia mode
+
+wlsunset's only controls are the `custom/night` bar module and the control
+centre's `night` row, and noctalia mode runs neither. Its own night light is
+pinned off, so its panel could not reach wlsunset either: the screen stayed
+warm, with nothing able to change it, until you switched back. Nothing logged.
+
+`noctalia-start.sh` stops the unit on **every** entry into the mode — not just a
+switch, because the unit is `WantedBy=graphical-session.target` and logging
+straight in produced this too — and says so. It stays off on the way out
+(`docs/adr/0037`). **`stop`, not `pkill`**: see the entry above.
+
 ### Editing noctalia's settings seed changes nothing
 
 **`noctalia/settings.json` is written once, when there is no file at all**, so

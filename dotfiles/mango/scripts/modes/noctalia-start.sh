@@ -26,6 +26,18 @@ pkill waybar 2>/dev/null
 pkill -x dsearch 2>/dev/null
 pkill -f '^swaync( |$)' 2>/dev/null
 
+# Night light goes with the bar: this mode has no control that reaches wlsunset,
+# so it ends it. docs/adr/0037. Every entry, not just a switch — the unit is
+# WantedBy=graphical-session.target, so logging straight in here starts it.
+#
+# `stop`, NOT pkill: Restart=always would undo a kill in three seconds
+# (docs/gotchas.md -> night light).
+night_light_was_on=0
+if systemctl --user is-active --quiet wlsunset; then
+	night_light_was_on=1
+	systemctl --user stop wlsunset
+fi
+
 # quickshell never removes an instance directory when the shell exits — it just
 # reports them ("Dead instances:" is part of every failed `ipc call`). Each
 # holds a socket, a lock and a log that reaches 1.5 MB, in $XDG_RUNTIME_DIR,
@@ -79,4 +91,10 @@ if [ "$up" -eq 0 ]; then
 	sleep 0.5
 	notify-send -u critical "Noctalia" \
 		"Shell failed to start — swaync restored. See: systemctl --user status noctalia"
+fi
+
+# After the daemon question above, so there is something to notify with either
+# way. Only when something was actually turned off.
+if [ "$night_light_was_on" -eq 1 ]; then
+	notify-send "Night light" "Off — it does not run in noctalia mode, and stays off when you switch back"
 fi

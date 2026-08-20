@@ -812,7 +812,7 @@ is missing from the bar, **run its script by hand first**:
 | **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
 | **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
-| **wlsunset** | Night light, owned by a systemd user unit |
+| **wlsunset** | Night light, owned by a systemd user unit. `tiling` mode only — `noctalia` mode stops it (`docs/adr/0037`) |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
 | **swaylock** | Screen lock in tiling, and the fallback in noctalia mode (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
 | **lockscreen** | The wrapper every lock path actually calls — hands the lock to noctalia in noctalia mode, otherwise picks a background from the pool and execs swaylock (§9, `docs/adr/0018`, `docs/adr/0024`) |
@@ -1356,7 +1356,7 @@ What is running, and who owns it.
 | Unit | Purpose |
 |---|---|
 | `polkit-gnome-authentication-agent-1` | Polkit prompts (the `lxpolkit` autostart line is a dead Arch leftover) |
-| `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp`. **`Restart=always`**, because noctalia SIGTERMs it on every start and systemd counts that as a clean exit (`docs/gotchas.md` → night light) |
+| `wlsunset` | Night light — reads its temperature from `~/.local/state/mango/night-temp`. **`Restart=always`**, because noctalia SIGTERMs it on every start and systemd counts that as a clean exit (`docs/gotchas.md` → night light). **Stopped on every entry into `noctalia` mode**, which cannot reach it, and not restarted on the way out (`docs/adr/0037`) |
 | `micmute-led` | Syncs the mic-mute LED with PipeWire. **The only place `pactl` exists** — it comes from this unit's `path`, not `systemPackages`. No longer the sole mic indicator: waybar's `pulseaudio` carries `{format_source}` since 2026-08-19, so this unit failing is now visible rather than silent (`docs/gotchas.md` → Waybar) |
 | `nextcloud-client` | Cloud sync — credentials in gnome-keyring's `Default` collection, config at `~/.config/Nextcloud/`. If it asks you to log in, check the unit's `XDG_CONFIG_HOME` before anything else (`docs/gotchas.md` → Session environment) |
 | `cliphist` (+ `cliphist-images`) | Clipboard history behind `SUPER+V` — read by rofi, and by noctalia's own clipboard view in `noctalia` mode |
@@ -1470,6 +1470,12 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-11.)*
   ncspot reads `config.toml` once at startup. The mode switch notification names
   whichever is running; `docs/gotchas.md` → Theming has the detail. kitty
   reloads in place, and rofi re-reads on every launch.
+
+- **noctalia mode has no night light, and entering it turns tiling's off.**
+  Neither of wlsunset's controls — the bar module, the control centre — runs
+  there, and noctalia's own night light is pinned off because wlsunset holds the
+  gamma control. So the mode ends it on every entry and notifies; it stays off
+  when you switch back, one click from the bar (`docs/adr/0037`).
 
 - **Nothing here can hold off the idle ladder except a Wayland idle inhibitor.**
   `systemd-inhibit --what=idle` does not reach swayidle, so unattended work on

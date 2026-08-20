@@ -116,12 +116,12 @@ rec {
     overlay = "3d352c"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: three named, two generated --------------------------------
-  # All five native — the bar every shipped scheme has to clear. Three are
-  # NAMED: `name` is read off the built package, and not one of them is
-  # guessable from the attribute that builds it. The cursor and the Kvantum
-  # theme are GENERATED from the colours above (docs/adr/0041), which is why
-  # their names are the two that follow a rule.
+  # --- Artefacts: two named, three generated --------------------------------
+  # All five native — the bar every shipped scheme has to clear. Two are still
+  # NAMED, and neither is guessable from the attribute that builds it: the icon
+  # set, which stays named on purpose, and the yazi flavor, which is fetched.
+  # The GTK theme, the Kvantum theme and the cursor are GENERATED from the
+  # colours above (docs/adr/0041), which is why those three names follow a rule.
   #
   # NOT what this scheme used before 2026-08-18, which is worth knowing if you
   # are comparing against git history: Kvantum was a lone hand-carried
@@ -134,8 +134,13 @@ rec {
     # 2026-08-19 — ships no `gtk-4.0`, so libadwaita apps sat on Adwaita while
     # GTK3 was themed. Nothing said so. docs/gotchas.md → Theming.
     gtk = {
-      attr = "gruvbox-gtk-theme";
-      name = "Gruvbox-Dark";
+      # GENERATED from this file's own colours — docs/adr/0041. `paletteGtk`
+      # compiles Colloid against a `_color-palette-default.scss` written from
+      # the roles above, so this is the one artefact whose upstream already
+      # treats a palette as an argument. GTK4 included, which is what
+      # `gruvbox-dark-gtk` never managed.
+      attr = "paletteGtk";
+      name = "gruvbox-gtk";
       native = true;
     };
     kvantum = {

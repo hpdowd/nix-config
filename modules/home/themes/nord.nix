@@ -124,19 +124,17 @@ rec {
     overlay = "3f4757"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: three named, two generated --------------------------------
+  # --- Artefacts: two named, three generated --------------------------------
   # All native, no stand-ins. `nordic` used to supply the GTK theme, the Kvantum
-  # theme and the cursors between them; two of those three are generated from
-  # the colours above now (docs/adr/0041), so only the GTK theme is still its.
+  # theme and the cursors between them. All three are generated from the colours
+  # above now (docs/adr/0041), so this scheme no longer names `nordic` at all.
   #
   # `name` is read off the built package, never constructed from the attribute.
   packages = {
     gtk = {
-      attr = "nordic";
-      # `Nordic-darker`, not `Nordic`: the plain variant is lighter than this
-      # palette's `bg0` and reads as a different scheme beside it. Both ship in
-      # the same package.
-      name = "Nordic-darker";
+      # Generated from this file's colours — docs/adr/0041; see gruvbox.nix.
+      attr = "paletteGtk";
+      name = "nord-gtk";
       native = true;
     };
     kvantum = {

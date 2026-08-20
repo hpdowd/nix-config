@@ -125,7 +125,7 @@ rec {
     overlay = "1b1b2a"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: three named, two generated --------------------------------
+  # --- Artefacts: two named, three generated --------------------------------
   # Rendered SVG widget art, compiled SCSS and names other programs resolve
   # internally. No amount of hex here reaches those four, so the
   # scheme names them instead and `checks/static.sh` asserts each one resolves.
@@ -137,18 +137,14 @@ rec {
   # and from the attribute (`mochaMauve`). A GTK theme name matching nothing
   # falls back to Adwaita and looks merely unstyled.
   #
-  # The cursor and the Kvantum theme are the EXCEPTIONS and no longer names at
-  # all: both are generated from the colours above (docs/adr/0041), so they are
-  # the artefacts this file colours rather than names.
+  # Only the icon set and the yazi flavor are still names. The GTK theme, the
+  # Kvantum theme and the cursor are generated from the colours above
+  # (docs/adr/0041) — the artefacts this file colours rather than names.
   packages = {
     gtk = {
-      attr = "catppuccin-gtk";
-      override = {
-        accents = [ "mauve" ];
-        variant = "mocha";
-        size = "standard";
-      };
-      name = "catppuccin-mocha-mauve-standard";
+      # Generated from this file's colours — docs/adr/0041; see gruvbox.nix.
+      attr = "paletteGtk";
+      name = "mocha-high-contrast-gtk";
       native = true;
     };
     kvantum = {

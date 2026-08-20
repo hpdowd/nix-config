@@ -1777,6 +1777,10 @@ for kind in gtk kvantum icons cursor; do
 		kvantum_path=$hit_path
 		kvantum_theme=$name
 	fi
+	if [[ $kind == gtk ]]; then
+		gtk_path=$hit_path
+		gtk_theme=$name
+	fi
 
 	if [[ -n $hit ]]; then
 		ok "$kind: '$name' resolves in $hit"
@@ -1916,6 +1920,41 @@ if [[ -n ${kvantum_path:-} ]]; then
 		else
 			bad "kvantum: $kv_grey of $kv_n colours in the widget art are still neutral grey" \
 				"the source is greyscale, so a grey here is a colour the tint did not reach"
+		fi
+	fi
+fi
+
+# The GTK theme is generated too (docs/adr/0041, phase 3): Colloid compiled
+# against a `_color-palette-default.scss` written from the palette. A variable
+# renamed upstream is loud — sassc stops with `Undefined variable` — but the
+# file being written and never IMPORTED is not: Colloid changing which palette
+# `_tweaks.scss` pulls in gives a theme that builds, installs, resolves by
+# name, ships its gtk-4.0/gtk.css, and is Colloid's own blue. Every check above
+# passes it, and this one does not.
+#
+# Both toolkits are read, because they are compiled from the same SCSS into two
+# separate files and only one of them is checked for existence above.
+if [[ -n ${gtk_path:-} ]]; then
+	gtk_bg=$(pal '.bg0')
+	gtk_accent=$(pal '.accent')
+	if [[ -z $gtk_bg || -z $gtk_accent ]]; then
+		bad "gtk: could not read bg0/accent from the resolved palette" \
+			"bg0='$gtk_bg' accent='$gtk_accent' — the checks below would pass on nothing"
+	else
+		gtkerr=""
+		for css in "$gtk_path/gtk-3.0/gtk.css" "$gtk_path/gtk-4.0/gtk.css"; do
+			if [[ ! -r $css ]]; then
+				gtkerr+="  ${css#"$gtk_path/"}: not readable"$'\n'
+				continue
+			fi
+			grep -qi "$gtk_bg" "$css" || gtkerr+="  ${css#"$gtk_path/"}: no #$gtk_bg (bg0)"$'\n'
+			grep -qi "$gtk_accent" "$css" || gtkerr+="  ${css#"$gtk_path/"}: no #$gtk_accent (accent)"$'\n'
+		done
+		if [[ -z $gtkerr ]]; then
+			ok "gtk: '$gtk_theme' compiles '$PAL_SCHEME''s own colours into both toolkits"
+		else
+			bad "gtk: '$gtk_theme' does not carry this palette's colours" \
+				"the generated palette compiled, but nothing imported it:"$'\n'"$gtkerr"
 		fi
 	fi
 fi

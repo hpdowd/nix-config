@@ -17,9 +17,9 @@ let
   # exist is an eval error naming the attribute, which is the loud failure this
   # repo wants. `base` is lazy, so the null guard runs first.
   #
-  # `final`, not `prev`: `gruvbox-gtk-theme` below is defined by THIS overlay,
-  # and `prev` is nixpkgs before it — a theme file naming an attribute the
-  # overlay adds would not resolve.
+  # `final`, not `prev`: `paletteGtk` and its two siblings below are defined by
+  # THIS overlay, and `prev` is nixpkgs before it — a theme file naming an
+  # attribute the overlay adds would not resolve.
   themePkg =
     d:
     let
@@ -381,65 +381,148 @@ in
     };
 
   # ==========================================================================
-  # gruvbox-gtk-theme — the one shipped scheme nixpkgs cannot dress in GTK4
+  # paletteGtk — the GTK theme, recoloured from the palette
   # ==========================================================================
-  # `gruvbox-dark-gtk`, which this replaces, ships gtk-2.0, gtk-3.0 and
-  # gtk-3.20 and stops there. GTK4 reads none of those: it ignores
-  # `gtk-theme-name` entirely, so home-manager themes it by writing an
-  # `@import` of `<theme>/gtk-4.0/gtk.css` into ~/.config/gtk-4.0/gtk.css. That
-  # file did not exist, the import failed at parse time, and every
-  # GTK4/libadwaita app fell back to Adwaita while GTK3 stayed gruvbox — two
-  # toolkits disagreeing, which reads as libadwaita being libadwaita rather
-  # than as a fault. docs/gotchas.md → Theming.
+  # docs/adr/0041, phase 3. Colloid keeps every colour it uses in ONE file per
+  # scheme — `_color-palette-gruvbox.scss`, `_color-palette-nord.scss` and three
+  # more, all with identical variable names — so this is a FILE ADDITION and not
+  # a patch of upstream internals. The only coupling is to those 43 names, and
+  # `colloid-palette.py` fails rather than writing a short file.
   #
-  # Nixpkgs has no gruvbox GTK theme that ships gtk-4.0 (`by-name/gr` holds
-  # gruvbox-dark-gtk, gruvbox-dark-icons-gtk, gruvbox-kvantum,
-  # gruvbox-plus-icons — that is all of them), so this builds upstream's SCSS,
-  # the same way nixpkgs builds this author's Everforest theme. It is a
-  # derivation, not vendored CSS: a rename upstream fails the build.
-  gruvbox-gtk-theme = prev.stdenvNoCC.mkDerivation {
-    pname = "gruvbox-gtk-theme";
-    version = "0-unstable-2025-10-23";
+  # `_color-palette-default.scss` is overwritten rather than a sixth scheme
+  # added. Adding one means patching install.sh in three places (the `--tweaks`
+  # dispatch, `SCHEME_VARIANTS`, `color_schemes()`); overwriting the default
+  # means patching nothing, because `$colorscheme` stays `default` and is only
+  # ever special-cased for `dracula` (checked, in _colors-public.scss and the
+  # two _common-*.scss).
+  #
+  # This retired `gruvbox-gtk-theme`, an overlay derivation that existed only
+  # because the nixpkgs `gruvbox-dark-gtk` ships no GTK4. That stops being a
+  # per-scheme problem once the theme is built here.
+  paletteGtk =
+    let
+      p = themeData;
+      themeName = "${import ../modules/home/scheme.nix}-gtk";
+      paletteJson = prev.writeText "palette.json" (
+        builtins.toJSON {
+          inherit (p)
+            fg0
+            fg1
+            fg4
+            comment
+            bg0
+            bg1
+            bg2
+            bg3
+            mantle
+            accent
+            red
+            green
+            yellow
+            blue
+            magenta
+            cyan
+            brRed
+            brGreen
+            brYellow
+            brBlue
+            brMagenta
+            brCyan
+            okColor
+            warnColor
+            errColor
+            infoColor
+            ;
+        }
+      );
+      scss = prev.runCommand "colloid-palette.scss" { } ''
+        ${prev.python3}/bin/python3 ${./colloid-palette.py} ${paletteJson} "$out"
+      '';
+    in
+    (prev.colloid-gtk-theme.override {
+      themeVariants = [ "default" ];
+      colorVariants = [ "dark" ];
+      sizeVariants = [ "standard" ];
+    }).overrideAttrs
+      (old: {
+        pname = "palette-gtk";
 
-    src = prev.fetchFromGitHub {
-      owner = "Fausto-Korpsvart";
-      repo = "Gruvbox-GTK-Theme";
-      rev = "578cd220b5ff6e86b078a6111d26bb20ec8c733f";
-      hash = "sha256-RXoPj/aj9OCTIi8xWatG0QpDAUh102nFOipdSIiqt7o=";
-    };
+        postPatch = (old.postPatch or "") + ''
+          target=src/sass/_color-palette-default.scss
+          if [ ! -f "$target" ]; then
+            echo "paletteGtk: Colloid has no $target — it reorganised its sass tree." >&2
+            echo "  Overwriting the default scheme is how this hooks in; re-read install.sh." >&2
+            exit 1
+          fi
+          cp ${scss} "$target"
+        '';
 
-    nativeBuildInputs = [ prev.sassc ];
-    buildInputs = [ prev.gnome-themes-extra ];
+        # Renamed from Colloid's own `Colloid-Dark*` to `<scheme>-gtk*`, so all
+        # three generated artefacts read the same way in a theme file and a
+        # name that has stopped matching its scheme is visible. Only
+        # `index.theme` holds the name internally, and GTK resolves a theme by
+        # DIRECTORY anyway — but a metatheme naming a theme that is not there
+        # is the kind of thing that gets believed later.
+        #
+        # The compiled CSS must actually carry the palette, and this guards a
+        # narrower gap than it looks. A variable RENAMED upstream is already
+        # loud: sassc stops with `Undefined variable: "$grey-700"` (verified
+        # 2026-08-20, not assumed). What is silent is the file being written
+        # and never IMPORTED — Colloid changing which palette `_tweaks.scss`
+        # pulls in — because then sassc succeeds, the theme installs, it
+        # resolves by name, it ships its gtk-4.0/gtk.css, and it is Colloid's
+        # own blue. Every other check here passes it.
+        postInstall =
+          (old.postInstall or "")
+          + ''
+            themes="$out/share/themes"
+            for d in "$themes"/Colloid-Dark*; do
+              [ -d "$d" ] || continue
+              new="$themes/${themeName}''${d##*/Colloid-Dark}"
+              mv "$d" "$new"
+              if [ -f "$new/index.theme" ]; then
+                sed -i "s/^\(Name\|GtkTheme\|MetacityTheme\)=Colloid-Dark.*/\1=$(basename "$new")/" "$new/index.theme"
+              fi
+            done
+            if [ ! -d "$themes/${themeName}" ]; then
+              echo "paletteGtk: nothing named Colloid-Dark to rename — install.sh names its output differently now." >&2
+              exit 1
+            fi
 
-    dontBuild = true;
-    dontFixup = true;
+            # nixpkgs' installPhase runs `jdupes --link-soft` over share/, which
+            # replaces every duplicate file across the three size variants with a
+            # SYMLINK into Colloid-Dark. Renaming the directories leaves those
+            # dangling, and nixpkgs' own noBrokenSymlinks check then fails the
+            # build — loudly, which is why this was found immediately and is
+            # worth keeping that way. Re-point rather than un-dedupe: the
+            # deduplication is most of why the closure is 3.2 MB and not more.
+            find "$themes" -type l | while IFS= read -r link; do
+              t=$(readlink "$link")
+              case "$t" in
+                *Colloid-Dark*) ln -sfn "''${t//Colloid-Dark/${themeName}}" "$link" ;;
+              esac
+            done
+          ''
+          + ''
+            css=$(find "$out/share/themes" -name 'gtk.css' -path '*gtk-3.0*' | head -1)
+            if [ -z "$css" ]; then
+              echo "paletteGtk: no gtk-3.0/gtk.css in the built theme." >&2
+              exit 1
+            fi
+            for role in ${p.bg0} ${p.fg0} ${p.accent}; do
+              if ! grep -qi "$role" "$css"; then
+                echo "paletteGtk: #$role is nowhere in $css." >&2
+                echo "  The palette did not reach the compiled CSS — check the variable names in" >&2
+                echo "  src/sass/_color-palette-default.scss against pkgs/colloid-palette.py." >&2
+                exit 1
+              fi
+            done
+          '';
 
-    postPatch = ''
-      patchShebangs themes/install.sh
-    '';
-
-    # One variant, not `--theme all`: nine accents in nine sizes is 5 GB of
-    # store for a machine that wears one. `default` is upstream's own gruvbox
-    # accent — the `-Yellow` variant is a different colour, not this one.
-    installPhase = ''
-      runHook preInstall
-      mkdir -p "$out/share/themes"
-      themes/install.sh \
-        --dest "$out/share/themes" \
-        --name Gruvbox \
-        --theme default \
-        --color dark \
-        --size standard
-      runHook postInstall
-    '';
-
-    meta = {
-      description = "Gruvbox colour palette for GTK, including GTK4";
-      homepage = "https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme";
-      license = prev.lib.licenses.gpl3Only;
-      platforms = prev.lib.platforms.unix;
-    };
-  };
+        meta = old.meta // {
+          description = "Colloid, compiled against this repo's palette";
+        };
+      });
 
   # ==========================================================================
   # noctalia-shell — its mango backend still speaks dwl's dead flags

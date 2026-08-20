@@ -188,7 +188,52 @@ so the shape this phase needs already exists and the two-owners trap
 
 ---
 
-### Phase 3 — GTK
+### Phase 3 — GTK ✅ done 2026-08-20
+
+**Landed.** `paletteGtk` in `pkgs/default.nix` plus `pkgs/colloid-palette.py`;
+all four theme files take their GTK theme from it; one new assertion in
+`checks/static.sh`. Build: **14 s**, 3.2 MB, both toolkits.
+
+**No install.sh patching was needed.** `_color-palette-default.scss` is
+overwritten rather than a sixth scheme added, because `$colorscheme` stays
+`default` and is only ever special-cased for `dracula` — checked in
+`_colors-public.scss` and both `_common-*.scss`. Adding a scheme would have
+meant patching three places in `install.sh`; overwriting the default patches
+none.
+
+**The grey ramp is anchored, not interpolated end to end.** Upstream's own
+`_color-palette-gruvbox.scss` was read off against `themes/gruvbox.nix` and its
+stops land exactly on that palette's ramp — `$grey-150 = fg1`, `$grey-350 =
+fg4`, `$grey-400 = comment`, `$grey-550..700 = bg3..bg0`, `$black = mantle`.
+That is reproduced, and only the gaps between anchors are interpolated. Two of
+Colloid's eight hues have no role here (`purple`, `orange`) and are blended
+from the ones that do; `$pink` and `$orange` turn out to be used only by theme
+variants this build does not produce, and `$purple` only by `$link-visited`.
+
+**Renamed to `<scheme>-gtk`**, so all three generated artefacts read the same
+way in a theme file. That broke the build once: nixpkgs' installPhase runs
+`jdupes --link-soft` across the three size variants, so renaming left dangling
+symlinks — caught immediately by nixpkgs' own `noBrokenSymlinks`, and fixed by
+re-pointing rather than un-deduplicating.
+
+**A comment was wrong and the negative test caught it.** The postInstall
+assertion was written believing sassc silently drops a declaration whose
+variable it cannot resolve. It does not — it stops with `Undefined variable:
+"$grey-700"`. What *is* silent is the palette file being written and never
+**imported**, which is what the assertion actually guards and what NEG M
+demonstrates: sassc succeeds, the theme installs and resolves, and it is
+Colloid's own blue.
+
+**`gruvbox-gtk-theme` was deleted** — 61 lines of overlay that existed only
+because nixpkgs' `gruvbox-dark-gtk` ships no GTK4. That stops being a
+per-scheme problem once the theme is built here.
+
+**Four negative tests:** a variable renamed upstream, the sass tree
+reorganising, the generator writing a short file, and the palette compiling but
+never being imported.
+
+The original notes follow.
+
 
 The largest, and better-shaped than expected. Colloid does **not** need
 patching: `src/sass/` already contains one palette file per scheme —

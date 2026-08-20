@@ -1,550 +1,629 @@
-# Plan — make `nix-config` more maintainable and reproducible
+# Plan — what is left to make `nix-config` maintainable
 
-**Live working file.** Moved into the repo on 2026-08-03 — it had been sitting in
-a session scratchpad under `/tmp`, one reboot from gone. Delete it when the work
-lands; promote individual sections into `docs/adr/` as decisions come out of
-them.
+**Live working file.** Everything decided here has been promoted to
+`docs/adr/`; what stays is what has not been decided, or not been done. Delete
+it when it empties.
 
-Rewritten **2026-08-03** against `main` @ `2f45486`, after Phase 0 landed and
-after a complexity audit that changed the plan's shape. Every package attribute
-named here resolves at the current pin (nixpkgs `624af665`); every measurement
-was taken, not estimated.
+Rewritten **2026-08-20** against `main` @ `53783bf`, replacing the 2026-08-03
+version. The five closed phases are a ledger now rather than five
+retrospectives — each has an ADR, and a second copy of an argument is two
+copies that drift (`CLAUDE.md` → Write it short). Every number below was
+measured today, not carried forward.
+
+**Starting work: go to *Suggested order* at the bottom, then read that item's
+section.** Every outstanding item carries **Steps** and **Verify**. The `file:line`
+references were accurate on 2026-08-20 and the first edit will move some of
+them; the surrounding quote is the durable half.
 
 ---
 
-## Framing
+## The ledger
 
-The file tree is **not** the problem. One host, per-concern system modules,
-home-manager as a NixOS module, a single overlay point, a documented three-tier
-config rule with ten ADRs behind it — that is already better than most public
-configs, and reorganising it further is the wrong place to spend effort.
-
-Four gaps, in priority order:
-
-| Gap | Consequence | Phase |
+| Phase | Closed | Record |
 |---|---|---|
-| ~~Nothing verifies a change before you run it~~ | closed 2026-08-03 | 0 ✅ |
-| ~~Nothing verifies the SHELL~~ | closed 2026-08-03 | 0.5 ✅ |
-| ~~Secrets are not managed~~ | closed 2026-08-06; profiles followed 2026-08-09 | 1 ✅, 2 ✅ |
-| ~~Dead code is indistinguishable from live code~~ | closed 2026-08-09 — and the sweep found the inverse problem was bigger | 4 ✅ |
-| **Prose has swallowed the code** | 1,417 of 3,930 `.nix` lines are comments; `dotfiles.nix` is 57 lines of code under 249 of narrative | 5 |
+| **0** — a gate for Nix | 2026-08-03 | `docs/adr/0010` |
+| **0.5** — a gate for shell | 2026-08-03 | `docs/adr/0011` |
+| **1** — secrets in sops | 2026-08-06 | `docs/adr/0012` |
+| **2** — NetworkManager profiles declared | 2026-08-09 | `docs/adr/0013` |
+| **4** — the dead-code class | 2026-08-09 | `docs/adr/0014` |
+| **6** — the gate catches itself | 2026-08-20 | `docs/adr/0039` |
+| **3** — the desktop layer | 🔶 partly | §3 below |
+| **5** — idiomatic cleanups | 🔶 partly | §5 below |
 
-### The correction that reshaped this plan
+**What the gate is today.** `nix flake check` runs six checks: the system
+closure, the home closure, statix, deadnix, shellcheck over 43 tracked scripts,
+and `checks/static.sh` — **115 assertions across 14 sections, 0 failing**. It
+was 19 assertions when Phase 4 closed. Two live checks that need a running
+compositor stay in `./verify-claims.sh` (69 lines).
 
-The original version gated Nix and ignored shell. That was backwards:
+## The framing, corrected
 
-| | Lines | Files | Gated by |
+The 2026-08-03 version named four gaps. Three closed. The fourth has not — the
+absolute burden is up by half:
+
+| | Then (2026-08-03) | Now | |
 |---|---|---|---|
-| Nix | 3,930 | 22 | full build + statix + deadnix |
-| **Shell** | **2,160** | **40** | **nothing** |
+| `.nix` comment lines | 1,436 | **2,222** | +55% |
+| `.nix` code lines (blanks and comments excluded) | 2,245 | **3,681** | +64%, so the *ratio* fell 0.64 → **0.60** |
+| `.nix` files over 1:2 | "nine" | **20 of 31** | |
+| shell under `dotfiles/` | 2,160 in 40 files | **3,291 in 41** | |
+| `checks/static.sh` | — | **2,402 lines** | the gate is now the second-largest body of shell in the repo |
 
-**Every failure catalogued in `CLAUDE.md` is a shell failure** — the
-`#!/bin/bash` exit-127s, the dead `mmsg -s -d` flags that return 0, `pkill -x`
-against wrapped binaries, the `cp` mode-0444 bug, the empty `custom/*` module
-text, the state-path disagreement that broke the mode switch one-way. Not one
-was a Nix error. Phase 0 built a careful gate around the layer that was not
-breaking.
+⚠️ **The 2026-08-20 rewrite of this table read "ratio 0.56 → 0.60" and called
+that a widening. It was neither.** 0.56 counted comments against
+`total − comments`; 0.60 counted them against code with blanks removed — two
+denominators, one arrow, and the sign came out backwards. Measured the same way
+on both sides the ratio *fell*, under either convention (0.56 → 0.53, or
+0.64 → 0.60). Comments grew slightly slower than the code they sit in. What is
+true is the absolute number: 786 more comment lines than the pass that was
+supposed to remove them. Re-measure with the loop in *How to verify* below;
+do not carry these forward.
 
-### Deliberately NOT in this plan
+Two conclusions follow, and they are the shape of what is left:
 
-State these up front so they don't get reintroduced as "improvements":
+- **Phase 5d is not converging, and the ratio is the wrong instrument.**
+  `palette.nix` is 50 comment lines over 1 line of code and is correct as it
+  stands; `programs.nix` is 262 over 337 and is not. Judge on absolute comment
+  count and on whether a line earns itself. See §5d.
+- **The gate has become the thing most worth getting right.** It is what
+  catches everything else, and nothing catches it except shellcheck and its own
+  floors. Every new assertion below is specified to fail on a planted defect
+  before it counts as landed.
 
-- **No `mkEnableOption` toggles on `modules/system/*`.** Standard advice, wrong
-  here — speculative generality for a single machine, paying indirection on
-  every read to serve a second host that does not exist.
+  ✅ It now catches its own size too — Phase 6, closed 2026-08-20,
+  `docs/adr/0039`. It still cannot catch a section that runs and asserts
+  something vacuous, which is why the planted-defect rule above is the part
+  that has to be kept by hand.
+
+Phase numbers below are historical, not an order. The order is at the bottom.
+
+## Deliberately NOT in this plan
+
+Stated so they don't get reintroduced as improvements:
+
+- **No `mkEnableOption` toggles on `modules/system/*`** — speculative
+  generality for a single machine.
 - **No `lib/mkHost`, no `flake-parts`.** Same reason. Add the abstraction the
   day a second host appears.
-- **No splitting `packages.nix`.** A 235-line categorised list is readable.
+- **No splitting `packages.nix`.** 254 categorised lines is readable.
 - **No converting `nvim`, `mango`, `swaync` or the waybar CSS to generated
-  config.** Each has a recorded reason in `docs/SYSTEM.md` §6 and ADR 0009.
-- **No re-enabling statix's `repeated_keys`.** ADR 0010 explains why; it fires
+  config.** Reasons in `docs/SYSTEM.md` §6 and `docs/adr/0009`.
+- **No re-enabling statix's `repeated_keys`.** `statix.toml` says why; it fires
   69 times against standard NixOS module style.
-
----
-
-# Phase 0 — a gate for Nix ✅ DONE 2026-08-03
-
-Commits `8090a9a` → `c749928` on `main`. `nix flake check` now builds
-`system.build.toplevel` and the home-manager activation package and runs
-statix + deadnix. `verify-packages.sh` retired as a strict subset. Formatter is
-`nixfmt` (RFC 166); devShell + `.envrc` pin the tooling. Recorded in
-**ADR 0010**.
-
-**Four things the original plan got wrong** — kept because they would cost the
-same time again:
-
-1. **`formatter = pkgs.nixfmt` does not work.** nixfmt takes *files*: no
-   arguments → reads stdin, dies on empty input with a bare
-   `unexpected end of input`; a directory → Haskell backtrace. `nix fmt` passes
-   no arguments. Neither error names the cause. Wrapped in a
-   `writeShellApplication`.
-2. **`nixfmt-rfc-style` is a deprecated alias** at this pin — same derivation,
-   warns on every eval. Use `nixfmt`.
-3. **statix fired 69 times, all one lint.** Disabled `repeated_keys`.
-4. **deadnix flagged 39, of which 37 were module-header boilerplate.**
-   `--no-lambda-pattern-names` leaves the 2 real ones.
-
-The governing rule, learned here and applied to every linter below:
-**a check that always fails is one you learn to ignore** — worse than no check.
-Tune until every remaining finding is real, and comment the tuning at its call
-site so it does not read as dodging the defaults.
-
----
-
-# Phase 0.5 — a gate for shell ✅ DONE 2026-08-03
-
-Commits `74742c4` (shellcheck + the 24 fixes) and `62ee18b` (static assertions).
-Recorded in **ADR 0011**. `nix flake check` now runs 10 checks.
-
-**Both steps landed as planned, with two deviations worth keeping:**
-
-1. **shellcheck went straight to default severity**, not the planned `-S
-   warning` → fix → drop. With only 24 findings, fixing them outright was
-   cheaper than staging the threshold and left no exemption to forget.
-2. **The static checks live in `checks/static.sh`, not inline in `flake.nix`** —
-   otherwise the gate would not lint its own gate. Shell embedded in a Nix
-   string is exactly the unchecked shell the phase existed to eliminate.
-
-Three things the plan did not anticipate:
-
-- **`cd ${self}` puts you in a read-only store path.** The first shellcheck
-  check wrote its file list into the working directory and died with
-  `Permission denied` plus a `find: write error`, which reads like a broken
-  find. Write to `$TMPDIR`.
-- **`head -1` on the repo's PNGs** made bash warn about null bytes in command
-  substitution, three times per build. `head -c 64 | tr -d '\0'` instead.
-- **The git-based checks could not move verbatim.** `git ls-files` and
-  `git check-ignore` have no git inside a derivation, so the symlink check
-  became `find -type l` and the tracked check consults git only when `.git`
-  exists. Running against `${self}` is *stronger* than the original: it sees
-  tracked files only, i.e. what a fresh clone gets.
-
-**The floor assertions are the part to keep.** Every scan fails when it matches
-nothing rather than passing — script count ≥30, waybar configs =8, waybar
-script references >0. Both gates were confirmed to fail on a planted defect,
-because a gate only ever observed passing has not been observed at all.
-
-Still ungated, deliberately: `dotfiles/zsh/conf.d/*.zsh`. No shebang, and
-shellcheck does not do zsh.
-
-## Step 1 — shellcheck in `checks` ✅
-
-**It can be turned on cleanly**, unlike statix. Measured against the 38 live
-scripts (excluding `docs/archive/`):
-
-```
-24 findings: 0 errors, 4 warnings, 20 notes
-16 of 24 are SC2015, concentrated in 4 menu scripts
-```
-
-**SC2015 is not a style nit.** `A && B || C` is not if-then-else: C also runs
-when A succeeds and B fails. In `vpn-menu.sh` that is
-`nmcli con up "$name" && notify-success || notify-failure` — a connection that
-comes up but whose notification fails reports failure. Exactly this repo's
-genre of bug.
-
-Sequence:
-
-1. Add shellcheck as a `checks` entry at **`-S warning`** — passes today except
-   for 4 findings, so fix those first and it goes green immediately.
-2. Fix the 16 SC2015s, then drop to the default severity.
-3. `-e SC1091` permanently: shellcheck cannot follow `. "$HOME/.config/…"`
-   source paths statically, and that is not going to change.
-
-⚠️ **Run it via `nix shell nixpkgs#shellcheck -c …`, not `nix run`.** During
-this audit `nix run nixpkgs#shellcheck -- … 2>/dev/null` swallowed the findings
-and reported **zero**, which looked like a clean bill of health. If a linter
-suddenly reports nothing, distrust the invocation before believing the result.
-
-## Step 2 — move the static half of `verify-claims.sh` into `checks` ✅
-
-Six of its eight checks need **no live system** and are currently a manual step
-nobody is forced to run:
-
-| Check | Needs a session? |
-|---|---|
-| no tracked symlinks | no |
-| `config.conf` / `walker/config.toml` generated + gitignored | no |
-| no script reads the old state path | no |
-| `pkill -x` targets are unwrapped binaries | no |
-| battery STOP == generated waybar `full-at` | no — reads the built output |
-| `wlopm` enumerates an output | **yes** |
-| `mmsg` reports a monitor | **yes** |
-
-Move the six into `nix flake check`; leave the two live ones in the script and
-say so in its header. The coupling check already proved its worth — it was
-silently failing as "could not read" after `config-focus.jsonc` stopped
-existing.
-
-**Also worth adding as static checks**, because each encodes a bug that has
-already happened:
-
-- **no `#!/bin/bash`** anywhere (there is no `/bin/bash`; this bit 13 scripts)
-- **no `mmsg` invoked with dash-flags** — it takes verbs and answers unknown
-  commands with `{"error":…}` **and exit 0**
-- **every `custom/*` module's `exec` script exists and is executable**
-
-**Definition of done for this phase:** `nix flake check` fails if any tracked
-shell script has a shellcheck warning, a `/bin/bash` shebang, or a dash-flag
-`mmsg` call.
-
----
-
-# Phase 1 — secrets (`sops-nix`) ✅ DONE 2026-08-06
-
-Recorded in **ADR 0012**. `nix flake check` now runs 13 checks. The input
-landed separately in `c6df2e9`; this is steps 2–5.
-
-**Five things the plan got wrong or did not anticipate:**
-
-1. **`ssh-to-age` was impossible here.** `services.openssh` is not enabled, so
-   `/etc/ssh` holds `ssh_config` and `ssh_known_hosts` and no host keys at all.
-   Generated standalone with `age-keygen` instead. Step 2 above is corrected.
-2. **Only the NixOS module surface was needed, not both.** The plan assumed the
-   home-manager module for `pia-auth` because a user script reads it — but
-   `sops.secrets.<name>.owner = "henry"` covers that, and the HM module would
-   have wanted a *second* age key readable by the user. One key, one surface.
-3. **The key must be readable by the editing user, and that is a real choice.**
-   `age-keygen` writes it root-owned mode 600, at which point `sops` as henry
-   cannot decrypt and the only paths are a second admin key or `sudo sops` —
-   which writes the file back root-owned inside a git repo. Chosen: chown to
-   henry, and `SOPS_AGE_KEY_FILE` in the devShell so there is no env var to
-   remember. Root still reads it at activation.
-4. **`pia-auth` was WRITTEN by `vpn-menu.sh`, not just read.** A "Set PIA
-   credentials" entry prompted through walker and wrote the file. A sops secret
-   is root-installed mode 0400, so that path could not survive; the setter was
-   deleted rather than kept as a fallback, because a fallback leaves "no
-   plaintext secret outside sops" unenforceable.
-5. **`sops <path>` on a file that does not exist opens its `hello: Welcome to
-   SOPS!` template for a NEW file** rather than erroring. Running it from
-   inside `secrets/` therefore silently edits `secrets/secrets/secrets.yaml`
-   and reports `File has not changed, exiting`. Cost two round trips. The
-   template is the tell; run from the repo root.
-
-**Stored vs declared is the part to keep.** `sops.secrets.<name>` decrypts to
-`/run/secrets/<name>` on every boot, so a declared secret with no consumer is
-plaintext on a running system for nothing. Declared: `pia/username`,
-`pia/password`. Stored-only, retrieved with `sops -d --extract`: the WireGuard
-key (declared in Phase 2, when `ensureProfiles` gives it a consumer) and the
-three forge tokens (stored-only permanently — `gh`, `glab` and `tea` each
-rewrite their own config, which is the `corectrl` fight from ADR 0002).
-
-**The new static check asserts encryption, and was confirmed against a plant.**
-An unencrypted `secrets.yaml` looks exactly like an encrypted one unless you
-open it, and the mistake is unrecoverable once pushed. It does **not** check
-the values are real — a file full of `REPLACE_ME` encrypts and passes, which
-happened twice during this work before the edit took.
-
----
-
-# Phase 2 — declare the NetworkManager profiles ✅ DONE 2026-08-09
-
-Recorded in **ADR 0013**. The 9 that carry a credential or can hijack the
-default route (`homelab` + 8 PIA exits) are generated from `networking.nix`,
-with credentials substituted by `envsubst` from a sops template. The ~29
-ordinary APs stay in NetworkManager's own state. `checks/static.sh` now runs 16
-assertions.
-
-**Four things the plan did not anticipate:**
-
-1. **`ensureProfiles` writes to `/run`, not `/etc`** — and NetworkManager reads
-   both. The hand-restored `/etc` copies had to be moved aside or the whole
-   declaration would have been a **silent no-op**, in the change meant to end
-   silent no-ops. `nmcli -f NAME,FILENAME con show` is the tell. This also
-   turns out to be *why* declaring a subset is safe: the unit deletes nothing.
-2. **The PIA CA lived in `$HOME`.** All eight profiles referenced
-   `~/.local/share/networkmanagement/certificates/nm-openvpn/<name>-ca.pem`,
-   left by `nmcli connection import`, and all eight files are byte-identical.
-   Vendored as one `modules/system/pia-ca.pem` — it is PIA's public CA.
-3. **`vpn-menu.sh`'s importer branch is dead.** It builds a PIA server list from
-   `~/Downloads/openvpn/*.ovpn`; that directory does not exist, so the list is
-   always empty and the credential-injection path is unreachable. Phase 4
-   material, not fixed here.
-4. **Three checks in `static.sh` had been scanning `$SRC/home`** since the
-   `home/` → `dotfiles/` rename in `859895a`, and so had been passing by
-   finding nothing. Fixed in the same commit; the `pkill -x` check went from 0
-   targets to 2.
-
-**The two new assertions are the part to keep**, and both were confirmed against
-a planted defect: no profile may omit `autoconnect=false`, and every
-`password` / `private-key` / `psk` must be a `$`-placeholder rather than a
-literal, because `/nix/store` is world-readable and an inlined credential looks
-identical to a working profile.
-
-**Verify:** `nmcli -f NAME,FILENAME,AUTOCONNECT connection show` — the nine
-report a `/run/...` filename and `no`. `resolvectl status` — no link holds
-`Default Route: yes` except the active physical one.
+- **No splitting `checks/static.sh`**, at 2,402 lines. A section in its own file
+  is a section that can stop being sourced, and a check that stops running is
+  indistinguishable from one that passes. Phase 6 is the answer instead.
+- **No adopting `nh`.** A wrapper in the critical path of every rebuild is a
+  thing you debug during a rebuild. §5f.
 
 ---
 
 # Phase 3 — the desktop layer 🔶 PARTLY DONE
 
-**This is where the complexity actually lives**, and the original plan missed
-it entirely by being Nix-centric. `dotfiles/mango/` is 19 directories, 30 scripts
-and four stacked config layers. Governing principle:
+Governing principle, unchanged: **push variation to build time; let runtime
+only *select*.** Done 2026-08-03 (`2f45486`): waybar position became a file
+selection, state paths and defaults moved into `scripts/lib.sh`, 765 lines of
+unreachable presentation code deleted. Done 2026-08-20: the menu scripts source
+`lib.sh`, and no script under `scripts/` re-derives `MANGO_DIR` or `STATE_DIR`.
 
-> **Push variation to build time; let runtime only *select*.**
+## 3a — mango config selection
 
-### Done 2026-08-03 (`2f45486`)
+`lib.sh:171` is the **only** runtime write into `~/.config/mango`:
 
-- **Waybar position is a file selection, not a runtime rewrite.** `waybar.nix`
-  emits the layout × position matrix (8 files); the script builds a filename.
-  Deleted the `sed -E` rewriting, the `margin-swap` placeholder, the temp file.
-  `waybar-restart.sh` 79 → 40 lines.
-- **State paths and defaults live once**, in `scripts/lib.sh`. Nine scripts had
-  each re-derived them. `apply_mode()` moved there too — `modes/tiling.sh` and
-  `modes/hud.sh` were byte-identical copies apart from two names.
-- **765 lines of unreachable presentation code deleted** (see Phase 4).
+```sh
+install -m 644 "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
+```
 
-### Outstanding — mango config selection
+so `config.conf` is a verbatim copy of whichever mode is active — the one file
+in the tree that git must not track, that no `xdg.configFile` may claim, and
+that carries the `install -m 644` scar from the day `cp` inherited a store
+path's 0444 and every switch after the first died with `Permission denied`.
 
-Would remove the **last `recursive = true` writability exemption**, which is
-the flag that once destroyed 65 tracked files in this repo.
+**Decision: make it a link, not a copy.**
 
-**Blocked on a prerequisite discovered while scoping it:** the mode configs use
-**relative** `source=` lines (`./universal/settings.conf`), so `config.conf`
-cannot move out of `~/.config/mango/` until those are absolute. Full sequence:
+```sh
+ln -sfn "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
+```
 
-1. Rewrite the `source=` lines in `tiling.conf` to absolute. (Was "8 lines
-   across `tiling.conf` / `hud.conf`" — hud left with `docs/adr/0035`.)
-2. Point mango at `~/.local/state/mango/config.conf` — the greetd command is
-   `tuigreet --cmd mango`, so this touches session startup.
-3. Handle the fresh-machine case (no `config.conf` until a mode script runs —
-   already true today, but moving it should not make it worse).
-4. Drop `recursive = true` from the `mango` entry in `dotfiles.nix`.
+mango is still launched with no `-c`, so `cli_config_path` stays empty and every
+`./` in the tree still resolves against `$HOME/.config/mango/`
+(`parse_config.h:3276`). That buys the whole benefit and pays none of the cost:
 
-⚠️ **Only validatable by logging out.** Its own change, its own session, with
-`rebuild-test` and a way back in.
+- **No `source=` rewrite.** There are **20** `source=` lines across three files
+  — `tiling.conf` 9, `noctalia.conf` 10, and one nested in
+  `universal/settings.conf:83` that a rewrite of "the mode configs" would miss.
+- **No session-startup change**, so this stops being logout-only and becomes
+  validatable in-session. That alone changes the risk class.
+- `config.conf` joins the family `apply_theme` already defines — a link path
+  owned by `apply_theme` and by nothing else — and gets the same assertion the
+  other four have: absent from the generation.
+- **Seed it at activation**, exactly as `mode-theme.nix:172` seeds the four
+  theme links. That closes the fresh-machine hole rather than preserving it:
+  today, with no `config.conf`, mango falls back to `$SYSCONFDIR/mango/config.conf`,
+  which does not exist here, and starts on built-in defaults with no keybinds.
 
-### Also worth doing here
+**`recursive = true` stays, and that is the correction to the old plan.** It was
+listed as the last writability exemption to be removed. It is not only that: it
+is the mechanism that lets **12 generated files** live in the tree — five in
+`dotfiles.nix:321-365` (both `colors-<mode>.conf`, `weather-location.env`,
+`cursor.conf`, `settings-pinned.json`) and seven from `waybar.nix:626-643`,
+whose own comment at `waybar.nix:618` says so. Removing the *writer* is the
+whole win; removing the *flag* costs a twelve-file rehoming and buys
+bookkeeping. It fails loudly at `nix flake check` if attempted anyway.
 
-- ~~**`reload.sh` and the menu scripts should source `lib.sh`**~~ ✅ **DONE
-  2026-08-20.** Five menu scripts started sourcing it when `rofi_menu` landed,
-  and the four dead `MENU=(rofi -dmenu …)` arrays went with them. Audited after:
-  **no script under `scripts/` re-derives `MANGO_DIR` or `STATE_DIR`**, which is
-  what the item was actually asking for. The fifteen that still do not source
-  `lib.sh` need nothing from it.
-- ~~**`vpn-menu.sh` carries 4 of the 24 shellcheck findings**~~ ✅ **DONE.** The
-  gate reports **43 scripts clean**; there is no SC2015 cluster left.
+**Not chosen, and why.** mango has a `load_config_file` dispatch
+(`bind_define.h:2284`, `docs/bindings/keys.md:187`) reachable over IPC —
+`parse_func_name` is the same table the binds use (`ipc.h:410`). So
+`mmsg dispatch load_config_file,$MANGO_DIR/$mode/$mode.conf` plus `mango -c` at
+login removes `config.conf` entirely, which is the purest form of the governing
+principle. It pays: the 20-line `source=` rewrite (relative paths resolve
+against `dirname(cli_config_path)`, so they break *because* the file moves); a
+fourth spelling of the state path inside a system module (`desktop.nix:20`),
+crossing the boundary `lib.sh` exists to guard; a silently disarmed check
+(below); and it stays logout-only. Revisit if `config.conf` ever has to leave
+`~/.config/mango` for some other reason. Verify the file exists before
+dispatching — `reload_config` calls `set_value_default()` before parsing, so a
+path mango cannot open leaves the session on stock defaults.
 
----
+⚠️ **That dispatch was traced through the source, never fired.** Sending it into
+the running session would have re-pointed `cli_config_path` for the rest of that
+session, changing how every later reload resolves `./`. If B is ever picked,
+that is the first thing to test — in a nested instance with its own `HOME`, not
+here.
 
-# Phase 4 — the dead-code class ✅ DONE 2026-08-09
+⚠️ **`checks/static.sh:363` is disarmed by any `source=` rewrite.** It reads the
+sourced files with `sed -n 's|^source=\./||p'` to build the per-mode bind set.
+Change the spelling and `srcs` goes empty, the inner loop does nothing, and
+`binds_seen` still increments per mode — so the duplicate-bind scan drops from
+**117 binds to 1** and prints `ok`. That is the Phase 4 class inside the gate
+itself. `checks/static.sh:1476` keys off the same literal but fails loudly.
+Whichever design lands, give `363` a floor on binds seen, not on modes seen.
 
-Recorded in **ADR 0014**. `checks/static.sh` now runs 19 assertions.
+**Steps**
 
-**The sweep found the inverse problem, and it was the bigger one.** Only one
-genuinely dead thing turned up — `vpn-menu.sh`'s `.ovpn` importer, 156 → 78
-lines, which after ADR 0013 was not merely unreachable but actively wrong, since
-its `nmcli con modify` would have persisted a shadowing `/etc` copy over a
-declared profile. Everything else in the runtime-selected directories was
-reachable.
+1. `lib.sh:171` — `install -m 644 …` becomes `ln -sfn …`. Drop the comment
+   about `cp` inheriting 0444: the trap is gone with the copy, and a comment
+   describing a mechanism that no longer exists is worse than none.
+2. Seed it at activation in `dotfiles.nix:603`'s existing block —
+   `entryAfter [ "linkGeneration" ]`, guarded `[ -e ]`, pointing at
+   **`tiling`, hard-coded**, matching `mode-theme.nix:173` and `lib.sh`'s own
+   fallback. Reading `current-mode` here would add a fourth reader of the state
+   file for nothing.
+3. `checks/static.sh` — assert `mango/config.conf` is **absent from the
+   generation**, the same assertion the four `apply_theme` link paths carry.
+   The existing `GENERATED=(dotfiles/mango/config.conf)` check at `:102` stays
+   as-is; it tests tracked-vs-gitignored, which is still true of a link.
+4. `docs/gotchas.md:526` — rewrite the `config.conf` entry: it is a link now, so
+   `readlink` names the active mode, and the fresh-clone consequence it records
+   is closed by step 2.
+5. `rm -rf ~/.config/mango/walker` — residue from `docs/adr/0021`, still on disk
+   from 2026-08-14, and evidence for why the tree being writable is worth
+   caring about.
 
-What was *not* reachable on any machine but this one: three declared files whose
-**namer** was hand-written and in no repo — elephant's `menus.toml`, fsel's
-`~/.config/fsel` symlink, and `bitwarden.toml`. Declared now; `fsel` moved out
-of `dotfiles/mango/` to the path fsel actually reads.
+**Verify** — in-session, which is the point of choosing this design:
+`readlink ~/.config/mango/config.conf` names the mode before and after a switch;
+`~/.config/mango/scripts/reload.sh` returns `{"success":true}`; a keybind from
+`universal/bind.conf` still fires, proving the sources resolved.
 
-Also removed: the `archlinuxpkgs` action blocks from both walker configs — a
-pacman install/remove UI, live in the launcher on a machine with no pacman.
+## 3b — `mango -p` as a check ✅ DONE 2026-08-20
 
-**Step 2's check is per-selector and bidirectional**, not generic string
-matching. The first attempt concatenated every other tracked file and grepped
-for basenames; it flagged both live walker themes, because the strings naming
-them live in the directory the scan excluded to avoid self-matches. Enumerating
-the selector's values from its writers — `MODES` out of `desktop-mode.sh`,
-`theme =` out of the walker configs — expresses what string matching could not.
-All three new assertions were confirmed against planted defects.
+Two findings, verified against 0.16.0 by probe, not by reading:
 
-**Three instances so far**, which makes it a class rather than a coincidence:
+1. **Flag order decides what gets validated.** `getopt` returns on `-p`
+   mid-parse (`mango.c:7797`), so `mango -p -c FILE` validates the live
+   `~/.config/mango/config.conf` and exits 0 having never seen `FILE`.
+   `mango -c FILE -p` is the working form. A validator that reports success
+   while checking a different file is this repo's signature bug with a CLI flag
+   on it.
+2. **`-p` exits 1 for an unknown keyword and 0 for an unresolvable `source=`** —
+   the return value is discarded at `parse_config.h:3248`. It *does* print
+   `[ERROR]: Failed to open config file: …` to stderr, so the comments in
+   `tiling.conf` and `noctalia.conf` calling this silent are half wrong: under
+   `systemd-cat` it lands in `journalctl -t mango`.
 
-| When | What | Size |
+⚠️ **Do not reach for `-c` to point at a mode conf.** Relative sources resolve
+against `dirname(cli_config_path)`, so `mango -c …/mango/tiling/tiling.conf -p`
+looks for `…/mango/tiling/universal/…` and reports **all 20 `source=` lines as
+missing**. Twenty failures on day one is the check you learn to ignore, and the
+natural fix is to relax it into uselessness.
+
+**Use a fake `HOME` and no `-c` at all**, which reproduces production exactly
+and sidesteps the flag-order trap because there is no flag to order.
+
+**Landed** as the *Mango config parse* section of `checks/static.sh`: the mango
+tree is copied out of the built home closure into a fake `HOME`
+(`cp -r --no-preserve=mode`), each mode's conf is installed as `config.conf`,
+and `mango -p` runs with no `-c`. It fails on any stderr, and floors on modes
+parsed.
+
+**Step 1 of the plan was not needed, and skipping it is the better shape.**
+`pkgs.mango` did not go into `nativeBuildInputs`: mango is already in the system
+profile, so the check reads `$SYS/sw/bin/mango`, exactly as the rofi check reads
+`$SYS/sw/bin/rofi`. That adds no dependency edge at all *and* validates the
+binary that will actually run rather than one the check happened to pull in.
+
+**Verified against both planted defects**, which is the only reason it counts as
+landed:
+
+| Defect | mango | check |
 |---|---|---|
-| 2026-07-30 | `kitty/active-theme.conf`, `foot/active-theme.ini` | symlinks selecting nothing |
-| 2026-07-30 | `gtk-*-tiling` variants, `gtk-apply.sh $MODE` | byte-identical to their targets |
-| 2026-08-03 | `waybar/style.css`, `walker/configs/default.toml`, `walker/themes/mango/` | **765 lines** |
-| 2026-08-09 | `vpn-menu.sh`'s `.ovpn` importer — `~/Downloads/openvpn` does not exist, so the list is always empty | ~35 lines |
-| 2026-08-09 | three `static.sh` checks scanning `$SRC/home` after the `dotfiles/` rename | 3 gates, silently disarmed |
+| `universal/tag.conf` renamed | stderr, **exit 0** | ✗ names both modes |
+| `notakey=1` in `tiling.conf` | stderr, exit 1 | ✗ names the file and line |
 
-Every one *looked maintained*, and the last was documented as the default in
-both `CLAUDE.md` and `SYSTEM.md`. The shared mechanism: **a file selected by a
-shell conditional is never evaluated, so an unreachable branch is invisible.**
+⚠️ **The read-only store bites twice here, in two different places.** Measured
+separately, because they look like one problem and are not:
 
-**Step 1 — sweep.** For each directory whose contents are selected at runtime
-(`walker/themes/`, `walker/configs/`, `mango/waybar/*.css`, `elephant/menus/`,
-`fsel/`), check every file is reachable from some live code path. The technique
-that worked: enumerate the possible values of the selecting variable from its
-*writers*, then check each branch is reachable.
+| Guard | Without it | Fails on |
+|---|---|---|
+| `cp -r --no-preserve=mode` | the copied **directory** is 0555, so nothing can be created in it | the **first** mode |
+| `install -m 644` (not `cp`) | the tree is symlinks *into* the store, so a plain `cp` through one inherits **0444** | the **second** mode |
 
-**Step 2 — prevent.** Add a reachability check to `checks` (Phase 0.5 Step 2):
-every file in those directories must be named by some tracked config or script.
-The waybar module's asserts are the model — a name with no definition is an
-eval error, not an empty module.
+The second is the scar `lib.sh` already carries. The first is new, and belongs to
+copying a generation rather than writing into `$HOME`. Neither guard covers the
+other.
 
 ---
 
-# Phase 5 — idiomatic cleanups and comment surgery
+# Phase 5 — idiomatic cleanups
 
 Independent, low-risk, do any of them alone.
 
 ### 5a — `allowUnfree` predicate
 
-`nix-settings.nix` sets `allowUnfree = true`, permitting *any* unfree package
+`nix-settings.nix:50` sets `allowUnfree = true`, permitting *any* unfree package
 including one pulled in transitively. Replace with a predicate naming the ones
 actually accepted. Converts a future surprise into a build error.
 
+**Steps**: swap for `allowUnfreePredicate = p: builtins.elem (lib.getName p) [ … ]`,
+build, and add whatever the build names until it goes green. **Budget for
+steam** — nixpkgs splits it across `steam`, `steam-unwrapped` and `steam-run`,
+so the list is longer than the app list and the first failure arrives
+mid-rebuild rather than mid-edit.
+
+**Verify**: `nix flake check` green, and a deliberately added unfree package
+fails the build naming itself.
+
 ### 5b — one owner per package
 
-Packages live in three places: `packages.nix`, `programs.nix` (via module
-`enable`), and `environment.systemPackages`. `wlogout` was in two at once,
-making *which binary you get* a question of PATH order. No restructuring — an
-audit plus a rule recorded in `packages.nix`:
+`distrobox` is declared twice — `environment.systemPackages`
+(`virtualisation.nix:32`) *and* `home.packages` (`packages.nix:213`). **Measured
+before claiming: both resolve to the same store path**, so PATH order changes
+nothing today. It is a rule violation with latent risk — the day one side is
+overridden or pinned, the split becomes silent — not a live bug. No
+restructuring; fix that one, then record the rule in `packages.nix`, where it is
+still missing:
 
 > A package is installed by **exactly one** of: its `programs.*` module, a
 > `home.packages` entry, or `environment.systemPackages`. User applications go
-> in home; things needed before login or by a system unit go in system.
+> in home; things needed before login or by a system unit go in system — **and
+> a tool that is inert without a system service lives with that service.**
+
+That last clause is what decides `distrobox`: it is a user application by the
+first rule, but it is useless without the podman `virtualisation.nix` enables,
+and the two should be removable together. **Drop the `packages.nix:213` entry,
+keep `virtualisation.nix:32`.**
+
+**Write the assertion, not the rule** — but not the obvious one. Both lists are
+readable at eval, and the naive intersection is **21 names**, because
+`environment.systemPackages` is 240 entries of which most are NixOS module
+defaults, not this repo's. Twenty-one findings on day one is the check nobody
+reads.
+
+**Assert divergence, not duplication:** flag a name in both lists whose
+**store paths differ**. Measured today that is exactly one — `bind`, where the
+system carries the `host` output as a NixOS default and `packages.nix:120`
+declares `dnsutils` for `dig`. Real (which `host` you get is PATH order) and not
+this repo's doing, so it is an exception with a reason next to it, in the shape
+`statix.toml` already uses. Everything else, `distrobox` included, is
+byte-identical and correctly ignored.
+
+**Steps**: emit both name→outPath maps as JSON from `flake.nix`, the way
+`schemes.json` is already passed to `static.sh`; intersect; fail on differing
+paths outside the exception list; floor the intersection so a scan that stops
+matching cannot pass.
+
+**Verify**: temporarily point one duplicate at a different derivation — the
+check must name it.
 
 ### 5c — overlay and pin hygiene
 
-- **`fsel` override** pins 3.6.0 over nixpkgs' 3.1.0; its own comment says
-  *"if 3.1.0 turns out to be fine, DELETE this block"*. Two hashes to maintain.
-- **`permittedInsecurePackages`** — two electron versions for logseq, one
-  justified by a comment referencing the Arch install.
-- **`nixos-hardware`** — the flake imports generic `lenovo-thinkpad` + AMD
-  commons. **Verify** whether a model-specific L14 Gen 5 module exists upstream;
-  if so it may supersede hand-tuning in `power.nix`. Not confirmed either way.
+Two of the three are now answered:
 
-### 5d — comments → ADRs 🔶 MOSTLY DONE 2026-08-12
+- **`fsel` — settled, not open.** nixpkgs is still 3.1.0 at this pin and the
+  override still builds 3.6.0, which is what our `config.toml` is written for.
+  The old note quoted a "delete this block if 3.1.0 is fine" comment that no
+  longer exists. Nothing to do until nixpkgs catches up.
+- **`nixos-hardware` — the module exists.** `lenovo-thinkpad-l14-amd` is real,
+  and this machine is a ThinkPad L14 Gen 5 / Ryzen 5 Pro 7535U. It is a superset
+  of the four modules `flake.nix:66-69` already import, plus exactly two kernel
+  params: `acpi_backlight=native` (so the backlight save/restore unit works) and
+  `iommu=soft`. **Adopting it is a real decision, not a free upgrade** —
+  upstream's own comment says the IOMMU problem was fixed in BIOS 1.13 and the
+  param is kept defensively for people below that; this machine is on 1.21. It
+  is *not* established that this touches the amdgpu/TTM freeze `boot.nix`
+  documents — that oops leaks `lru_lock`, which is a different failure from
+  "the driver cannot attach".
+  **Decided 2026-08-20: leave it.** `systemd-backlight@` is `active (exited)`
+  with no failed units, so `acpi_backlight=native` fixes nothing observable
+  here, and that leaves `iommu=soft` — SWIOTLB bounce buffers — as the whole of
+  what adoption would change, on the one machine whose defining bug is an
+  amdgpu deadlock that cannot be reproduced on demand. Revisit only if backlight
+  restore or GPU behaviour regresses.
+  ⚠️ If it is ever revisited: `boot.kernelParams` is the one case where
+  `rebuild-test` is exactly wrong — it writes no boot entry, so test-then-reboot
+  silently lands back on the previous generation. Use `switch` or `boot`
+  (`CLAUDE.md`).
+- **`permittedInsecurePackages`** — `nix-settings.nix:56`, two entries, and the
+  comment is wrong about both. `electron-39.8.10` is logseq's, and **logseq has
+  no data**: `~/.logseq/graphs/` is empty, `preferences.json` is stock, and there
+  is no `journals/` anywhere under `$HOME`. It was opened once and never used, so
+  dropping it and the entry costs nothing. `electron-40.10.5` is **winboat's**,
+  not the "Arch install carrying electron40-bin" the comment claims — keep the
+  entry, name the real consumer. The block is also **the best surviving example
+  of the 5d class**: present-tense second-person Arch narration on a machine
+  where Arch has been gone since ADR 0008.
 
-The table that was here is retired — it predated `0f52e28`, which had already
-moved a third of it, and quoting stale counts as if current is the trap this
-phase exists to fix.
+  **Steps**: drop `logseq` from `packages.nix:156` and `"electron-39.8.10"` from
+  `nix-settings.nix:57`; rewrite the block's comment to name winboat and drop the
+  second person. **Verify**: `nix-store -qR /run/current-system | grep
+  electron-39` comes back empty after the switch.
 
-Done 2026-08-12, one pass over the six worst by ratio: `dotfiles.nix`,
-`power.nix`, `desktop.nix`, `shell.nix`, `pkgs/default.nix`, `home/default.nix`.
-**261 lines removed, 127 added.** Each narrative was checked against the ADRs,
-`gotchas.md` and `SYSTEM.md` before cutting, so this moved rather than dropped.
+### 5d — comments → ADRs 🔶 MOSTLY DONE 2026-08-12, and not holding
 
-`desktop.nix` surfaced a class worth naming: **stale Arch narration in the
-present tense** ("on Arch you have greetd installed but the service is
-DISABLED"). Arch has been gone since ADR 0008, so these read as instructions
-about the current machine. One was independently wrong — `fsel` annotated as
-overlay-pinned to 3.5.2, which pins 3.6.0. Grep for `on Arch` and `your` when
-doing the rest.
+One pass over the six worst by ratio on 2026-08-12: **261 lines removed, 127
+added**, proved a no-op by derivation path. It surfaced a class worth keeping:
+**stale Arch narration in the present tense**. Grep for `on Arch` and `your`.
 
-Proved a no-op by derivation path (see the technique below). ⚠️ **A comment
-inside `''…''` is data, not a comment** — one line in
-`programs.zsh.initContent` was the only thing in the whole pass that moved the
-hash. Bisect rather than assuming; the ratio scan cannot tell the two apart.
+Since then the comment count has gone **1,436 → 2,222** while code went
+2,245 → 3,681. The pass did not fail, and it did not lose ground proportionally
+either — comments grew a little slower than code. It was simply outrun in
+absolute terms, which is the term that costs reading. So change the instrument:
 
-**Still over the ~1:2 target**, in descending absolute comment count:
+- **Target absolute comment count, not ratio.** In descending order:
+  `programs.nix` 262, `pkgs/default.nix` 232, `dotfiles.nix` 231,
+  `waybar.nix` 217, `power.nix` 131. Those five are 1,073 of the 2,222.
+- **Ratio is meaningless below ~50 lines of code.** `palette.nix` (50 comments,
+  1 line of code) and `scheme.nix` (11 / 1) are header files pointing elsewhere
+  and are right as they are. Nine of the 20 "over 1:2" files are this shape.
+- The theme files (`mocha` 119, `nord` 98, `gruvbox` 86,
+  `mocha-high-contrast` 98) are a fifth of the total and carry per-role
+  justifications that `docs/adr/0032` argues for. Leave them.
 
-| File | comments | code | ratio |
-|---|---|---|---|
-| `hardware-configuration.nix` | 54 | 85 | 0.64 |
-| `power.nix` | 44 | 67 | 0.66 |
-| `dotfiles.nix` | 42 | 62 | 0.68 |
-| `pkgs/default.nix` | 37 | 62 | 0.60 |
-| `hosts/thinkpad/default.nix` | 28 | 51 | 0.55 |
-| `boot.nix` | 28 | 40 | 0.70 |
-| `audio.nix` | 28 | 48 | 0.58 |
-| `fonts.nix` | 26 | 51 | 0.51 |
-| `secrets.nix` | 15 | 21 | 0.71 |
+**Steps**: one pass over those five files, checking each narrative against the
+ADRs, `gotchas.md` and `SYSTEM.md` before cutting — this moves text, it does not
+drop it. Grep for `on Arch` and `your` first; that is where the wrong ones are.
 
-These are the diminishing returns. What remains in them is mostly one-line
-reasons already, and the small files are over the ratio on absolute counts too
-low to matter — `secrets.nix` is 15 comment lines total. **Judge the next pass
-on whether a comment earns its line, not on hitting 0.50.**
+**Verify**: the derivation-path comparison below. A comment pass that moves
+either hash has changed the system and is no longer a comment pass — bisect
+rather than assuming, because a comment inside `''…''` is data.
 
-### 5e — `treefmt-nix`
+### 5e — format the shell too
 
-**Its trigger condition is now met.** Phase 0 said "switch if it ever needs to
-format more than Nix" — with 2,160 lines of shell and `shfmt` already in
-`packages.nix`, it does. Replaces the `writeShellApplication` nixfmt wrapper
-and folds the Phase 0.5 shellcheck gate in at the same time. Do it *after*
-Phase 0.5, so the shell gate exists before the tooling changes under it.
+Trigger condition met: 3,291 lines of shell under `dotfiles/` plus 2,402 in
+`checks/`, indented inconsistently (`lib.sh` alone mixes tabs and four spaces),
+with `shfmt` already in `packages.nix`. `flake.nix:202` points here.
 
-### 5f — `nh` or `nvd` in the rebuild path
+**The churn was measured, not estimated** — `shfmt` 3.13.1 over the 45 tracked
+scripts:
 
-`nvd` and `nix-tree` are already in the devShell. Remaining question: wrap
-`rebuild` to print `nvd diff-closures`, or adopt `nh os switch`. On a config
-where "reloading without rebuilding looks exactly like the change having had no
-effect" is a documented trap, seeing what actually changed is worth it.
+| | |
+|---|---|
+| files changed | 34 of 45 |
+| lines changed | 1,979 |
+| **surviving `git diff -w -B`** | **205, in 10 files** |
+
+and every one of those 205 is line structure, not semantics: pipe-continuation
+style in `static.sh`, `;`-splitting in `shell.sh`. So the pass **is** verifiable
+— not by `drvPath`, which a reformat moves by design, but by `diff -w -B` plus
+reading what is left. Run it **without `-s`**: simplify is the only mode that
+rewrites code rather than layout, and it is the only part `diff -w` cannot
+clear.
+
+Two things must be settled before it can be gated, or the gate is red on day one:
+
+- **`dotfiles/scripts/fan-calibrate` does not parse.**
+  `CPUS=(/sys/devices/system/cpu/cpu[0-9]*/cpufreq)` — shfmt reads the glob as
+  an associative-array key and errors at `23:34`. Exclude the file or restructure
+  the glob.
+- **`menus/shell.sh`'s dispatch table is a real loss.** Fifteen column-aligned
+  one-line `case` arms become 75 lines. `-kp` does not save it (tested); the
+  `;`-splitting rule is unconditional. Accept it, or exclude the one file.
+
+And one check breaks, loudly: `static.sh:397` reads that table with
+`sed -n 's/^\([a-z-]*\))…'`, anchored at column 0, and shfmt indents case arms.
+It has a floor, so it fails rather than passing empty. One-line fix, in the same
+commit.
+
+**The rest of the gate's source-scraping survives**, which was the real question
+— audited, not assumed. `fn_body` counts brace depth rather than matching
+indentation; the `MODES=`, `rofi -dmenu` and control-centre `ROWS=` scans are
+format-brittle but every one has a floor. The floor discipline already defends
+this.
+
+`treefmt-nix` is the standard way to run both formatters, but with exactly two
+languages it is not required: four lines added to the `writeShellApplication`
+at `flake.nix:203` do the same job with no new flake input. Take treefmt when a
+third language appears.
+
+**Steps**, in this order — formatting before gating, or the gate is red:
+
+1. Settle the two exclusions above. **Exclude `docs/archive/` as well**, which
+   the shellcheck check at `flake.nix` already does and which accounts for 26 of
+   the 205 residue lines: it is history, not instructions.
+2. `shfmt -w` the rest, without `-s`, in one commit that does nothing else.
+3. Read the residue: `git diff -w -B`. Anything that is not line structure is a
+   finding, not churn.
+4. Fix `static.sh:397` in the same commit.
+5. Then add the `shfmt -d` pass to the formatter and a check, and only then is
+   `nix fmt` a no-op across both languages.
+
+**Verify**: `nix flake check` green, and `git diff -w -B` on step 2's commit
+shows only the residue you read.
+
+### 5f — `nvd` in the rebuild path
+
+On a config where "reloading without rebuilding looks exactly like the change
+having had no effect" is a documented trap, seeing what actually changed is
+worth it. **Wrap the `rebuild` aliases at `modules/home/shell.nix:81-83`**
+rather than adopting `nh`: `nh` is a new dependency in the critical path of
+every rebuild, and when it breaks you debug your rebuild tool mid-rebuild.
+
+⚠️ `nvd` is in the **devShell only**. An alias calling it from an ordinary shell
+exits 127 — silently, this repo's signature bug — so moving it into
+`packages.nix` is part of the change, not a follow-up.
+
+**Steps**: move `nvd` from the devShell list in `flake.nix` to
+`modules/home/packages.nix`; extend the three aliases to
+`… && nvd diff /run/current-system /nix/var/nix/profiles/system`. Leave
+`rebuild-test` alone — it creates no profile generation, so there is nothing to
+diff against.
+
+**Verify**: `rebuild` on a no-op change prints an empty diff rather than
+nothing at all; `command -v nvd` resolves in a login shell, not just the
+devShell.
+
+---
+
+# Phase 6 — the gate catches itself ✅ CLOSED 2026-08-20
+
+## 6a — a floor on `static.sh`'s own assertion count ✅ DONE 2026-08-20
+
+`checks/static.sh` ends with `printf '%d passed, %d failed'` and then asserts
+only `FAIL -eq 0`. **Delete a whole section and it prints `90 passed, 0 failed`
+and exits green.** Every scan inside the file has a floor — script count ≥30,
+waybar configs =8, traps ≥2, "the scan is broken, not the repo" — and the file
+as a whole has none. It is the one place the discipline is not applied to
+itself, and it is the place that matters most, because every other item in this
+plan is verified *by* this file.
+
+**Landed**: `ASSERTION_FLOOR` next to the summary, dated, failing when
+`PASS + FAIL` drops below it. A floor, not a ratchet — adding assertions stays a
+one-line change. 3b raised it 114 → **115** in the commit that added the
+assertion, which is the discipline this exists to make possible.
+
+**Verified**: with the *Fonts* section deleted the run prints `112 passed,
+0 failed` and then `✗ only 112 assertions ran, floor is 115`, exiting 1. Before
+the change that same deletion exited 0.
 
 ---
 
 # How to verify — techniques, not ceremony
 
-Two developed during this work. Both generalise; use them rather than trusting
-that a change is safe.
-
 ### Prove a refactor is a no-op
 
-If a change should not alter the built system, compare the derivation paths:
+Compare derivation paths; byte-identical before and after is proof.
 
 ```sh
 nix eval --raw .#nixosConfigurations.thinkpad.config.system.build.toplevel.drvPath
 nix eval --raw .#nixosConfigurations.thinkpad.config.home-manager.users.henry.home.activationPackage.drvPath
 ```
 
-Byte-identical before and after is proof. This is how the 618-line `nixfmt`
-reformat was cleared — it matters here because `waybar.nix` carries literal
-UTF-8 Nerd Font glyphs and this repo has already lost four network icons to
-transcription once, invisibly.
+⚠️ **A comment inside `''…''` is data, not a comment.** One line in
+`programs.zsh.initContent` was the only thing in the whole 5d pass that moved
+the hash. Bisect rather than assuming; a ratio scan cannot tell the two apart.
+
+### Measure the comments the same way twice
+
+The 2026-08-20 rewrite reported a rise that was a fall, by using one denominator
+for the old number and another for the new. Use this, on both sides, and name
+which figure you quote:
+
+```sh
+tot=0; com=0; blank=0
+for f in $(git ls-files '*.nix'); do
+  tot=$((tot + $(wc -l < "$f")))
+  com=$((com + $(grep -c '^[[:space:]]*#' "$f")))
+  blank=$((blank + $(grep -c '^[[:space:]]*$' "$f")))
+done
+echo "comments $com / code $((tot - com - blank)) / total $tot"
+```
+
+`git ls-files`, not `find` — `.direnv/` carries a script and a vendored tree
+that are not this repo's to count. Quote **comments and code**; total lines is
+not a denominator anyone means.
+
+### Ask the closure, not the source
+
+Both package lists resolve at eval, so ownership questions are answerable
+exactly rather than by grep. This is the probe §5b's assertion is built from —
+it is what produced "21 duplicate names, one real divergence":
+
+```sh
+nix eval --impure --json --expr 'let f = builtins.getFlake (toString ./.);
+  c = f.nixosConfigurations.thinkpad.config; l = f.inputs.nixpkgs.lib;
+  idx = ps: l.listToAttrs (map (p: { name = p.name or "?"; value = p.outPath or "?"; }) ps);
+  s = idx c.environment.systemPackages; h = idx c.home-manager.users.henry.home.packages;
+in l.filter (n: s.${n} != h.${n}) (l.intersectLists (l.attrNames s) (l.attrNames h))'
+```
+
+Same shape answers "what pulls this in": `nix-store --query --referrers` on the
+store path, which is how `electron-40.10.5` was traced to winboat rather than to
+the Arch install its comment claimed.
+
+### Read the compositor's source, don't infer its behaviour
+
+Every mango claim in §3 was checked against `nix build nixpkgs#mango.src` and
+then re-checked by probe, because two of them were the opposite of what the
+existing comments said. Cite `file:line` into that source so the next reader can
+disagree with the evidence rather than with the summary.
 
 ### Dry-run a state machine without touching the session
 
 Copy the built config tree into a fake `HOME`, stub the launch command, and
-enumerate every combination. This validated all 12 mode/layout/position pairs
-plus the fresh-machine and corrupt-state paths before any rebuild.
-
-⚠️ **Override `XDG_STATE_HOME` as well as `HOME`.** The first attempt set only
-`HOME`; `XDG_STATE_HOME` leaked from the interactive session, every case read
-the *real* state files, and all 12 combinations returned the same answer —
-which reads exactly like a catastrophic regression. Use
-`env -i PATH="$PATH" HOME=… XDG_STATE_HOME=…`.
+enumerate every combination — this validated all mode/layout/position pairs plus
+the fresh-machine and corrupt-state paths before any rebuild. Override
+`XDG_STATE_HOME` as well as `HOME`, with `env -i`: `docs/gotchas.md` records why
+the first attempt returned the same answer for all 12 cases.
 
 ---
 
 # Suggested order
 
-| # | Phase | Shape |
+| # | Item | Shape |
 |---|---|---|
-| ~~1~~ | ~~**0.5** shell gate~~ | ✅ done 2026-08-03 |
-| ~~2~~ | ~~**1** sops-nix~~ | ✅ done 2026-08-06 |
-| ~~3~~ | ~~**2** ensureProfiles~~ | ✅ done 2026-08-09 |
-| ~~4~~ | ~~**4** dead-code sweep~~ | ✅ done 2026-08-09 |
-| 5 | **3** mango config selection ⭐ **DO NEXT** | own session, needs a logout |
-| 6 | **5a–5c, 5f** | one commit each, independent |
-| 7 | **5e** treefmt | after 0.5 |
-| ~~8~~ | ~~**5d** comments → ADRs~~ | 🔶 six files done 2026-08-12; rest is diminishing returns |
+| ~~1~~ | ~~**6a** the floor on `static.sh` itself~~ | ✅ 2026-08-20 |
+| ~~2~~ | ~~**3b** `mango -p` check~~ | ✅ 2026-08-20 |
+| 3 | **3a** mango config selection | one line in `lib.sh`, one seed, one check — **next** |
+| 4 | **5c** drop logseq, name winboat | pure subtraction, no migration |
+| 5 | **5b** one owner per package | `distrobox`, then the divergence assertion |
+| 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` |
+| 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate |
+| 8 | **5d** comments | the five files listed, then stop |
 
-**Phase 0.5 before Phase 1 is a real judgement call.** sops-nix closes the
-bigger *reproducibility* hole; shellcheck closes the bigger *day-to-day
-breakage* hole and is an afternoon rather than a branch. Recommend 0.5 first on
-effort alone — but if the machine were rebuilt tomorrow, secrets would be what
-you missed.
+Nothing above needs a logout, which is what the 3a decision bought.
+**5c nixos-hardware is not in the list** — decided against, above.
 
 ## Definition of done
 
-- `nix flake check` builds the system and home closure, and fails on: a
-  shellcheck warning, a `/bin/bash` shebang, a dash-flag `mmsg` call, an
-  unreferenced file in a runtime-selected directory.
+- `nix flake check` builds both closures and fails on: a shellcheck warning, a
+  `/bin/bash` shebang, a dash-flag `mmsg` call, an unreferenced file in a
+  runtime-selected directory, **a mango config whose `source=` does not
+  resolve**, **a package declared in two places that resolve differently**, and
+  **its own assertion count falling**.
 - `nix fmt` is a no-op across Nix **and** shell.
+- Nothing writes into `~/.config/mango` at runtime except one link swap that
+  `checks/static.sh` knows the name of.
 - No plaintext secret outside sops.
 - A fresh clone plus the age key reproduces a working machine, VPN and forge
   access included.
-- No `.nix` file above a ~1:2 comment-to-code ratio. **Nine still are** — see 5d, and treat the number as a prompt to look, not a target to hit.
+- Every new assertion has been confirmed against a planted defect. A gate only
+  ever observed passing has not been observed.
 
 ## Open questions
 
-1. **`nh` vs wrapping `rebuild` with `nvd`** — `nh` is nicer but becomes a
-   dependency in the critical path of every rebuild.
-2. **Does 5d include `CLAUDE.md` itself?** ~350 lines of dense narrative,
-   overlapping `SYSTEM.md` and the ADRs heavily — but it is doing a different
-   job (what has bitten us, vs how the system is laid out). Probably out of
-   scope; worth deciding rather than drifting.
-3. **Is the hud mode still wanted?** It doubles the waybar matrix, owns a
-   second stylesheet and a second walker theme, and every dead-code instance so
-   far has been residue from a *removed* mode. Not a suggestion to drop it —
-   a question worth answering explicitly, since the answer sizes Phase 3 and 4.
+1. **Does 5d include `CLAUDE.md` itself?** At 259 lines it overlaps `SYSTEM.md`
+   and the ADRs heavily, but does a different job — what has bitten us, versus
+   how the system is laid out. Leaning out of scope: trimming it moves cost from
+   documents nobody reads to the one document loaded into every session. Give it
+   a ceiling instead — past ~350 lines, look again.
+2. **`menus/shell.sh`'s dispatch table under 5e** — accept the 15 aligned lines
+   becoming 75, or carry one file exclusion forever. The table is the clearest
+   thing in that file; the exclusion is a permanent asterisk.
+
+*Closed, with the evidence, rather than left to drift:*
+
+- *Is the hud mode still wanted?* No — removed, `docs/adr/0035`. Every remaining
+  `hud` string in the repo is a comment recording that.
+- *Does `static.sh` need splitting?* No — Deliberately NOT, above; Phase 6 instead.
+- *`nh` vs `nvd`?* `nvd` — §5f.
+- *Adopt `lenovo-thinkpad-l14-amd`?* No — §5c, with the backlight measurement.

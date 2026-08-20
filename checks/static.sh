@@ -1130,6 +1130,73 @@ else
 	fi
 fi
 
+printf '\nMango config parse\n'
+
+# Every mango config actually parsed by the binary that will run it. A broken
+# `source=` is the failure this is for: mango prints [ERROR] to a stderr nobody
+# reads, EXITS 0, and starts with that file's binds missing — a keybind that
+# does nothing, which is this repo's signature failure.
+#
+# So: fail on any stderr, NOT on the exit status. Both were confirmed against
+# planted defects — a renamed universal/*.conf gives stderr with exit 0, an
+# unknown keyword gives stderr with exit 1.
+#
+# Fake HOME and NO `-c`, which reproduces production exactly. Two traps this
+# sidesteps rather than manages:
+#   -c FILE  relative sources resolve against dirname(cli_config_path), so
+#            pointing it at a mode conf reports all 20 source= lines missing.
+#   -p -c    getopt returns on -p mid-parse (mango.c:7797), so `mango -p -c F`
+#            validates the LIVE config and exits 0 having never seen F.
+# The binary comes from the system profile, not a build input: this has to be
+# the mango that will actually run.
+MANGO_BIN="$SYS/sw/bin/mango"
+if [[ ! -x $MANGO_BIN ]]; then
+	bad "no mango in the system profile — there is no compositor" "$MANGO_BIN"
+elif [[ ${#MODES[@]} -eq 0 ]]; then
+	bad "no modes to parse — the scan is broken, not the repo"
+else
+	MHOME=$(mktemp -d)
+	mkdir -p "$MHOME/.config"
+	# Two separate read-only-store traps, both measured, both needed:
+	#   --no-preserve=mode  the copied DIRECTORY is 0555 otherwise, so nothing
+	#                       can be created in it — this fails on the FIRST mode.
+	#   install -m 644      the tree is symlinks INTO the store, so a plain `cp`
+	#                       through one inherits 0444 — this fails on the SECOND
+	#                       mode, which is the scar lib.sh already carries.
+	cp -r --no-preserve=mode "$GEN_CFG/mango" "$MHOME/.config/mango"
+
+	parse_err=""
+	parsed=0
+	for m in "${MODES[@]}"; do
+		src="$MHOME/.config/mango/$m/$m.conf"
+		if [[ ! -f $src ]]; then
+			parse_err+="  $m/$m.conf is not in the generation"$'\n'
+			continue
+		fi
+		# Checked, because an install that fails leaves the PREVIOUS mode's
+		# config.conf in place and mango would cheerfully parse that again —
+		# a green check for a file it never read.
+		if ! install -m 644 "$src" "$MHOME/.config/mango/config.conf"; then
+			parse_err+="  $m: could not stage config.conf"$'\n'
+			continue
+		fi
+		err=$(HOME="$MHOME" "$MANGO_BIN" -p 2>&1 >/dev/null)
+		parsed=$((parsed + 1))
+		if [[ -n $err ]]; then
+			# Strip the colour escapes mango emits, so the report is readable.
+			parse_err+="  $m: $(printf '%s' "$err" | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ' ')"$'\n'
+		fi
+	done
+
+	if [[ $parsed -lt 1 ]]; then
+		bad "no mango config was parsed — the scan is broken, not the repo"
+	elif [[ -n $parse_err ]]; then
+		bad "mango rejected a config it will start on anyway" "$parse_err"
+	else
+		ok "all $parsed mango mode configs parse with no diagnostics"
+	fi
+fi
+
 printf '\nGenerated palette\n'
 
 # waybar/colors.css and rofi/colors.rasi are derived from
@@ -2398,5 +2465,20 @@ else
 	ok "$traps_seen terminating-signal traps all exit"
 fi
 
+# Every scan above has a floor; this file had none, so deleting a whole section
+# printed a smaller number and exited green — the Phase 4 class inside the gate
+# itself. A floor, not a ratchet: adding assertions stays a one-line change, and
+# this is raised deliberately in the commit that adds them.
+# 115 on 2026-08-20. docs/adr/0039.
+ASSERTION_FLOOR=115
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+
+run=$((PASS + FAIL))
+if [[ $run -lt $ASSERTION_FLOOR ]]; then
+	printf '  ✗ only %d assertions ran, floor is %d — a section stopped running\n' \
+		"$run" "$ASSERTION_FLOOR"
+	exit 1
+fi
+
 [[ $FAIL -eq 0 ]]

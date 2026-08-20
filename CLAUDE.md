@@ -223,7 +223,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — thirty-eight records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — thirty-nine records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |
@@ -238,9 +238,10 @@ one kept current against failures.
 
 Route new material by kind: a **decision** becomes an ADR, a **failure** goes in
 `docs/gotchas.md`, and the layout goes in `docs/SYSTEM.md`. Keep none of it in a
-code comment — `docs/PLAN-idiomatic-nix.md` §5d is moving 1,417 lines of narrative
-comment out of the Nix, so adding more works against that. A one-line reason plus
-a pointer is the target.
+code comment — `docs/PLAN-idiomatic-nix.md` §5d is moving narrative comment out of
+the Nix and is being outrun (2,222 comment lines against 3,681 of code,
+measured 2026-08-20 — up 55% since the pass that was meant to cut them), so
+adding more works against that. A one-line reason plus a pointer is the target.
 
 ### Write it short
 

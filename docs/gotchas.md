@@ -524,7 +524,7 @@ Check the return value; it is the only signal you get. `checks/static.sh` fails
 on a dash-flag `mmsg`.
 
 **`mango/config.conf` is generated and gitignored, and the config it contains
-*is* tracked.** The mode script does a verbatim `cp tiling/tiling.conf
+*is* tracked.** `apply_mode` does a verbatim `install -m 644 tiling/tiling.conf
 config.conf`, so `config.conf` is a *copy of whichever mode is active* — tracking
 it would commit a duplicate that changes on every mode switch. The real files are
 `tiling/tiling.conf` and `noctalia/noctalia.conf`. Consequence for a fresh clone: mango
@@ -591,6 +591,22 @@ This bites exactly when testing: a nested instance started with a scratch
 against the running session, killing waybar and starting daemons. Override
 `HOME`, not `XDG_CONFIG_HOME`, and strip the `autostart.conf` sources from the
 test config.
+
+**`mango -p` validates whichever config it had when it saw the flag, and the
+wrong flag order reports success.** `getopt` returns on `-p` mid-parse
+(`mango.c:7797`), so `mango -p -c FILE` never sees `FILE` — it checks the live
+`~/.config/mango/config.conf` and exits 0. **`mango -c FILE -p` is the working
+form.** And `-p` exits 1 for an unknown *keyword* but **0 for a `source=` it
+cannot open** (the return value is discarded, `parse_config.h:3248`), printing
+`[ERROR]: Failed to open config file: …` to stderr instead. So a bad `source=`
+is not silent — under `systemd-cat` it is in `journalctl -t mango` — but any
+check must read stderr, not the exit status.
+
+**Relative `source=` resolves against the config file's own directory only when
+`-c` is used.** With no `-c` it is hard-coded `$HOME/.config/mango/`; with `-c`
+it is `dirname` of that path, for nested includes too (`parse_config.h:3276`).
+So moving `config.conf` breaks all 20 `source=./…` lines at once. `~/` paths
+work everywhere and are the fix if it ever moves.
 
 **Settings are last-wins but BINDS ARE FIRST-WINS, and a duplicate warns.**
 Binds append (`parse_config.h`: `realloc(… count + 1 …)`) and the dispatcher

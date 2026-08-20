@@ -2519,3 +2519,142 @@ accent text again. rofi cannot derive a shade from a variable — `@accent / 50%
 and `@accent % 50%` are both parse errors — so a softer version of a palette
 colour is not available without hardcoding a hex, which per-mode theming forbids.
 
+
+---
+
+## 2026-08-20 · The plan, re-measured
+
+No code changed. `docs/PLAN-idiomatic-nix.md` was reviewed end to end and
+rewritten 550 → ~570 lines of quite different content: the five closed phases
+became a ledger pointing at their ADRs, and every outstanding item gained
+steps and a verification. The retrospectives went because each was a second
+copy of an argument already in `docs/adr/0010`–`0014`; the one lesson that
+lived nowhere else — *a comment inside `''…''` is data* — was kept.
+
+**Everything was re-measured, and the headline number had moved the wrong way.**
+Phase 5d's premise was 1,417 comment lines in 3,930 of Nix. It is now **2,222 in
+6,390** — the pass on 2026-08-12 did not fail, it was outrun by growth. So the
+instrument changed: absolute comment count, five named files, and an explicit
+note that ratio is meaningless below ~50 lines of code (`palette.nix` is 50
+comments over 1 line and is correct as it stands).
+
+### Four open questions closed with evidence rather than left to drift
+
+- **`lenovo-thinkpad-l14-amd` exists** and this is an L14 Gen 5 / Ryzen 5 Pro
+  7535U. Adopting it adds exactly `acpi_backlight=native` and `iommu=soft`.
+  `systemd-backlight@` is `active (exited)` with no failed units, so the first
+  fixes nothing observable, which leaves SWIOTLB bounce buffers as the whole of
+  what changes — on the machine whose defining bug is an amdgpu deadlock nobody
+  can reproduce on demand. **Decided against.** Upstream's own comment says BIOS
+  1.13 fixed the IOMMU problem; this machine is on 1.21.
+- **logseq has no data.** `~/.logseq/graphs/` empty, `preferences.json` stock, no
+  `journals/` anywhere under `$HOME`. Drop it and `electron-39.8.10` with it.
+- **`electron-40.10.5` is winboat's**, traced by `nix-store --query --referrers`.
+  The comment blaming "your Arch install" is wrong about the consumer as well as
+  being present-tense Arch narration.
+- **Splitting `checks/static.sh`** — no. A section in its own file is a section
+  that can stop being sourced.
+
+### The gate does not catch itself
+
+`static.sh` prints `114 passed, 0 failed` and asserts only `FAIL -eq 0`. Delete
+a whole section and it prints `90 passed, 0 failed` and exits green. Every scan
+*inside* the file has a floor; the file as a whole has none. Now Phase 6, and
+item 1 of the order — it is what makes every other item observable.
+
+### Three mango facts, all the opposite of what the comments said
+
+Checked against `nix build nixpkgs#mango.src` and then re-checked by probe:
+
+- **`mango -p` validates whichever config it had when it saw the flag.** `getopt`
+  returns on `-p` mid-parse, so `mango -p -c FILE` checks the *live* config and
+  exits 0 having never seen `FILE`. `mango -c FILE -p` is the working form.
+- **`-p` exits 1 for an unknown keyword and 0 for a `source=` it cannot open**,
+  printing to stderr instead. So a bad `source=` is *not* silent, as two config
+  comments claim — it is in `journalctl -t mango` — but a check must read stderr,
+  not the exit status.
+- **Relative `source=` follows the config file's own directory under `-c`.** So a
+  check that points `-c` at a mode conf reports all 20 `source=` lines missing.
+  Use a fake `HOME` and no `-c`.
+
+All three are now in `docs/gotchas.md` → Desktop.
+
+### Two claims of mine that were wrong, corrected in place
+
+- **`recursive = true` is not just a writability exemption.** It is what lets 12
+  generated files coexist with the hand-written mango tree — `waybar.nix:618`
+  says so in its own comment. The old plan listed removing it as the prize;
+  removing the *writer* is the prize, and the flag stays.
+- **`distrobox` being declared twice is not a live bug.** Both entries resolve to
+  the same store path, so PATH order changes nothing today. The real divergence
+  in the closure is `bind`: system carries the `host` output as a NixOS default,
+  `packages.nix:120` declares `dnsutils` for `dig`. That, not name duplication,
+  is what §5b's assertion should test — the naive intersection is 21 names and
+  would be ignored by the second week.
+
+---
+
+## 2026-08-20 · The gate now catches itself, and parses every mango config
+
+Plan items 1 and 2 (`docs/PLAN-idiomatic-nix.md` → *Suggested order*). Two
+assertions, both confirmed against planted defects before being called landed.
+
+### 6a — `static.sh` asserts its own size
+
+`ASSERTION_FLOOR` beside the summary, failing when `PASS + FAIL` drops below it.
+Every scan *inside* the file already had a floor; the file as a whole had none,
+so deleting a section printed a smaller number and exited green. A floor, not a
+ratchet — adding assertions stays a one-line change. `docs/adr/0039`.
+
+**Confirmed**: with the *Fonts* section deleted, `112 passed, 0 failed` is now
+followed by `✗ only 112 assertions ran, floor is 115` and exit 1. The identical
+deletion exited **0** before the change — the hole was real, not theoretical.
+
+### 3b — every mango mode config parses under the real binary
+
+New *Mango config parse* section. The mango tree is copied out of the built home
+closure into a fake `HOME`, each mode's conf is installed as `config.conf`, and
+`mango -p` runs with **no `-c`**. Fails on any stderr, floors on modes parsed.
+
+**Fails on stderr, not on the exit status**, which is the whole point: `-p`
+exits **0** for a `source=` it cannot open. That is the live failure mode — a
+sourced file that goes missing costs you its binds, silently, and the session
+starts anyway.
+
+**Two departures from the plan as written, both improvements:**
+
+- **`pkgs.mango` did not go into `nativeBuildInputs`.** mango is already in the
+  system profile, so the check reads `$SYS/sw/bin/mango` the way the rofi check
+  reads `$SYS/sw/bin/rofi`. No dependency edge, and it validates the binary that
+  will actually run.
+- **The read-only store bites twice, in two different places.** Measured
+  separately after the first write-up ran them together: `--no-preserve=mode`
+  is about the copied **directory** being 0555, which fails on the *first*
+  mode; `install -m 644` instead of `cp` is about the tree being symlinks
+  *into* the store, so a plain `cp` inherits **0444** and fails on the
+  *second*. Only the second is the scar `lib.sh` carries. Neither guard covers
+  the other.
+
+**Confirmed both ways**: renaming `universal/tag.conf` (mango: stderr, exit 0)
+and adding `notakey=1` to `tiling.conf` (mango: stderr, exit 1). Each fails the
+check naming the mode; the first names both modes, since both source it.
+
+The gate is now **115 assertions across 14 sections**.
+
+### A correction to yesterday's own measurement
+
+The rewrite dated today reported the Nix comment problem as *widening*, "ratio
+0.56 → 0.60". **It has not widened.** 0.56 counted comments against
+`total − comments`; 0.60 counted them against code with blanks removed. Two
+denominators, one arrow, and the sign came out backwards. Measured identically
+on both sides, the ratio **fell** — 0.56 → 0.53, or 0.64 → 0.60, depending on
+convention. Comments grew 55% (1,436 → 2,222) while code grew 64%
+(2,245 → 3,681).
+
+§5d's conclusion survives and is arguably strengthened: **judge on absolute
+comment count, because the ratio can improve while the reading burden grows by
+786 lines.** But the evidence given for it was wrong, and a plan that measures
+badly is worse than one that does not measure — it is the same class of failure
+as a check that passes by finding nothing. The table now shows both numbers with
+their denominators named, and *How to verify* carries the loop that produced
+them.

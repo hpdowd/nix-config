@@ -238,7 +238,13 @@ launch and needs nothing.
    `settings` value re-claiming `config.toml`, and ncspot generated from the
    canonical ramp. All three failed correctly.
 
-3b. **Not done, and gated on a decision.** noctalia's auto-theming templates,
+3b. **Settled as NO on 2026-08-20 — [0036](0036-noctalias-templates-stay-off.md).**
+   The restricted set this paragraph reserved turned out to be empty: kitty and
+   foot are second writers on the links below, and zed, qt, helix and discord
+   write files nothing here reads. The pin is now asserted. Original note
+   follows.
+
+   **Not done, and gated on a decision.** noctalia's auto-theming templates,
    restricted to the hookless or guard-satisfied set — never `mango` or `yazi`,
    whose hooks `cp --remove-destination` and `sed -i` over store symlinks and
    quietly un-manage the path. Two things to settle first: noctalia's foot

@@ -366,6 +366,10 @@ in
         predefinedScheme = (modePalette "noctalia").apps.noctalia;
         darkMode = true;
       };
+      # Off permanently, not pending — docs/adr/0036. Every template either
+      # writes a path apply_theme owns or a file nothing here reads, and the
+      # gtk/mango/yazi hooks replace a store symlink with a local copy without
+      # erroring. checks/static.sh asserts both of these values.
       templates = {
         enableUserTheming = false;
         activeTemplates = [ ];

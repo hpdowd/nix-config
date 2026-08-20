@@ -476,7 +476,7 @@ Instead `scripts/modes/noctalia.sh` writes it in two halves that differ in
 | File | Applied | Holds |
 |---|---|---|
 | `noctalia/settings.json` | once, when there is no file at all | preferences — terminal command, changelog popup, telemetry. Yours to change from noctalia's UI afterwards |
-| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming, plugin updates, and the colour scheme. **Generated** from the selected theme's `apps.noctalia`, so it is not under `dotfiles/` |
+| `noctalia/settings-pinned.json` | on **every** entry into the mode | the keys that would fight this machine — wallpaper, night light, idle, lock-on-suspend, gsettings sync, app theming (off for good, `docs/adr/0036`), plugin updates, and the colour scheme. **Generated** from the selected theme's `apps.noctalia`, so it is not under `dotfiles/` |
 
 Both are partial and deliberately carry no `settingsVersion`; everything else
 comes from the package's own `Assets/settings-default.json`, and upstream's

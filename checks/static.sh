@@ -566,6 +566,35 @@ if [[ -d "$MANGO/noctalia" ]]; then
 			else
 				ok "noctalia's pinned scheme matches modes.nix's '$nsch' for its mode"
 			fi
+
+			# noctalia's TEMPLATE engine stays off, and that is a decision with a
+			# record: docs/adr/0036. Asserted rather than merely written, because
+			# its symptom is not an error — a template renders a sidecar and its
+			# post-hook edits the app's real config to point at it, so enabling
+			# one puts a second writer on `kitty/current-theme.conf` and
+			# `foot/themes/noctalia` (both apply_theme's, docs/adr/0034), and the
+			# gtk/mango/yazi hooks REPLACE a read-only store symlink with a local
+			# copy. Nothing crashes; the repo just stops owning the file.
+			#
+			# Blunt on purpose: any non-empty list fails, not a blocklist of the
+			# harmful names. A blocklist needs updating whenever upstream adds a
+			# template and passes by finding nothing when one is renamed.
+			tmpl_on=$(jq -r '.templates.enableUserTheming // false' \
+				"$GEN_CFG/mango/noctalia/settings-pinned.json" 2>/dev/null)
+			tmpl_n=$(jq -r '(.templates.activeTemplates // []) | length' \
+				"$GEN_CFG/mango/noctalia/settings-pinned.json" 2>/dev/null)
+			if [[ -z $tmpl_on || -z $tmpl_n ]]; then
+				bad "could not read noctalia's templates pin — the scan is broken, not the repo" \
+					"enableUserTheming='$tmpl_on' activeTemplates='$tmpl_n'"
+			elif [[ $tmpl_on != false ]]; then
+				bad "noctalia pins enableUserTheming=$tmpl_on" \
+					"its templates write kitty's and foot's colours, which apply_theme owns — docs/adr/0036"
+			elif [[ $tmpl_n -ne 0 ]]; then
+				bad "noctalia pins $tmpl_n active template(s)" \
+					"every one either writes a path apply_theme owns or a file nothing here reads — docs/adr/0036"
+			else
+				ok "noctalia's template engine is off and its template list is empty"
+			fi
 		fi
 	fi
 

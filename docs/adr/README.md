@@ -47,6 +47,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0033](0033-the-control-centre-is-a-reader.md) | The control centre is a reader, not a second owner | Accepted (extends [0023](0023-noctalia-owns-its-own-actions.md); follows [0031](0031-the-idle-inhibitor-outlives-the-bar.md)) |
 | [0034](0034-colour-follows-the-mode-artefacts-do-not.md) | Colour follows the mode; artefacts do not | Accepted (completes [0032](0032-the-theme-file-owns-its-artefacts.md); extends [0030](0030-the-scheme-is-a-file-not-an-option.md)) |
 | [0035](0035-hud-is-removed.md) | hud is removed; a mode may not also force a layout | Accepted (simplifies [0034](0034-colour-follows-the-mode-artefacts-do-not.md); retires a rough edge from [0033](0033-the-control-centre-is-a-reader.md)) |
+| [0036](0036-noctalias-templates-stay-off.md) | noctalia's auto-theming templates stay off | Accepted (settles phase 3b of [0034](0034-colour-follows-the-mode-artefacts-do-not.md); protects [0028](0028-one-palette-reaches-every-config-it-can.md)) |
 
 ## Format
 

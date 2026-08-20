@@ -13,8 +13,10 @@
 # path is an activation failure. Keyed by MODE, never by scheme: a scheme name
 # on the Nix->shell boundary is the drift lib.sh exists to stop.
 #
-# The odd link names are noctalia's, so its templates stay a later toggle
-# rather than a redesign (adr/0034 phase 3b). docs/gotchas.md -> Theming.
+# The odd link names are noctalia's, chosen when its templates were still a
+# possible toggle. They stay because apply_theme, the seed below and the check
+# all agree on these strings and foot does not start without its one — the
+# templates themselves are off for good (adr/0036). docs/gotchas.md -> Theming.
 { lib, ... }:
 let
   modes = import ./modes.nix;

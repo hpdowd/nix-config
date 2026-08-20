@@ -1819,6 +1819,31 @@ Closed by a second, differently-shaped assertion: **no six-digit hex literal in
 any `.nix` outside `modules/home/themes/`.** The pass state is zero matches, so
 the floor is on the number of files scanned rather than on the match count.
 
+### noctalia's theming templates un-manage a file rather than failing on it
+
+`templates.activeTemplates` renders noctalia's palette into a sidecar per app,
+then runs a post-hook that edits the app's real config to point at it. Three of
+those hooks contain deliberate NixOS handling, and it is the wrong kind —
+measured 2026-08-20 against noctalia-shell 4.7.7:
+
+| Template | What the hook does to a store symlink |
+|---|---|
+| GTK | `gtk-refresh.py` detects a "read-only symlink (e.g. NixOS)", then **unlinks `gtk.css` and writes a local copy** |
+| mango | `cp --remove-destination` over it, and strips colour vars from every top-level `*.conf` |
+| yazi | `sed -i` on `theme.toml`, which **is** a home-manager symlink |
+
+None of that errors. The app starts, the colours are fine, and the repo has
+quietly stopped owning the path — a later `nixos-rebuild switch` neither restores
+it nor complains, because home-manager sees a regular file where it expected its
+own link.
+
+The quieter half: kitty's hook writes `current-theme.conf` and foot's *sidecar
+is* `themes/noctalia`, both owned by `apply_theme` (`docs/adr/0034`). The rest
+write files nothing here reads, so they look like they worked.
+
+**Off permanently and asserted — `docs/adr/0036`**, which carries the
+per-template measurements and the test to apply before ever enabling one.
+
 ### A contrast floor that audits one scheme passes a mode nobody can read
 
 `checks/static.sh` measured every text role against its theme's declared floors

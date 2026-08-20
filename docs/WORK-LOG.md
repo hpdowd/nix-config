@@ -2331,3 +2331,30 @@ compositor's stdout and stderr were being written into the greeter's VT buffer.
 - **896 lines of comment added, then 147 removed** in a trimming pass. The
   target in `CLAUDE.md` is a one-line reason plus a pointer; the reasoning
   belongs in the ADR. `mode-theme.nix` went 244 → 178 lines, `modes.nix` 45 → 24.
+### noctalia's templates stay off (0036)
+
+The last open phase of 0034 closed as **no**. The plan had reserved a "safe set"
+of five templates whose hooks were hookless or guarded; measured against the
+live package and the running system, **that set is empty** — two write paths
+`apply_theme` owns, the rest write files nothing here reads. Reasoning and the
+per-template table are in `docs/adr/0036`; the hook failure is in
+`docs/gotchas.md` -> Theming.
+
+Nothing on screen changed. What changed is that the pin is now **asserted**:
+any non-empty `activeTemplates` fails the build, deliberately blunt rather than
+a blocklist that would need updating whenever upstream adds a template.
+
+### What it cost
+
+- **Two negative tests**, both caught, each naming which half was wrong.
+- **One pre-existing quirk exposed**, not fixed: the settings-key scan descends
+  into arrays, so a non-empty list of strings reports
+  `templates.activeTemplates.0` as "not a key noctalia has". Inert while every
+  list in the pin is empty. Read `docs/adr/0036` before adding a list-valued
+  setting to it.
+- **Three copies of one argument written, then two removed.** The routing rule
+  in `CLAUDE.md` is decision -> ADR, failure -> `gotchas.md`, cost -> here. The
+  first pass put the whole case in all three.
+- `DESIGN-per-mode-theming.md` deleted — the scratch note that carried these
+  measurements between sessions.
+

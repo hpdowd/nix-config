@@ -188,6 +188,32 @@
                       schemes = nixpkgs.lib.genAttrs names (n: import ./modules/home/themes/${n}.nix);
                     }
                   )
+                } \
+                ${
+                  # Both package lists, name -> store path, RESOLVED. Ownership
+                  # is an eval question, so it is answered exactly rather than by
+                  # grepping two files. The check flags a name in both lists whose
+                  # paths DIFFER — duplication is harmless until one side is
+                  # overridden or pinned, and the naive intersection is 20 names
+                  # of which 19 are byte-identical NixOS module defaults.
+                  # Twenty findings on day one is the check nobody reads.
+                  let
+                    cfg = self.nixosConfigurations.thinkpad.config;
+                    idx =
+                      ps:
+                      nixpkgs.lib.listToAttrs (
+                        map (p: {
+                          name = p.name or "?";
+                          value = p.outPath or "?";
+                        }) ps
+                      );
+                  in
+                  pkgs.writeText "packages.json" (
+                    builtins.toJSON {
+                      system = idx cfg.environment.systemPackages;
+                      home = idx cfg.home-manager.users.henry.home.packages;
+                    }
+                  )
                 }
               touch $out
             '';

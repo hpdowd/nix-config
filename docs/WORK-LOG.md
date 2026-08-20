@@ -2753,3 +2753,42 @@ consumer; an entry that outlives its consumer is an exemption nobody is
 holding*, with `nix-store --query --referrers` as the way to check. That is the
 5d class treated at the source — three lines of rule where there were nine of
 narration, and the nine were wrong.
+
+---
+
+## 2026-08-20 · One owner per package, asserted as divergence
+
+Plan item 5 (§5b). `distrobox` dropped from `packages.nix`, keeping
+`virtualisation.nix`'s — it is a user application by the first rule but inert
+without the podman that module enables, and the two should be removable
+together. The rule now lives in `packages.nix`'s header, where it was missing.
+
+### The assertion is on divergence, not duplication
+
+Both package lists resolve at eval, so `flake.nix` passes `packages.json` —
+name → store path for each — the way `schemes.json` already went. The check
+flags a name in **both** lists whose paths **differ**.
+
+That distinction is the whole design. The naive intersection is 20 names,
+because `environment.systemPackages` is 240 entries of which most are NixOS
+module defaults rather than this repo's doing. Twenty findings on day one is
+the check nobody reads; one is a check with an answer. 19 of the 20 are
+byte-identical and correctly ignored.
+
+The exception is `bind`: the system carries the `host` output as a NixOS
+default, `packages.nix` declares `dnsutils` for `dig`. Different outputs of one
+derivation, so which `host` you get *is* PATH order — real, understood, and not
+ours to fix. Recorded in `PKG_EXCEPTIONS` with its reason, in the shape
+`statix.toml` already uses, and **matched on the name with the version
+stripped** so a version bump cannot silently retire the exemption.
+
+### Verified against two planted defects, one per failure mode
+
+- **Divergence**: `jq` overridden on the home side only — the check names
+  `jq-1.8.2` and prints *both* store paths.
+- **The scan breaking**: the jq expression's `.system` key renamed — `only 0
+  packages in both lists — the scan is broken, not the repo`. The floor is 10,
+  well under today's 20, because the intersection is mostly NixOS defaults and
+  does not shrink on its own.
+
+The gate is now **117 assertions across 15 sections**.

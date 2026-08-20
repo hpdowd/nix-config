@@ -297,7 +297,7 @@ mid-rebuild rather than mid-edit.
 **Verify**: `nix flake check` green, and a deliberately added unfree package
 fails the build naming itself.
 
-### 5b — one owner per package
+### 5b — one owner per package ✅ DONE 2026-08-20
 
 `distrobox` is declared twice — `environment.systemPackages`
 (`virtualisation.nix:32`) *and* `home.packages` (`packages.nix:213`). **Measured
@@ -331,13 +331,23 @@ this repo's doing, so it is an exception with a reason next to it, in the shape
 `statix.toml` already uses. Everything else, `distrobox` included, is
 byte-identical and correctly ignored.
 
-**Steps**: emit both name→outPath maps as JSON from `flake.nix`, the way
-`schemes.json` is already passed to `static.sh`; intersect; fail on differing
-paths outside the exception list; floor the intersection so a scan that stops
-matching cannot pass.
+**Landed** as the *Package ownership* section. `packages.json` is passed to
+`static.sh` the way `schemes.json` already was — both name→outPath maps,
+resolved by Nix, so ownership is answered at eval rather than by grepping two
+files. `PKG_EXCEPTIONS` carries `bind` with its reason, matched on the name with
+the version stripped so a version bump cannot silently retire the exemption.
 
-**Verify**: temporarily point one duplicate at a different derivation — the
-check must name it.
+The intersection is **20** now, not 21: dropping `distrobox` from
+`home.packages` removed one. 19 resolve identically, `bind` is the exception.
+
+**Verified against two planted defects**, one per failure mode:
+
+| Defect | Result |
+|---|---|
+| `jq` overridden on the home side only | ✗ names `jq-1.8.2` with **both** store paths |
+| the jq expression's `.system` key renamed | ✗ `only 0 packages in both lists — the scan is broken, not the repo` |
+
+The rule itself now lives in `packages.nix`'s header, where it was missing.
 
 ### 5c — overlay and pin hygiene ✅ DONE 2026-08-20
 
@@ -605,8 +615,8 @@ the first attempt returned the same answer for all 12 cases.
 | ~~2~~ | ~~**3b** `mango -p` check~~ | ✅ 2026-08-20 |
 | ~~3~~ | ~~**3a** mango config selection~~ | ✅ 2026-08-20 |
 | ~~4~~ | ~~**5c** drop logseq, name winboat~~ | ✅ 2026-08-20 |
-| 5 | **5b** one owner per package | `distrobox`, then the divergence assertion — **next** |
-| 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` |
+| ~~5~~ | ~~**5b** one owner per package~~ | ✅ 2026-08-20 |
+| 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` — **next** |
 | 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate |
 | 8 | **5d** comments | the five files listed, then stop |
 

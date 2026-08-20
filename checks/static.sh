@@ -10,7 +10,7 @@
 
 set -uo pipefail
 
-usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel> <schemes-json>"
+usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel> <schemes-json> <packages-json>"
 SRC=${1:?$usage}
 GEN=${2:?$usage}
 SYS=${3:?$usage}
@@ -30,6 +30,9 @@ SYS=${3:?$usage}
 # audited scheme.nix's would pass a mode nobody can read. Whatever `.schemes`
 # holds gets audited, so a scheme cannot enter service unaudited.
 SCHEMES=${4:?$usage}
+# Both package lists, name -> store path, resolved by Nix. Ownership is an eval
+# question; see the comment beside this argument in flake.nix.
+PACKAGES=${5:?$usage}
 
 # `pal <jq-path>` reads the scheme named by $PAL_SCHEME, which defaults to the
 # artefact one. The floor audit re-points it per scheme; nothing else should.
@@ -2477,12 +2480,69 @@ else
 	ok "$traps_seen terminating-signal traps all exit"
 fi
 
+printf '\nPackage ownership\n'
+
+# ONE OWNER PER PACKAGE (modules/home/packages.nix header). Asserted as
+# DIVERGENCE, not duplication: 20 names are in both lists and 19 resolve to the
+# same store path, because environment.systemPackages is mostly NixOS module
+# defaults rather than this repo's doing. Flagging all 20 is the check nobody
+# reads; flagging the one whose paths differ is the check that matters, because
+# there the binary you get is decided by PATH order.
+#
+# <name>|<why> — a divergence that is real, understood and not ours to fix.
+# Same shape statix.toml uses. Keep this list short; an entry is a thing
+# somebody decided, not a thing somebody silenced.
+PKG_EXCEPTIONS=(
+	# The system carries bind's `host` output as a NixOS default; packages.nix
+	# declares `dnsutils` for `dig`. Different outputs of one derivation, so
+	# which `host` you get is PATH order — real, but upstream's arrangement.
+	"bind|system has the host output as a NixOS default, home declares dnsutils for dig"
+)
+
+pkg_both=0
+pkg_bad=""
+if [[ ! -s $PACKAGES ]]; then
+	bad "no package map — the scan is broken, not the repo" "$PACKAGES"
+else
+	while IFS=$'\t' read -r name spath hpath; do
+		[[ -z $name ]] && continue
+		pkg_both=$((pkg_both + 1))
+		[[ $spath == "$hpath" ]] && continue
+		# Match on the name with its version stripped, so a version bump does
+		# not silently retire an exception.
+		base=${name%-[0-9]*}
+		keep=""
+		for e in "${PKG_EXCEPTIONS[@]}"; do
+			[[ $base == "${e%%|*}" ]] && keep=1 && break
+		done
+		[[ -n $keep ]] && continue
+		pkg_bad+="  $name"$'\n    system: '"$spath"$'\n    home:   '"$hpath"$'\n'
+	done < <(
+		jq -r '
+			.system as $s | .home as $h
+			| $s | keys_unsorted[] as $n
+			| select($h | has($n))
+			| [ $n, $s[$n], $h[$n] ] | @tsv
+		' "$PACKAGES"
+	)
+
+	# The floor. The intersection is 21 today and is mostly NixOS defaults, so it
+	# does not go to zero on its own — if it does, the jq stopped matching.
+	if [[ $pkg_both -lt 10 ]]; then
+		bad "only $pkg_both packages in both lists — the scan is broken, not the repo"
+	elif [[ -n $pkg_bad ]]; then
+		bad "a package is declared in two places that resolve DIFFERENTLY — which binary you get is PATH order" "$pkg_bad"
+	else
+		ok "$pkg_both packages sit in both lists; all resolve to one store path, ${#PKG_EXCEPTIONS[@]} recorded exception aside"
+	fi
+fi
+
 # Every scan above has a floor; this file had none, so deleting a whole section
 # printed a smaller number and exited green — the Phase 4 class inside the gate
 # itself. A floor, not a ratchet: adding assertions stays a one-line change, and
 # this is raised deliberately in the commit that adds them.
-# 116 on 2026-08-20. docs/adr/0039.
-ASSERTION_FLOOR=116
+# 117 on 2026-08-20. docs/adr/0039.
+ASSERTION_FLOOR=117
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 

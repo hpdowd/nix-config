@@ -1,5 +1,18 @@
 # User packages. Anything replaced by a NixOS module (pipewire, tlp, keyd, cups,
 # podman, steam, …) lives in modules/system/ instead.
+#
+# ONE OWNER PER PACKAGE. A package is installed by exactly one of: its
+# `programs.*` module, a `home.packages` entry here, or
+# `environment.systemPackages`. User applications go in home; things needed
+# before login or by a system unit go in system — and a tool that is inert
+# without a system service lives with that service, so it can be removed
+# together with it. That last clause is why `distrobox` sits in
+# virtualisation.nix beside the podman it is useless without.
+#
+# Two copies resolving to the same store path are harmless until one side is
+# overridden or pinned, at which point which binary you get is PATH order.
+# `checks/static.sh` asserts the divergence rather than the duplication —
+# 20 names are in both lists and 19 of them are byte-identical.
 {
   config,
   pkgs,
@@ -209,7 +222,6 @@
       fastfetch
       eyedropper
       libqalculate
-      distrobox
       dsearch
       weathr
       efibootmgr

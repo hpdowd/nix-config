@@ -2898,3 +2898,72 @@ shell**, verified by running it twice and comparing the diff line count. Files
 are selected by **shebang, not extension**: half of `dotfiles/scripts/` has no
 extension. Verified against a planted mis-indent — the check names the file and
 prints the diff.
+
+---
+
+## 2026-08-20 · The comment pass, and eight stale counts it found instead
+
+Plan item 8 (§5d), and the last of the eight. **195 comment lines removed, 73
+added — net −122** across the five named files. Every cut was checked against
+the ADRs, `gotchas.md` and `SYSTEM.md` first; every one was already argued
+there, several twice:
+
+| Cut | Where it already lived |
+|---|---|
+| `programs.nix`'s 44-line header | `docs/SYSTEM.md` §6 *and* `CLAUDE.md`, in fuller form — a **third** copy |
+| wlogout icon paths, 22 lines | `docs/gotchas.md` → Desktop |
+| lock-ramp `checkPhase`, 28 lines | `docs/adr/0029`, `docs/adr/0032` *and* `gotchas.md` |
+| `waybar.nix` header + position variants | `docs/adr/0009`, `docs/adr/0028`, `SYSTEM.md` §6 |
+| `power.nix` TLP bounds + the systemd cycle | `gotchas.md` → Power, which has the journal output |
+
+### The `on Arch` / `your` grep found nothing, and that was the surprise
+
+The plan said to grep for `on Arch` and `your` first, "that is where the wrong
+ones are". Two hits, both legitimate. The 2026-08-12 pass had taken that class
+already.
+
+**What this pass found instead is worse, because it reads as current.** Eight
+stale counts, all wrong the same way — hud's removal (`docs/adr/0035`) and the
+scheme set settling at four:
+
+- "this key works in **all three modes**" — two.
+- "unlike **the other two modes**" (noctalia.conf), "**the other two** take
+  `surface`" (dotfiles.nix) — one other, in both cases.
+- "correct for **three of the five schemes**" (static.sh), "a Papirus recolour
+  for **three of the five**" (pkgs/default.nix) — four schemes, and it is two
+  in both cases, not three.
+- "one of **three actions** with `fb=none`" — there are three, but the sentence
+  had drifted anyway.
+- `SYSTEM.md` claimed **four waybar layouts in three places**. There are three
+  (×2 positions = 6 files).
+- Two theme files said the plugin's Mocha values are right "because **this
+  machine IS Mocha**". This machine is gruvbox. It is the *theme* that is Mocha.
+
+None of that is prose style. It is documentation stating something untrue in a
+confident voice, which is the same failure class as a check that passes by
+finding nothing. Every one was fixed by **counting** — `ls
+modules/home/themes/`, the layout attrs, `grep -c 'fb=none'` — not by reading.
+
+⚠️ **`SYSTEM.md`'s mango row was stale from earlier the same day**: it still
+said the mode scripts "genuinely need to `cp` into `config.conf`". `docs/adr/0040`
+made that a link six hours earlier. Documentation goes stale from your own
+commits fastest.
+
+### A correction to the verification instrument
+
+Both `drvPath`s are unchanged for every `.nix` edit — bisected, not assumed.
+But three of the stale-count fixes were in **`dotfiles/` files, which are store
+content**: a comment there is data by definition and legitimately moves the
+hash. The first run showed both hashes moving and looked like a failed comment
+pass; stashing `dotfiles/` and re-running showed the Nix side clean.
+
+**The `drvPath` test proves a no-op for Nix comments only.** The plan now says
+so.
+
+### Phase 5 and the plan
+
+All eight items in *Suggested order* are done. `nix flake check` is **117
+assertions across 15 sections**, and the definition of done is met except for
+one line that never had evidence and still does not: *a fresh clone plus the age
+key reproduces a working machine*. That needs a VM, not a commit, and it is now
+marked as the one open item rather than sitting in a list of ticks.

@@ -1,31 +1,17 @@
 # Waybar layouts, generated from one shared set of module definitions.
 #
-# There are four layouts and they differ only in which modules they carry, but
-# they used to be four hand-maintained .jsonc files — so every module appeared
-# up to four times and had to be edited in four places. They drifted anyway:
-# the clock/title rearrangement on 2026-07-31 needed a manual re-sync pass, and
-# an audit before this conversion still found `custom/window` carrying
-# max-length 60 in two files and 80 in a third.
+# Each module is defined ONCE in `modules` below and a layout is a list of
+# names; `lib.genAttrs` emits definitions for exactly the names a layout uses.
+# So an unused definition cannot linger, and A NAME WITH NO DEFINITION IS AN
+# EVAL ERROR rather than a module that renders as nothing — which is this
+# repo's signature bug, and the reason for generating these at all. Four
+# hand-maintained .jsonc files drifted anyway: `custom/window` carried
+# max-length 60 in two and 80 in a third. docs/adr/0009.
 #
-# Here each module is defined ONCE in `modules` below, and a layout is a list of
-# names. `lib.genAttrs` then emits definitions for exactly the modules that
-# layout uses — so an unused definition cannot linger, and more importantly a
-# NAME THAT HAS NO DEFINITION IS AN EVAL ERROR rather than an empty module.
-# That last part is the real win: this repo's signature bug is a waybar module
-# that renders as nothing and reads as "missing from the bar" (see the exit-127
-# scripts and the power-profile glyph in CLAUDE.md).
-#
-# The JSON and the palette are generated. `style-*.css` stay hand-written files
-# because they are hand-tuned presentation, not settings, and transcribing them
-# into Nix attrsets buys nothing but a chance of a silent typo. (yazi's flavor
-# is the other file kept on that reasoning — docs/SYSTEM.md §6.)
-#
-# `colors.css` is the exception, and the line between them is worth stating:
-# the style sheets are *rules*, colors.css was thirteen `@define-color` lines
-# of pure *data* that also existed in modules/home/palette.nix and in rofi's
-# theme. A palette that has drifted between three files looks deliberate —
-# there is no way to tell a considered accent from a typo by looking at it —
-# so this one is derived and the others are not.
+# `style-*.css` stay hand-written (rules, not settings) while `colors.css` is
+# generated (data that also lived in two other files): docs/SYSTEM.md §6 for
+# the line between them, docs/adr/0028 for why a drifted palette gets a check
+# rather than a convention.
 {
   config,
   lib,
@@ -584,27 +570,15 @@ let
 
   # ── Position variants, enumerated at BUILD time ───────────────────────────
   #
-  # A bar at the bottom edge is the same bar with `position` flipped and the
-  # vertical margins mirrored. `position` cannot be passed on the command line
-  # — `waybar --help` offers only -c, -s and -b — so the value has to be in the
-  # file, and there are exactly two possible files per layout.
+  # `position` cannot be passed on the command line (`waybar --help` offers only
+  # -c, -s and -b), so it has to be in the file: 3 layouts x 2 positions = 6
+  # files, all statically known, and the script only picks a filename. It used
+  # to be a runtime `sed -E` rewrite of the JSON Nix had just produced.
   #
-  # This used to happen at RUNTIME: waybar-restart.sh rewrote the generated
-  # JSON with `sed -E` into ~/.local/state/mango/waybar-config.jsonc on every
-  # switch. That inverted the layering — regex substitution mutating typed
-  # output that Nix had just produced — and it cost a real workaround: sed
-  # applies each -e to the same line in sequence, so a plain top->bottom +
-  # bottom->top pair renamed the key and renamed it straight back, and the swap
-  # had to be routed through a `margin-swap` placeholder to survive.
-  #
-  # Enumerating instead: 3 layouts x 2 positions = 6 files, all statically
-  # known. The script now only picks a filename.
-  # Only `position` differs. The vertical margins used to be MIRRORED here too,
-  # which mattered for exactly one layout: hud cancelled its own exclusive zone
-  # with `margin-bottom = -28`. hud is gone (docs/adr/0035) and every remaining
-  # layout has all four margins at 0, so mirroring them was arithmetic on zero
-  # that read as load-bearing. Restore it before adding any layout with a
-  # non-zero vertical margin.
+  # Only `position` differs. Vertical margins were mirrored here too, for hud
+  # alone, which cancelled its own exclusive zone with `margin-bottom = -28`.
+  # hud is gone (docs/adr/0035) and every remaining layout has all four margins
+  # at 0 — restore the mirroring before adding a layout with a non-zero one.
   atBottom = bar: bar // { position = "bottom"; };
 
   layouts = lib.listToAttrs (

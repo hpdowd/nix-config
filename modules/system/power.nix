@@ -129,16 +129,13 @@ in
       CPU_BOOST_ON_BAT = 0;
       CPU_BOOST_ON_SAV = 0;
 
-      # Every profile states both ends, including the two that want the full
-      # range. An unset bound is not "no limit" to TLP — set_cpu_scaling_min_max_freq
-      # skips the write entirely and the *previous* profile's cap survives, so
-      # leaving fanless left the cores pinned at its ceiling while the bar
-      # reported performance. Observed live. docs/gotchas.md → Power.
+      # Every profile states BOTH ends, including the two wanting the full range:
+      # an unset bound leaves the previous profile's cap in place, not "no
+      # limit". docs/gotchas.md → Power.
       #
-      # 418414 is cpuinfo_min_freq; the driver's own floor is lowest_nonlinear
-      # (1115770), 2.7x higher than the hardware allows. 4630443 is
-      # cpuinfo_max_freq — with boost off the driver clamps it to the 2901000
-      # nominal, which is the intent rather than a surprise.
+      # 418414 is cpuinfo_min_freq (the driver's own floor, lowest_nonlinear,
+      # is 2.7x higher); 4630443 is cpuinfo_max_freq, which the driver clamps
+      # to the 2901000 nominal with boost off — intended, not a surprise.
       CPU_SCALING_MIN_FREQ_ON_AC = 418414;
       CPU_SCALING_MAX_FREQ_ON_AC = 4630443;
       CPU_SCALING_MIN_FREQ_ON_BAT = 418414;
@@ -207,18 +204,13 @@ in
     description = "power-profiles-daemon D-Bus API, served from TLP";
     wantedBy = [ "multi-user.target" ];
 
-    # BindsTo, not Requires: with TLP gone there is no profile to report and no
-    # honest value to publish, so the name must LEAVE the bus. Clients then see
-    # an absent service — true — instead of a stale profile that looks live.
+    # BindsTo, not Requires: with TLP gone the name must LEAVE the bus, so
+    # clients see an absent service rather than a stale profile that looks live.
     #
-    # `multi-user.target` is load-bearing in this list even though nothing here
-    # needs it: a target implicitly gains `After=` on everything in its `Wants=`
-    # *unless that unit already orders itself against the target*. Upstream
-    # tlp.service is `After=multi-user.target`, so without the second entry the
-    # `wantedBy` above closed a cycle — target after us, us after TLP, TLP after
-    # target — and systemd resolved it by DELETING this unit's start job. The
-    # bus name was then never served and dbus activation failed too, which is
-    # indistinguishable from the unit not existing. docs/gotchas.md → Power.
+    # `multi-user.target` here is LOAD-BEARING even though nothing needs it —
+    # without it the `wantedBy` above closes an ordering cycle and systemd
+    # breaks it by deleting this unit's start job, which looks exactly like the
+    # unit not existing. docs/gotchas.md → Power has the journal output.
     after = [
       "tlp.service"
       "multi-user.target"

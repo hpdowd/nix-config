@@ -72,7 +72,7 @@ let
   # and rules and hold no hex at all.
   #
   # `borderRole` differs by mode deliberately: noctalia mode draws its own
-  # heavier chrome and takes `overlay`, the other two take `surface`
+  # heavier chrome and takes `overlay`, tiling takes `surface`
   # (docs/adr/0022). Everything below the border is identical in SHAPE across
   # modes and comes from universal/settings.conf, which is why that is the file
   # that drifted.
@@ -118,11 +118,10 @@ let
   #   lua/config/palette.lua      colours, and only when the theme declares an
   #                               override map — see below
   #
-  # WHY THE PLUGIN IS GENERATED. THEME-MIGRATION §3: overriding 16 keys of a
-  # Mocha theme with gruvbox values leaves 10 Catppuccin ones in place, and the
-  # result is a visible hybrid rather than gruvbox. So the theme file names the
-  # plugin whose scheme it IS, and only a theme that DEVIATES from its plugin
-  # (mocha-high-contrast, which lifts Mocha's greys) also supplies a palette.
+  # THE PLUGIN IS GENERATED because a new scheme means a new PLUGIN, not
+  # overrides on a foreign one: overriding 16 keys of a Mocha theme with gruvbox
+  # values leaves 10 Catppuccin ones behind and the result is a visible hybrid.
+  # THEME-MIGRATION §3.
   nvimTheme = p.apps.nvim;
 
   # COMMENTS GO HERE, NOT IN THE STRINGS BELOW. `#` starts no comment inside a

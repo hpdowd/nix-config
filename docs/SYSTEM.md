@@ -128,7 +128,7 @@ Two rules follow from this and explain most of the surprises:
 │   ├── shell.nix              zsh, aliases, PATH, env, git
 │   ├── programs.nix           GENERATED configs: kitty, foot, zed, htop,
 │   │                          yazi, ncspot, imv, wlogout. No files in dotfiles/ for these
-│   ├── waybar.nix             GENERATED: the four waybar layouts, from one set
+│   ├── waybar.nix             GENERATED: the three waybar layouts, from one set
 │   │                          of module definitions
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
 │   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
@@ -330,7 +330,7 @@ file from typed options; **there is no config file in this repo at all.**
 | ncspot | `programs.ncspot` — **`settings = { }` deliberately**: that leaves `config.toml` unclaimed for the per-mode symlink (`docs/adr/0034`). One value here re-claims it and breaks activation |
 | wlogout | `programs.wlogout` |
 | swaylock | `programs.swaylock` — **`package = null`**, see §9 |
-| The four waybar layouts | `modules/home/waybar.nix` |
+| The three waybar layouts (x2 positions = 6 files) | `modules/home/waybar.nix` |
 
 This is where a config should end up unless there is a reason it cannot. The
 argument is not tidiness:
@@ -427,7 +427,7 @@ Do not "finish the job" without reading these:
 | Config | Why it stays a file |
 |---|---|
 | `nvim` | ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed plugins is a *rewrite*, trading `:Lazy sync` for a rebuild per plugin bump. The store path already gives reproducibility. **Three files inside it ARE generated** and merged in the store — `lua/plugins/colorscheme.lua`, `lua/config/scheme.lua` and (conditionally) `lua/config/palette.lua`, because the colourscheme follows `scheme.nix` (`docs/adr/0032`) |
-| `mango` | No module exists, and the mode scripts genuinely need to `cp` into `config.conf` — hence `recursive = true` |
+| `mango` | No module exists. `recursive = true` stays for a different reason than it used to: `config.conf` is a symlink `apply_mode` re-points (`docs/adr/0040`), and twelve *generated* files live inside the hand-written tree |
 | `swaync` | `services.swaync` exists and works, but declares the unit that is deliberately **masked**. `autostart.conf` owns swaync's lifecycle so restyles apply on mode switch. Adopting the module flips that ownership and needs its own decision. **Never run both** |
 | waybar CSS | Same reasoning — hand-tuned presentation is data |
 | `glow`, `nwg-look` | No module at this pin |
@@ -642,7 +642,7 @@ disagreed with the writers about the path, silently. `lib.sh` also holds
 > window, so `window#waybar.bottom` in `style-solid.css` moves the separator
 > line to the top edge.
 
-> All four layouts show the battery relative to the TLP charge limit, so a
+> All three layouts show the battery relative to the TLP charge limit, so a
 > battery parked at the 85% stop threshold reads 100%. The limit is read from
 > `services.tlp.settings.STOP_CHARGE_THRESH_BAT0`, not copied. The rescale
 > happens before `states` is compared, so `warning = 30` is a real 25.5%.

@@ -1,47 +1,9 @@
-# Native home-manager program modules.
+# Native home-manager program modules — tier 1, and the default.
 #
-# This file is the counterpart to dotfiles.nix, and the direction of travel is
-# from that file to this one. dotfiles.nix carries configs as *files* — either
-# copied verbatim into the store or symlinked out of it — which is what the
-# Arch migration needed on day one and what CLAUDE.md's "store-based vs
-# out-of-store" rule is about. That rule answers "may this file be read-only?".
-# It is the wrong question to stop at.
-#
-# The better question is "should this file exist as a file at all?". A native
-# module *generates* the config from Nix, which buys three things a store copy
-# does not:
-#
-#   - the option set is typed, so a typo is an evaluation error rather than a
-#     setting the program silently ignores at runtime. This repo's recurring
-#     failure mode is config that is wrong in a way nothing reports (the dead
-#     `mmsg -s -d` flags, the empty `custom/*` modules, the `appid:zen` rules
-#     that matched nothing) — types are the only mechanism here that turns any
-#     of that into a build failure.
-#   - the package and its config have ONE owner. Previously `kitty` was in
-#     packages.nix and `kitty/` was in dotfiles.nix, so nothing tied them
-#     together; now `programs.kitty.enable` installs the binary and writes the
-#     config, and removing it removes both.
-#   - values can be shared. The Gruvbox palette below is a `let` binding used
-#     by kitty and foot, rather than the same sixteen hex codes transcribed
-#     into two files that drift.
-#
-# WHAT IS DELIBERATELY NOT HERE:
-#
-#   mango    no home-manager module exists. It also has a genuine writability
-#            requirement (the mode scripts `cp` into config.conf), so it stays
-#            store-based with `recursive = true`.
-#   nvim     ~22 files of lazy.nvim config. `programs.neovim` with Nix-managed
-#            plugins is a rewrite, not a conversion — it would trade `:Lazy
-#            sync` for a rebuild on every plugin bump, and the store path
-#            already makes it reproducible. The store copy is the right answer.
-#   swaync   `services.swaync` declares `systemd.user.services.swaync`, which
-#            is precisely the unit masked in default.nix, because
-#            mango/tiling/autostart.conf owns swaync's lifecycle so a
-#            restyle takes effect on mode switch. Converting it flips that
-#            ownership decision; that is an ADR, not a line in a bulk pass.
-#   glow,    no module in nixpkgs' home-manager at this pin.
-#   nwg-look
-#   corectrl the honest holdout — see dotfiles.nix.
+# The counterpart to ./dotfiles.nix, with the direction of travel toward here.
+# Why generated beats a file, which configs are deliberately NOT here (nvim,
+# mango, swaync, glow, nwg-look, corectrl) and why: docs/SYSTEM.md §6,
+# docs/adr/0009.
 {
   config,
   pkgs,
@@ -295,23 +257,12 @@ in
   # TUI tools
   # ==========================================================================
 
-  # htop.
+  # No `screen:Main=` / `screen:I/O=` blocks: they restate htop's own defaults
+  # and are ORDER-SENSITIVE, while the module emits settings sorted by
+  # attribute name — expressing them here would break the association. Omitted,
+  # htop falls back to exactly these defaults.
   #
-  # Two things dropped from the old htoprc on purpose:
-  #
-  #   `htop_version=3.5.1-1.1-arch` — a stale Arch build string, and htop only
-  #   ever writes it, never reads it as configuration.
-  #
-  #   the `screen:Main=` / `screen:I/O=` blocks — these restate htop's own
-  #   defaults (screen:Main's column list is byte-identical to the `fields=`
-  #   line below), and they are ORDER-SENSITIVE: each `.sort_key`-style line
-  #   binds to the `screen:` above it, while the module emits settings sorted
-  #   by attribute name. Expressing them here would reorder them and break the
-  #   association. Omitted, htop falls back to exactly these defaults.
-  #
-  # htop rewrites htoprc when you change settings in its UI, and the generated
-  # file is read-only, so those changes will not persist. That is unchanged
-  # from today — dotfiles.nix already pinned htoprc as a store file.
+  # htoprc is read-only, so UI changes do not persist. Unchanged from before.
   programs.htop = {
     enable = true;
     settings = {
@@ -529,28 +480,10 @@ in
   # Session menu
   # ==========================================================================
 
-  # wlogout.
-  #
-  # THE ICON PATHS ARE THE WHOLE DIFFICULTY HERE, and getting them wrong
-  # reproduces a bug this repo has already had once.
-  #
-  # home/wlogout/style.css referenced its five PNGs RELATIVELY
-  # (`url("icons/lock.png")`), which worked because GTK resolves CSS url()
-  # against the stylesheet's own path and dotfiles.nix linked the whole
-  # directory, icons included. This module does not link a directory: it
-  # renders `style` into a standalone file in the store, so a relative url()
-  # would resolve next to that lone .css and find nothing.
-  #
-  # GTK draws its missing-image box for a failed url() WITHOUT logging
-  # anything, so the failure is invisible in the journal — it was originally
-  # reported as "the icons are just square boxes".
-  #
-  # Fixed by interpolating each PNG's own store path into the CSS. Nix copies
-  # each file into the store individually and substitutes an absolute path, so
-  # there is no directory for the reference to be relative to. This is the one
-  # kind of absolute path that is safe here: it is computed at build time and
-  # cannot go stale, unlike the `/usr/share/wlogout/icons/` paths these
-  # replaced.
+  # Each icon is interpolated as its OWN store path, never a relative url():
+  # `style` renders to a lone .css with no directory beside it, and GTK draws
+  # its missing-image box for a failed url() without logging. docs/gotchas.md
+  # → Desktop.
   programs.wlogout = {
     enable = true;
 

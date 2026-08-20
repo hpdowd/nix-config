@@ -214,7 +214,7 @@ rec {
       #
       # Deliberately absent: crust, flamingo, maroon, peach, sky, sapphire and
       # lavender. This file does not name them and the plugin's own Mocha values
-      # are correct, because this machine IS Mocha.
+      # are correct, because this theme IS Mocha.
       palette = {
         base = "bg0";
         mantle = "mantle";

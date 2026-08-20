@@ -4,6 +4,13 @@
 `docs/adr/`; what stays is what has not been decided, or not been done. Delete
 it when it empties.
 
+> ✅ **All eight items in *Suggested order* were done on 2026-08-20.** What is
+> left below is the record of how, and the two things deliberately left undone
+> (`nixos-hardware`, and the `CLAUDE.md` ceiling in *Open questions*). This file
+> is close to empty in the sense above — the next person to touch it should
+> consider whether the remaining narrative belongs in `docs/WORK-LOG.md` and
+> delete the rest.
+
 Rewritten **2026-08-20** against `main` @ `53783bf`, replacing the 2026-08-03
 version. The five closed phases are a ledger now rather than five
 retrospectives — each has an ADR, and a second copy of an argument is two
@@ -28,12 +35,12 @@ them; the surrounding quote is the durable half.
 | **4** — the dead-code class | 2026-08-09 | `docs/adr/0014` |
 | **6** — the gate catches itself | 2026-08-20 | `docs/adr/0039` |
 | **3** — the desktop layer | 2026-08-20 | `docs/adr/0040`, §3 below |
-| **5** — idiomatic cleanups | 🔶 partly | §5 below |
+| **5** — idiomatic cleanups | 2026-08-20 | §5 below |
 
 **What the gate is today.** `nix flake check` runs six checks: the system
-closure, the home closure, statix, deadnix, shellcheck over 43 tracked scripts,
-and `checks/static.sh` — **115 assertions across 14 sections, 0 failing**. It
-was 19 assertions when Phase 4 closed. Two live checks that need a running
+closure, the home closure, statix, deadnix, shellcheck **and shfmt** over 43
+tracked scripts, and `checks/static.sh` — **117 assertions across 15 sections,
+0 failing**. It was 19 assertions when Phase 4 closed. Two live checks that need a running
 compositor stay in `./verify-claims.sh` (69 lines).
 
 ## The framing, corrected
@@ -278,7 +285,7 @@ than an approximation of one. The first guard stays and is unrelated.
 
 ---
 
-# Phase 5 — idiomatic cleanups
+# Phase 5 — idiomatic cleanups ✅ CLOSED 2026-08-20
 
 Independent, low-risk, do any of them alone.
 
@@ -406,7 +413,7 @@ Two of the three are now answered:
   the new `toplevel`, and `electron-40` is still there because winboat still
   needs it.
 
-### 5d — comments → ADRs 🔶 MOSTLY DONE 2026-08-12, and not holding
+### 5d — comments → ADRs ✅ SECOND PASS DONE 2026-08-20
 
 One pass over the six worst by ratio on 2026-08-12: **261 lines removed, 127
 added**, proved a no-op by derivation path. It surfaced a class worth keeping:
@@ -427,13 +434,36 @@ absolute terms, which is the term that costs reading. So change the instrument:
   `mocha-high-contrast` 98) are a fifth of the total and carry per-role
   justifications that `docs/adr/0032` argues for. Leave them.
 
-**Steps**: one pass over those five files, checking each narrative against the
-ADRs, `gotchas.md` and `SYSTEM.md` before cutting — this moves text, it does not
-drop it. Grep for `on Arch` and `your` first; that is where the wrong ones are.
+**Second pass done.** **195 comment lines removed, 73 added — net −122** across
+the five files. Every cut was checked against the ADRs, `gotchas.md` and
+`SYSTEM.md` first, and every one of them was already argued there:
 
-**Verify**: the derivation-path comparison below. A comment pass that moves
-either hash has changed the system and is no longer a comment pass — bisect
-rather than assuming, because a comment inside `''…''` is data.
+| Cut | Where it already lived |
+|---|---|
+| `programs.nix` 44-line header | `docs/SYSTEM.md` §6 + `CLAUDE.md`, in fuller form — a **third** copy |
+| wlogout icon paths, 22 lines | `docs/gotchas.md` → Desktop |
+| lock-ramp checkPhase, 28 lines | `docs/adr/0029` + `docs/adr/0032` + `gotchas.md` |
+| `waybar.nix` header, position variants | `docs/adr/0009`, `docs/adr/0028`, `SYSTEM.md` §6 |
+| `power.nix` TLP bounds + systemd cycle | `gotchas.md` → Power, which has the journal output |
+
+**Grepping for `on Arch` and `your` found nothing** — the 2026-08-12 pass had
+already taken that class. What this pass found instead was worse, because it
+reads as current:
+
+⚠️ **Stale counts, in eight places, all of them wrong the same way.** hud's
+removal (`docs/adr/0035`) and the scheme set settling at four left comments
+saying "all three modes", "the other two modes", "three of the five schemes",
+"one of three actions". `SYSTEM.md` claimed **four** waybar layouts in three
+places; there are three (×2 positions = 6 files). None of this is prose style —
+it is a document telling you something untrue in a confident voice. Fixed by
+counting: `ls modules/home/themes/`, the layout attrs, `grep -c 'fb=none'`.
+
+**Verify — and one correction to the instrument.** Both `drvPath`s are
+unchanged for every `.nix` edit, bisected rather than assumed. But three of the
+stale-count fixes were in **`dotfiles/` files, which are store content** — a
+comment there is data by definition and legitimately moves the hash. The
+`drvPath` test proves a no-op for Nix comments only; stash the `dotfiles/`
+changes before running it.
 
 ### 5e — format the shell too ✅ DONE 2026-08-20
 
@@ -654,26 +684,28 @@ the first attempt returned the same answer for all 12 cases.
 | ~~5~~ | ~~**5b** one owner per package~~ | ✅ 2026-08-20 |
 | ~~6~~ | ~~**5f** `nvd` wrapper, **5a** predicate~~ | ✅ 2026-08-20 |
 | ~~7~~ | ~~**5e** format the shell~~ | ✅ 2026-08-20 |
-| 8 | **5d** comments | the five files listed, then stop — **next** |
+| ~~8~~ | ~~**5d** comments~~ | ✅ 2026-08-20 |
 
 Nothing above needs a logout, which is what the 3a decision bought.
 **5c nixos-hardware is not in the list** — decided against, above.
 
 ## Definition of done
 
-- `nix flake check` builds both closures and fails on: a shellcheck warning, a
-  `/bin/bash` shebang, a dash-flag `mmsg` call, an unreferenced file in a
-  runtime-selected directory, **a mango config whose `source=` does not
-  resolve**, **a package declared in two places that resolve differently**, and
-  **its own assertion count falling**.
-- `nix fmt` is a no-op across Nix **and** shell.
-- Nothing writes into `~/.config/mango` at runtime except one link swap that
-  `checks/static.sh` knows the name of.
-- No plaintext secret outside sops.
-- A fresh clone plus the age key reproduces a working machine, VPN and forge
-  access included.
-- Every new assertion has been confirmed against a planted defect. A gate only
-  ever observed passing has not been observed.
+- ✅ `nix flake check` builds both closures and fails on: a shellcheck warning,
+  an unformatted script, a `/bin/bash` shebang, a dash-flag `mmsg` call, an
+  unreferenced file in a runtime-selected directory, a mango config whose
+  `source=` does not resolve, a package declared in two places that resolve
+  differently, and **its own assertion count falling**.
+- ✅ `nix fmt` is a no-op across Nix **and** shell.
+- ✅ Nothing writes into `~/.config/mango` at runtime. The one remaining
+  mutation is a link swap `checks/static.sh` knows the name of, and asserts is
+  a link rather than a copy.
+- ✅ No plaintext secret outside sops.
+- ✅ Every assertion added here was confirmed against a planted defect. A gate
+  only ever observed passing has not been observed.
+- ⬜ A fresh clone plus the age key reproduces a working machine, VPN and forge
+  access included. **Never tested end to end** — it is the one line here with no
+  evidence behind it, and it needs a spare machine or a VM, not another commit.
 
 ## Open questions
 

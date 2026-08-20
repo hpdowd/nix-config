@@ -1520,9 +1520,10 @@ fi
 
 # nvim is the one consumer whose generated file is CONDITIONAL. A scheme that
 # matches its own plugin takes upstream's colours and emits no palette.lua at
-# all (THEME-MIGRATION §3) — so "the file is missing" is correct for three of
-# the five schemes and a failure for the other two. Which case applies is read
-# from the theme, not assumed.
+# all (THEME-MIGRATION §3) — so "the file is missing" is correct for the two
+# schemes that match their plugin (gruvbox, nord) and a failure for the two that
+# deviate (mocha, mocha-high-contrast). Which case applies is read from the
+# theme, not assumed.
 #
 # The plugin spec is checked either way, because that file is always generated
 # and naming the wrong plugin is the failure that produces a hybrid.

@@ -40,7 +40,7 @@ fb_bar_settings() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
 fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
 # Keep-awake used to be noctalia-only, because the only inhibitor outside it was
 # a bool inside the waybar process with no way in from a key. There is a unit
-# now, so this key works in all three modes. docs/adr/0031.
+# now, so this key works in both modes. docs/adr/0031.
 fb_keep_awake() { "$MANGO_DIR/scripts/system/idle-inhibit.sh" toggle; }
 # The control centre stopped being noctalia-only on 2026-08-19, the same way
 # keep-awake did: not by reimplementing the panel, but because every toggle it

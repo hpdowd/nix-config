@@ -2,9 +2,9 @@
 # The control centre — one menu that SHOWS the state of every toggle, instead of
 # ten keys you have to remember and a bar you have to squint at.
 #
-# WHY THIS EXISTS. noctalia's control centre was one of three actions in
-# shell.sh with `fb=none`, i.e. a key that reported "Only in noctalia mode" in
-# the other two. The gap was never the toggles — every one of them already had a
+# WHY THIS EXISTS. noctalia's control centre was one of the shell.sh actions
+# with `fb=none`, i.e. a key that reported "Only in noctalia mode" everywhere
+# else. The gap was never the toggles — every one of them already had a
 # key and a script here — it was that nothing showed you the SET, or the state
 # each one was in. That is most of what "cohesive" means when noctalia is
 # described that way: not a nicer widget, one place where the state is legible.

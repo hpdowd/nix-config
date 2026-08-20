@@ -44,7 +44,7 @@ in
   # names to packages — one place, so a scheme is still one file to add.
   #
   # AN OVERLAY, not call-site overrides: `themeIcons` is a Papirus recolour for
-  # three of the five schemes, and two references to `papirus-icon-theme.override`
+  # two of the four schemes, and two references to `papirus-icon-theme.override`
   # would put two Papirus derivations on XDG_DATA_DIRS with the colour decided
   # by lookup order. That is what this was before, and it is why it stays here.
   #
@@ -162,17 +162,15 @@ in
   # is named for. The launcher was the visible half: picking an app ran
   # `CompositorService.spawn` → `MangoService.spawn` → nothing. docs/adr/0025.
   #
-  # A patch rather than a workaround in settings, because there are five call
-  # sites and only one is the launcher; and because `mmsg dispatch spawn_shell`
-  # makes the app a child of MANGO, in the session scope, instead of a child of
-  # the shell inside `noctalia.service` — where a mode switch would kill it with
-  # the bar (KillMode=control-group).
+  # A patch, not a settings workaround: there are five call sites and only one
+  # is the launcher, and `mmsg dispatch spawn_shell` makes the app a child of
+  # MANGO in the session scope rather than of the shell inside
+  # `noctalia.service`, where a mode switch would kill it with the bar.
   #
   # `--replace-fail`, so a version bump that renames any of these is a BUILD
-  # error. The verb names are checked against mango's own function table by
-  # checks/static.sh; `-g -A` (display scales) and `-s -t` (tag switch) are
-  # deliberately left alone — those two need a different call shape, not a
-  # different spelling, and are the `DwlIpc` half recorded in docs/adr/0020.
+  # error. The verbs are checked against mango's own function table by
+  # checks/static.sh. `-g -A` and `-s -t` are left alone deliberately — they
+  # need a different call shape, not a different spelling (docs/adr/0020).
   noctalia-shell = prev.noctalia-shell.overrideAttrs (old: {
     postPatch = (old.postPatch or "") + ''
       substituteInPlace Services/Compositor/MangoService.qml \
@@ -271,13 +269,10 @@ in
   # property of the gradient and not a colour.
   #
   # The ramp varies LIGHTNESS ONLY: all three channels move by the same ±6, so
-  # every tone keeps bg0's exact channel offsets and therefore its hue. Under
-  # gruvbox this was a grayscale ramp, because #282828 is neutral and the two
-  # are the same thing there; Catppuccin Mocha's #1e1e2e is not neutral, so the
-  # ramp is now stated as the general case. The check below asserts the offsets
-  # are preserved rather than that they are zero — same guarantee (the lock
-  # screen cannot be the one surface wearing a colour the palette never named),
-  # one fewer assumption about which palette is in use.
+  # every tone keeps bg0's exact channel offsets and therefore its hue. The
+  # check below asserts the offsets are preserved rather than that they are
+  # zero — a neutral base satisfies both, a tinted one only the first.
+  # docs/adr/0029.
   lock-backgrounds =
     let
       palette = import ../modules/home/palette.nix;
@@ -334,32 +329,17 @@ in
 
       # The floor. A pool that generated wrong is invisible at lock time — the
       # screen just looks slightly off — and every wrong version so far looked
-      # plausible, so check both properties the eye actually reads.
+      # plausible.
       #
-      # Both bounds are now computed from the same `mid` the ramp is drawn from,
-      # so the check cannot go stale against a palette change — the failure this
-      # would otherwise invite is a check that still asserts 40 while the ramp
-      # moved, which passes nothing and reports success.
+      # Bounds come from the same `mid` the ramp is drawn from, so the check
+      # cannot go stale against a palette change. Exact per channel for hue,
+      # ±1 for the mean because 96 blocks sampled from 9 tones vary that much
+      # on their own: docs/adr/0029 argues both.
       #
-      # Hue preservation is exact, and can be. `ramp()` interpolates each channel
-      # from an integer base by the same delta, so the fractional parts agree and
-      # all three round the same way — the offsets survive interpolation without
-      # slack. Upscaling is `-filter Point`, which introduces no new colours.
-      #
-      # The mean is a tolerance, not an equality. The ramp is symmetric about
-      # `mid`, but 96 blocks drawn from 9 tones vary by ±1 through sampling alone
-      # — an exact test fails on roughly one seed in four. ±1 still catches a
-      # shifted band, which is the failure worth catching: earlier attempts sat
-      # at 54 and 70. Now per channel, so a ramp that drifted in one channel only
-      # cannot average back into range.
-      #
-      # `-colorspace sRGB` on every measurement, belt to the `-type TrueColor`
-      # braces above. ImageMagick reports `mean.g` and `mean.b` as 0 for an image
-      # it considers Gray, so on a NEUTRAL palette this check failed claiming the
-      # green channel was 0 when the pixels were correct. The 2026-08-18 pass
-      # generalised this check from "R = G = B" to per-channel offsets and fixed
-      # the tinted case while opening the neutral one — the two schemes it was
-      # tested against were both tinted.
+      # `-colorspace sRGB` on every measurement, belt to `-type TrueColor` above
+      # — ImageMagick reports mean.g and mean.b as 0 for an image it calls Gray,
+      # so a NEUTRAL palette failed this claiming green was 0.
+      # docs/gotchas.md → Theming.
       doCheck = true;
       checkPhase = ''
         runHook preCheck

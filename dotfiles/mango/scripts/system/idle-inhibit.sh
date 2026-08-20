@@ -33,37 +33,37 @@ ICON_ON=$'\U000F04B3'  # nf-md-sleep_off
 ICON_OFF=$'\U000F04B2' # nf-md-sleep
 
 is_on() {
-  systemctl --user is-active --quiet "$UNIT"
+	systemctl --user is-active --quiet "$UNIT"
 }
 
 refresh_waybar() {
-  pkill -RTMIN+12 waybar
+	pkill -RTMIN+12 waybar
 }
 
 do_on() {
-  systemctl --user start "$UNIT"
+	systemctl --user start "$UNIT"
 
-  # `start` returns once the process is FORKED, not once it holds anything.
-  # wlinhibit prints "unable to aquire idle inhibit manager" and exits 1 when
-  # the compositor advertises none, and that lands after the return — so
-  # without this the key would report success and inhibit nothing.
-  sleep 0.3
-  if ! is_on; then
-    notify-send -u critical "Keep awake" \
-      "wlinhibit did not stay up: $(systemctl --user is-active "$UNIT")"
-    refresh_waybar
-    return 1
-  fi
-  refresh_waybar
+	# `start` returns once the process is FORKED, not once it holds anything.
+	# wlinhibit prints "unable to aquire idle inhibit manager" and exits 1 when
+	# the compositor advertises none, and that lands after the return — so
+	# without this the key would report success and inhibit nothing.
+	sleep 0.3
+	if ! is_on; then
+		notify-send -u critical "Keep awake" \
+			"wlinhibit did not stay up: $(systemctl --user is-active "$UNIT")"
+		refresh_waybar
+		return 1
+	fi
+	refresh_waybar
 }
 
 do_off() {
-  systemctl --user stop "$UNIT"
-  refresh_waybar
+	systemctl --user stop "$UNIT"
+	refresh_waybar
 }
 
 do_toggle() {
-  if is_on; then do_off; else do_on; fi
+	if is_on; then do_off; else do_on; fi
 }
 
 # Always prints a non-empty `text`: an empty custom module is indistinguishable
@@ -71,17 +71,17 @@ do_toggle() {
 # "off" — a restart-limited unit and a deliberately released one look the same
 # on the bar otherwise, and only one of them is a problem.
 do_status() {
-  case "$(systemctl --user is-active "$UNIT" 2>/dev/null)" in
-  active)
-    printf '{"text":"%s","class":"activated","tooltip":"Idle inhibited — nothing dims, locks or sleeps"}\n' "$ICON_ON"
-    ;;
-  failed)
-    printf '{"text":"%s","class":"failed","tooltip":"Keep awake FAILED — the idle ladder is live. systemctl --user status %s"}\n' "$ICON_ON" "$UNIT"
-    ;;
-  *)
-    printf '{"text":"%s","class":"deactivated","tooltip":"Idle ladder live — dim 4m, lock 5m, sleep 30m on battery"}\n' "$ICON_OFF"
-    ;;
-  esac
+	case "$(systemctl --user is-active "$UNIT" 2>/dev/null)" in
+	active)
+		printf '{"text":"%s","class":"activated","tooltip":"Idle inhibited — nothing dims, locks or sleeps"}\n' "$ICON_ON"
+		;;
+	failed)
+		printf '{"text":"%s","class":"failed","tooltip":"Keep awake FAILED — the idle ladder is live. systemctl --user status %s"}\n' "$ICON_ON" "$UNIT"
+		;;
+	*)
+		printf '{"text":"%s","class":"deactivated","tooltip":"Idle ladder live — dim 4m, lock 5m, sleep 30m on battery"}\n' "$ICON_OFF"
+		;;
+	esac
 }
 
 case "${1:-}" in
@@ -94,7 +94,7 @@ status) do_status ;;
 # written once, here, and a caller cannot drift from it.
 is-on) is_on ;;
 *)
-  echo "Usage: ${0##*/} <toggle|on|off|status|is-on>"
-  exit 1
-  ;;
+	echo "Usage: ${0##*/} <toggle|on|off|status|is-on>"
+	exit 1
+	;;
 esac

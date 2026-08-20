@@ -17,11 +17,11 @@
 MODES=("tiling" "noctalia")
 
 menu_entries() {
-    local current
-    current=$(current_mode)
-    for mode in "${MODES[@]}"; do
-        [ "$mode" = "$current" ] && echo "$mode  •" || echo "$mode"
-    done
+	local current
+	current=$(current_mode)
+	for mode in "${MODES[@]}"; do
+		[ "$mode" = "$current" ] && echo "$mode  •" || echo "$mode"
+	done
 }
 
 CHOICE=$(menu_entries | rofi_menu 20 -no-custom -p "Desktop mode") || exit 0

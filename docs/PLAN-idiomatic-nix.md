@@ -435,7 +435,7 @@ drop it. Grep for `on Arch` and `your` first; that is where the wrong ones are.
 either hash has changed the system and is no longer a comment pass — bisect
 rather than assuming, because a comment inside `''…''` is data.
 
-### 5e — format the shell too
+### 5e — format the shell too ✅ DONE 2026-08-20
 
 Trigger condition met: 3,291 lines of shell under `dotfiles/` plus 2,402 in
 `checks/`, indented inconsistently (`lib.sh` alone mixes tabs and four spaces),
@@ -448,11 +448,11 @@ scripts:
 |---|---|
 | files changed | 34 of 45 |
 | lines changed | 1,979 |
-| **surviving `git diff -w -B`** | **205, in 10 files** |
+| **surviving `git diff -w`** | **194, in 9 files** — see the `-B` warning below |
 
 and every one of those 205 is line structure, not semantics: pipe-continuation
 style in `static.sh`, `;`-splitting in `shell.sh`. So the pass **is** verifiable
-— not by `drvPath`, which a reformat moves by design, but by `diff -w -B` plus
+— not by `drvPath`, which a reformat moves by design, but by `diff -w` plus
 reading what is left. Run it **without `-s`**: simplify is the only mode that
 rewrites code rather than layout, and it is the only part `diff -w` cannot
 clear.
@@ -483,20 +483,38 @@ languages it is not required: four lines added to the `writeShellApplication`
 at `flake.nix:203` do the same job with no new flake input. Take treefmt when a
 third language appears.
 
-**Steps**, in this order — formatting before gating, or the gate is red:
+**Landed.** 33 files, 1,998 lines of churn, **194 surviving `git diff -w` in 9
+files** — all read, all line structure: `;`-splitting, brace-group splitting,
+and leading-`\ |` → trailing-`|` continuation style. No semantics moved.
 
-1. Settle the two exclusions above. **Exclude `docs/archive/` as well**, which
-   the shellcheck check at `flake.nix` already does and which accounts for 26 of
-   the 205 residue lines: it is history, not instructions.
-2. `shfmt -w` the rest, without `-s`, in one commit that does nothing else.
-3. Read the residue: `git diff -w -B`. Anything that is not line structure is a
-   finding, not churn.
-4. Fix `static.sh:397` in the same commit.
-5. Then add the `shfmt -d` pass to the formatter and a check, and only then is
-   `nix fmt` a no-op across both languages.
+⚠️ **Measure the residue with `git diff -w`, NOT `git diff -w -B`.** `-B` marks
+whole-file rewrites and re-reports every line of them, inflating the same tree
+from 194 lines in 9 files to **741 in 13**. This plan recommended `-B` in three
+places and was wrong in all three.
 
-**Verify**: `nix flake check` green, and `git diff -w -B` on step 2's commit
-shows only the residue you read.
+**Neither exclusion was needed in the end.**
+
+- **`fan-calibrate` was fixed, not excluded.** shfmt parses `cpu[0-9]*` inside
+  an array literal as an associative-array key. `CPUS=()` plus a `for` loop over
+  the same glob parses, keeps the glob *exact* (`cpu*` would also match a future
+  `cpuidle/cpufreq`) and drops the unmatched-glob literal with `[ -d ]`.
+  Verified to resolve the same 12 paths.
+- **`menus/shell.sh` took the expansion**, decided 2026-08-20 — 16 aligned arms
+  became 80 lines. No file is excluded, so there is no standing asterisk.
+
+**Two scans broke, not one.** The plan named `static.sh:397`. The same
+`;`-splitting also broke the IPC-pair scan at `:761`, which read `ipc=` off that
+line too. And neither broke on *indentation* — shfmt leaves case arms at column
+0 — but on `ipc=` moving to the next line. Both floors caught it rather than
+passing empty. The action scan is now `awk` keyed on the arm label; the IPC scan
+anchors on `ipc=` alone, which is all it ever wanted.
+
+**`nix fmt` is a no-op across Nix and shell**, verified by running it twice and
+comparing the diff line count. Shell files are selected by **shebang**, not
+extension — half of them have none. The gate runs `shfmt -d` over the same
+shebang scan the shellcheck check already builds, sharing its floor rather than
+making a second copy of both. Verified against a planted mis-indent: it names
+the file and prints the diff.
 
 ### 5f — `nvd` in the rebuild path ✅ DONE 2026-08-20
 
@@ -635,8 +653,8 @@ the first attempt returned the same answer for all 12 cases.
 | ~~4~~ | ~~**5c** drop logseq, name winboat~~ | ✅ 2026-08-20 |
 | ~~5~~ | ~~**5b** one owner per package~~ | ✅ 2026-08-20 |
 | ~~6~~ | ~~**5f** `nvd` wrapper, **5a** predicate~~ | ✅ 2026-08-20 |
-| 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate — **next** |
-| 8 | **5d** comments | the five files listed, then stop |
+| ~~7~~ | ~~**5e** format the shell~~ | ✅ 2026-08-20 |
+| 8 | **5d** comments | the five files listed, then stop — **next** |
 
 Nothing above needs a logout, which is what the 3a decision bought.
 **5c nixos-hardware is not in the list** — decided against, above.
@@ -664,9 +682,10 @@ Nothing above needs a logout, which is what the 3a decision bought.
    how the system is laid out. Leaning out of scope: trimming it moves cost from
    documents nobody reads to the one document loaded into every session. Give it
    a ceiling instead — past ~350 lines, look again.
-2. **`menus/shell.sh`'s dispatch table under 5e** — accept the 15 aligned lines
-   becoming 75, or carry one file exclusion forever. The table is the clearest
-   thing in that file; the exclusion is a permanent asterisk.
+2. ~~**`menus/shell.sh`'s dispatch table under 5e.**~~ *Closed 2026-08-20:
+   accept the expansion.* 16 aligned arms became 80 lines, and no file is
+   excluded — one formatter, no standing asterisk. `fan-calibrate`, the other
+   candidate exclusion, was fixed instead.
 
 *Closed, with the evidence, rather than left to drift:*
 

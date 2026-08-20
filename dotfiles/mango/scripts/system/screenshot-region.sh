@@ -10,7 +10,11 @@ sleep 0.1
 
 REGION=$(slurp 2>/dev/null)
 
-[ -z "$REGION" ] && { kill "$FREEZE_PID" 2>/dev/null; wait "$FREEZE_PID" 2>/dev/null; exit 0; }
+[ -z "$REGION" ] && {
+	kill "$FREEZE_PID" 2>/dev/null
+	wait "$FREEZE_PID" 2>/dev/null
+	exit 0
+}
 
 grim -g "$REGION" - | tee "$HOME/Pictures/Screenshots/$(date +'%Y-%m-%d_%H-%M-%S').png" | wl-copy
 

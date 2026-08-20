@@ -22,23 +22,23 @@ set -u
 # Same reason as waybar-layout.sh: nothing to move in noctalia mode, and this
 # one would otherwise flip the state file silently.
 if ! mode_has_waybar; then
-    notify-send "Waybar" "No waybar in $(current_mode) mode"
-    exit 0
+	notify-send "Waybar" "No waybar in $(current_mode) mode"
+	exit 0
 fi
 
 current=$(waybar_position)
 
 case "${1:-}" in
-    top | bottom)
-        next="$1"
-        ;;
-    "")
-        if [ "$current" = "bottom" ]; then next="top"; else next="bottom"; fi
-        ;;
-    *)
-        echo "usage: ${0##*/} [top|bottom]" >&2
-        exit 1
-        ;;
+top | bottom)
+	next="$1"
+	;;
+"")
+	if [ "$current" = "bottom" ]; then next="top"; else next="bottom"; fi
+	;;
+*)
+	echo "usage: ${0##*/} [top|bottom]" >&2
+	exit 1
+	;;
 esac
 
 state_write waybar-position "$next"

@@ -2839,3 +2839,62 @@ not under a blanket `true`. That is the entire argument for the change.
 
 **Verified**: adding `discord` fails with `Refusing to evaluate package
 'discord-1.0.153' … because it has an unfree license`.
+
+---
+
+## 2026-08-20 · The shell is formatted, and `nix fmt` finally means both languages
+
+Plan item 7 (§5e). 33 files, 1,998 lines of churn, **194 surviving
+`git diff -w` in 9 files** — every one read, every one line structure:
+`;`-splitting, brace-group splitting, and leading-`\ |` → trailing-`|`
+continuation style. No semantics moved.
+
+### Measure the residue with `git diff -w`, not `git diff -w -B`
+
+`-B` marks whole-file rewrites and re-reports every line of them. The same tree
+reads as **194 lines in 9 files** under `-w`, and **741 in 13** under `-w -B` —
+which looks like four times the semantic residue and is not. The plan
+recommended `-B` in three places; all three are corrected.
+
+### Neither exclusion the plan budgeted for was needed
+
+- **`fan-calibrate` was fixed rather than excluded.** shfmt parses `cpu[0-9]*`
+  inside an array literal as an associative-array key. Replacing
+  `CPUS=(<glob>)` with `CPUS=()` plus a `for` loop over the same glob parses,
+  and keeps the glob **exact** — the tempting `cpu*` also matches a future
+  `cpuidle/cpufreq`. Verified to resolve the same 12 paths.
+- **`menus/shell.sh` took the expansion.** 16 aligned `case` arms became 80
+  lines. So no file carries an exclusion, and there is no standing asterisk on
+  the formatter.
+
+### Two scans broke, and not for the reason the plan gave
+
+The plan predicted `static.sh:397` would break because *shfmt indents case
+arms*. It does not — arms stay at column 0. What broke both scans was the
+`;`-splitting moving `ipc=` onto the **next line**. And there were two, not one:
+the IPC-pair scan at `:761` read `ipc=` off that same line.
+
+Both failed loudly on their floors rather than passing empty, which is the only
+reason this was a five-minute fix. The action scan is now `awk` keyed on the arm
+label; the IPC scan anchors on `ipc=` alone, which is all it ever wanted.
+
+### The duplicate-bind scan counted the wrong thing
+
+Not part of 5e, but the same class, and the plan flagged it under §3a:
+`binds_seen` incremented **per mode**, not per bind. So if the `source=./`
+spelling it matches ever changed, `srcs` would come back empty, the inner loop
+would do nothing, and the counter would still reach 2 — printing `ok` for a scan
+that had read almost nothing.
+
+Now floored on **binds**. Confirmed by changing the spelling to `include=`:
+the scan drops from **232 binds to 2** and fails, where before it passed.
+
+### The gate
+
+`shfmt -d` runs over the same shebang scan the shellcheck check already builds —
+one scan, one floor, rather than a second derivation with a second copy of both.
+The formatter grew a shell pass, so **`nix fmt` is now a no-op across Nix and
+shell**, verified by running it twice and comparing the diff line count. Files
+are selected by **shebang, not extension**: half of `dotfiles/scripts/` has no
+extension. Verified against a planted mis-indent — the check names the file and
+prints the diff.

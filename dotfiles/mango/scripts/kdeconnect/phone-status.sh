@@ -44,16 +44,25 @@ do_status() {
 	fi
 
 	if [ "$CHARGING" = "true" ]; then
-	    ICON="󰂄"
-	elif [ "$CHARGE" -ge 90 ]; then ICON="󰂂"
-	elif [ "$CHARGE" -ge 80 ]; then ICON="󰂁"
-	elif [ "$CHARGE" -ge 70 ]; then ICON="󰂀"
-	elif [ "$CHARGE" -ge 60 ]; then ICON="󰁿"
-	elif [ "$CHARGE" -ge 50 ]; then ICON="󰁾"
-	elif [ "$CHARGE" -ge 40 ]; then ICON="󰁽"
-	elif [ "$CHARGE" -ge 20 ]; then ICON="󰁼"
-	elif [ "$CHARGE" -ge 10 ]; then ICON="󰁻"
-	else ICON="󰂎"
+		ICON="󰂄"
+	elif [ "$CHARGE" -ge 90 ]; then
+		ICON="󰂂"
+	elif [ "$CHARGE" -ge 80 ]; then
+		ICON="󰂁"
+	elif [ "$CHARGE" -ge 70 ]; then
+		ICON="󰂀"
+	elif [ "$CHARGE" -ge 60 ]; then
+		ICON="󰁿"
+	elif [ "$CHARGE" -ge 50 ]; then
+		ICON="󰁾"
+	elif [ "$CHARGE" -ge 40 ]; then
+		ICON="󰁽"
+	elif [ "$CHARGE" -ge 20 ]; then
+		ICON="󰁼"
+	elif [ "$CHARGE" -ge 10 ]; then
+		ICON="󰁻"
+	else
+		ICON="󰂎"
 	fi
 
 	CLASS="connected"

@@ -17,8 +17,8 @@
 # one. Kill rather than merely return: this is also the path that a switch INTO
 # noctalia takes, so leaving a stale bar up would be the visible failure.
 if ! mode_has_waybar; then
-    pkill waybar
-    exit 0
+	pkill waybar
+	exit 0
 fi
 
 POSITION=$(waybar_position)
@@ -35,9 +35,9 @@ CONFIG="$WAYBAR_DIR/config-$LAYOUT-$POSITION.jsonc"
 # A state file holding a typo would otherwise start waybar with no config and
 # no explanation — the empty-module failure one level up. Fall back, but say so.
 if [ ! -f "$CONFIG" ]; then
-    echo "waybar-restart: no config for layout=$LAYOUT position=$POSITION," \
-         "falling back to full/top" >&2
-    CONFIG="$WAYBAR_DIR/config-full-top.jsonc"
+	echo "waybar-restart: no config for layout=$LAYOUT position=$POSITION," \
+		"falling back to full/top" >&2
+	CONFIG="$WAYBAR_DIR/config-full-top.jsonc"
 fi
 
 # stderr is KEPT. waybar catches any exception thrown by a module's update()

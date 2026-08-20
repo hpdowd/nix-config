@@ -1,53 +1,53 @@
 #!/usr/bin/env bash
 
 usage() {
-  echo "Usage: $(basename "$0") [-h] <input.tex> [output.pdf]"
-  echo " Converts a Latex file to a PDF using pdflatex and deletes extra log files"
-  echo "Argumnents:"
-  echo "  input.tex   The path to the input .tex file (required)"
-  echo "  output.pdf  The path to the destination PDF file (optional)"
-  echo "              Defaults to 'input'.pdf"
-  echo ""
-  echo "Options:"
-  echo "  -h          Show this help message and exit"
-  exit 1
+	echo "Usage: $(basename "$0") [-h] <input.tex> [output.pdf]"
+	echo " Converts a Latex file to a PDF using pdflatex and deletes extra log files"
+	echo "Argumnents:"
+	echo "  input.tex   The path to the input .tex file (required)"
+	echo "  output.pdf  The path to the destination PDF file (optional)"
+	echo "              Defaults to 'input'.pdf"
+	echo ""
+	echo "Options:"
+	echo "  -h          Show this help message and exit"
+	exit 1
 }
 
 # Help message
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  usage
+	usage
 fi
 
 # Validate input is provided
 if [[ -z "$1" ]]; then
-  echo "Error: Missing input file." >&2
-  usage
+	echo "Error: Missing input file." >&2
+	usage
 fi
 
 INPUT_FILE="$1"
 
 # check input exists
 if [[ ! -f "$INPUT_FILE" ]]; then
-  echo "Error: Input file '$INPUT_FILE' does not exist." >&2
-  exit 1
+	echo "Error: Input file '$INPUT_FILE' does not exist." >&2
+	exit 1
 fi
 
 BASE_NAME="${INPUT_FILE%.*}"
 
 # Determine output
 if [[ -n "$2" ]]; then
-  # If the second argument exists, use it
-  OUTPUT_FILE="$2"
+	# If the second argument exists, use it
+	OUTPUT_FILE="$2"
 else
-  # Else input name
-  OUTPUT_FILE="${BASE_NAME}.pdf"
+	# Else input name
+	OUTPUT_FILE="${BASE_NAME}.pdf"
 fi
 
 # cleanup function
 cleanup() {
-  echo "Cleaning up auxiliary files..."
-  # Force remove (.aux, .log, .out) associated with this specific file
-  rm -f "${BASE_NAME}.aux" "${BASE_NAME}.log" "${BASE_NAME}.out"
+	echo "Cleaning up auxiliary files..."
+	# Force remove (.aux, .log, .out) associated with this specific file
+	rm -f "${BASE_NAME}.aux" "${BASE_NAME}.log" "${BASE_NAME}.out"
 }
 
 # process file
@@ -57,13 +57,13 @@ CMD_EXIT_CODE=$?
 
 # check command succeded
 if [[ $CMD_EXIT_CODE -ne 0 ]]; then
-  echo "Error: '$MY_CMD' failed with exit code $CMD_EXIT_CODE." >&2
-  exit $CMD_EXIT_CODE
+	echo "Error: '$MY_CMD' failed with exit code $CMD_EXIT_CODE." >&2
+	exit $CMD_EXIT_CODE
 fi
 
 # give file new name
 if [[ "${BASE_NAME}.pdf" != "$OUTPUT_FILE" ]]; then
-  mv "${BASE_NAME}.pdf" "$OUTPUT_FILE"
+	mv "${BASE_NAME}.pdf" "$OUTPUT_FILE"
 fi
 
 cleanup

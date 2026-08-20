@@ -10,15 +10,15 @@
 PWRFILE=/run/tlp/last_pwr
 
 if [ ! -r "$PWRFILE" ]; then
-    printf '{"text":"?","tooltip":"TLP is not running — no active power profile","class":"unavailable"}\n'
-    exit 0
+	printf '{"text":"?","tooltip":"TLP is not running — no active power profile","class":"unavailable"}\n'
+	exit 0
 fi
 
 # "<profile> <power-source>", from tlp-func-base: PP_PRF=0 PP_BAL=1 PP_SAV=2,
 # PS_AC=0 PS_BAT=1. Verified live against `tlp-stat -s` on both mains and
 # battery. Anything else must render visibly rather than blank — an empty
 # custom module is indistinguishable from an absent one.
-read -r pp ps < "$PWRFILE"
+read -r pp ps <"$PWRFILE"
 
 # Escapes, not literal glyphs. Written literally on 2026-07-31 the characters
 # were lost in transit and every branch assigned the empty string, so the module
@@ -30,24 +30,24 @@ read -r pp ps < "$PWRFILE"
 # "unknown (9)" becomes the two classes `unknown` and `(9)` and matches no rule
 # in style-solid.css. The code goes in the tooltip instead.
 case "$pp" in
-    0) name=performance class=performance icon=$'\uf0e7' ;;  # nf-fa-bolt
-    1) name=balanced    class=balanced    icon=$'\uf042' ;;  # nf-fa-adjust
-    2) name=fanless     class=fanless     icon=$'\uf06c' ;;  # nf-fa-leaf
-    *) name="unknown (profile code ${pp:-none})" class=unknown icon=$'\uf128' ;;  # nf-fa-question
+0) name=performance class=performance icon=$'\uf0e7' ;;                      # nf-fa-bolt
+1) name=balanced class=balanced icon=$'\uf042' ;;                            # nf-fa-adjust
+2) name=fanless class=fanless icon=$'\uf06c' ;;                              # nf-fa-leaf
+*) name="unknown (profile code ${pp:-none})" class=unknown icon=$'\uf128' ;; # nf-fa-question
 esac
 
 case "$ps" in
-    0) src="mains" ;;
-    1) src="battery" ;;
-    *) src="unknown supply" ;;
+0) src="mains" ;;
+1) src="battery" ;;
+*) src="unknown supply" ;;
 esac
 
 # The fanless profile is the one that overrides the charger, so say what it is
 # holding — "power-saver on mains" otherwise reads like a bug.
 if [ "$pp" = 2 ]; then
-    tip="Power profile: fanless — 1.1 GHz cap, no boost, iGPU pinned low (on $src)"
+	tip="Power profile: fanless — 1.1 GHz cap, no boost, iGPU pinned low (on $src)"
 else
-    tip="Power profile: $name (on $src)"
+	tip="Power profile: $name (on $src)"
 fi
 
 printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$icon" "$tip" "$class"

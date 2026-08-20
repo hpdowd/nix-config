@@ -15,12 +15,19 @@
 set -uo pipefail
 
 [ "$(id -u)" = 0 ] || {
-    echo "must run as root -- every write below is root-only, and they fail silently as a user" >&2
-    exit 1
+	echo "must run as root -- every write below is root-only, and they fail silently as a user" >&2
+	exit 1
 }
 
 LOAD=${1:-60}
-CPUS=(/sys/devices/system/cpu/cpu[0-9]*/cpufreq)
+# A loop, not `CPUS=(<glob>)`: shfmt parses `cpu[0-9]*` inside an array literal
+# as an associative-array key and refuses the whole file. The glob stays exact —
+# `cpu*` would also match a future cpuidle/cpufreq — and `[ -d ]` drops the
+# unmatched-glob literal, since nullglob is not set here.
+CPUS=()
+for c in /sys/devices/system/cpu/cpu[0-9]*/cpufreq; do
+	[ -d "$c" ] && CPUS+=("$c")
+done
 CPU0=/sys/devices/system/cpu/cpu0/cpufreq
 BOOST=/sys/devices/system/cpu/cpufreq/boost
 FAN=/proc/acpi/ibm/fan
@@ -34,13 +41,13 @@ ORIG_MAX=$(cat "$CPU0/scaling_max_freq")
 ORIG_BOOST=$(cat "$BOOST")
 
 restore() {
-    local c
-    for c in "${CPUS[@]}"; do
-        echo "$ORIG_MIN" > "$c/scaling_min_freq"
-        echo "$ORIG_MAX" > "$c/scaling_max_freq"
-    done
-    echo "$ORIG_BOOST" > "$BOOST"
-    echo "restored: min=$ORIG_MIN max=$ORIG_MAX boost=$ORIG_BOOST"
+	local c
+	for c in "${CPUS[@]}"; do
+		echo "$ORIG_MIN" >"$c/scaling_min_freq"
+		echo "$ORIG_MAX" >"$c/scaling_max_freq"
+	done
+	echo "$ORIG_BOOST" >"$BOOST"
+	echo "restored: min=$ORIG_MIN max=$ORIG_MAX boost=$ORIG_BOOST"
 }
 # `exit` in the signal traps, restore on EXIT. `trap restore INT` alone replaces
 # SIGINT's default action, so Ctrl-C restored the limits and then carried on
@@ -49,29 +56,29 @@ restore() {
 trap restore EXIT
 trap 'exit 130' INT TERM
 
-fan()  { awk '/^speed/{print $2}' "$FAN"; }
+fan() { awk '/^speed/{print $2}' "$FAN"; }
 cput() {
-    local h
-    for h in /sys/class/hwmon/hwmon*; do
-        [ "$(cat "$h/name" 2>/dev/null)" = thinkpad ] && {
-            echo $(($(cat "$h/temp1_input") / 1000))
-            return
-        }
-    done
-    echo 0
+	local h
+	for h in /sys/class/hwmon/hwmon*; do
+		[ "$(cat "$h/name" 2>/dev/null)" = thinkpad ] && {
+			echo $(($(cat "$h/temp1_input") / 1000))
+			return
+		}
+	done
+	echo 0
 }
 
 setcap() {
-    local c
-    for c in "${CPUS[@]}"; do
-        # Min before max: a max below the current min is rejected outright.
-        echo "$HWMIN" > "$c/scaling_min_freq"
-        echo "$1" > "$c/scaling_max_freq"
-        echo power > "$c/energy_performance_preference" 2>/dev/null
-    done
-    echo 0 > "$BOOST"
-    # A cap the driver clamped is not the cap you asked for; report what landed.
-    cat "$CPU0/scaling_max_freq"
+	local c
+	for c in "${CPUS[@]}"; do
+		# Min before max: a max below the current min is rejected outright.
+		echo "$HWMIN" >"$c/scaling_min_freq"
+		echo "$1" >"$c/scaling_max_freq"
+		echo power >"$c/energy_performance_preference" 2>/dev/null
+	done
+	echo 0 >"$BOOST"
+	# A cap the driver clamped is not the cap you asked for; report what landed.
+	cat "$CPU0/scaling_max_freq"
 }
 
 # Baseline chassis temperature, set once the first settle succeeds. Steps must
@@ -83,21 +90,21 @@ BASELINE=""
 COOL_MARGIN=3
 
 cooldown() {
-    printf '    cooling'
-    for _ in $(seq 100); do
-        if [ "$(fan)" = 0 ]; then
-            t=$(cput)
-            if [ -z "$BASELINE" ] || [ "$t" -le $((BASELINE + COOL_MARGIN)) ]; then
-                printf ' -- fan off at %sC\n' "$t"
-                return 0
-            fi
-        fi
-        printf '.'
-        sleep 3
-    done
-    printf ' -- gave up at %s rpm / %sC after 300s (baseline %sC)\n' \
-        "$(fan)" "$(cput)" "${BASELINE:-?}"
-    return 1
+	printf '    cooling'
+	for _ in $(seq 100); do
+		if [ "$(fan)" = 0 ]; then
+			t=$(cput)
+			if [ -z "$BASELINE" ] || [ "$t" -le $((BASELINE + COOL_MARGIN)) ]; then
+				printf ' -- fan off at %sC\n' "$t"
+				return 0
+			fi
+		fi
+		printf '.'
+		sleep 3
+	done
+	printf ' -- gave up at %s rpm / %sC after 300s (baseline %sC)\n' \
+		"$(fan)" "$(cput)" "${BASELINE:-?}"
+	return 1
 }
 
 echo "hardware: min=${HWMIN} lowest_nonlinear=${NONLIN} max=${HWMAX} kHz"
@@ -109,32 +116,36 @@ echo
 # EC happened to cut out, and with the trip at ~47-48 °C that 6 °C decided the
 # whole sweep. Wait until the temperature stops falling instead.
 settle() {
-    local last=999 same=0 t
-    printf '    settling'
-    for _ in $(seq 100); do
-        sleep 3
-        t=$(cput)
-        printf '.'
-        if [ "$(fan)" = 0 ] && [ "$t" -ge $((last - 1)) ]; then
-            same=$((same + 1))
-            [ "$same" -ge 5 ] && { printf ' -- plateau at %sC\n' "$t"; BASELINE=$t; return 0; }
-        else
-            same=0
-        fi
-        [ "$t" -lt "$last" ] && last=$t
-    done
-    printf ' -- never plateaued (%s rpm, %sC)\n' "$(fan)" "$(cput)"
-    return 1
+	local last=999 same=0 t
+	printf '    settling'
+	for _ in $(seq 100); do
+		sleep 3
+		t=$(cput)
+		printf '.'
+		if [ "$(fan)" = 0 ] && [ "$t" -ge $((last - 1)) ]; then
+			same=$((same + 1))
+			[ "$same" -ge 5 ] && {
+				printf ' -- plateau at %sC\n' "$t"
+				BASELINE=$t
+				return 0
+			}
+		else
+			same=0
+		fi
+		[ "$t" -lt "$last" ] && last=$t
+	done
+	printf ' -- never plateaued (%s rpm, %sC)\n' "$(fan)" "$(cput)"
+	return 1
 }
 
 echo "settling to an idle plateau at ${HWMIN} kHz"
 setcap "$HWMIN" >/dev/null
 settle || {
-    echo
-    echo "The fan will not stop even at the minimum clock and no load."
-    echo "Something else is holding it up -- check for a background job, or an"
-    echo "ambient temperature the EC curve simply spins for. No cap will help."
-    exit 1
+	echo
+	echo "The fan will not stop even at the minimum clock and no load."
+	echo "Something else is holding it up -- check for a background job, or an"
+	echo "ambient temperature the EC curve simply spins for. No cap will help."
+	exit 1
 }
 echo "baseline ${BASELINE}C -- every step now starts within ${COOL_MARGIN}C of this"
 echo
@@ -148,49 +159,49 @@ best=""
 # 800 MHz, and a step that spins the fan ends the sweep, so resolution only
 # matters below the answer.
 for cap in "$HWMIN" 600000 800000 1000000 "$NONLIN" 1400000 1800000 2400000; do
-    [ "$cap" -gt "$HWMAX" ] && continue
-    landed=$(setcap "$cap")
-    printf '  cap %5s MHz (landed %5s):' "$((cap / 1000))" "$((landed / 1000))"
+	[ "$cap" -gt "$HWMAX" ] && continue
+	landed=$(setcap "$cap")
+	printf '  cap %5s MHz (landed %5s):' "$((cap / 1000))" "$((landed / 1000))"
 
-    for _ in $(seq "$(nproc)"); do
-        while :; do :; done &
-    done
-    loadpids=$(jobs -p)
+	for _ in $(seq "$(nproc)"); do
+		while :; do :; done &
+	done
+	loadpids=$(jobs -p)
 
-    peak=0
-    ptemp=0
-    for _ in $(seq $((LOAD / 3))); do
-        sleep 3
-        f=$(fan)
-        t=$(cput)
-        [ "$f" -gt "$peak" ] && peak=$f
-        [ "$t" -gt "$ptemp" ] && ptemp=$t
-    done
+	peak=0
+	ptemp=0
+	for _ in $(seq $((LOAD / 3))); do
+		sleep 3
+		f=$(fan)
+		t=$(cput)
+		[ "$f" -gt "$peak" ] && peak=$f
+		[ "$t" -gt "$ptemp" ] && ptemp=$t
+	done
 
-    # shellcheck disable=SC2086 # word splitting is the point -- one kill per pid
-    kill $loadpids 2>/dev/null
-    wait 2>/dev/null
+	# shellcheck disable=SC2086 # word splitting is the point -- one kill per pid
+	kill $loadpids 2>/dev/null
+	wait 2>/dev/null
 
-    if [ "$peak" = 0 ]; then
-        printf ' fan stayed OFF, peak %sC\n' "$ptemp"
-        best=$cap
-    else
-        printf ' fan spun to %s rpm at %sC -- too high\n' "$peak" "$ptemp"
-        break
-    fi
-    cooldown
+	if [ "$peak" = 0 ]; then
+		printf ' fan stayed OFF, peak %sC\n' "$ptemp"
+		best=$cap
+	else
+		printf ' fan spun to %s rpm at %sC -- too high\n' "$peak" "$ptemp"
+		break
+	fi
+	cooldown
 done
 
 echo
 if [ -n "$best" ]; then
-    echo "Highest cap that never spun the fan under ${LOAD}s all-core load:"
-    echo
-    echo "    CPU_SCALING_MAX_FREQ_ON_SAV = $best;"
-    echo
-    echo "Put that in modules/system/power.nix and rebuild. Re-run somewhere"
-    echo "warmer than here before trusting it -- the EC curve tracks ambient."
+	echo "Highest cap that never spun the fan under ${LOAD}s all-core load:"
+	echo
+	echo "    CPU_SCALING_MAX_FREQ_ON_SAV = $best;"
+	echo
+	echo "Put that in modules/system/power.nix and rebuild. Re-run somewhere"
+	echo "warmer than here before trusting it -- the EC curve tracks ambient."
 else
-    echo "Even ${HWMIN} kHz spun the fan under load. Sustained all-core work"
-    echo "cannot be fanless on this chassis; the mode will still be silent for"
-    echo "ordinary desktop use, which is bursty rather than sustained."
+	echo "Even ${HWMIN} kHz spun the fan under load. Sustained all-core work"
+	echo "cannot be fanless on this chassis; the mode will still be silent for"
+	echo "ordinary desktop use, which is bursty rather than sustained."
 fi

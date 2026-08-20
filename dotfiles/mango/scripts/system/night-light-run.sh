@@ -28,7 +28,7 @@ NIGHT_TEMP=$(state night-temp "$DEFAULT_NIGHT_TEMP")
 # Guard the state file: a stray value would make wlsunset exit and the unit
 # restart-loop. Must be numeric and no warmer-than-day.
 if ! [[ $NIGHT_TEMP =~ ^[0-9]+$ ]] || [ "$NIGHT_TEMP" -lt 1000 ] || [ "$NIGHT_TEMP" -gt "$DAY_TEMP" ]; then
-    NIGHT_TEMP=$DEFAULT_NIGHT_TEMP
+	NIGHT_TEMP=$DEFAULT_NIGHT_TEMP
 fi
 
 exec wlsunset -l "$LAT" -L "$LONG" -T "$DAY_TEMP" -t "$NIGHT_TEMP"

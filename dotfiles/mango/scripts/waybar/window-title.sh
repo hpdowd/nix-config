@@ -26,24 +26,24 @@ trap cleanup EXIT
 trap 'exit 0' PIPE HUP INT TERM
 
 emit() {
-    jq -cn --arg t "$1" '{text: $t, tooltip: $t, class: "window"}'
+	jq -cn --arg t "$1" '{text: $t, tooltip: $t, class: "window"}'
 }
 
 title_of() {
-    jq -r 'if type == "object" then (.title // "") else "" end' 2>/dev/null
+	jq -r 'if type == "object" then (.title // "") else "" end' 2>/dev/null
 }
 
 # Seed with the current focus so the bar is populated immediately.
 emit "$(mmsg get focusing-client 2>/dev/null | title_of)"
 
 while true; do
-    while IFS= read -r line; do
-        [ -n "$line" ] || continue
-        title=$(printf '%s' "$line" | title_of)
-        emit "$title"
-    done < <(mmsg watch focusing-client 2>/dev/null)
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		title=$(printf '%s' "$line" | title_of)
+		emit "$title"
+	done < <(mmsg watch focusing-client 2>/dev/null)
 
-    # Stream ended (compositor reload/restart) — clear, back off, reconnect.
-    emit ""
-    sleep 1
+	# Stream ended (compositor reload/restart) — clear, back off, reconnect.
+	emit ""
+	sleep 1
 done

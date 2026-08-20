@@ -75,8 +75,8 @@ is_tracked() {
 }
 
 mapfile -t SCRIPTS < <(
-	find "$SRC" \( "${prune[@]}" \) -prune -o -type f -not -path '*/docs/archive/*' -print0 \
-		| while IFS= read -r -d "" f; do
+	find "$SRC" \( "${prune[@]}" \) -prune -o -type f -not -path '*/docs/archive/*' -print0 |
+		while IFS= read -r -d "" f; do
 			case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
 			'#!'*) printf '%s\n' "$f" ;;
 			esac
@@ -133,8 +133,8 @@ fi
 
 # desktop-mode.sh kept reading $MANGO_DIR/state after the move and the mode
 # switch silently became one-way.
-stale=$(grep -rn 'MANGO[_A-Z]*/state\|config/mango/state' "$SRC/dotfiles/mango/scripts/" 2>/dev/null \
-	| grep -vE ':[0-9]+:[[:space:]]*#')
+stale=$(grep -rn 'MANGO[_A-Z]*/state\|config/mango/state' "$SRC/dotfiles/mango/scripts/" 2>/dev/null |
+	grep -vE ':[0-9]+:[[:space:]]*#')
 if [[ -z $stale ]]; then
 	ok "no script reads the old state path"
 else
@@ -171,8 +171,8 @@ while read -r line; do
 		continue
 	fi
 	real=$(readlink -f "$bin")
-	[[ -e "$(dirname "$real")/.${name}-wrapped" ]] \
-		&& pk_bad+="  $name is wrapped — -x will never match: ${line%%:*}"$'\n'
+	[[ -e "$(dirname "$real")/.${name}-wrapped" ]] &&
+		pk_bad+="  $name is wrapped — -x will never match: ${line%%:*}"$'\n'
 done < <(grep -rnE 'p(kill|grep) -x' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#')
 
 if [[ $pk_n -eq 0 ]]; then
@@ -359,26 +359,37 @@ fi
 # xkb_keysym_to_lower(), so `SUPER,O` and `SUPER,o` are one key, not two.
 if [[ ${#MODES[@]} -gt 0 ]]; then
 	duperr=""
+	# The floor is on BINDS SEEN, not modes seen, and that distinction is the
+	# whole point. `srcs` is built by matching the literal `source=./`; change
+	# that spelling and it comes back empty, the inner loop does nothing, and a
+	# per-mode counter still increments — so the scan would drop from 117 binds
+	# to 2 and print `ok`. That is the Phase 4 class inside the gate itself.
+	# docs/PLAN-idiomatic-nix.md §3a.
 	binds_seen=0
 	for m in "${MODES[@]}"; do
 		conf="$MANGO/$m/$m.conf"
 		[[ -f $conf ]] || continue
 		mapfile -t srcs < <(sed -n 's|^source=\./||p' "$conf")
-		dups=$(
-			{
-				for s in "${srcs[@]}"; do
-					[[ -f "$MANGO/$s" ]] && grep -h '^bind=' "$MANGO/$s"
-				done
-				grep -h '^bind=' "$conf"
-			} | cut -d, -f1,2 | tr '[:upper:]' '[:lower:]' | sort | uniq -d
+		mapfile -t binds < <(
+			for s in "${srcs[@]}"; do
+				[[ -f "$MANGO/$s" ]] && grep -h '^bind=' "$MANGO/$s"
+			done
+			grep -h '^bind=' "$conf"
 		)
-		binds_seen=$((binds_seen + 1))
+		binds_seen=$((binds_seen + ${#binds[@]}))
+		dups=$(
+			printf '%s\n' "${binds[@]}" |
+				cut -d, -f1,2 | tr '[:upper:]' '[:lower:]' | sort | uniq -d
+		)
 		[[ -n $dups ]] && duperr+="  $m: $(echo "$dups" | tr '\n' ' ')"$'\n'
 	done
-	if [[ $binds_seen -eq 0 ]]; then
-		bad "no mode confs read for the bind scan — the scan is broken, not the repo"
+	# Set well under today's count so removing a bind is a code change, not a
+	# check failure — but far enough above the per-mode residue that a broken
+	# `source=` scan cannot clear it.
+	if [[ $binds_seen -lt 40 ]]; then
+		bad "only $binds_seen binds read across ${#MODES[@]} modes — the scan is broken, not the repo"
 	elif [[ -z $duperr ]]; then
-		ok "no key is bound twice in any of the $binds_seen modes"
+		ok "no key is bound twice across the $binds_seen binds in ${#MODES[@]} modes"
 	else
 		bad "a key is bound twice — mango warns to a stderr nobody reads, then runs the first" "$duperr"
 	fi
@@ -396,8 +407,14 @@ mapfile -t BIND_ACTIONS < <(
 	grep -rh '^bind=' "$MANGO" --include='*.conf' |
 		grep -oE 'menus/shell\.sh [a-z-]+' | awk '{print $2}' | sort -u
 )
+# awk, not sed: shfmt splits `foo) ipc="x" ;;` onto separate lines, so the arm
+# label and its `ipc=` no longer share one. Keyed on the label, which is what
+# a bind actually names. docs/PLAN-idiomatic-nix.md §5e.
 mapfile -t TABLE_ACTIONS < <(
-	sed -n 's/^\([a-z-]*\))[[:space:]]*ipc=.*/\1/p' "$MANGO/scripts/menus/shell.sh" | sort -u
+	awk '
+		/^[a-z][a-z-]*\)$/ { arm = substr($0, 1, length($0) - 1); next }
+		arm != "" && $0 ~ /^[[:space:]]*ipc=/ { print arm; arm = "" }
+	' "$MANGO/scripts/menus/shell.sh" | sort -u
 )
 if [[ ${#BIND_ACTIONS[@]} -eq 0 || ${#TABLE_ACTIONS[@]} -eq 0 ]]; then
 	bad "shell.sh actions or the binds naming them came back empty — the scan is broken, not the repo"
@@ -542,8 +559,8 @@ if [[ -f $WEATHER_SH ]]; then
 		done
 		# The path from both ends — two spellings fail as "coordinates missing"
 		# pointing at a file that is right there.
-		grep -q 'weather-location\.env' "$WEATHER_SH" \
-			|| locmiss+="  weather.sh does not name weather-location.env"$'\n'
+		grep -q 'weather-location\.env' "$WEATHER_SH" ||
+			locmiss+="  weather.sh does not name weather-location.env"$'\n'
 		if [[ -z $locmiss ]]; then
 			ok "weather-location.env is generated and weather.sh reads all three of its values"
 		else
@@ -758,7 +775,10 @@ if [[ -d "$MANGO/noctalia" ]]; then
 		)
 		mapfile -t IPC_PAIRS < <(
 			{
-				sed -n 's/^[a-z-]*)[[:space:]]*ipc="\([^"]*\)".*/\1/p' "$SHELL_SH"
+				# Anchored on `ipc=` alone: the arm label it used to share a
+				# line with moved when shfmt split the case arms, and it was
+				# never what this scan wanted anyway.
+				sed -n 's/^[[:space:]]*ipc="\([^"]*\)".*/\1/p' "$SHELL_SH"
 				printf '%s\n' "${IPC_WRAPPER[@]}"
 			} | grep . | sort -u
 		)
@@ -2054,9 +2074,9 @@ else
 			*/*) id="#${m#*/}" ;;
 			*) id="#$m" ;;
 			esac
-			grep -qE "^\s*${id}[ ,{:]" "$STYLE_CSS" \
-				|| grep -qxF "$id," "$STYLE_CSS" \
-				|| cssmiss+="  $m -> $id (${cfg##*/})"$'\n'
+			grep -qE "^\s*${id}[ ,{:]" "$STYLE_CSS" ||
+				grep -qxF "$id," "$STYLE_CSS" ||
+				cssmiss+="  $m -> $id (${cfg##*/})"$'\n'
 			# Quoted keys: `.modules-left` is jq for `.modules` MINUS `left`,
 			# which yields null rather than an error and would empty the scan.
 		done < <(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[]' "$cfg" 2>/dev/null)
@@ -2315,8 +2335,8 @@ printf '\nFonts\n'
 # this: it matches on family alone, so a "<family> Bold" spelling always looks
 # like a fallback. Match family+style out of fc-scan instead.
 mapfile -t FONT_DIRS < <(
-	grep -rhoE '<dir>[^<]+</dir>' "$SYS/etc/fonts/conf.d/"*.conf "$SYS/etc/fonts/fonts.conf" 2>/dev/null \
-		| sed -E 's#</?dir>##g' | grep '^/nix/store' | sort -u
+	grep -rhoE '<dir>[^<]+</dir>' "$SYS/etc/fonts/conf.d/"*.conf "$SYS/etc/fonts/fonts.conf" 2>/dev/null |
+		sed -E 's#</?dir>##g' | grep '^/nix/store' | sort -u
 )
 if [[ ${#FONT_DIRS[@]} -lt 5 ]]; then
 	bad "only ${#FONT_DIRS[@]} font dirs found in the system closure — the scan is broken, not the config"
@@ -2339,8 +2359,8 @@ else
 			# foot: font=<family>:size=N
 			sed -nE 's/^font=([^:]+).*$/\1/p' "$FOOT" 2>/dev/null
 			# waybar CSS font-family, comma-separated, quoted or bare.
-			grep -rhoE 'font-family:[^;]+;' "$WAYBAR_DIR"/*.css 2>/dev/null \
-				| sed -E 's/font-family://; s/;//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//'
+			grep -rhoE 'font-family:[^;]+;' "$WAYBAR_DIR"/*.css 2>/dev/null |
+				sed -E 's/font-family://; s/;//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//'
 			# rofi: `font: "<family> <size>";`. Every menu entry carries Font
 			# Awesome glyphs in the string itself, so a fallback here is a
 			# window full of boxes rather than a slightly different typeface.
@@ -2437,7 +2457,7 @@ for f in "${SCRIPTS[@]}"; do
 	# Read once rather than redirecting the loop: `fn_body` below opens the same
 	# file, and a loop whose stdin IS that file is one refactor away from having
 	# its input consumed out from under it (SC2094).
-	mapfile -t lines < "$f"
+	mapfile -t lines <"$f"
 	for line in "${lines[@]}"; do
 		# `trap ACTION SIGSPEC...`. `trap -p` and `trap - SIG` reset rather than
 		# handle, so they carry no obligation to exit.
@@ -2458,8 +2478,8 @@ for f in "${SCRIPTS[@]}"; do
 		[[ $action == *exit* ]] && continue
 
 		# A bare function name — resolve it and look for `exit` in the body.
-		if [[ $action =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] \
-			&& fn_body "$f" "$action" | grep -qw exit; then
+		if [[ $action =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] &&
+			fn_body "$f" "$action" | grep -qw exit; then
 			continue
 		fi
 

@@ -26,8 +26,8 @@ pgrep '^\.?awww-daemon' >/dev/null || awww-daemon &
 # `awww img` fails until the daemon has bound its socket, so poll rather than
 # guessing at a sleep. ~4s of headroom; it normally binds well inside 1s.
 for _ in $(seq 1 20); do
-    awww query >/dev/null 2>&1 && break
-    sleep 0.2
+	awww query >/dev/null 2>&1 && break
+	sleep 0.2
 done
 
 exec awww img "$WALLPAPER" --transition-type wipe --transition-duration 1

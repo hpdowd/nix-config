@@ -2,38 +2,38 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $(basename "$0") <input.pdf> [output.pdf]"
-  echo "  Converts a PDF to A4, scaling content to fit while preserving aspect ratio."
-  echo "  If no output path is given, writes to <input>_a4.pdf"
-  exit 1
+	echo "Usage: $(basename "$0") <input.pdf> [output.pdf]"
+	echo "  Converts a PDF to A4, scaling content to fit while preserving aspect ratio."
+	echo "  If no output path is given, writes to <input>_a4.pdf"
+	exit 1
 }
 
 [[ $# -lt 1 ]] && usage
 
 INPUT="$1"
 [[ ! -f "$INPUT" ]] && {
-  echo "Error: file not found: $INPUT"
-  exit 1
+	echo "Error: file not found: $INPUT"
+	exit 1
 }
 
 if [[ $# -ge 2 ]]; then
-  OUTPUT="$2"
+	OUTPUT="$2"
 else
-  BASE="${INPUT%.pdf}"
-  OUTPUT="${BASE}_a4.pdf"
+	BASE="${INPUT%.pdf}"
+	OUTPUT="${BASE}_a4.pdf"
 fi
 
 echo "Converting: $INPUT -> $OUTPUT"
 
 gs \
-  -sDEVICE=pdfwrite \
-  -dNOPAUSE \
-  -dBATCH \
-  -dQUIET \
-  -sPAPERSIZE=a4 \
-  -dFIXEDMEDIA \
-  -dPDFFitPage \
-  -sOutputFile="$OUTPUT" \
-  "$INPUT"
+	-sDEVICE=pdfwrite \
+	-dNOPAUSE \
+	-dBATCH \
+	-dQUIET \
+	-sPAPERSIZE=a4 \
+	-dFIXEDMEDIA \
+	-dPDFFitPage \
+	-sOutputFile="$OUTPUT" \
+	"$INPUT"
 
 echo "Done."

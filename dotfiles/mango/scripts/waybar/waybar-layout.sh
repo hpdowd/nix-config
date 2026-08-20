@@ -11,18 +11,18 @@
 # waybar to lay out, and a menu that accepts a choice and then does nothing is
 # worse than a key that reports why.
 if ! mode_has_waybar; then
-    notify-send "Waybar" "No waybar in $(current_mode) mode"
-    exit 0
+	notify-send "Waybar" "No waybar in $(current_mode) mode"
+	exit 0
 fi
 
 LAYOUTS=("full" "focus" "minimal")
 
 menu_entries() {
-    local current
-    current=$(waybar_layout)
-    for name in "${LAYOUTS[@]}"; do
-        [ "$name" = "$current" ] && echo "$name  •" || echo "$name"
-    done
+	local current
+	current=$(waybar_layout)
+	for name in "${LAYOUTS[@]}"; do
+		[ "$name" = "$current" ] && echo "$name  •" || echo "$name"
+	done
 }
 
 CHOICE=$(menu_entries | rofi_menu 20 -no-custom -p "Waybar layout") || exit 0

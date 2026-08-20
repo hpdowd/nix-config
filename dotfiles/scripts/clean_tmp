@@ -9,13 +9,13 @@ LOG_FILE="/var/log/tmp_cleanup.log"
 
 # Function to log messages with timestamp
 log_message() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+	echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
-  echo "This script must be run as root" >&2
-  exit 1
+	echo "This script must be run as root" >&2
+	exit 1
 fi
 
 # Create log file if it doesn't exist
@@ -25,14 +25,14 @@ log_message "Starting cleanup of files/directories larger than ${SIZE_LIMIT} in 
 
 # Safety check - verify target directory exists
 if [[ ! -d "$TARGET_DIR" ]]; then
-  log_message "ERROR: Target directory ${TARGET_DIR} does not exist!"
-  exit 1
+	log_message "ERROR: Target directory ${TARGET_DIR} does not exist!"
+	exit 1
 fi
 
 # Change to target directory to avoid path issues
 cd "$TARGET_DIR" || {
-  log_message "ERROR: Cannot cd to ${TARGET_DIR}"
-  exit 1
+	log_message "ERROR: Cannot cd to ${TARGET_DIR}"
+	exit 1
 }
 
 # Count and remove files larger than SIZE_LIMIT
@@ -40,11 +40,11 @@ log_message "Looking for files larger than ${SIZE_LIMIT}..."
 large_files_count=0
 
 while IFS= read -r -d '' file; do
-  if [[ -f "$file" ]]; then
-    log_message "Removing file: ${file}"
-    rm -f "$file"
-    ((large_files_count++))
-  fi
+	if [[ -f "$file" ]]; then
+		log_message "Removing file: ${file}"
+		rm -f "$file"
+		((large_files_count++))
+	fi
 done < <(find . -maxdepth 1 -type f -size +${SIZE_LIMIT} -print0 2>/dev/null)
 
 log_message "Removed ${large_files_count} files larger than ${SIZE_LIMIT}"
@@ -54,22 +54,22 @@ log_message "Looking for directories larger than ${SIZE_LIMIT}..."
 large_dirs_count=0
 
 while IFS= read -r -d '' dir; do
-  if [[ -d "$dir" ]]; then
-    # Get directory name without leading ./
-    dir_name="${dir#./}"
+	if [[ -d "$dir" ]]; then
+		# Get directory name without leading ./
+		dir_name="${dir#./}"
 
-    # Skip special directories
-    if [[ "$dir_name" == "." || "$dir_name" == ".." ]]; then
-      continue
-    fi
+		# Skip special directories
+		if [[ "$dir_name" == "." || "$dir_name" == ".." ]]; then
+			continue
+		fi
 
-    log_message "Removing directory: ${dir_name}/"
-    rm -rf "$dir_name"
-    ((large_dirs_count++))
-  fi
+		log_message "Removing directory: ${dir_name}/"
+		rm -rf "$dir_name"
+		((large_dirs_count++))
+	fi
 done < <(find . -maxdepth 1 -type d ! -name "." -exec bash -c 'du -s "$1" | cut -f1' _ {} \; 2>/dev/null |
-  awk -v limit="${SIZE_LIMIT%M}" '$1 > limit * 1024 {print $2}' |
-  tr '\n' '\0')
+	awk -v limit="${SIZE_LIMIT%M}" '$1 > limit * 1024 {print $2}' |
+	tr '\n' '\0')
 
 log_message "Removed ${large_dirs_count} directories larger than ${SIZE_LIMIT}"
 
@@ -78,22 +78,22 @@ log_message "Starting alternative directory search (more accurate but slower)...
 
 alternative_dirs_count=0
 for dir in * .[!.]* ..?*; do
-  # Skip non-directories and special entries
-  [[ ! -d "$dir" ]] && continue
-  [[ "$dir" == "." || "$dir" == ".." ]] && continue
+	# Skip non-directories and special entries
+	[[ ! -d "$dir" ]] && continue
+	[[ "$dir" == "." || "$dir" == ".." ]] && continue
 
-  # Get directory size in MB
-  dir_size=$(du -sm "$dir" 2>/dev/null | cut -f1)
+	# Get directory size in MB
+	dir_size=$(du -sm "$dir" 2>/dev/null | cut -f1)
 
-  if [[ -n "$dir_size" && "$dir_size" -gt 100 ]]; then
-    log_message "Alternative method found: ${dir}/ (${dir_size}MB)"
-    ((alternative_dirs_count++))
-  fi
+	if [[ -n "$dir_size" && "$dir_size" -gt 100 ]]; then
+		log_message "Alternative method found: ${dir}/ (${dir_size}MB)"
+		((alternative_dirs_count++))
+	fi
 done
 
 if [[ $alternative_dirs_count -gt 0 ]]; then
-  log_message "WARNING: Alternative method found ${alternative_dirs_count} additional large directories"
-  log_message "Note: The alternative method requires manual verification before removal"
+	log_message "WARNING: Alternative method found ${alternative_dirs_count} additional large directories"
+	log_message "Note: The alternative method requires manual verification before removal"
 fi
 
 log_message "Cleanup completed successfully"

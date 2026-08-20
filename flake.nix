@@ -109,11 +109,14 @@
         # Shell is the layer that actually breaks here — docs/adr/0011. SC1091
         # is excluded permanently: shellcheck cannot statically resolve a
         # `. "$HOME/.config/…"` source path.
+        # shellcheck AND shfmt over the same list: one shebang scan, one floor.
+        # A second derivation would be a second copy of both.
         shellcheck =
           pkgs.runCommandLocal "shellcheck-check"
             {
               nativeBuildInputs = [
                 pkgs.shellcheck
+                pkgs.shfmt
                 pkgs.findutils
               ];
             }
@@ -137,6 +140,12 @@
 
               xargs -0 -r shellcheck -e SC1091 < "$TMPDIR/scripts"
               echo "shellcheck: $found scripts clean"
+
+              # `-d`, so the failure names the file and prints the diff. NOT
+              # `-s`: simplify rewrites code rather than layout, and it is the
+              # one mode `git diff -w` cannot clear. docs/PLAN-idiomatic-nix.md §5e.
+              xargs -0 -r shfmt -d < "$TMPDIR/scripts"
+              echo "shfmt: $found scripts formatted"
               touch $out
             '';
 
@@ -227,15 +236,31 @@
       # "unexpected end of input". Replace with treefmt-nix rather than growing
       # this — docs/PLAN-idiomatic-nix.md §5e.
       formatter.${system} = pkgs.writeShellApplication {
-        name = "fmt-nix";
+        name = "fmt";
         runtimeInputs = [
           pkgs.nixfmt
+          pkgs.shfmt
           pkgs.findutils
         ];
         text = ''
-          find "''${1:-.}" -type f -name '*.nix' \
+          root="''${1:-.}"
+          find "$root" -type f -name '*.nix' \
             -not -path '*/.git/*' -not -path '*/.direnv/*' -print0 \
             | xargs -0 -r nixfmt
+
+          # Shell too, so `nix fmt` is a no-op across both languages. Selected
+          # by SHEBANG rather than by extension — half these scripts have none
+          # (dotfiles/scripts/*). docs/archive is history, not instructions, and
+          # is excluded here exactly as the shellcheck check excludes it.
+          find "$root" -type f \
+            -not -path '*/.git/*' -not -path '*/.direnv/*' \
+            -not -path '*/docs/archive/*' -print0 \
+            | while IFS= read -r -d "" f; do
+                case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
+                  '#!'*bash*) printf '%s\0' "$f" ;;
+                esac
+              done \
+            | xargs -0 -r shfmt -w
         '';
       };
 

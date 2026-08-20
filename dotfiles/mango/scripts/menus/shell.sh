@@ -56,28 +56,76 @@ fb_control_center() { "$MANGO_DIR/scripts/menus/control-center.sh"; }
 # noctalia/bind.conf, so reaching one from another mode means the two files
 # have drifted, and it says so rather than doing nothing.
 case "${1:-}" in
-launcher)       ipc="launcher toggle";             fb=fb_launcher ;;
-lock)           ipc="lockScreen lock";             fb=fb_lock ;;
-clipboard)      ipc="launcher clipboard";          fb=fb_clipboard ;;
-emoji)          ipc="launcher emoji";              fb=fb_emoji ;;
-network)        ipc="network togglePanel";         fb=fb_network ;;
-bluetooth)      ipc="bluetooth togglePanel";       fb=fb_bluetooth ;;
-power)          ipc="sessionMenu toggle";          fb=fb_power ;;
-notify)         ipc="notifications toggleHistory"; fb=fb_notify ;;
-notify-clear)   ipc="notifications clear";         fb=fb_notify_clear ;;
-dnd)            ipc="notifications toggleDND";     fb=fb_dnd ;;
-settings)       ipc="settings toggle";             fb=fb_bar_settings ;;
-bar)            ipc="bar toggle";                  fb=fb_bar_toggle ;;
-control-center) ipc="controlCenter toggle";        fb=fb_control_center ;;
-calendar)       ipc="calendar toggle";             fb=none ;;
-dock)           ipc="dock toggle";                 fb=none ;;
+launcher)
+	ipc="launcher toggle"
+	fb=fb_launcher
+	;;
+lock)
+	ipc="lockScreen lock"
+	fb=fb_lock
+	;;
+clipboard)
+	ipc="launcher clipboard"
+	fb=fb_clipboard
+	;;
+emoji)
+	ipc="launcher emoji"
+	fb=fb_emoji
+	;;
+network)
+	ipc="network togglePanel"
+	fb=fb_network
+	;;
+bluetooth)
+	ipc="bluetooth togglePanel"
+	fb=fb_bluetooth
+	;;
+power)
+	ipc="sessionMenu toggle"
+	fb=fb_power
+	;;
+notify)
+	ipc="notifications toggleHistory"
+	fb=fb_notify
+	;;
+notify-clear)
+	ipc="notifications clear"
+	fb=fb_notify_clear
+	;;
+dnd)
+	ipc="notifications toggleDND"
+	fb=fb_dnd
+	;;
+settings)
+	ipc="settings toggle"
+	fb=fb_bar_settings
+	;;
+bar)
+	ipc="bar toggle"
+	fb=fb_bar_toggle
+	;;
+control-center)
+	ipc="controlCenter toggle"
+	fb=fb_control_center
+	;;
+calendar)
+	ipc="calendar toggle"
+	fb=none
+	;;
+dock)
+	ipc="dock toggle"
+	fb=none
+	;;
 # Keep-awake. Both halves are a real Wayland inhibitor over
 # zwp_idle_inhibit_manager_v1, which mango advertises — quickshell's own
 # IdleInhibitor in noctalia, wlinhibit.service elsewhere — so either way it
 # suppresses SWAYIDLE's ladder, not just noctalia's (pinned-off) idle service.
 # Each shell keeps its own indicator honest that way; one mechanism driving
 # both would leave the other's icon lying. docs/adr/0031.
-keep-awake)     ipc="idleInhibitor toggle";        fb=fb_keep_awake ;;
+keep-awake)
+	ipc="idleInhibitor toggle"
+	fb=fb_keep_awake
+	;;
 *)
 	echo "usage: ${0##*/} <action> — see the case table in this file" >&2
 	exit 1

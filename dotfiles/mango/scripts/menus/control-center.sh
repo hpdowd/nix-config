@@ -51,20 +51,20 @@ set -u
 # ICON_ETH is nf-md-ethernet and NOT nf-fa-network_wired (U+F6FF), which is what
 # menus/network-menu.sh reaches for: Hack Nerd Font does not cover U+F6FF, so
 # fontconfig falls through to IBM Plex Sans TC and draws a box. Nothing errors.
-ICON_WIFI=$'\uF1EB'     # nf-fa-wifi
-ICON_ETH=$'\U000F0200'  # nf-md-ethernet, waybar's own format-ethernet glyph
-ICON_BT=$'\uF294'       # nf-fa-bluetooth
-ICON_VPN=$'\uF132'      # nf-fa-shield
-ICON_VOL=$'\uF028'      # nf-fa-volume_up
-ICON_MUTE=$'\uF026'     # nf-fa-volume_off
-ICON_MIC=$'\uF130'      # nf-fa-microphone
-ICON_MIC_OFF=$'\uF131'  # nf-fa-microphone_slash
-ICON_NIGHT=$'\uF186'    # nf-fa-moon_o
+ICON_WIFI=$'\uF1EB'      # nf-fa-wifi
+ICON_ETH=$'\U000F0200'   # nf-md-ethernet, waybar's own format-ethernet glyph
+ICON_BT=$'\uF294'        # nf-fa-bluetooth
+ICON_VPN=$'\uF132'       # nf-fa-shield
+ICON_VOL=$'\uF028'       # nf-fa-volume_up
+ICON_MUTE=$'\uF026'      # nf-fa-volume_off
+ICON_MIC=$'\uF130'       # nf-fa-microphone
+ICON_MIC_OFF=$'\uF131'   # nf-fa-microphone_slash
+ICON_NIGHT=$'\uF186'     # nf-fa-moon_o
 ICON_AWAKE=$'\U000F04B2' # nf-md-sleep
-ICON_POWER=$'\uF0E7'    # nf-fa-bolt
-ICON_BELL=$'\uF0F3'     # nf-fa-bell
-ICON_BELL_OFF=$'\uF1F6' # nf-fa-bell_slash
-ICON_BAR=$'\uF0C9'      # nf-fa-bars
+ICON_POWER=$'\uF0E7'     # nf-fa-bolt
+ICON_BELL=$'\uF0F3'      # nf-fa-bell
+ICON_BELL_OFF=$'\uF1F6'  # nf-fa-bell_slash
+ICON_BAR=$'\uF0C9'       # nf-fa-bars
 # Only a FALLBACK. When the phone is up, the row's icon is the battery glyph
 # custom/phone itself chose — one owner for those ten, as with night/awake/power.
 ICON_PHONE=$'\U000F011C' # nf-md-cellphone

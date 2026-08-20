@@ -21,26 +21,26 @@ wait
 # ── Parse active VPNs ──────────────────────────────────────────────────
 declare -A active_vpn
 while IFS= read -r line; do
-  name=$(awk -F: '{gsub(/\\:/,":",$1); print $1}' <<<"$line")
-  type=$(awk -F: '{print $2}' <<<"$line")
-  [[ "$type" == "vpn" || "$type" == "wireguard" ]] && active_vpn["$name"]=1
+	name=$(awk -F: '{gsub(/\\:/,":",$1); print $1}' <<<"$line")
+	type=$(awk -F: '{print $2}' <<<"$line")
+	[[ "$type" == "vpn" || "$type" == "wireguard" ]] && active_vpn["$name"]=1
 done <"$tmpdir/active"
 
 # ── Parse all configured VPN connections ──────────────────────────────
 declare -A vpn_entry_map
 vpn_list=""
 while IFS= read -r line; do
-  name=$(awk -F: '{gsub(/\\:/,":",$1); print $1}' <<<"$line")
-  type=$(awk -F: '{print $2}' <<<"$line")
-  [[ "$type" == "vpn" || "$type" == "wireguard" ]] || continue
-  [ -z "$name" ] && continue
-  if [ "${active_vpn[$name]:-0}" = "1" ]; then
-    entry="${SHIELD} ${name}  ·  on"
-  else
-    entry="${SHIELD} ${name}"
-  fi
-  vpn_entry_map["$entry"]="$name"
-  vpn_list+="${entry}"$'\n'
+	name=$(awk -F: '{gsub(/\\:/,":",$1); print $1}' <<<"$line")
+	type=$(awk -F: '{print $2}' <<<"$line")
+	[[ "$type" == "vpn" || "$type" == "wireguard" ]] || continue
+	[ -z "$name" ] && continue
+	if [ "${active_vpn[$name]:-0}" = "1" ]; then
+		entry="${SHIELD} ${name}  ·  on"
+	else
+		entry="${SHIELD} ${name}"
+	fi
+	vpn_entry_map["$entry"]="$name"
+	vpn_list+="${entry}"$'\n'
 done <"$tmpdir/all"
 
 # ── Show ───────────────────────────────────────────────────────────────
@@ -49,9 +49,9 @@ choice=$(printf '%s' "${vpn_list%$'\n'}" | rofi_menu 20 -no-custom -p "${SHIELD}
 
 # ── Helpers ────────────────────────────────────────────────────────────
 disconnect_all() {
-  nmcli -t -f NAME,TYPE,STATE con show --active 2>/dev/null \
-    | awk -F: '($2=="wireguard"||$2=="vpn") && $3=="activated"{print $1}' \
-    | while IFS= read -r n; do nmcli con down "$n" &>/dev/null; done
+	nmcli -t -f NAME,TYPE,STATE con show --active 2>/dev/null |
+		awk -F: '($2=="wireguard"||$2=="vpn") && $3=="activated"{print $1}' |
+		while IFS= read -r n; do nmcli con down "$n" &>/dev/null; done
 }
 
 # ── Handle ─────────────────────────────────────────────────────────────
@@ -59,18 +59,18 @@ disconnect_all() {
 name="${vpn_entry_map[$choice]}"
 
 if [ "${active_vpn[$name]:-0}" = "1" ]; then
-  if nmcli con down "$name"; then
-    notify-send "VPN" "Disconnected: ${name}"
-  else
-    notify-send -u critical "VPN" "Disconnect failed"
-  fi
+	if nmcli con down "$name"; then
+		notify-send "VPN" "Disconnected: ${name}"
+	else
+		notify-send -u critical "VPN" "Disconnect failed"
+	fi
 else
-  disconnect_all
-  if nmcli con up "$name"; then
-    echo "$name" > "$VPN_STATE"
-    notify-send "VPN" "Connected: ${name}"
-  else
-    notify-send -u critical "VPN" "Connection failed"
-  fi
+	disconnect_all
+	if nmcli con up "$name"; then
+		echo "$name" >"$VPN_STATE"
+		notify-send "VPN" "Connected: ${name}"
+	else
+		notify-send -u critical "VPN" "Connection failed"
+	fi
 fi
 pkill -RTMIN+10 waybar

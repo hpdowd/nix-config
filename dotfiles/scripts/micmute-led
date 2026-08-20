@@ -5,19 +5,19 @@
 LED=/sys/class/leds/platform::micmute/brightness
 
 update_led() {
-    local state
-    state=$(pactl get-source-mute @DEFAULT_SOURCE@ 2>/dev/null)
-    case "$state" in
-        *yes*) echo 1 > "$LED" ;;
-        *no*)  echo 0 > "$LED" ;;
-    esac
+	local state
+	state=$(pactl get-source-mute @DEFAULT_SOURCE@ 2>/dev/null)
+	case "$state" in
+	*yes*) echo 1 >"$LED" ;;
+	*no*) echo 0 >"$LED" ;;
+	esac
 }
 
 update_led
 
 pactl subscribe | while read -r line; do
-    case "$line" in
-        *"change"*"source"*) update_led ;;
-        *"change"*"server"*) update_led ;;
-    esac
+	case "$line" in
+	*"change"*"source"*) update_led ;;
+	*"change"*"server"*) update_led ;;
+	esac
 done

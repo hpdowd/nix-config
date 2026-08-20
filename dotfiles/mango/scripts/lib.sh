@@ -22,20 +22,20 @@ WAYBAR_DIR="$MANGO_DIR/waybar"
 # Read a state file, or echo the default if it is missing or empty. Every
 # reader wants exactly this, and the defaults must agree across scripts.
 state() {
-    local file="$STATE_DIR/$1" fallback="$2" value
-    value=$(cat "$file" 2>/dev/null) || true
-    [ -n "$value" ] && printf '%s\n' "$value" || printf '%s\n' "$fallback"
+	local file="$STATE_DIR/$1" fallback="$2" value
+	value=$(cat "$file" 2>/dev/null) || true
+	[ -n "$value" ] && printf '%s\n' "$value" || printf '%s\n' "$fallback"
 }
 
 state_write() {
-    mkdir -p "$STATE_DIR"
-    printf '%s\n' "$2" > "$STATE_DIR/$1"
+	mkdir -p "$STATE_DIR"
+	printf '%s\n' "$2" >"$STATE_DIR/$1"
 }
 
 # The three switches, with their defaults in ONE place.
-current_mode() { state current-mode tiling; }      # tiling | noctalia
-waybar_layout() { state waybar-layout full; }      # full | focus | minimal
-waybar_position() { state waybar-position top; }   # top | bottom
+current_mode() { state current-mode tiling; }    # tiling | noctalia
+waybar_layout() { state waybar-layout full; }    # full | focus | minimal
+waybar_position() { state waybar-position top; } # top | bottom
 
 # Run `rofi -dmenu` sized to its own input. Entries on stdin, the choice on
 # stdout, `$1` the ceiling, everything after it passed through to rofi.
@@ -79,62 +79,62 @@ mode_has_waybar() { [ "$(current_mode)" != noctalia ]; }
 # reachable. Equibop needs no link (it takes a filename) but fails the same
 # silent way, so it is verified with the rest.
 apply_theme() {
-    local mode="$1" cfg="${XDG_CONFIG_HOME:-$HOME/.config}" missing=""
+	local mode="$1" cfg="${XDG_CONFIG_HOME:-$HOME/.config}" missing=""
 
-    # <link>|<target>, both relative to $cfg. The link points at the ~/.config
-    # path and not into the store, so it survives a rebuild: the TARGET is
-    # itself a home-manager symlink and gets re-pointed there.
-    local pairs=(
-        "kitty/current-theme.conf|kitty/colors-$mode.conf"
-        "foot/themes/noctalia|foot/colors-$mode"
-        "rofi/colors.rasi|rofi/colors-$mode.rasi"
-        "ncspot/config.toml|ncspot/colors-$mode.toml"
-    )
+	# <link>|<target>, both relative to $cfg. The link points at the ~/.config
+	# path and not into the store, so it survives a rebuild: the TARGET is
+	# itself a home-manager symlink and gets re-pointed there.
+	local pairs=(
+		"kitty/current-theme.conf|kitty/colors-$mode.conf"
+		"foot/themes/noctalia|foot/colors-$mode"
+		"rofi/colors.rasi|rofi/colors-$mode.rasi"
+		"ncspot/config.toml|ncspot/colors-$mode.toml"
+	)
 
-    # Not a link — a name, written into Equibop's own settings below.
-    local eq_theme="equibop/themes/$mode.theme.css"
+	# Not a link — a name, written into Equibop's own settings below.
+	local eq_theme="equibop/themes/$mode.theme.css"
 
-    local pair link target
-    for pair in "${pairs[@]}"; do
-        target="${pair#*|}"
-        [ -s "$cfg/$target" ] || missing="$missing $target"
-    done
-    [ -s "$cfg/$eq_theme" ] || missing="$missing $eq_theme"
-    if [ -n "$missing" ]; then
-        notify-send -u critical "Theme" "Colours for '$mode' not applied — missing:$missing"
-        return 1
-    fi
+	local pair link target
+	for pair in "${pairs[@]}"; do
+		target="${pair#*|}"
+		[ -s "$cfg/$target" ] || missing="$missing $target"
+	done
+	[ -s "$cfg/$eq_theme" ] || missing="$missing $eq_theme"
+	if [ -n "$missing" ]; then
+		notify-send -u critical "Theme" "Colours for '$mode' not applied — missing:$missing"
+		return 1
+	fi
 
-    for pair in "${pairs[@]}"; do
-        link="${pair%%|*}"
-        target="${pair#*|}"
-        ln -sfn "$cfg/$target" "$cfg/$link"
-    done
+	for pair in "${pairs[@]}"; do
+		link="${pair%%|*}"
+		target="${pair#*|}"
+		ln -sfn "$cfg/$target" "$cfg/$link"
+	done
 
-    # kitty re-reads its config, includes and all, on SIGUSR1. Match `comm` with
-    # `^\.?kitty$` and not `-x kitty`: nixpkgs wraps some binaries, so comm can
-    # be `.kitty-wrapped`, and `-f` would match this script's own command line.
-    pkill -USR1 '^\.?kitty$' 2>/dev/null || true
+	# kitty re-reads its config, includes and all, on SIGUSR1. Match `comm` with
+	# `^\.?kitty$` and not `-x kitty`: nixpkgs wraps some binaries, so comm can
+	# be `.kitty-wrapped`, and `-f` would match this script's own command line.
+	pkill -USR1 '^\.?kitty$' 2>/dev/null || true
 
-    # Neither foot nor ncspot can be told: foot 1.27 has no config re-read, and
-    # ncspot reads config.toml once at startup. Said every time rather than
-    # written down once, and only for what is actually running.
-    #
-    # `if`, not `pgrep ... && stale=`: a bare `a && b` whose `a` fails fails the
-    # statement, which would exit under any caller that later adds `set -e`.
-    local stale=""
-    if pgrep '^\.?foot' >/dev/null 2>&1; then stale="foot"; fi
-    if pgrep '^\.?ncspot' >/dev/null 2>&1; then stale="${stale:+$stale and }ncspot"; fi
-    if [ -n "$stale" ]; then
-        notify-send "Theme" "Colours now '$mode'. $stale cannot reload — restart to pick them up."
-    fi
+	# Neither foot nor ncspot can be told: foot 1.27 has no config re-read, and
+	# ncspot reads config.toml once at startup. Said every time rather than
+	# written down once, and only for what is actually running.
+	#
+	# `if`, not `pgrep ... && stale=`: a bare `a && b` whose `a` fails fails the
+	# statement, which would exit under any caller that later adds `set -e`.
+	local stale=""
+	if pgrep '^\.?foot' >/dev/null 2>&1; then stale="foot"; fi
+	if pgrep '^\.?ncspot' >/dev/null 2>&1; then stale="${stale:+$stale and }ncspot"; fi
+	if [ -n "$stale" ]; then
+		notify-send "Theme" "Colours now '$mode'. $stale cannot reload — restart to pick them up."
+	fi
 
-    # Equibop, by name — it ignores a name matching no file WITHOUT logging,
-    # hence the check above. No settings.json until it has been launched once.
-    local eq="$HOME/.config/equibop/settings/settings.json"
-    if [ -f "$eq" ]; then
-        jq --arg t "$mode.theme.css" '.enabledThemes = [$t]' "$eq" > "$eq.tmp" && mv "$eq.tmp" "$eq"
-    fi
+	# Equibop, by name — it ignores a name matching no file WITHOUT logging,
+	# hence the check above. No settings.json until it has been launched once.
+	local eq="$HOME/.config/equibop/settings/settings.json"
+	if [ -f "$eq" ]; then
+		jq --arg t "$mode.theme.css" '.enabledThemes = [$t]' "$eq" >"$eq.tmp" && mv "$eq.tmp" "$eq"
+	fi
 }
 
 # Apply a desktop mode. modes/tiling.sh and the since-removed modes/hud.sh
@@ -142,46 +142,46 @@ apply_theme() {
 # names and were otherwise a byte-identical copy of the body below, including
 # the equibop block — so a fix to one silently missed the other.
 apply_mode() {
-    local mode="$1"
+	local mode="$1"
 
-    # Checked BEFORE anything is written, because `ln -sfn` to a missing target
-    # SUCCEEDS where the copy this replaced failed loudly, and a dangling
-    # config.conf drops mango to built-in defaults with no keybinds. Before
-    # state_write specifically: recording a mode that was not applied is the
-    # one-way switch this file's header exists to foreclose. docs/adr/0040.
-    if [ ! -s "$MANGO_DIR/$mode/$mode.conf" ]; then
-        notify-send -u critical "Desktop mode" "'$mode' not applied — $mode/$mode.conf is missing"
-        return 1
-    fi
+	# Checked BEFORE anything is written, because `ln -sfn` to a missing target
+	# SUCCEEDS where the copy this replaced failed loudly, and a dangling
+	# config.conf drops mango to built-in defaults with no keybinds. Before
+	# state_write specifically: recording a mode that was not applied is the
+	# one-way switch this file's header exists to foreclose. docs/adr/0040.
+	if [ ! -s "$MANGO_DIR/$mode/$mode.conf" ]; then
+		notify-send -u critical "Desktop mode" "'$mode' not applied — $mode/$mode.conf is missing"
+		return 1
+	fi
 
-    state_write current-mode "$mode"
+	state_write current-mode "$mode"
 
-    # ONE INHIBITOR OWNER PER MODE. noctalia holds keep-awake over quickshell's
-    # own IdleInhibitor and its IPC offers toggle/enable/disable/enableFor and
-    # NO getter (checked against 4.7.7), so there is no way to read its state
-    # back and keep the two in step. Whichever is not the current mode's would
-    # sit there holding the machine awake with its indicator reading off.
-    #
-    # Handing it over means a mode switch releases the inhibitor, which is the
-    # exact failure docs/adr/0031 was written to remove — so this is the one
-    # place it happens deliberately, and it SAYS SO. The guard is what makes the
-    # message honest: no notification when there was nothing to release.
-    #
-    # One-way. Leaving noctalia does not re-arm wlinhibit, because there is no
-    # getter to ask whether noctalia was holding one.
-    if [ "$mode" = noctalia ] && "$MANGO_DIR/scripts/system/idle-inhibit.sh" is-on; then
-        "$MANGO_DIR/scripts/system/idle-inhibit.sh" off
-        notify-send "Keep awake" "Released entering noctalia — SUPER+SHIFT+A holds it again here"
-    fi
+	# ONE INHIBITOR OWNER PER MODE. noctalia holds keep-awake over quickshell's
+	# own IdleInhibitor and its IPC offers toggle/enable/disable/enableFor and
+	# NO getter (checked against 4.7.7), so there is no way to read its state
+	# back and keep the two in step. Whichever is not the current mode's would
+	# sit there holding the machine awake with its indicator reading off.
+	#
+	# Handing it over means a mode switch releases the inhibitor, which is the
+	# exact failure docs/adr/0031 was written to remove — so this is the one
+	# place it happens deliberately, and it SAYS SO. The guard is what makes the
+	# message honest: no notification when there was nothing to release.
+	#
+	# One-way. Leaving noctalia does not re-arm wlinhibit, because there is no
+	# getter to ask whether noctalia was holding one.
+	if [ "$mode" = noctalia ] && "$MANGO_DIR/scripts/system/idle-inhibit.sh" is-on; then
+		"$MANGO_DIR/scripts/system/idle-inhibit.sh" off
+		notify-send "Keep awake" "Released entering noctalia — SUPER+SHIFT+A holds it again here"
+	fi
 
-    # A LINK, not a copy — the only runtime write left in ~/.config/mango, and a
-    # selection rather than a duplication. mango is launched with no `-c`, so
-    # cli_config_path stays empty and every `./` in the tree still resolves
-    # against ~/.config/mango/. Target checked at the top. docs/adr/0040.
-    ln -sfn "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
+	# A LINK, not a copy — the only runtime write left in ~/.config/mango, and a
+	# selection rather than a duplication. mango is launched with no `-c`, so
+	# cli_config_path stays empty and every `./` in the tree still resolves
+	# against ~/.config/mango/. Target checked at the top. docs/adr/0040.
+	ln -sfn "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
 
-    # The colours kitty, foot, rofi, ncspot and Equibop read. AFTER config.conf
-    # is in place, so that a failure here leaves a mode that is otherwise fully
-    # applied rather than one that stopped halfway.
-    apply_theme "$mode"
+	# The colours kitty, foot, rofi, ncspot and Equibop read. AFTER config.conf
+	# is in place, so that a failure here leaves a mode that is otherwise fully
+	# applied rather than one that stopped halfway.
+	apply_theme "$mode"
 }

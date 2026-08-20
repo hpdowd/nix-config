@@ -3,13 +3,13 @@
 # Sets the wallpaper live via swww and saves it as the persistent wallpaper.
 
 if [ -z "$1" ]; then
-    echo "Usage: set-wallpaper.sh <path-to-image>"
-    exit 1
+	echo "Usage: set-wallpaper.sh <path-to-image>"
+	exit 1
 fi
 
 if [ ! -f "$1" ]; then
-    echo "File not found: $1"
-    exit 1
+	echo "File not found: $1"
+	exit 1
 fi
 
 # ~/.local/share, not ~/.config/mango — that directory is a read-only store

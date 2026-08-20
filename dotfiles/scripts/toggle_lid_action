@@ -1,40 +1,40 @@
 #!/usr/bin/env bash
 
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <filename> [toggle]"
-    exit 1
+	echo "Usage: $0 <filename> [toggle]"
+	exit 1
 fi
 
 FILE="$1"
 COMMAND="${2:-show}"
 
 if [ ! -f "$FILE" ]; then
-    echo "File not found" >&2
-    exit 1
+	echo "File not found" >&2
+	exit 1
 fi
 
 CURRENT=$(grep -i '^[[:space:]]*HandleLidSwitch=' "$FILE" 2>/dev/null | sed 's/.*=//' | tr -d ' ')
 
 if [ "$COMMAND" != "toggle" ]; then
-    echo "${CURRENT:-not set}"
-    exit 0
+	echo "${CURRENT:-not set}"
+	exit 0
 fi
 
 if [ ! -w "$FILE" ]; then
-    echo "Permission denied" >&2
-    exit 1
+	echo "Permission denied" >&2
+	exit 1
 fi
 
 if echo "$CURRENT" | grep -q -i 'ignore'; then
-    sed -i 's/HandleLidSwitch=ignore/HandleLidSwitch=suspend/i' "$FILE"
-    echo "ignore → suspend"
-    systemctl reload systemd-logind
+	sed -i 's/HandleLidSwitch=ignore/HandleLidSwitch=suspend/i' "$FILE"
+	echo "ignore → suspend"
+	systemctl reload systemd-logind
 elif echo "$CURRENT" | grep -q -i 'suspend'; then
-    sed -i 's/HandleLidSwitch=suspend/HandleLidSwitch=ignore/i' "$FILE"
-    echo "suspend → ignore"
-    systemctl reload systemd-logind
+	sed -i 's/HandleLidSwitch=suspend/HandleLidSwitch=ignore/i' "$FILE"
+	echo "suspend → ignore"
+	systemctl reload systemd-logind
 else
-    echo "HandleLidSwitch=ignore" >> "$FILE"
-    echo "not set → ignore"
-    systemctl reload systemd-logind
+	echo "HandleLidSwitch=ignore" >>"$FILE"
+	echo "not set → ignore"
+	systemctl reload systemd-logind
 fi

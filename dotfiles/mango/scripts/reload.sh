@@ -8,8 +8,8 @@
 # ordinary run. mmsg also has to talk to the compositor as the user owning the
 # session, so root cannot do anything useful here anyway.
 if [ "$(id -u)" -eq 0 ]; then
-    echo "reload.sh: run as your normal user, not root — mango runs in your session." >&2
-    exit 1
+	echo "reload.sh: run as your normal user, not root — mango runs in your session." >&2
+	exit 1
 fi
 
 ~/.config/mango/scripts/mode.sh

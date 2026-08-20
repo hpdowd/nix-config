@@ -45,19 +45,19 @@ fi
 
 # nf-weather, each checked with `fc-list ':charset=<hex>' family` against all
 # three fonts the bar and the menus use. U+F6FF is why (gotchas.md -> rofi).
-ICON_SUN=$'\uE30D'       # nf-weather-day_sunny
-ICON_MOON=$'\uE32B'      # nf-weather-night_clear
-ICON_SUN_CLOUD=$'\uE302' # nf-weather-day_cloudy
+ICON_SUN=$'\uE30D'        # nf-weather-day_sunny
+ICON_MOON=$'\uE32B'       # nf-weather-night_clear
+ICON_SUN_CLOUD=$'\uE302'  # nf-weather-day_cloudy
 ICON_MOON_CLOUD=$'\uE37E' # nf-weather-night_alt_cloudy
-ICON_CLOUD=$'\uE312'     # nf-weather-cloudy
-ICON_FOG=$'\uE313'       # nf-weather-fog
-ICON_DRIZZLE=$'\uE35C'   # nf-weather-sprinkle
-ICON_RAIN=$'\uE318'      # nf-weather-rain
-ICON_SHOWERS=$'\uE319'   # nf-weather-showers
-ICON_SNOW=$'\uE31A'      # nf-weather-snow
-ICON_STORM=$'\uE31D'     # nf-weather-thunderstorm
-ICON_HAIL=$'\uE314'      # nf-weather-hail
-ICON_NA=$'\uE374'        # nf-weather-na
+ICON_CLOUD=$'\uE312'      # nf-weather-cloudy
+ICON_FOG=$'\uE313'        # nf-weather-fog
+ICON_DRIZZLE=$'\uE35C'    # nf-weather-sprinkle
+ICON_RAIN=$'\uE318'       # nf-weather-rain
+ICON_SHOWERS=$'\uE319'    # nf-weather-showers
+ICON_SNOW=$'\uE31A'       # nf-weather-snow
+ICON_STORM=$'\uE31D'      # nf-weather-thunderstorm
+ICON_HAIL=$'\uE314'       # nf-weather-hail
+ICON_NA=$'\uE374'         # nf-weather-na
 
 # WMO 4677, all 28 — enumerated off the table, not off the one value a test
 # fetch returns. An unknown code says so rather than drawing "clear".

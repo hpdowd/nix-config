@@ -303,9 +303,10 @@ in
 {
   xdg.configFile = {
     # --- Desktop environment ------------------------------------------------
-    # `recursive` so the mode scripts can create config.conf here. Converting an
-    # already-linked directory this way destroys the checkout — see
-    # unlinkStaleConfigDirs below and docs/adr/0002.
+    # `recursive` so config.conf can be a link the mode scripts re-point, and so
+    # the twelve generated files below can sit inside the hand-written tree.
+    # Converting an already-linked directory this way destroys the checkout —
+    # see unlinkStaleConfigDirs below and docs/adr/0002.
     "mango" = {
       source = ../../dotfiles/mango;
       recursive = true;
@@ -614,6 +615,19 @@ in
         fi
       '') topLevel
     );
+
+  # THE BOOTSTRAP, mirroring seedModeTheme in ./mode-theme.nix. `apply_mode`
+  # re-points config.conf on a mode SWITCH, so a fresh machine has none until
+  # the first one — and mango with no config.conf falls back to
+  # $SYSCONFDIR/mango/config.conf, which does not exist here, leaving a session
+  # on built-in defaults with no keybinds at all. `[ -e ]` follows symlinks, so
+  # a dangling link is repaired too. Seeded to `tiling`, hard-coded, matching
+  # current_mode()'s fallback — reading current-mode here would add a fourth
+  # reader of that state for nothing. docs/adr/0040.
+  home.activation.seedModeConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    [ -e "$HOME/.config/mango/config.conf" ] \
+      || run ln -sfn "$HOME/.config/mango/tiling/tiling.conf" "$HOME/.config/mango/config.conf"
+  '';
 
   # Top-level dirs GTK file managers omit from the ~ view (Ctrl+H to show).
   home.file.".hidden".text = ''

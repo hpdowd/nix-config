@@ -27,7 +27,7 @@ them; the surrounding quote is the durable half.
 | **2** — NetworkManager profiles declared | 2026-08-09 | `docs/adr/0013` |
 | **4** — the dead-code class | 2026-08-09 | `docs/adr/0014` |
 | **6** — the gate catches itself | 2026-08-20 | `docs/adr/0039` |
-| **3** — the desktop layer | 🔶 partly | §3 below |
+| **3** — the desktop layer | 2026-08-20 | `docs/adr/0040`, §3 below |
 | **5** — idiomatic cleanups | 🔶 partly | §5 below |
 
 **What the gate is today.** `nix flake check` runs six checks: the system
@@ -98,7 +98,7 @@ Stated so they don't get reintroduced as improvements:
 
 ---
 
-# Phase 3 — the desktop layer 🔶 PARTLY DONE
+# Phase 3 — the desktop layer ✅ CLOSED 2026-08-20
 
 Governing principle, unchanged: **push variation to build time; let runtime
 only *select*.** Done 2026-08-03 (`2f45486`): waybar position became a file
@@ -106,7 +106,7 @@ selection, state paths and defaults moved into `scripts/lib.sh`, 765 lines of
 unreachable presentation code deleted. Done 2026-08-20: the menu scripts source
 `lib.sh`, and no script under `scripts/` re-derives `MANGO_DIR` or `STATE_DIR`.
 
-## 3a — mango config selection
+## 3a — mango config selection ✅ DONE 2026-08-20
 
 `lib.sh:171` is the **only** runtime write into `~/.config/mango`:
 
@@ -179,26 +179,39 @@ Change the spelling and `srcs` goes empty, the inner loop does nothing, and
 itself. `checks/static.sh:1476` keys off the same literal but fails loudly.
 Whichever design lands, give `363` a floor on binds seen, not on modes seen.
 
-**Steps**
+**Landed** as `docs/adr/0040`. All five steps, with two additions the plan did
+not call for:
 
-1. `lib.sh:171` — `install -m 644 …` becomes `ln -sfn …`. Drop the comment
-   about `cp` inheriting 0444: the trap is gone with the copy, and a comment
-   describing a mechanism that no longer exists is worse than none.
-2. Seed it at activation in `dotfiles.nix:603`'s existing block —
-   `entryAfter [ "linkGeneration" ]`, guarded `[ -e ]`, pointing at
-   **`tiling`, hard-coded**, matching `mode-theme.nix:173` and `lib.sh`'s own
-   fallback. Reading `current-mode` here would add a fourth reader of the state
-   file for nothing.
-3. `checks/static.sh` — assert `mango/config.conf` is **absent from the
-   generation**, the same assertion the four `apply_theme` link paths carry.
-   The existing `GENERATED=(dotfiles/mango/config.conf)` check at `:102` stays
-   as-is; it tests tracked-vs-gitignored, which is still true of a link.
-4. `docs/gotchas.md:526` — rewrite the `config.conf` entry: it is a link now, so
-   `readlink` names the active mode, and the fresh-clone consequence it records
-   is closed by step 2.
-5. `rm -rf ~/.config/mango/walker` — residue from `docs/adr/0021`, still on disk
-   from 2026-08-14, and evidence for why the tree being writable is worth
-   caring about.
+- **A guard, because the swap loses a failure signal.** `ln -sfn` to a missing
+  target *succeeds* where `install` failed loudly, so `apply_mode` now checks
+  `[ -s <mode>.conf ]` first — and does it **before `state_write`**, since
+  recording a mode that was not applied is the one-way switch `lib.sh`'s header
+  exists to foreclose.
+- **A second assertion, on the link itself.** Absence from the generation is not
+  enough: a revert to `install`/`cp` would *work*, and would quietly
+  reintroduce staleness. `checks/static.sh` now asserts the `ln -sfn` is there.
+
+Step 2 went in as its own `seedModeConfig` block rather than inside
+`dotfiles.nix:603` — that block is `unlinkStaleConfigDirs`, an
+`entryBefore [ "checkLinkTargets" ]`, which is the wrong phase. It mirrors
+`mode-theme.nix`'s `seedModeTheme` instead, and the built `activate` script
+orders them `linkGeneration` → `seedModeConfig` → `seedModeTheme`.
+
+**The fresh-machine claim was re-checked rather than trusted, and it holds.**
+`SYSCONFDIR` is `/etc`, and `/etc/mango/config.conf` does not exist on NixOS —
+the package ships its default under `$out/etc/`, which never lands there. Probed:
+`HOME=$empty mango -p` exits 1 with `Failed to open config file:
+/etc/mango/config.conf`.
+
+**Verified offline** in a fake `HOME`, all five paths: seed points at `tiling`;
+switching to `noctalia` and back re-points the link and moves state; a mode with
+no conf returns 1 leaving **both the link and the state untouched**; and mango
+parses through the symlink with no diagnostics.
+
+⚠️ **Migration is lazy, by design.** `[ -e ]` follows symlinks and finds the
+existing *regular file*, so a rebuild leaves it a copy until the next mode
+switch re-points it. Harmless — the stale copy is a valid config — but
+`readlink` returns nothing until then.
 
 **Verify** — in-session, which is the point of choosing this design:
 `readlink ~/.config/mango/config.conf` names the mode before and after a switch;
@@ -250,17 +263,18 @@ landed:
 | `universal/tag.conf` renamed | stderr, **exit 0** | ✗ names both modes |
 | `notakey=1` in `tiling.conf` | stderr, exit 1 | ✗ names the file and line |
 
-⚠️ **The read-only store bites twice here, in two different places.** Measured
-separately, because they look like one problem and are not:
+⚠️ **The read-only store bit twice here, in two different places** — and 3a
+then removed one of them:
 
 | Guard | Without it | Fails on |
 |---|---|---|
 | `cp -r --no-preserve=mode` | the copied **directory** is 0555, so nothing can be created in it | the **first** mode |
-| `install -m 644` (not `cp`) | the tree is symlinks *into* the store, so a plain `cp` through one inherits **0444** | the **second** mode |
+| ~~`install -m 644` (not `cp`)~~ | ~~the tree is symlinks *into* the store, so a plain `cp` inherits **0444**~~ | ~~the **second** mode~~ |
 
-The second is the scar `lib.sh` already carries. The first is new, and belongs to
-copying a generation rather than writing into `$HOME`. Neither guard covers the
-other.
+The second was the scar `lib.sh` carried, reproduced from scratch inside the
+check. It is gone: once 3a made production's `config.conf` a symlink, the check
+stages a symlink too — which is both simpler and a faithful reproduction rather
+than an approximation of one. The first guard stays and is unrelated.
 
 ---
 
@@ -583,8 +597,8 @@ the first attempt returned the same answer for all 12 cases.
 |---|---|---|
 | ~~1~~ | ~~**6a** the floor on `static.sh` itself~~ | ✅ 2026-08-20 |
 | ~~2~~ | ~~**3b** `mango -p` check~~ | ✅ 2026-08-20 |
-| 3 | **3a** mango config selection | one line in `lib.sh`, one seed, one check — **next** |
-| 4 | **5c** drop logseq, name winboat | pure subtraction, no migration |
+| ~~3~~ | ~~**3a** mango config selection~~ | ✅ 2026-08-20 |
+| 4 | **5c** drop logseq, name winboat | pure subtraction, no migration — **next** |
 | 5 | **5b** one owner per package | `distrobox`, then the divergence assertion |
 | 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` |
 | 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate |

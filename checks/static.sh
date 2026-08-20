@@ -1157,12 +1157,8 @@ elif [[ ${#MODES[@]} -eq 0 ]]; then
 else
 	MHOME=$(mktemp -d)
 	mkdir -p "$MHOME/.config"
-	# Two separate read-only-store traps, both measured, both needed:
-	#   --no-preserve=mode  the copied DIRECTORY is 0555 otherwise, so nothing
-	#                       can be created in it — this fails on the FIRST mode.
-	#   install -m 644      the tree is symlinks INTO the store, so a plain `cp`
-	#                       through one inherits 0444 — this fails on the SECOND
-	#                       mode, which is the scar lib.sh already carries.
+	# --no-preserve=mode because the copied DIRECTORY is 0555 otherwise, and
+	# nothing — not even a symlink — can be created inside it.
 	cp -r --no-preserve=mode "$GEN_CFG/mango" "$MHOME/.config/mango"
 
 	parse_err=""
@@ -1173,10 +1169,11 @@ else
 			parse_err+="  $m/$m.conf is not in the generation"$'\n'
 			continue
 		fi
-		# Checked, because an install that fails leaves the PREVIOUS mode's
-		# config.conf in place and mango would cheerfully parse that again —
-		# a green check for a file it never read.
-		if ! install -m 644 "$src" "$MHOME/.config/mango/config.conf"; then
+		# A LINK, because that is what apply_mode makes (docs/adr/0040) — staging
+		# a copy here would validate a shape production no longer has. Checked,
+		# because a failed stage leaves the PREVIOUS mode's config.conf in place
+		# and mango would parse that again: a green check for a file never read.
+		if ! ln -sfn "$src" "$MHOME/.config/mango/config.conf"; then
 			parse_err+="  $m: could not stage config.conf"$'\n'
 			continue
 		fi
@@ -1456,17 +1453,32 @@ done <<-EOF
 	rofi/config.rasi|@import "colors"|rofi
 EOF
 
-# 3. The four link paths must NOT be in the generation. home-manager would own
-# a path apply_theme re-points on every mode switch, which is two owners for one
-# file — and the rebuild after would either fight it or back it up forever.
+# 3. The runtime link paths must NOT be in the generation. home-manager would
+# own a path the mode scripts re-point on every switch, which is two owners for
+# one file — and the rebuild after would either fight it or back it up forever.
+#
+# Four are apply_theme's colour links; mango/config.conf is apply_mode's, and
+# joined the family when it stopped being a copy (docs/adr/0040). Same rule,
+# same failure, so one list.
 ownerr=""
-for link in kitty/current-theme.conf foot/themes/noctalia rofi/colors.rasi ncspot/config.toml; do
+for link in kitty/current-theme.conf foot/themes/noctalia rofi/colors.rasi ncspot/config.toml mango/config.conf; do
 	[[ -e "$GEN_CFG/$link" ]] && ownerr+="  $link"$'\n'
 done
 if [[ -z $ownerr ]]; then
-	ok "the four runtime colour links are owned by apply_theme alone, not by home-manager"
+	ok "the five runtime links are owned by the mode scripts alone, not by home-manager"
 else
-	bad "a runtime colour link is also an xdg.configFile — two owners for one path" "$ownerr"
+	bad "a runtime link is also an xdg.configFile — two owners for one path" "$ownerr"
+fi
+
+# And apply_mode must SELECT rather than duplicate. `install`/`cp` here is the
+# thing docs/adr/0040 replaced: it worked, so a revert would look fine and would
+# quietly reintroduce a config.conf that no longer tracks its mode.
+# shellcheck disable=SC2016
+if grep -qE '^\s*ln -sfn "\$MANGO_DIR/\$mode/\$mode\.conf" "\$MANGO_DIR/config\.conf"' "$MANGO/scripts/lib.sh"; then
+	ok "apply_mode selects config.conf with a link, not a copy"
+else
+	bad "apply_mode no longer links config.conf" \
+		"a copy stops tracking its mode the moment the mode conf is rebuilt"
 fi
 
 # And apply_mode has to CALL it. The rows above prove every file exists; this is
@@ -2469,8 +2481,8 @@ fi
 # printed a smaller number and exited green — the Phase 4 class inside the gate
 # itself. A floor, not a ratchet: adding assertions stays a one-line change, and
 # this is raised deliberately in the commit that adds them.
-# 115 on 2026-08-20. docs/adr/0039.
-ASSERTION_FLOOR=115
+# 116 on 2026-08-20. docs/adr/0039.
+ASSERTION_FLOOR=116
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 

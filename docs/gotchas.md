@@ -523,13 +523,26 @@ mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'
 Check the return value; it is the only signal you get. `checks/static.sh` fails
 on a dash-flag `mmsg`.
 
-**`mango/config.conf` is generated and gitignored, and the config it contains
-*is* tracked.** `apply_mode` does a verbatim `install -m 644 tiling/tiling.conf
-config.conf`, so `config.conf` is a *copy of whichever mode is active* — tracking
-it would commit a duplicate that changes on every mode switch. The real files are
-`tiling/tiling.conf` and `noctalia/noctalia.conf`. Consequence for a fresh clone: mango
-starts on built-in defaults — no waybar, no keybinds — until a mode script has
-run once.
+**`mango/config.conf` is a symlink, gitignored, and the file it points at *is*
+tracked.** `apply_mode` re-points it with `ln -sfn` on every mode switch
+(`docs/adr/0040`), so **`readlink ~/.config/mango/config.conf` names the active
+mode** — that is the quick way to ask. The real files are `tiling/tiling.conf`
+and `noctalia/noctalia.conf`; tracking the link would commit something that
+changes on every switch.
+
+It is seeded to `tiling` at activation by `seedModeConfig`, so a fresh clone is
+no longer the hole it was. **If it ever goes missing or dangles, mango starts on
+built-in defaults — no waybar, no keybinds, nothing logged.** The fallback it
+tries first is `/etc/mango/config.conf`, which does not exist on NixOS: the
+package ships its default under `$out/etc/`, which never lands at `/etc`.
+Confirmed by probe — `HOME=$empty mango -p` exits 1 with
+`Failed to open config file: /etc/mango/config.conf`.
+
+⚠️ **It used to be a `cp`, and reverting to one would look like it worked.** A
+copy is stale by construction: rebuild while a mode is active and `<mode>.conf`
+re-points at a new store path while `config.conf` keeps the old bytes until the
+next switch. `checks/static.sh` asserts the `ln -sfn` is still there for exactly
+that reason.
 
 **`mango/walker/config.toml` was the same shape and once broke `rebuild`
 outright.** Each `autostart.conf` `ln -sf`'d it into place, but it was *also*

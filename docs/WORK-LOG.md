@@ -2658,3 +2658,68 @@ badly is worse than one that does not measure — it is the same class of failur
 as a check that passes by finding nothing. The table now shows both numbers with
 their denominators named, and *How to verify* carries the loop that produced
 them.
+
+---
+
+## 2026-08-20 · `config.conf` selects instead of duplicating — Phase 3 closed
+
+Plan item 3. `apply_mode`'s `install -m 644 <mode>/<mode>.conf config.conf`
+became `ln -sfn`, which was the last runtime **write** into `~/.config/mango`.
+`docs/adr/0040`. Phase 3 is closed.
+
+Why it is cheap: mango is still launched with no `-c`, so `cli_config_path`
+stays empty and every `./` still resolves against `$HOME/.config/mango/`. All
+**20** `source=` lines keep working untouched, and nothing about session startup
+changes — so unlike the IPC alternative, this was validatable without a logout.
+
+### Two things the plan did not call for, both required
+
+- **A guard, because the swap silently loses a failure signal.** `ln -sfn` to a
+  missing target **succeeds**; the copy it replaced failed loudly. A dangling
+  `config.conf` drops mango to built-in defaults with no keybinds. So
+  `apply_mode` checks `[ -s <mode>.conf ]` first — and does it **before
+  `state_write`**, because recording a mode that was not applied is precisely
+  the one-way switch this file's own header exists to foreclose.
+- **A second assertion, on the link itself.** Absence from the generation is not
+  enough. A revert to `install`/`cp` would *work*, and would quietly reintroduce
+  the staleness — a copy goes out of date the moment a rebuild re-points
+  `<mode>.conf`, and nothing says so. Both assertions were confirmed against
+  planted defects: reverting the `ln -sfn`, and adding a second owner for
+  `mango/config.conf` as an `xdg.configFile`.
+
+### The check now stages a symlink, not a copy
+
+Yesterday's `mango -p` check staged each mode's conf with `install -m 644` —
+which reproduced the 0444 scar from scratch, and was written up as a finding. It
+is gone: production's `config.conf` is a symlink now, so the check stages a
+symlink too. That is simpler *and* a faithful reproduction rather than an
+approximation. `cp -r --no-preserve=mode` stays, and is a different trap
+entirely — the copied **directory** is 0555, so nothing can be created in it.
+
+### Verified without touching the session
+
+A fake `HOME` under `env -i`, all five paths: the activation seed points at
+`tiling`; switching to `noctalia` and back re-points the link and moves state; a
+mode with no conf returns 1 leaving **both the link and the state untouched**;
+and mango parses through the symlink with no diagnostics.
+
+The fresh-machine claim was re-checked rather than inherited, and holds:
+`SYSCONFDIR` is `/etc`, and `/etc/mango/config.conf` does not exist on NixOS —
+the package ships its default under `$out/etc/`, which never lands there.
+`HOME=$empty mango -p` exits 1 saying so.
+
+⚠️ **Migration is lazy.** `[ -e ]` follows symlinks and finds the existing
+regular file, so a rebuild leaves `config.conf` a copy until the next mode
+switch re-points it. Harmless — a stale copy is still a valid config — but
+`readlink` returns nothing until then.
+
+### The walker residue, which was not what it looked like
+
+`rm -rf ~/.config/mango/walker` was step 5. `rmdir` refused it: the directory
+was not empty. It held `config.toml`, a **dangling symlink** into a `configs/`
+directory that left with walker on 2026-08-14 (`docs/adr/0021`). An `ls | head`
+had shown it as empty. Removed after looking at it — and it is exactly the
+evidence the plan cited it as: a writable tree keeps whatever anything ever
+wrote there, including links to things that no longer exist.
+
+The gate is now **116 assertions across 14 sections**.

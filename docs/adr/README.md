@@ -51,6 +51,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0037](0037-night-light-does-not-cross-a-mode-switch.md) | Night light does not cross a mode switch; noctalia mode ends it | Accepted (extends [0005](0005-one-owner-per-daemon.md); follows the handover in [0031](0031-the-idle-inhibitor-outlives-the-bar.md)) |
 | [0038](0038-weather-is-a-bar-module-the-menu-reads.md) | Weather is a bar module the menu reads, and a stale reading says so | Accepted (applies [0033](0033-the-control-centre-is-a-reader.md) to a fact with no owner) |
 | [0039](0039-the-gate-asserts-its-own-size.md) | The gate asserts its own size | Accepted (applies the floor discipline of [0011](0011-shell-is-gated-too.md) and [0014](0014-declare-the-namer-not-just-the-file.md) to the file that enforces it) |
+| [0040](0040-config-conf-is-a-link-not-a-copy.md) | `config.conf` is a link, not a copy | Accepted (extends the link ownership of [0034](0034-colour-follows-the-mode-artefacts-do-not.md); keeps the `recursive` tree of [0002](0002-out-of-store-dotfiles.md)) |
 
 ## Format
 

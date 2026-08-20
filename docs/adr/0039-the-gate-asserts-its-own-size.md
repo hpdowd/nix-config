@@ -10,7 +10,7 @@ that enforces it. Closes Phase 6 of `docs/PLAN-idiomatic-nix.md`.
 `checks/static.sh` is how nearly every other claim in this repo is held true.
 Every scan *inside* it already has a floor — script count ≥30, waybar configs
 =8, terminating traps ≥2 — each carrying the same comment: *the scan is broken,
-not the repo*. That discipline exists because of [0014](0014-dead-code-is-a-class.md):
+not the repo*. That discipline exists because of [0014](0014-declare-the-namer-not-just-the-file.md):
 a scan that stops matching passes by finding nothing, and a check that finds
 nothing is indistinguishable from a check that passes.
 

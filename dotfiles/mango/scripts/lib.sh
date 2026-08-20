@@ -143,6 +143,17 @@ apply_theme() {
 # the equibop block — so a fix to one silently missed the other.
 apply_mode() {
     local mode="$1"
+
+    # Checked BEFORE anything is written, because `ln -sfn` to a missing target
+    # SUCCEEDS where the copy this replaced failed loudly, and a dangling
+    # config.conf drops mango to built-in defaults with no keybinds. Before
+    # state_write specifically: recording a mode that was not applied is the
+    # one-way switch this file's header exists to foreclose. docs/adr/0040.
+    if [ ! -s "$MANGO_DIR/$mode/$mode.conf" ]; then
+        notify-send -u critical "Desktop mode" "'$mode' not applied — $mode/$mode.conf is missing"
+        return 1
+    fi
+
     state_write current-mode "$mode"
 
     # ONE INHIBITOR OWNER PER MODE. noctalia holds keep-awake over quickshell's
@@ -163,12 +174,11 @@ apply_mode() {
         notify-send "Keep awake" "Released entering noctalia — SUPER+SHIFT+A holds it again here"
     fi
 
-    # `install -m 644`, NOT `cp`. ~/.config/mango is a store path, so
-    # <mode>.conf is a read-only 0444 file and `cp` gives a new destination the
-    # source's mode — the first switch wrote a 0444 config.conf and every
-    # switch after it died with `Permission denied`. `install -m` sets the mode
-    # explicitly rather than inheriting it.
-    install -m 644 "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
+    # A LINK, not a copy — the only runtime write left in ~/.config/mango, and a
+    # selection rather than a duplication. mango is launched with no `-c`, so
+    # cli_config_path stays empty and every `./` in the tree still resolves
+    # against ~/.config/mango/. Target checked at the top. docs/adr/0040.
+    ln -sfn "$MANGO_DIR/$mode/$mode.conf" "$MANGO_DIR/config.conf"
 
     # The colours kitty, foot, rofi, ncspot and Equibop read. AFTER config.conf
     # is in place, so that a failure here leaves a mode that is otherwise fully

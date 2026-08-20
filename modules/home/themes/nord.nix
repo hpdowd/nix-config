@@ -124,11 +124,10 @@ rec {
     overlay = "3f4757"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: four named, one generated ---------------------------------
-  # All native, no stand-ins. `nordic` ships both the GTK and the Kvantum theme,
-  # which is why this scheme's artefacts mostly come from one derivation — its
-  # cursor no longer does, being generated from the colours above
-  # (docs/adr/0041).
+  # --- Artefacts: three named, two generated --------------------------------
+  # All native, no stand-ins. `nordic` used to supply the GTK theme, the Kvantum
+  # theme and the cursors between them; two of those three are generated from
+  # the colours above now (docs/adr/0041), so only the GTK theme is still its.
   #
   # `name` is read off the built package, never constructed from the attribute.
   packages = {
@@ -141,10 +140,9 @@ rec {
       native = true;
     };
     kvantum = {
-      attr = "nordic";
-      # Capitalised differently from the GTK theme in the SAME package —
-      # `Nordic-darker` there, `Nordic-Darker` here.
-      name = "Nordic-Darker";
+      # Generated from this file's colours — docs/adr/0041; see gruvbox.nix.
+      attr = "paletteKvantum";
+      name = "nord-kvantum";
       native = true;
     };
     icons = {

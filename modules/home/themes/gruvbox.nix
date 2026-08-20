@@ -116,11 +116,12 @@ rec {
     overlay = "3d352c"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: four named, one generated ---------------------------------
-  # All five native — the bar every shipped scheme has to clear. Four are NAMED:
-  # `name` is read off the built package, and none of the four is guessable from
-  # the attribute that builds it. The cursor is GENERATED from the colours above
-  # (docs/adr/0041), which is why its name is the one that follows a rule.
+  # --- Artefacts: three named, two generated --------------------------------
+  # All five native — the bar every shipped scheme has to clear. Three are
+  # NAMED: `name` is read off the built package, and not one of them is
+  # guessable from the attribute that builds it. The cursor and the Kvantum
+  # theme are GENERATED from the colours above (docs/adr/0041), which is why
+  # their names are the two that follow a rule.
   #
   # NOT what this scheme used before 2026-08-18, which is worth knowing if you
   # are comparing against git history: Kvantum was a lone hand-carried
@@ -138,8 +139,13 @@ rec {
       native = true;
     };
     kvantum = {
-      attr = "gruvbox-kvantum";
-      name = "Gruvbox-Dark-Brown";
+      # GENERATED from this file's own colours — docs/adr/0041. `paletteKvantum`
+      # tints Kvantum's own KvantumAlt art, which is achromatic, onto the
+      # `mantle`→`fg0` ramp above, and writes `[GeneralColors]` from the roles.
+      # Chosen for being greyscale rather than for being pretty: 21 colours
+      # against 39–97 for every other theme Kvantum ships.
+      attr = "paletteKvantum";
+      name = "gruvbox-kvantum";
       native = true;
     };
     icons = {

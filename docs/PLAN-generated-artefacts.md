@@ -116,7 +116,50 @@ replaced. `inner = p.accent` in `pkgs/default.nix` is the bolder alternative.
 
 ---
 
-### Phase 2 — Kvantum
+### Phase 2 — Kvantum ✅ done 2026-08-20
+
+**Landed.** `paletteKvantum` in `pkgs/default.nix` plus
+`pkgs/kvantum-recolour.py`; all four theme files take their Kvantum theme from
+it; three new assertions in `checks/static.sh`. Build: **7 s**.
+
+**The base was chosen by measurement, and the plan's guess was wrong.** This
+file assumed the art would be "near-monochrome in the themes worth basing on".
+`gruvbox-kvantum`, the theme actually in service, is **31 colours** of somebody
+else's gruvbox — not monochrome at all. So all 37 themes Kvantum ships were
+counted:
+
+| | distinct colours | size |
+|---|---|---|
+| **KvantumAlt** | **21** — 18 of them exact greys | 25 KB |
+| every other theme | 39–97 | 75–182 KB |
+
+KvantumAlt is achromatic, so it has a lightness ramp and nothing else, and a
+lightness ramp maps onto this palette's own `mantle`→`fg0` axis without
+inventing a single relationship. The base is chosen for being greyscale, not
+for being pretty.
+
+**Not pinned by rev**, unlike phase 1 — the source is nixpkgs' own Kvantum,
+which moves on `nix flake update`. So the assertions are a floor plus a
+notation test rather than an exact count: a bump that retouches the art must
+not break the build, and a substitution that stops working still must.
+
+**The find: an assertion that could not fail was hiding a real bug.** The first
+version checked that every colour in the output was one the run had produced —
+a subset test on a set built from the same regex, so it was true by
+construction. Asking what it could actually catch turned up **eight
+three-digit colours** (`fill:#fff`, `#555`, `stop-color:#fff`) that a
+six-digit regex skips in silence, leaving pure white highlights in a theme with
+no white in it. Both the generator and the gate now handle the short form, and
+the assertion was replaced with one that tests for colour notations the script
+cannot express.
+
+**Five negative tests, all failing with the right message:** the recolour regex
+rotting, an unhandled notation appearing upstream, the base theme moving out of
+the package, Kvantum renaming a `[GeneralColors]` key, and an unrecoloured grey
+reaching the generation.
+
+The original notes follow.
+
 
 A Kvantum theme is an INI `.kvconfig` holding explicit colour keys, plus `.svg`
 frame art that is near-monochrome in the themes worth basing on. The keys are
@@ -129,7 +172,9 @@ so the shape this phase needs already exists and the two-owners trap
 
 **Steps**
 1. Pick the base for its SVG, not its colours — the flatter and more monochrome
-   the frame art, the better it survives an arbitrary palette.
+   the frame art, the better it survives an arbitrary palette. *(Done by
+   counting distinct colours across all 37 shipped themes; KvantumAlt won by a
+   factor of two.)*
 2. Generate `<scheme>.kvconfig` from the palette; copy the base `.svg`.
 3. Install to `~/.config/Kvantum/<scheme>/`, which is where Kvantum reads —
    **not** `share/Kvantum`. `checks/static.sh`'s `pkg_roots` already searches

@@ -1773,6 +1773,10 @@ for kind in gtk kvantum icons cursor; do
 		cursor_path=$hit_path
 		cursor_theme=$name
 	fi
+	if [[ $kind == kvantum ]]; then
+		kvantum_path=$hit_path
+		kvantum_theme=$name
+	fi
 
 	if [[ -n $hit ]]; then
 		ok "$kind: '$name' resolves in $hit"
@@ -1850,6 +1854,69 @@ if [[ -n ${cursor_path:-} ]]; then
 	else
 		bad "cursor: the built theme does not carry this palette's colours" \
 			"expected #$cur_body (fg0) and #$cur_edge (base) in $cur_svg — the recolour did not reach the artefact"
+	fi
+fi
+
+# The Kvantum theme is generated too (docs/adr/0041, phase 2), and it fails in
+# the same shape as the cursor: a substitution that stops matching leaves a
+# complete, valid theme that Kvantum renders without a word — in somebody
+# else's scheme. The build asserts its own subset; this asserts that what got
+# INSTALLED belongs to the palette this machine is wearing.
+#
+# Two files, and both have to be checked. The `.kvconfig` is where the text and
+# highlight colours live; the `.svg` is the widget art, which is where a
+# recolour that silently did nothing would be least visible.
+if [[ -n ${kvantum_path:-} ]]; then
+	kv_cfg="$kvantum_path/$kvantum_theme.kvconfig"
+	kv_svg="$kvantum_path/$kvantum_theme.svg"
+	kv_accent=$(pal '.accent')
+	kv_text=$(pal '.text')
+
+	if [[ ! -r $kv_cfg || ! -r $kv_svg ]]; then
+		bad "kvantum: '$kvantum_theme' is missing its .kvconfig or its .svg" \
+			"$kv_cfg / $kv_svg — Kvantum falls back to its built-in style in silence"
+	elif [[ -z $kv_accent || -z $kv_text ]]; then
+		bad "kvantum: could not read accent/text from the resolved palette" \
+			"accent='$kv_accent' text='$kv_text' — the checks below would pass on nothing"
+	else
+		if grep -qi "highlight.color=#$kv_accent" "$kv_cfg" &&
+			grep -qi "^text.color=#$kv_text" "$kv_cfg"; then
+			ok "kvantum: '$kvantum_theme' takes its highlight and text from '$PAL_SCHEME'"
+		else
+			bad "kvantum: '$kvantum_theme' does not carry this palette's colours" \
+				"expected highlight.color=#$kv_accent and text.color=#$kv_text in $kv_cfg"
+		fi
+
+		# The art is tinted onto `mantle`→`fg0`, so every colour in it should be
+		# off that axis and NONE should be a neutral grey — which is what the
+		# source was, and therefore what an unrecoloured file looks like. A
+		# floor on the count, because a regex that stops matching finds nothing
+		# and nothing is what a pass looks like here.
+		#
+		# THREE-digit hex is checked separately and expected to be absent: the
+		# generator only ever writes the six-digit form, and KvantumAlt holds
+		# eight short ones (`fill:#fff`) that the first version of this scan
+		# and of the generator both walked straight past — leaving pure white
+		# in a theme with no white in it.
+		kv_short=$(grep -oE '#[0-9a-fA-F]{3}\b' "$kv_svg" 2>/dev/null | grep -c . || true)
+		if [[ $kv_short -ne 0 ]]; then
+			bad "kvantum: $kv_short three-digit colour(s) left in the widget art" \
+				"the generator writes six-digit only, so these are the source's own — $kv_svg"
+		fi
+		kv_n=$(grep -oE '#[0-9a-fA-F]{6}' "$kv_svg" 2>/dev/null | sort -u | grep -c . || true)
+		kv_grey=$(grep -oE '#[0-9a-fA-F]{6}' "$kv_svg" 2>/dev/null | sort -u |
+			while IFS= read -r h; do
+				[[ ${h:1:2} == "${h:3:2}" && ${h:3:2} == "${h:5:2}" ]] && printf '%s\n' "$h"
+			done | grep -c . || true)
+		if [[ $kv_n -lt 15 ]]; then
+			bad "kvantum: only $kv_n distinct colours read from $kv_svg" \
+				"the grey scan below would pass by finding nothing"
+		elif [[ $kv_grey -eq 0 ]]; then
+			ok "kvantum: all $kv_n colours in the widget art are off '$PAL_SCHEME''s own ramp"
+		else
+			bad "kvantum: $kv_grey of $kv_n colours in the widget art are still neutral grey" \
+				"the source is greyscale, so a grey here is a colour the tint did not reach"
+		fi
 	fi
 fi
 

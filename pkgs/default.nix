@@ -248,6 +248,139 @@ in
     };
 
   # ==========================================================================
+  # paletteKvantum — the Qt widget theme, recoloured from the palette
+  # ==========================================================================
+  # docs/adr/0041, phase 2. A Kvantum theme is two files: a `.kvconfig` whose
+  # `[GeneralColors]` block is plain INI, and a `.svg` holding the widget art.
+  # The INI half was always generatable; the art was the open question, and it
+  # was answered by measuring all 37 themes Kvantum ships:
+  #
+  #   KvantumAlt   21 distinct colours, 25 KB — 18 of them EXACT greys and the
+  #                other three off by one channel step
+  #   the rest     39 to 97 colours, 75 to 182 KB, all of them scheme art
+  #
+  # So the base is chosen for being achromatic, not for being pretty: a
+  # greyscale source has a lightness ramp and nothing else, and a lightness
+  # ramp can be mapped onto THIS palette's own `mantle`→`fg0` axis without
+  # inventing a single relationship. `gruvbox-kvantum`, which this replaces,
+  # is 31 colours of somebody else's gruvbox and could only ever be gruvbox.
+  #
+  # Not pinned by rev — the source is nixpkgs' own Kvantum, which moves with
+  # `nix flake update`. So the assertions are a FLOOR on how many colours were
+  # recoloured plus an exact subset test on the result, rather than phase 1's
+  # exact count: a bump that retouches the art must not break the build, and a
+  # substitution that stops working still must.
+  paletteKvantum =
+    let
+      p = themeData;
+      themeName = "${import ../modules/home/scheme.nix}-kvantum";
+      base = prev.kdePackages.qtstyleplugin-kvantum;
+
+      # `[GeneralColors]`, by key. KvantumAlt's own values order themselves
+      # dark→light as dark < base < alt.base < mid < window < button <
+      # mid.light < light, and that order is what is reproduced here on this
+      # palette's ramp — the block is a ramp with names, so mapping it any
+      # other way would flatten the art it sits behind.
+      colors = {
+        "dark.color" = p.mantle;
+        "base.color" = p.bg0;
+        "alt.base.color" = p.bg1;
+        "mid.color" = p.bg1;
+        "window.color" = p.bg1;
+        "button.color" = p.bg2;
+        "mid.light.color" = p.bg2;
+        "light.color" = p.bg3;
+
+        "highlight.color" = p.accent;
+        "inactive.highlight.color" = p.comment;
+        "tooltip.base.color" = p.mantle;
+
+        # `text.color` and three of its siblings are the literal word `white`
+        # upstream, not hex. Replacing the whole line by key rather than
+        # substituting a value is what makes that irrelevant.
+        "text.color" = p.text;
+        "window.text.color" = p.text;
+        "button.text.color" = p.text;
+        "tooltip.text.color" = p.text;
+        "disabled.text.color" = p.comment;
+        # Drawn ON the accent, so it takes the background rather than the text
+        # colour — the one entry here that is not the role its name suggests.
+        "highlight.text.color" = p.base;
+
+        "link.color" = p.infoColor;
+        "link.visited.color" = p.magenta;
+
+        # These two live in per-widget sections rather than [GeneralColors] and
+        # appear more than once. Keyed the same way, so both are reached.
+        "text.focus.color" = p.accent;
+        "text.shadow.color" = p.mantle;
+      };
+    in
+    prev.stdenvNoCC.mkDerivation {
+      pname = "palette-kvantum";
+      inherit (base) version;
+
+      dontUnpack = true;
+      nativeBuildInputs = [ prev.python3 ];
+
+      buildPhase = ''
+        runHook preBuild
+        src="${base}/share/Kvantum/KvantumAlt"
+        if [ ! -r "$src/KvantumAlt.kvconfig" ] || [ ! -r "$src/KvantumAlt.svg" ]; then
+          echo "paletteKvantum: KvantumAlt is not where it was in ${base}." >&2
+          echo "  Kvantum moved or renamed it; pick the base again by measuring, not by guessing." >&2
+          exit 1
+        fi
+
+        mkdir -p "${themeName}"
+        cp "$src/KvantumAlt.kvconfig" "${themeName}/${themeName}.kvconfig"
+        cp "$src/KvantumAlt.svg"      "${themeName}/${themeName}.svg"
+        chmod u+w "${themeName}"/*
+
+        # --- the INI half ---------------------------------------------------
+        # Whole-line by key, so a value spelled as a NAME (`white`, `black`)
+        # replaces as cleanly as one spelled as hex. Every key must already
+        # exist: a key Kvantum has dropped would otherwise be written nowhere
+        # and the colour would quietly stay upstream's.
+        miss=""
+        while IFS='|' read -r key value; do
+          [ -n "$key" ] || continue
+          esc=$(printf '%s' "$key" | sed 's/\./\\./g')
+          if ! grep -q "^$esc=" "${themeName}/${themeName}.kvconfig"; then
+            miss="$miss $key"
+            continue
+          fi
+          sed -i "s|^$esc=.*|$key=#$value|" "${themeName}/${themeName}.kvconfig"
+        done <<'EOF'
+        ${prev.lib.concatStringsSep "\n" (prev.lib.mapAttrsToList (k: v: "${k}|${v}") colors)}
+        EOF
+        if [ -n "$miss" ]; then
+          echo "paletteKvantum: KvantumAlt has no such key(s):$miss" >&2
+          echo "  Those colours would silently stay upstream's. Re-read its kvconfig." >&2
+          exit 1
+        fi
+
+        # --- the art --------------------------------------------------------
+        python3 ${./kvantum-recolour.py} \
+          "${themeName}/${themeName}.svg" "${p.mantle}" "${p.fg0}"
+        runHook postBuild
+      '';
+
+      installPhase = ''
+        runHook preInstall
+        install -dm755 "$out/share/Kvantum"
+        cp -r "${themeName}" "$out/share/Kvantum/${themeName}"
+        runHook postInstall
+      '';
+
+      meta = {
+        description = "Kvantum's achromatic KvantumAlt art, tinted to this repo's palette";
+        license = prev.lib.licenses.gpl3Only;
+        platforms = prev.lib.platforms.linux;
+      };
+    };
+
+  # ==========================================================================
   # gruvbox-gtk-theme — the one shipped scheme nixpkgs cannot dress in GTK4
   # ==========================================================================
   # `gruvbox-dark-gtk`, which this replaces, ships gtk-2.0, gtk-3.0 and

@@ -2453,6 +2453,43 @@ Its remaining three phases are **decided against, not pending**:
 
 The rule for the next row is the one that earned the first four: build it when a
 fact is **invisible everywhere**, the way mic mute was. None of these three is.
+### Every rofi menu was twelve rows tall, and the config said otherwise
+
+Reported from use: the control centre paged again after the weather row. The
+cause was three facts stacked, none of them what `dotfiles/rofi/config.rasi`
+claimed:
+
+- **`dynamic: true` is about filtering**, not fit-to-contents — rofi's own
+  wording. The comment in that file said it "shrinks the list to its contents"
+  and had said so since the file was written.
+- **`lines: 12` is a fixed height.** Measured at 2, 6, 15 and 30 entries: the
+  window never changed size. So a two-entry mode picker drew ten blank rows.
+- **`-l` loses to the theme on rofi 2.0**, so `control-center.sh`'s computed
+  `-l "${#ROWS[@]}"` — added specifically to stop paging — never did anything.
+  `rofi -dump-theme -l 15` still prints `lines: 12`.
+
+`lib.sh` grew **`rofi_menu <max>`**: entries on stdin, sized to them with
+`-theme-str`, capped at an explicit per-menu ceiling. Ten call sites converted;
+four dead `MENU=(rofi -dmenu …)` arrays removed with them. Caps are 12 for the
+access-point list and the clipboard, 15 for bluetooth, 20 for the fixed pickers,
+24 for the control centre. The password prompt keeps a bare `rofi` — it must not
+take `-no-custom` — and now asks for `lines: 0` rather than twelve empty rows.
+
+`network-menu.sh`'s U+F6FF ethernet glyph fixed in the same pass; `fc-match`
+confirmed it was resolving to `Unifont Sample`. Documented as broken since
+2026-08-19.
+
+### What it cost
+
+- **Three negative tests**, all caught: a menu reverted to bare `rofi -dmenu`,
+  an `-l` re-added, and the control centre's ceiling dropped below its row count.
+- **The check is the point.** The control centre had a comment explaining at
+  length why `-l` was computed rather than hardcoded, and the mechanism it
+  described did not exist. A paragraph asserting a fact cannot notice when the
+  fact stops being true.
+- **Five scripts had to start sourcing `lib.sh`.** They had none of it before,
+  which is why each carried its own `MENU` array.
+
 ### The menus get the focus border the compositor cannot draw
 
 Reported from use: the menu did not separate from the windows behind it, which

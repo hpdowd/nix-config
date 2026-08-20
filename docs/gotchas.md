@@ -1120,6 +1120,31 @@ An absent phone module means *there is no phone*, which nobody can be misled by;
 an absent microphone indicator means one of two things, and only one of them is
 safe.
 
+### A cached reading served as a current one is invisible by construction
+
+`custom/weather` serves its cache when the fetch fails, because losing the
+reading is worse than showing an old one. Served **without a class**, that is
+yesterday's temperature in today's font: nothing errors, nothing logs, and the
+bar looks exactly right. It is this repo's signature bug in a nicer glyph, and
+it is the reason `weather.sh` has three classes rather than a temperature and a
+fallback — `ok`, `stale` (greyed, with its age in the tooltip *and* in `alt`)
+and `error` (`?`, never a number). docs/adr/0038.
+
+The general shape: **any module with a cache needs a way to say the cache is
+what you are looking at.** A module that can only be right or absent has no way
+to be honest about being out of date.
+
+### `alt` is the field for a phrase the control centre also wants
+
+The weather row first cut its description out of the module's tooltip and
+rendered `light` for `light drizzle` — the description has a space in it and the
+tooltip has five more. `alt` is one of waybar's own custom-module keys
+(`text`/`alt`/`tooltip`/`class`/`percentage`) and goes unused whenever `format`
+is `{}`, so it is free to carry a second reader's field.
+
+Same fix as `jfields`: give the reader a field rather than a substring index.
+Two owners for one string, one of them a `${...#*— }`, is drift with extra steps.
+
 ---
 
 ## Power
@@ -2093,6 +2118,32 @@ and `unset-environment` is silent about names that were not set anyway.
 repo they existed on this disk only, while `audio.nix` declared a unit whose
 `ExecStart` pointed at one — so a fresh install produced a unit that could not
 start.
+
+### A generated data file under `scripts/` is not a script
+
+`weather.sh` reads its coordinates from a file `dotfiles.nix` generates. Put at
+`mango/scripts/system/weather-location.env` it failed `nix flake check`
+immediately, and the check was right: the mango tree is scanned for every
+`$MANGO_DIR/scripts/…` reference and each one must be an **executable script**,
+because a `bind=` naming a 644 file is a key that does nothing. A data file
+there is not a bug in the scan.
+
+Generated mango data belongs in `universal/`, with `colors-*.conf` and
+`cursor.conf`. The store path is the same either way; the directory is what says
+which kind of file it is.
+
+### A missing `set -u` variable becomes a valid API request
+
+`weather.sh` refuses when its generated coordinates file is absent, rather than
+letting the request go out with `latitude=&longitude=`. open-meteo answers that
+form: it is the weather at 0°N 0°E, in the Gulf of Guinea, and it renders as a
+perfectly ordinary temperature. `set -u` does not help — the variable is not
+*unset*, it is interpolated into a string that is still a valid URL.
+
+Any parameter that arrives from the generation is worth checking for emptiness
+before it reaches a service that will answer regardless. `checks/static.sh`
+asserts the file is in the generation and that the variable names in it are the
+ones the script sources; the runtime refusal is the second line.
 
 ### `IFS=$'\t' read` cannot see an empty leading field
 

@@ -469,6 +469,94 @@ if [[ -f $CC ]]; then
 	fi
 fi
 
+# --- Weather ----------------------------------------------------------------
+# Four things each invisible when wrong. docs/adr/0038.
+WEATHER_SH="$MANGO/scripts/system/weather.sh"
+if [[ -f $WEATHER_SH ]]; then
+	# 1. THE COORDINATES REACH THE SCRIPT. Drifted variable names leave
+	#    WEATHER_LAT unset and send `latitude=&longitude=` — which open-meteo
+	#    answers, with the weather at 0°N 0°E. gotchas.md -> Scripts.
+	LOC_ENV="$GEN_CFG/mango/universal/weather-location.env"
+	if [[ ! -s $LOC_ENV ]]; then
+		bad "weather-location.env is not in the generation" \
+			"weather.sh has no coordinates and every reading is an error row: $LOC_ENV"
+	else
+		locmiss=""
+		for v in WEATHER_LAT WEATHER_LON WEATHER_NAME; do
+			grep -q "^$v=" "$LOC_ENV" || locmiss+="  $v"$'\n'
+			grep -q "\$$v" "$WEATHER_SH" || locmiss+="  $v is generated but weather.sh never reads it"$'\n'
+		done
+		# The path from both ends — two spellings fail as "coordinates missing"
+		# pointing at a file that is right there.
+		grep -q 'weather-location\.env' "$WEATHER_SH" \
+			|| locmiss+="  weather.sh does not name weather-location.env"$'\n'
+		if [[ -z $locmiss ]]; then
+			ok "weather-location.env is generated and weather.sh reads all three of its values"
+		else
+			bad "the generated coordinates and weather.sh disagree" "$locmiss"
+		fi
+	fi
+
+	# 2. THE SIGNAL NUMBER, from both sides. waybar drops an RT signal nothing
+	#    subscribes to in silence, so a mismatch updates the row and not the bar.
+	wsig_script=$(grep -oE 'pkill -RTMIN\+([0-9]+) waybar' "$WEATHER_SH" | grep -oE '[0-9]+' | head -1)
+	wsig_bar=$(jq -r '.["custom/weather"].signal // empty' "$WAYBAR_DIR/config-full-top.jsonc" 2>/dev/null)
+	if [[ -z $wsig_script || -z $wsig_bar ]]; then
+		bad "could not read the weather refresh signal from both sides — the scan is broken, not the repo" \
+			"script=[$wsig_script] bar=[$wsig_bar]"
+	elif [[ $wsig_script != "$wsig_bar" ]]; then
+		bad "weather.sh signals RTMIN+$wsig_script but custom/weather listens on $wsig_bar" \
+			"waybar drops a real-time signal nothing subscribes to without logging"
+	else
+		ok "weather.sh and custom/weather agree on SIGRTMIN+$wsig_script"
+	fi
+
+	# 3. THE CONTROL-CENTRE ROW MUST NOT FETCH. That render is parallel and
+	#    costs its slowest row (73 ms); only `read` never opens a socket. The
+	#    symptom of getting it wrong is a menu that does not appear.
+	if [[ -f $CC ]]; then
+		wverb=$(sed -n '/^state_weather() {/,/^}/p' "$CC" | grep -oE 'weather\.sh" (status|read|refresh)' | awk '{print $2}')
+		if [[ -z $wverb ]]; then
+			bad "state_weather does not call weather.sh — the scan is broken, not the repo"
+		elif [[ $wverb != read ]]; then
+			bad "the control-centre weather row calls weather.sh '$wverb'" \
+				"only 'read' is cache-only; the others can block the whole menu on a 10s curl"
+		else
+			ok "the control-centre weather row calls weather.sh read — no socket on the render path"
+		fi
+	fi
+
+	# 4. EVERY WMO CODE WITH A PHRASE HAS A GLYPH. `icon_for` ends in `*`, so a
+	#    code it does not know draws na and nothing complains — the row renders,
+	#    wearing the wrong weather.
+	mapfile -t wmo_desc < <(
+		sed -n '/^describe() {/,/^}/p' "$WEATHER_SH" |
+			sed -n 's/^\t\([0-9 |]*[0-9]\)).*/\1/p' | tr -d ' ' | tr '|' '\n' | sort -un
+	)
+	wmo_icons=$(
+		sed -n '/^icon_for() {/,/^}/p' "$WEATHER_SH" |
+			sed -n 's/^\t\([0-9 |]*[0-9]\)).*/\1/p' | tr -d ' ' | tr '|' '\n' | sort -un
+	)
+	if [[ ${#wmo_desc[@]} -eq 0 || -z $wmo_icons ]]; then
+		bad "no WMO codes read out of weather.sh — the scan is broken, not the repo" \
+			"describe=${#wmo_desc[@]}"
+	else
+		wmomiss=""
+		for c in "${wmo_desc[@]}"; do
+			grep -qxF "$c" <<<"$wmo_icons" || wmomiss+=" $c"
+		done
+		for c in $wmo_icons; do
+			printf '%s\n' "${wmo_desc[@]}" | grep -qxF "$c" || wmomiss+=" $c(icon only)"
+		done
+		if [[ -z $wmomiss ]]; then
+			ok "all ${#wmo_desc[@]} WMO codes weather.sh describes also have a glyph"
+		else
+			bad "weather.sh's describe() and icon_for() cover different WMO codes" \
+				"a code with a phrase and no glyph draws nf-weather-na and looks merely unsettled:$wmomiss"
+		fi
+	fi
+fi
+
 # --- noctalia mode ----------------------------------------------------------
 # All of this is gated on the mode's directory existing, so removing noctalia
 # (docs/SYSTEM.md §6) removes the checks with it rather than leaving three

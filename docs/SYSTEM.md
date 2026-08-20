@@ -732,7 +732,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
-| `SUPER+C` | Control centre — twelve toggles in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and four rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`) |
+| `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`) |
 | bar button, `focus` and `minimal` | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode. Not in `full`, which is crowded |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
@@ -783,12 +783,25 @@ is missing from the bar, **run its script by hand first**:
 | `custom/power-profile` | `system/power-profile.sh` | `RTMIN+11` |
 | `custom/night-mode` | `menus/night-mode.sh` | `RTMIN+9` |
 | `custom/phone` | `kdeconnect/phone-status.sh` | 30 s |
+| `custom/weather` | `system/weather.sh` | `RTMIN+13`, plus a 300 s poll (`full` and `focus`) |
 
 > **`phone-status.sh` takes verbs: `status` (the default, so waybar's argument-less
 > `exec` still works) and `ring`.** The KDE Connect device id is written **once**,
 > in that script — the bar's `on-click` and the control centre's row both call
 > `… ring` rather than spelling `kdeconnect-cli -d <id> --ring` again. `ring`
 > `notify-send`s when the phone is unreachable instead of failing silently.
+
+> **`weather.sh` takes three verbs and only two may touch the network:**
+> `status` (the bar — fetches when the 900 s cache has expired), `read` (the
+> control-centre row — cache only, never a socket, because that menu renders in
+> parallel and costs its slowest row) and `refresh` (Enter on that row — fetches
+> past the cache, then raises `RTMIN+13` so the bar moves too). Coordinates come
+> from `local.location` in `modules/home/options.nix` via the generated
+> `mango/universal/weather-location.env`; the cache is `$STATE_DIR/weather.json`.
+> A reading served from a failed fetch is `class` `stale`, greyed, with its age
+> in the tooltip. **`minimal` carries no weather module**, so nothing keeps the
+> cache warm there and the control-centre row is normally `stale` until Enter —
+> `docs/adr/0038`.
 | `custom/power` | — opens wlogout | — |
 
 > **`pulseaudio` is one module showing two devices.** `{format_source}` in its

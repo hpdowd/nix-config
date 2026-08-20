@@ -14,12 +14,14 @@
 # slider cannot disagree. Here every fact has a different owner, and this file
 # is a READER of those owners, never a second one:
 #
-#   - three rows take their icon AND their state from the waybar module that
+#   - five rows take their icon AND their state from the waybar module that
 #     owns the fact (`night-mode.sh status`, `idle-inhibit.sh status`,
-#     `power-profile.sh`), parsed out of the JSON those modules already emit.
-#     Reproducing the glyph here would be a second owner for it, and the two
-#     would drift the first time one changed — docs/adr/0028's failure, one
-#     directory over.
+#     `power-profile.sh`, `phone-status.sh status`, `weather.sh read`), parsed
+#     out of the JSON those modules already emit. Reproducing the glyph here
+#     would be a second owner for it, and the two would drift the first time
+#     one changed — docs/adr/0028's failure, one directory over. The ladders
+#     behind those glyphs are why it matters: ten battery levels for the phone,
+#     thirteen weather glyphs by WMO code and time of day.
 #   - the rest read the same command their own menu reads, and nothing here
 #     writes state: every action delegates to the script that already owned it.
 #
@@ -66,6 +68,9 @@ ICON_BAR=$'\uF0C9'      # nf-fa-bars
 # Only a FALLBACK. When the phone is up, the row's icon is the battery glyph
 # custom/phone itself chose — one owner for those ten, as with night/awake/power.
 ICON_PHONE=$'\U000F011C' # nf-md-cellphone
+# Fallback only — custom/weather picks among thirteen by WMO code and daylight;
+# a second copy of that ladder is docs/adr/0028's drift.
+ICON_WEATHER=$'\uE374' # nf-weather-na
 
 SEP=$'────────────────────────'
 
@@ -89,6 +94,7 @@ ROWS=(
 	awake
 	power
 	phone
+	weather
 	-
 	dnd
 	notify
@@ -105,6 +111,7 @@ declare -A LABEL=(
 	[awake]="Keep awake"
 	[power]="Power profile"
 	[phone]="Phone"
+	[weather]="Weather"
 	[dnd]="Do not disturb"
 	[notify]="Notifications"
 	[bar]="Bar"
@@ -373,6 +380,34 @@ state_phone() {
 	esac
 }
 
+# The sixth module-backed row, and the only owner here that can be OUT OF DATE
+# rather than merely unreadable — `stale` is a state, not a failure and not `?`.
+# docs/adr/0038.
+#
+# `read`, NOT `status`: `status` fetches on an expired cache, and this runs
+# inside a parallel render. checks/static.sh asserts the verb.
+#
+# `.alt` carries the phrase as a FIELD — cut out of the tooltip instead it
+# rendered "light" for "light drizzle" (gotchas.md -> Waybar).
+state_weather() {
+	local j text alt cls icon temp
+	j=$("$MANGO_DIR/scripts/system/weather.sh" read 2>/dev/null)
+	IFS=$'\037' read -r text alt cls < <(jfields "$j" '.text, .alt, .class')
+	# "<glyph> 15°C" — same shape as the phone row, and split the same way.
+	read -r icon temp <<<"$text"
+	[ -n "$icon" ] || icon=$ICON_WEATHER
+	case "$cls" in
+	# One branch: `alt` already carries the difference. Kept out of `*` all the
+	# same — a class weather.sh does not emit is `?`, not a temperature.
+	ok | stale) printf '%s\t%s' "$icon" "${temp:-$UNKNOWN}${alt:+, $alt}" ;;
+	# The module's own sentence, which says WHICH failure it was — no reading
+	# cached, unreachable, or coordinates missing from the generation. More
+	# specific than `?`, so it stands, exactly as power's words do.
+	error) printf '%s\t%s' "$icon" "${alt:-$UNKNOWN}" ;;
+	*) printf '%s\t%s' "$icon" "$UNKNOWN" ;;
+	esac
+}
+
 state_dnd() {
 	case "$(swaync-client -D -sw 2>/dev/null)" in
 	true) printf '%s\t%s' "$ICON_BELL_OFF" "on" ;;
@@ -432,6 +467,9 @@ act_power() { "$MANGO_DIR/scripts/system/power-profile-cycle.sh"; }
 # rather than returning silently — an action that appears to do nothing is the
 # one outcome a row must never have.
 act_phone() { "$MANGO_DIR/scripts/kdeconnect/phone-status.sh" ring; }
+# The only action here that goes to the network. Signals waybar too, so the bar
+# and this row move together.
+act_weather() { "$MANGO_DIR/scripts/system/weather.sh" refresh; }
 act_dnd() { swaync-client -d -sw >/dev/null; }
 act_notify() {
 	swaync-client -t -sw

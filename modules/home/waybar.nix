@@ -323,6 +323,23 @@ let
       on-click = "${s}/menus/shell.sh control-center";
     };
 
+    # Built as a module first, read by the control centre second — a row that
+    # fetched would own a fact the bar cannot see. docs/adr/0038.
+    #
+    # `interval` 300 against the script's 900 s TTL: the poll is a floor, not a
+    # fetch. `signal` 13 is what `weather.sh refresh` raises; checks/static.sh
+    # asserts the two numbers agree, because waybar drops an unhandled RT signal
+    # in silence.
+    "custom/weather" = {
+      format = "{}";
+      exec = "${s}/system/weather.sh status";
+      return-type = "json";
+      interval = 300;
+      signal = 13;
+      on-click = "${s}/system/weather.sh refresh";
+      tooltip = true;
+    };
+
     "custom/phone" = {
       exec = "${s}/kdeconnect/phone-status.sh";
       return-type = "json";
@@ -488,6 +505,14 @@ let
       ];
       right = [
         "custom/notification"
+        # Second from the left of modules-right in BOTH layouts that carry it,
+        # so SUPER+/ does not move it. On the right despite pairing with the
+        # clock: modules-left is identical across all three layouts on purpose.
+        #
+        # NOT in `minimal`, which is deliberately near-empty — the
+        # control-centre row is the way in there, and `stale` is that row's
+        # honest state when no module is keeping the cache warm. docs/adr/0038.
+        "custom/weather"
         "cpu"
         "memory"
         "network"
@@ -515,6 +540,11 @@ let
       ];
       right = [
         "custom/notification"
+        # Weather is ambient, not diagnostic — it is not one of the cpu/memory
+        # readouts this layout drops. `focus` is the daily layout, so leaving it
+        # out left the cache with nothing keeping it warm and the control-centre
+        # row parked at `stale` as its DEFAULT rather than its edge case.
+        "custom/weather"
         "custom/control-center"
         "network"
         "custom/vpn"

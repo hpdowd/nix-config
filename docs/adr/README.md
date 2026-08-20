@@ -49,6 +49,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0035](0035-hud-is-removed.md) | hud is removed; a mode may not also force a layout | Accepted (simplifies [0034](0034-colour-follows-the-mode-artefacts-do-not.md); retires a rough edge from [0033](0033-the-control-centre-is-a-reader.md)) |
 | [0036](0036-noctalias-templates-stay-off.md) | noctalia's auto-theming templates stay off | Accepted (settles phase 3b of [0034](0034-colour-follows-the-mode-artefacts-do-not.md); protects [0028](0028-one-palette-reaches-every-config-it-can.md)) |
 | [0037](0037-night-light-does-not-cross-a-mode-switch.md) | Night light does not cross a mode switch; noctalia mode ends it | Accepted (extends [0005](0005-one-owner-per-daemon.md); follows the handover in [0031](0031-the-idle-inhibitor-outlives-the-bar.md)) |
+| [0038](0038-weather-is-a-bar-module-the-menu-reads.md) | Weather is a bar module the menu reads, and a stale reading says so | Accepted (applies [0033](0033-the-control-centre-is-a-reader.md) to a fact with no owner) |
 
 ## Format
 

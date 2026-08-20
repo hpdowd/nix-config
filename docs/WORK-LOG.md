@@ -2380,3 +2380,75 @@ fixed the reported case and missed that one.
   strips comments now — a scan that reads prose fails on a file that is correct,
   which costs as much trust as one that passes on a file that is not.
 
+### Weather, as a module the menu reads (0038)
+
+Phase 4 of the control-centre queue, and the first fact on this machine with
+**no owner at all** — so the whole question was where the owner goes. It goes on
+the bar: `scripts/system/weather.sh` fetches, `custom/weather` renders it in the
+`full` layout, and the control-centre row reads the same script. A row that
+fetched would make a menu the owner of a fact the bar cannot see, which inverts
+`docs/adr/0033`.
+
+**Three verbs, because only two may touch the network.** `status` for the bar,
+`refresh` for Enter on the row, and `read` — cache only — for the row itself.
+The menu renders every row in parallel and costs its slowest one at 73 ms; a
+ten-second curl there is the whole menu failing to appear. Asserted, not
+commented.
+
+**Coordinates are `local.location` in `options.nix`**, typed `float`, generated
+into `mango/universal/weather-location.env`. noctalia's own widget resolves them
+through `api.noctalia.dev/geocode`; open-meteo needs only the two numbers, and
+`timezone=auto` means `time.timeZone` is not copied either.
+
+`class` `stale` is the point of the exercise — a served cache that does not say
+it is a served cache is yesterday's temperature in today's font. Full reasoning
+in `docs/adr/0038`; the four failures in `docs/gotchas.md` -> Waybar and ->
+Scripts.
+
+### What it cost
+
+- **Four negative tests**, all four caught: a diverged refresh signal, the row
+  calling `status`, a WMO code with a phrase and no glyph, and a renamed
+  variable in the generated env file.
+- **Two failures found by the checks rather than by looking**, both on the first
+  run. The generated env file under `scripts/` tripped the existing assertion
+  that every `$MANGO_DIR/scripts/…` reference is an executable script — the scan
+  was right, and the file moved to `universal/`. And a `grep -q "\\$$v"` in the
+  new check expanded `$$` to the shell's PID, so grep read the digits as a back
+  reference and reported three variables missing that were all present.
+- **One design change mid-build.** The row first cut its description out of the
+  module's tooltip and rendered `light` for `light drizzle`. It reads waybar's
+  own `alt` field now — the same fix as `jfields`, one layer along.
+- **28 WMO codes written out**, against the one value a test fetch returns. Same
+  lesson as the phone row's five classes; an unrecognised code says so rather
+  than drawing "clear".
+- **This machine now tells open-meteo where it is every 15 minutes.** That is
+  the feature's real price and caching does not reduce it. One host instead of
+  noctalia's two, and it is the host answering the question.
+
+**Corrected after the rebuild.** `custom/weather` shipped in `full` only, on the
+reasoning that `focus` drops the readouts. The running bar is `focus` — so the
+cache had nothing keeping it warm and the control-centre row read `stale` as its
+default rather than its edge case. `focus` drops the *diagnostic* readouts;
+weather is ambient, like the clock. It is in both now, and out of `minimal`
+deliberately. Found by looking at the running system, not the plan.
+
+### The control-centre queue is closed
+
+`DESIGN-control-centre-additions.md` is deleted. Phases 1–4 are canon
+(`docs/adr/0033`, `docs/adr/0038`, `gotchas.md`, `SYSTEM.md`), and both rough
+edges it carried were already in `gotchas.md` — the U+F6FF glyph, now fixed, and
+`network-menu.sh`'s scan cache. Nothing was lost with it.
+
+Its remaining three phases are **decided against, not pending**:
+
+- **Battery** — cheap off `BAT0`, and redundant with the bar module that is in
+  every layout.
+- **Brightness** — `brightnessctl -m` reads fine, but there is no picker to
+  open, so the row would be display-only unless one is written.
+- **Airplane mode** — would be the second thing on screen able to turn wifi off.
+  That is the two-owner shape `docs/adr/0033` exists to prevent, for the least
+  valuable of the three.
+
+The rule for the next row is the one that earned the first four: build it when a
+fact is **invisible everywhere**, the way mic mute was. None of these three is.

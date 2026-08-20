@@ -53,6 +53,7 @@ window#waybar.bottom {
 #custom-idle-inhibitor,
 #custom-phone,
 #custom-control-center,
+#custom-weather,
 #custom-power-profile {
     background: transparent;
     color: @text;
@@ -353,6 +354,30 @@ window#waybar.bottom {
 #custom-phone.connected { color: @text; }
 #custom-phone.warning   { color: @yellow; }
 #custom-phone.critical  { color: @red; }
+
+/* ── Weather ──────────────────────────────────────────────────────── */
+
+/* nf-weather (U+E3xx) is carried by both bar fonts, checked before the glyphs
+   went into weather.sh — but the module also emits digits (" 15°C"), so
+   3270 is named for the same reason #custom-phone names it: Pango falls back
+   per character, and a symbols-only font leaves the temperature in generic
+   monospace beside a clock rendering its own in 3270. */
+#custom-weather {
+    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
+    font-size: 13px;
+    color: @subtext;
+    border-left: 1px solid @overlay;
+}
+
+/* THE POINT OF THE MODULE. `ok` is a current reading; `stale` is the last one
+   open-meteo answered with, served because losing it would be worse — and it
+   MUST NOT look like `ok`, or the bar quietly shows yesterday's temperature as
+   though it were now. `error` is no reading at all, which weather.sh renders as
+   `?` rather than as a number. Three classes, three appearances, deliberately.
+   The script emits no fourth. */
+#custom-weather.ok      { color: @text; }
+#custom-weather.stale   { color: @subtext; opacity: 0.5; }
+#custom-weather.error   { color: @red; }
 
 /* ── Battery ──────────────────────────────────────────────────────── */
 

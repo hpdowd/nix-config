@@ -1,6 +1,10 @@
 # 0041 — Artefacts are generated from the palette, not named
 
-**Status:** Proposed (2026-08-20)
+**Status:** Accepted (2026-08-20). Implemented the same day —
+`docs/PLAN-generated-artefacts.md` has the phases and what each one cost.
+Two artefacts were added to the scope after it was written: **yazi's flavour
+and Zed's theme**, both of which met this record's own test (their colour is
+data in their source) and both of which were blocking `heartbox`.
 
 Amends [0032](0032-the-theme-file-owns-its-artefacts.md) and
 [0034](0034-colour-follows-the-mode-artefacts-do-not.md), which both record the
@@ -56,10 +60,19 @@ colours that should not follow a scheme. A recoloured folder set is not a
 scheme's icon theme, and pretending otherwise would be the drift this repo
 exists to stop. `native = false` finally gets its intended use.
 
-**nvim and Zed stay named.** [0027](0027-one-editor-nvim.md) settled the editor,
-and a hand-tuned scheme's value is concentrated in exactly the treesitter and
-LSP groups a generic sixteen-colour mapping flattens. Zed is trivially
-generatable and is left alone only so the editor story stays one decision.
+**nvim stays named.** [0027](0027-one-editor-nvim.md) settled the editor, and a
+hand-tuned scheme's value is concentrated in exactly the treesitter and LSP
+groups a generic sixteen-colour mapping flattens. `apps.nvim.palette` already
+drives a plugin's own override hook, which is how `heartbox` gets a real nvim
+theme without one existing.
+
+**Zed did NOT stay named, against what this record first said.** It was left
+out on the reasoning above, and that was wrong: Zed's theme is JSON, its key
+set is published, and leaving it named meant an artefact that could never
+follow a new scheme. Generating it also closed a hole this repo had written
+down as unclosable — the theme came from Zed's extension *registry*, and
+`modules/home/programs.nix` recorded it as "the one pair no check here can
+gate". A theme in the generation is gateable.
 
 **`contrastFloor` and `ansiFloor` are demoted from a standard to a tripwire.**
 [0032](0032-the-theme-file-owns-its-artefacts.md) presents them as measurement,

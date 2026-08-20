@@ -2331,6 +2331,7 @@ compositor's stdout and stderr were being written into the greeter's VT buffer.
 - **896 lines of comment added, then 147 removed** in a trimming pass. The
   target in `CLAUDE.md` is a one-line reason plus a pointer; the reasoning
   belongs in the ADR. `mode-theme.nix` went 244 → 178 lines, `modes.nix` 45 → 24.
+
 ### noctalia's templates stay off (0036)
 
 The last open phase of 0034 closed as **no**. The plan had reserved a "safe set"

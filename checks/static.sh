@@ -2010,6 +2010,34 @@ else
 		bad "yazi: the generated flavour does not carry this palette's colours" \
 			"expected #$yz_bg (bg0) and #$yz_accent (accent) in $yazi_flavor"
 	fi
+
+	# THE GLYPHS, BY CODEPOINT. yazi draws its status bar, its border and its
+	# which-key list out of five characters, and every one of them renders as
+	# nothing in a terminal without the font — so a glyph dropped in transit
+	# looks like a faithful copy and reaches the screen as a gap.
+	#
+	# That happened twice writing this file. The powerline separators went
+	# first and were caught; `which.separator` (U+EA9C) went the same way and
+	# was NOT, shipping as two spaces. Both were "verified" by reading the line.
+	#
+	# So: the flavour holds ESCAPES, not characters — TOML resolves them, and
+	# an escape is ASCII, which cannot be lost by anything that mangles UTF-8.
+	# Both halves are asserted: every escape present, and no raw non-ASCII byte
+	# anywhere in the file.
+	glyphmiss=""
+	for esc in '\\u2502' '\\u2588' '\\ue0be' '\\ue0b8' '\\uea9c'; do
+		grep -q -- "$esc" "$yazi_flavor" || glyphmiss="$glyphmiss ${esc#\\\\}"
+	done
+	raw=$(LC_ALL=C grep -c -P '[^\x00-\x7F]' "$yazi_flavor" 2>/dev/null || true)
+	if [[ -n $glyphmiss ]]; then
+		bad "yazi: the generated flavour is missing glyph(s):$glyphmiss" \
+			"each renders as nothing without the font, so the gap looks like a design"
+	elif [[ ${raw:-0} -ne 0 ]]; then
+		bad "yazi: $raw line(s) of the generated flavour hold a raw non-ASCII byte" \
+			"pkgs/yazi-flavor.nix writes \\uXXXX escapes; a literal glyph there is one transcription away from being lost"
+	else
+		ok "yazi: all 5 glyphs are present as escapes, and the flavour is pure ASCII"
+	fi
 fi
 
 # Zed's theme is generated now (docs/adr/0041). This is the check

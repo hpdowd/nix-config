@@ -11,6 +11,20 @@
 #
 # The role assignments reproduce what the four flavours had, with three
 # exceptions marked below where upstream's pick was not a role at all.
+#
+# EVERY GLYPH IS A `\uXXXX` ESCAPE, none is a literal character. A lone
+# backslash is not an escape in a Nix indented string, so the text reaches the
+# TOML unchanged and TOML resolves it — which is how upstream spells its
+# separators too. This is the narrow exception to CLAUDE.md's "glyphs must be
+# literal UTF-8": that rule is about consumers with no escape syntax, and TOML
+# has one.
+#
+# The rule exists because both attempts at typing a glyph here lost it. The
+# powerline separators went first and were caught; `which.separator` (U+EA9C)
+# went too and was NOT — it renders blank in a terminal without the font, so
+# two spaces looked like a faithful copy, and it shipped. checks/static.sh now
+# asserts this file's codepoints rather than trusting either the eye or the
+# diff.
 p: ''
   # GENERATED from modules/home/palette.nix by pkgs/yazi-flavor.nix.
   # docs/adr/0041. Edit the theme file, then rebuild.
@@ -33,7 +47,7 @@ p: ''
   count_cut      = { fg = "#${p.bg0}", bg = "#${p.brMagenta}" }
   count_selected = { fg = "#${p.bg0}", bg = "#${p.fg0}" }
 
-  border_symbol = "│"
+  border_symbol = "\u2502"
   border_style  = { fg = "#${p.bg3}" }
 
   [tabs]
@@ -57,15 +71,10 @@ p: ''
   parent  = { reversed = true }
   current = { reversed = true }
   preview = { underline = true }
-  padding = { open = "█", close = "█" }
+  padding = { open = "\u2588", close = "\u2588" }
 
   [status]
   overall = { }
-  # `\ue0be` LITERALLY, not the glyph. A lone backslash is not an escape in a
-  # Nix indented string, so this reaches the TOML unchanged and TOML resolves
-  # it — which is how upstream's flavours spell it. Typing the glyph here is
-  # the trap CLAUDE.md names: the first attempt lost both characters silently,
-  # and by eye the line looked identical.
   sep_left  = { open = "\ue0be", close = "\ue0b8" }
   sep_right = { open = "\ue0be", close = "\ue0b8" }
 
@@ -85,7 +94,7 @@ p: ''
   cand            = { fg = "#${p.brBlue}" }
   rest            = { fg = "#${p.comment}" }
   desc            = { fg = "#${p.accent}" }
-  separator       = "  "
+  separator       = " \uea9c "
   separator_style = { fg = "#${p.bg2}" }
 
   [confirm]

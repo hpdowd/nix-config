@@ -148,7 +148,7 @@ rec {
     overlay = "2d2e40"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: two named, three generated --------------------------------
+  # --- Artefacts: one named, three generated --------------------------------
   # Rendered SVG widget art, compiled SCSS and names other programs resolve
   # internally. No amount of hex here reaches those four, so the
   # scheme names them instead and `checks/static.sh` asserts each one resolves
@@ -160,9 +160,10 @@ rec {
   # and from the attribute (`mochaMauve`). A GTK theme name matching nothing
   # falls back to Adwaita and looks merely unstyled.
   #
-  # Only the icon set and the yazi flavor are still names. The GTK theme, the
-  # Kvantum theme and the cursor are generated from the colours above
-  # (docs/adr/0041) — the artefacts this file colours rather than names.
+  # Only the icon set is still a name, and it stays one on purpose. The GTK
+  # theme, the Kvantum theme and the cursor are generated from the colours
+  # above (docs/adr/0041); the yazi flavour is written from them too, in
+  # pkgs/yazi-flavor.nix, and left this block entirely.
   packages = {
     gtk = {
       # Generated from this file's colours — docs/adr/0041; see gruvbox.nix.
@@ -188,14 +189,6 @@ rec {
       # for what `paletteCursors` is and why the name is spelled out.
       attr = "paletteCursors";
       name = "mocha-cursors";
-      native = true;
-    };
-    yazi = {
-      owner = "catppuccin";
-      repo = "yazi";
-      rev = "baaf5d1c9427b836fbefd126aa855f9eab7a9d0d";
-      hash = "sha256-L6SApM07CSQk0znEsFP8WaxW+ZHcindXo612r1XcwIg=";
-      file = "themes/mocha/catppuccin-mocha-mauve.toml";
       native = true;
     };
   };

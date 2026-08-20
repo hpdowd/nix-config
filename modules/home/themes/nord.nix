@@ -124,7 +124,7 @@ rec {
     overlay = "3f4757"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: two named, three generated --------------------------------
+  # --- Artefacts: one named, three generated --------------------------------
   # All native, no stand-ins. `nordic` used to supply the GTK theme, the Kvantum
   # theme and the cursors between them. All three are generated from the colours
   # above now (docs/adr/0041), so this scheme no longer names `nordic` at all.
@@ -153,22 +153,6 @@ rec {
       # for what `paletteCursors` is and why the name is spelled out.
       attr = "paletteCursors";
       name = "nord-cursors";
-      native = true;
-    };
-    yazi = {
-      # The repo nixpkgs' own `yaziPlugins.nord` builds from, pinned to the same
-      # revision. Fetched here rather than taken as an attribute because
-      # `packages.yazi` takes a fetch — the upstreams disagree on layout and the
-      # `file` field is what reconciles them.
-      #
-      # NOT `yazi-rs/flavors`: the official collection ships only Catppuccin and
-      # Dracula, which is easy to assume otherwise and produces a build that
-      # fetches fine and copies a path that is not there.
-      owner = "stepbrobd";
-      repo = "nord.yazi";
-      rev = "891f0b3048c21ce48cd73948971ebde7a73b7260";
-      hash = "sha256-EcHFLYNfK4pOMxZ0anWSDUPmTQoYdAohnVAtn0XSoO8=";
-      file = "flavor.toml";
       native = true;
     };
   };

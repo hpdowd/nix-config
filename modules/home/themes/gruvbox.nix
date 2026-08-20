@@ -116,16 +116,19 @@ rec {
     overlay = "3d352c"; # borders, highlight, progress trough
   };
 
-  # --- Artefacts: two named, three generated --------------------------------
-  # All five native — the bar every shipped scheme has to clear. Two are still
-  # NAMED, and neither is guessable from the attribute that builds it: the icon
-  # set, which stays named on purpose, and the yazi flavor, which is fetched.
+  # --- Artefacts: one named, three generated --------------------------------
   # The GTK theme, the Kvantum theme and the cursor are GENERATED from the
-  # colours above (docs/adr/0041), which is why those three names follow a rule.
+  # colours above (docs/adr/0041), which is why their names follow a rule. The
+  # ICON SET is the only one still named, and it stays named on purpose:
+  # upstreams parameterise the folder hue and nothing else, and app icons are
+  # brand colours that must not follow a scheme.
+  #
+  # The yazi flavour left this block entirely — it is 220 lines of colour, so
+  # it is written from the palette in `pkgs/yazi-flavor.nix` and needs no name.
   #
   # NOT what this scheme used before 2026-08-18, which is worth knowing if you
   # are comparing against git history: Kvantum was a lone hand-carried
-  # `.kvconfig`, the yazi flavor was 916 vendored lines under `dotfiles/`, and
+  # `.kvconfig`, the yazi flavour was 916 vendored lines under `dotfiles/`, and
   # the icons were Papirus recoloured yellow rather than a Gruvbox icon set.
   # Nothing here is vendored.
   packages = {
@@ -170,16 +173,6 @@ rec {
       # carries THIS palette's colours.
       attr = "paletteCursors";
       name = "gruvbox-cursors";
-      native = true;
-    };
-    yazi = {
-      owner = "bennyyip";
-      repo = "gruvbox-dark.yazi";
-      rev = "619fdc5844db0c04f6115a62cf218e707de2821e";
-      hash = "sha256-Y/i+eS04T2+Sg/Z7/CGbuQHo5jxewXIgORTQm25uQb4=";
-      # This repo IS a `.yazi` package, so its flavor.toml is at the root —
-      # unlike catppuccin/yazi, which ships bare per-accent TOMLs in a tree.
-      file = "flavor.toml";
       native = true;
     };
   };

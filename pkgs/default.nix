@@ -60,37 +60,16 @@ in
   themeIcons = themePkg themeData.packages.icons;
   themeCursor = themePkg themeData.packages.cursor;
 
-  # The yazi flavor: a `.yazi` PACKAGE — a directory whose entry point is
-  # `flavor.toml`. Assembled rather than fetched whole because the upstreams
-  # disagree on layout: catppuccin/yazi ships bare per-accent TOMLs under
-  # `themes/<variant>/`, yazi-rs/flavors ships one directory per scheme, and the
-  # single-scheme repos put `flavor.toml` at their root. The theme file gives the
-  # path within its own source, so all three shapes land the same way here.
+  # The yazi flavour: a `.yazi` PACKAGE — a directory whose entry point is
+  # `flavor.toml` — and 220 lines of colour with nothing else in it, so it is
+  # WRITTEN rather than fetched (docs/adr/0041).
   #
-  # `cp` a single named file rather than the directory: a path renamed upstream
-  # then fails the BUILD, where a glob would install nothing and yazi would fall
-  # back to its built-in theme with no error anywhere.
-  #
-  # This replaces a 916-line gruvbox flavor that lived under dotfiles/ as
-  # third-party colour *data* — which `checks/static.sh` exempts from the
-  # no-stray-hex rule, and which nothing here should have been hand-editing.
-  themeYazi =
-    let
-      y = themeData.packages.yazi;
-    in
-    prev.runCommand "yazi-flavor-${y.repo}" { } ''
-      mkdir -p "$out"
-      cp ${
-        prev.fetchFromGitHub {
-          inherit (y)
-            owner
-            repo
-            rev
-            hash
-            ;
-        }
-      }/${y.file} "$out/flavor.toml"
-    '';
+  # It used to be four unrelated upstreams — `stepbrobd/nord.yazi`,
+  # `bennyyip/gruvbox-dark.yazi` and two more — that agreed on the schema and
+  # on nothing else, each pinned by rev and hash, and a scheme with no flavour
+  # published could not be adopted at all. `packages.yazi` is gone from the
+  # theme files with them.
+  themeYazi = prev.writeTextDir "flavor.toml" (import ./yazi-flavor.nix themeData);
 
   # ==========================================================================
   # paletteCursors — the cursor set, recoloured from the palette

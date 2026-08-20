@@ -1959,6 +1959,36 @@ if [[ -n ${gtk_path:-} ]]; then
 	fi
 fi
 
+# yazi's flavour is written from the palette now (docs/adr/0041) rather than
+# fetched, so it joins the three artefacts above in the one failure mode they
+# share: a generator that stops reaching its consumer leaves a complete, valid
+# file that the app reads without complaint, in the wrong scheme. yazi is the
+# quietest of the four — an unresolvable flavour just leaves its built-in theme.
+#
+# `flavors/scheme.yazi/flavor.toml` is where `programs.yazi.flavors.scheme`
+# lands it.
+yazi_flavor="$GEN_CFG/yazi/flavors/scheme.yazi/flavor.toml"
+if [[ ! -s $yazi_flavor ]]; then
+	bad "yazi: no flavour at flavors/scheme.yazi/flavor.toml" \
+		"$yazi_flavor — yazi falls back to its built-in theme and says nothing"
+else
+	yz_bg=$(pal '.bg0')
+	yz_accent=$(pal '.accent')
+	yz_n=$(grep -oE '#[0-9a-f]{6}' "$yazi_flavor" 2>/dev/null | sort -u | grep -c . || true)
+	if [[ -z $yz_bg || -z $yz_accent ]]; then
+		bad "yazi: could not read bg0/accent from the resolved palette" \
+			"the check below would pass on nothing"
+	elif [[ $yz_n -lt 10 ]]; then
+		bad "yazi: only $yz_n distinct colours in the generated flavour" \
+			"the scan is broken, not the generator — $yazi_flavor"
+	elif grep -qi "#$yz_bg" "$yazi_flavor" && grep -qi "#$yz_accent" "$yazi_flavor"; then
+		ok "yazi: the generated flavour carries '$PAL_SCHEME''s own $yz_n colours"
+	else
+		bad "yazi: the generated flavour does not carry this palette's colours" \
+			"expected #$yz_bg (bg0) and #$yz_accent (accent) in $yazi_flavor"
+	fi
+fi
+
 # The cursor has a second consumer the scan above cannot see. mango takes the
 # theme by name in its own config and, finding nothing, hands the name to
 # wlroots and carries on — then `setenv`s XCURSOR_THEME from it for every client

@@ -213,6 +213,9 @@
       winboat
 
       # --- System / disk ------------------------------------------------------
+      # nvd is here and NOT in the devShell: the `rebuild` aliases call it, and
+      # from an ordinary shell a devShell-only binary exits 127 silently.
+      nvd
       btrfs-progs
       btdu
       snapper

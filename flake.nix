@@ -247,7 +247,6 @@
           pkgs.deadnix
           pkgs.shellcheck
           pkgs.nix-tree # inspect closures
-          pkgs.nvd # diff two generations
 
           # Here rather than packages.nix: only ever used against this repo,
           # and sops needs this directory's .sops.yaml for the recipients.

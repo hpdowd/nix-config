@@ -78,9 +78,24 @@
     # The flake ref MUST stay quoted: EXTENDED_GLOB makes `#` a pattern
     # operator, so an unquoted ref dies with `zsh: no matches found:` before
     # nixos-rebuild runs. See CLAUDE.md.
-    rebuild = ''sudo nixos-rebuild switch --flake "${config.local.checkout}#thinkpad"'';
+    #
+    # `&& nvd diff` because on a config where reloading without rebuilding looks
+    # exactly like the change having had no effect, seeing what actually moved
+    # is worth a line. `&&`, so a failed rebuild does not diff a system it did
+    # not build.
+    #
+    # THE TWO TAKE DIFFERENT ARGUMENTS, and the obvious pair is wrong for one of
+    # them. `switch` ACTIVATES, so afterwards /run/current-system and
+    # /nix/var/nix/profiles/system are the same path and diffing them prints
+    # nothing, every time, indistinguishable from "nothing changed". So capture
+    # the old system first. `boot` does not activate, so there the two genuinely
+    # differ and the plain form is right.
+    #
+    # rebuild-test is deliberately bare: it creates no profile generation, so
+    # there is nothing to diff against.
+    rebuild = ''prev=$(readlink -f /run/current-system); sudo nixos-rebuild switch --flake "${config.local.checkout}#thinkpad" && nvd diff "$prev" /run/current-system'';
     rebuild-test = ''sudo nixos-rebuild test --flake "${config.local.checkout}#thinkpad"'';
-    rebuild-boot = ''sudo nixos-rebuild boot --flake "${config.local.checkout}#thinkpad"'';
+    rebuild-boot = ''sudo nixos-rebuild boot --flake "${config.local.checkout}#thinkpad" && nvd diff /run/current-system /nix/var/nix/profiles/system'';
     update = ''nix flake update --flake "${config.local.checkout}"'';
     generations = "nixos-rebuild list-generations";
     gc = "sudo nix-collect-garbage --delete-older-than 30d";

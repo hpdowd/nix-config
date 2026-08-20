@@ -282,20 +282,28 @@ than an approximation of one. The first guard stays and is unrelated.
 
 Independent, low-risk, do any of them alone.
 
-### 5a — `allowUnfree` predicate
+### 5a — `allowUnfree` predicate ✅ DONE 2026-08-20
 
 `nix-settings.nix:50` sets `allowUnfree = true`, permitting *any* unfree package
 including one pulled in transitively. Replace with a predicate naming the ones
 actually accepted. Converts a future surprise into a build error.
 
-**Steps**: swap for `allowUnfreePredicate = p: builtins.elem (lib.getName p) [ … ]`,
-build, and add whatever the build names until it goes green. **Budget for
-steam** — nixpkgs splits it across `steam`, `steam-unwrapped` and `steam-run`,
-so the list is longer than the app list and the first failure arrives
-mid-rebuild rather than mid-edit.
+**Landed.** 22 names. The build-until-green loop was the whole exercise: 16 were
+predictable from the two package lists, **six were not** and would never have
+been guessed —
 
-**Verify**: `nix flake check` green, and a deliberately added unfree package
-fails the build naming itself.
+| Found by rebuilding | Why it is there |
+|---|---|
+| `corefonts` | steam's `programs.steam.fontPackages` |
+| `broadcom-bt-firmware`, `b43-firmware`, `xone-dongle-firmware`, `facetimehd-calibration`, `facetimehd-firmware` | `hardware.enableAllFirmware` (`boot.nix:56`), for hardware this ThinkPad has none of |
+
+Listed rather than worked around: the predicate is a record of what is actually
+permitted, not of what was intended. The firmware being unfree *and* useless
+here is a separate question this did not touch — it is now at least visible.
+
+**Verified**: `nix flake check` green, and adding `discord` fails with
+`Refusing to evaluate package 'discord-1.0.153' … because it has an unfree
+license`.
 
 ### 5b — one owner per package ✅ DONE 2026-08-20
 
@@ -490,7 +498,7 @@ third language appears.
 **Verify**: `nix flake check` green, and `git diff -w -B` on step 2's commit
 shows only the residue you read.
 
-### 5f — `nvd` in the rebuild path
+### 5f — `nvd` in the rebuild path ✅ DONE 2026-08-20
 
 On a config where "reloading without rebuilding looks exactly like the change
 having had no effect" is a documented trap, seeing what actually changed is
@@ -502,15 +510,25 @@ every rebuild, and when it breaks you debug your rebuild tool mid-rebuild.
 exits 127 — silently, this repo's signature bug — so moving it into
 `packages.nix` is part of the change, not a follow-up.
 
-**Steps**: move `nvd` from the devShell list in `flake.nix` to
-`modules/home/packages.nix`; extend the three aliases to
-`… && nvd diff /run/current-system /nix/var/nix/profiles/system`. Leave
-`rebuild-test` alone — it creates no profile generation, so there is nothing to
-diff against.
+**Landed**, but ⚠️ **the command this plan specified is wrong for `rebuild`, and
+wrong in this repo's signature way.** `switch` *activates*, so afterwards
+`/run/current-system` and `/nix/var/nix/profiles/system` are **the same path** —
+measured, they are — and diffing them prints nothing every time, which is
+indistinguishable from "nothing changed". The two aliases need different
+arguments:
 
-**Verify**: `rebuild` on a no-op change prints an empty diff rather than
-nothing at all; `command -v nvd` resolves in a login shell, not just the
-devShell.
+| Alias | Diff | Why |
+|---|---|---|
+| `rebuild` | `prev=$(readlink -f /run/current-system); … && nvd diff "$prev" /run/current-system` | switch activates, so the old system must be captured first |
+| `rebuild-boot` | `nvd diff /run/current-system /nix/var/nix/profiles/system` | boot does *not* activate, so these genuinely differ |
+| `rebuild-test` | none | creates no profile generation |
+
+`$(…)` and `"$prev"` pass through a Nix `''…''` string untouched — only `${` is
+interpolation — confirmed by reading the evaluated alias.
+
+**Verified**: `nvd diff` on two real generations prints the closure delta, and
+on identical paths prints `No version or selection state changes` plus a size
+line — output rather than silence, which was the requirement.
 
 ---
 
@@ -616,8 +634,8 @@ the first attempt returned the same answer for all 12 cases.
 | ~~3~~ | ~~**3a** mango config selection~~ | ✅ 2026-08-20 |
 | ~~4~~ | ~~**5c** drop logseq, name winboat~~ | ✅ 2026-08-20 |
 | ~~5~~ | ~~**5b** one owner per package~~ | ✅ 2026-08-20 |
-| 6 | **5f** `nvd` wrapper, **5a** predicate | one commit each; `nvd` moves to `packages.nix` — **next** |
-| 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate |
+| ~~6~~ | ~~**5f** `nvd` wrapper, **5a** predicate~~ | ✅ 2026-08-20 |
+| 7 | **5e** format the shell | exclusions → format → fix `static.sh:397` → gate — **next** |
 | 8 | **5d** comments | the five files listed, then stop |
 
 Nothing above needs a logout, which is what the 3a decision bought.

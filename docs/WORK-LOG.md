@@ -2792,3 +2792,50 @@ stripped** so a version bump cannot silently retire the exemption.
   does not shrink on its own.
 
 The gate is now **117 assertions across 15 sections**.
+
+---
+
+## 2026-08-20 · `nvd` in the rebuild path, and unfree by name
+
+Plan item 6 — §5f and §5a, one commit.
+
+### 5f — and the command the plan specified was wrong
+
+`nvd` moved from the devShell to `packages.nix`, because an alias calling a
+devShell-only binary from an ordinary shell exits 127 silently.
+
+**The plan said to extend all three aliases with
+`nvd diff /run/current-system /nix/var/nix/profiles/system`. That is wrong for
+`rebuild`, and wrong in this repo's signature way.** `switch` *activates*, so
+after it those two paths are the **same** store path — measured on this machine,
+they are identical right now — and the diff prints nothing, every time,
+indistinguishable from "nothing changed". A command added to make change visible
+would have been silent exactly when it mattered.
+
+So the two aliases take different arguments: `rebuild` captures
+`prev=$(readlink -f /run/current-system)` before switching; `rebuild-boot` keeps
+the plain form, because `boot` does not activate and there the two genuinely
+differ. `rebuild-test` stays bare — no profile generation, nothing to diff.
+
+`$(…)` and `"$prev"` survive a Nix `''…''` string untouched; only `${` is
+interpolation. Confirmed by reading the evaluated alias rather than assuming.
+
+### 5a — the predicate, and six names nobody would have guessed
+
+`allowUnfree = true` became `allowUnfreePredicate` over 22 names. Sixteen were
+readable off the two package lists. **Six were only findable by setting the
+predicate and rebuilding until it went green:**
+
+- `corefonts` — steam's `programs.steam.fontPackages`.
+- `broadcom-bt-firmware`, `b43-firmware`, `xone-dongle-firmware`,
+  `facetimehd-calibration`, `facetimehd-firmware` — all from
+  `hardware.enableAllFirmware` in `boot.nix:56`, and all for hardware this
+  ThinkPad does not have.
+
+They are listed rather than worked around: the predicate is a record of what is
+actually permitted, not of what was intended. That the firmware is unfree *and*
+useless here is a separate question, untouched — but now visible, which it was
+not under a blanket `true`. That is the entire argument for the change.
+
+**Verified**: adding `discord` fails with `Refusing to evaluate package
+'discord-1.0.153' … because it has an unfree license`.

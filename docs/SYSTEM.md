@@ -735,7 +735,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
 | `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`) |
-| bar button, `focus` and `minimal` | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode. Not in `full`, which is crowded |
+| bar button, every layout | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
@@ -770,11 +770,30 @@ and a layout is a list of names, so a name with no definition is an **eval
 error** rather than an empty module. Per-layout divergences live in a `tweaks`
 attribute at the call site.
 
+**A layout side is a list of GROUPS, and group order is the same in all three.**
+The first module of each group after the first is emitted as `name#sep`, which
+waybar renders with the style class `sep` and the sheet's one `.sep` rule draws
+the separator — so grouping is declared beside the order rather than inferred
+from fifteen module-keyed borders in the CSS. A layout may drop a module but
+never reposition one, so `SUPER+/` moves nothing two layouts share;
+`checks/static.sh` asserts that, the `.sep` rule's existence, and that no
+module-keyed border comes back. `docs/adr/0042`.
+
+Right-hand groups, in order: notification · cpu memory · network vpn bluetooth
+phone · pulseaudio backlight night-mode · idle-inhibitor power-profile battery ·
+control-center tray · power. On the left: clock weather · workspaces layout ·
+mpris taskbar.
+
 > There is one stylesheet, `style-solid.css`. `style-hud.css` went with hud
 > (`docs/adr/0035`), and a third, `style.css`, was deleted in 2026-08 as
 > unreachable — `current-mode` never held a value that selected it, so its
 > fallback branch could not be taken. Check `waybar-restart.sh` can actually
 > reach a file before adding one.
+
+> The sheet asks for `"Symbols Nerd Font Mono", "3270 Nerd Font", monospace` in
+> its `*` rule, in that order, and `checks/static.sh` asserts it. Symbols first
+> is what puts each icon's ink inside its own cell; 3270 second keeps digits and
+> text in the bar's typeface. `docs/gotchas.md` → Waybar.
 
 Notable custom modules — each is a script under `dotfiles/mango/scripts/`, so if one
 is missing from the bar, **run its script by hand first**:

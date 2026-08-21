@@ -2379,7 +2379,12 @@ else
 				cssmiss+="  $m -> $id (${cfg##*/})"$'\n'
 			# Quoted keys: `.modules-left` is jq for `.modules` MINUS `left`,
 			# which yields null rather than an error and would empty the scan.
-		done < <(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[]' "$cfg" 2>/dev/null)
+			#
+			# `sub("#.*$";"")` drops the group tag a layout appends to the first
+			# module of each group (`network#sep`, docs/adr/0042). Without it
+			# every tagged module derives the id `#network#sep`, matches no rule
+			# and is reported missing.
+		done < <(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[] | sub("#.*$"; "")' "$cfg" 2>/dev/null)
 
 		while IFS= read -r m; do
 			[[ -z $m ]] && continue
@@ -2403,6 +2408,129 @@ else
 			"it renders as an empty module, which is indistinguishable from one that is merely missing:"$'\n'"$fmtempty"
 	else
 		ok "no waybar module renders an empty format"
+	fi
+
+	# ...and the inverse direction, which was missing. A rule outlives the module
+	# it styles in silence: `#custom-scratch-spotify` and `#custom-scratch-equibop`
+	# sat here with no definition in waybar.nix, no layout carrying them and no
+	# other mention anywhere in the repo, because the scan above only ever ran
+	# module -> rule. Same shape as the both-ways palette check, docs/adr/0028.
+	declare -A live=()
+	for cfg in "${CONFIGS[@]}"; do
+		while IFS= read -r m; do
+			[[ -z $m ]] && continue
+			case $m in
+			custom/*) live["#custom-${m#custom/}"]=1 ;;
+			*/*) live["#${m#*/}"]=1 ;;
+			*) live["#$m"]=1 ;;
+			esac
+		done < <(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[] | sub("#.*$"; "")' "$cfg" 2>/dev/null)
+	done
+
+	# Comments out, newlines out: both scans below have to see rules, and a `#id`
+	# written in prose is not one. `#custom-scratch-*` were found through comment
+	# text on the first attempt at this check, which passed for the wrong reason.
+	#
+	# NOT `sed '/\/\*/,/\*\//d'`. A sed range looks for its end pattern from the
+	# NEXT line on, so a one-line `/* ── Tooltip ── */` header opens a range that
+	# only closes at the following comment's `*/` — that ate two thirds of this
+	# sheet, and both scans below passed on the remains. Flatten first, then the
+	# standard non-greedy-by-construction C comment match.
+	css_flat=$(tr '\n' ' ' <"$STYLE_CSS" | sed 's|/\*[^*]*\*\+\([^/*][^*]*\*\+\)*/| |g')
+
+	# Module ids only: `#waybar` is the bar window, not a module.
+	orphan=""
+	rules=0
+	while IFS= read -r id; do
+		[[ -z $id || $id == "#waybar" ]] && continue
+		rules=$((rules + 1))
+		[[ -n ${live[$id]:-} ]] || orphan+="  $id"$'\n'
+	done < <(printf '%s' "$css_flat" | grep -oE '#[a-z][a-z-]*' | sort -u)
+
+	orphan=$(printf '%s' "$orphan" | sort -u)
+	if [[ $rules -eq 0 ]]; then
+		bad "no #id rules read from style-solid.css — the scan is broken, not the sheet"
+	elif [[ -n $orphan ]]; then
+		bad "style-solid.css styles a module no layout carries" \
+			"the module is gone and its rule is not, which nothing else reports:"$'\n'"$orphan"
+	else
+		ok "all $rules styled ids in style-solid.css belong to a module some layout carries"
+	fi
+
+	# Separators are declared by the layout now (docs/adr/0042): a group's first
+	# module is emitted as `name#sep` and `.sep` draws the line. Both halves are
+	# silent on their own — a tag with no rule draws nothing, and the old
+	# module-keyed `border-left` rules would draw lines the layout never asked
+	# for, which is the drift this replaced.
+	tagged=$(jq -r '(.["modules-left"] // []) + (.["modules-right"] // []) | .[] | select(test("#sep$"))' "${CONFIGS[@]}" 2>/dev/null | wc -l)
+	strays=$(printf '%s' "$css_flat" | grep -oE '[^{}]*\{[^{}]*\}' |
+		grep -E 'border-(left|right):' | grep -c '#' || true)
+	if [[ $tagged -eq 0 ]]; then
+		bad "no waybar module carries a #sep tag — every group separator is missing from the bar"
+	elif ! grep -qE '^\.sep \{' "$STYLE_CSS"; then
+		bad "modules carry a #sep tag but style-solid.css has no .sep rule" \
+			"the tags are inert and the bar renders with no separators at all"
+	elif [[ $strays -gt 0 ]]; then
+		bad "a module-keyed border-left/right is back in style-solid.css" \
+			"grouping belongs to the layout — a module-keyed border moves when a layout drops a neighbour (docs/adr/0042)"
+	else
+		ok "$tagged group separators, all drawn by the one .sep rule"
+	fi
+
+	# One canonical group order, and a layout may only DROP a module from it
+	# (docs/adr/0042). Two layouts that disagree about the order of a module they
+	# both carry make SUPER+/ rearrange the bar under you — which is what the
+	# note "so SUPER+/ does not move it" used to ask a reader to maintain by
+	# hand, on a file where a module is one line in a list.
+	order_bad=""
+	order_pairs=0
+	for a in "${CONFIGS[@]}"; do
+		for b in "${CONFIGS[@]}"; do
+			[[ $a < $b ]] || continue
+			A=$(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[] | sub("#.*$"; "")' "$a" 2>/dev/null)
+			B=$(jq -r '(.["modules-left"] // []) + (.["modules-center"] // []) + (.["modules-right"] // []) | .[] | sub("#.*$"; "")' "$b" 2>/dev/null)
+			shared=$(comm -12 <(sort <<<"$A") <(sort <<<"$B"))
+			[[ -z $shared ]] && continue
+			order_pairs=$((order_pairs + 1))
+			oa=$(grep -xF -f <(printf '%s\n' "$shared") <<<"$A")
+			ob=$(grep -xF -f <(printf '%s\n' "$shared") <<<"$B")
+			[[ $oa == "$ob" ]] ||
+				order_bad+="  ${a##*/} vs ${b##*/}"$'\n'
+		done
+	done
+	if [[ $order_pairs -eq 0 ]]; then
+		bad "no pair of waybar layouts shares a module — the order scan is broken, not the layouts"
+	elif [[ -n $order_bad ]]; then
+		bad "two waybar layouts order a shared module differently" \
+			"SUPER+/ then moves it, which reads as the bar rearranging itself:"$'\n'"$order_bad"
+	else
+		ok "$order_pairs layout pairs agree on the order of every module they share"
+	fi
+
+	# The bar's base padding has to sit on `.module` — waybar's own class, on the
+	# same widget as the #id and the #sep tag. Both plausible alternatives were
+	# tried and both fail silently: on `*` it stacks onto the padding of the label
+	# inside a workspace button and the icon inside a tray item, and on
+	# `.modules-right > *` it lands on the EventBox wrapper, which never draws it,
+	# so modules render flush against each other. docs/adr/0042.
+	if ! grep -qE '^\.module \{' "$STYLE_CSS"; then
+		bad "style-solid.css sets no padding on .module" \
+			"the bar has no base spacing, or it is on a widget that does not draw it"
+	elif printf '%s' "$css_flat" | grep -oE '(^|\})[^{}]*\{[^{}]*\}' |
+		grep -E 'padding' | grep -qE '(\*|modules-(left|center|right) >)[^{}]*\{'; then
+		bad "style-solid.css sets padding through \`*\` or \`.modules-* > *\`" \
+			"neither is the module widget: one stacks onto the button and icon padding inside a module, the other lands on the EventBox wrapper and draws nothing"
+	else
+		ok "the bar's base padding is on .module, the widget that carries the #id"
+	fi
+
+	# Reverting the font stack is invisible: the icons still render, just with
+	# their ink hanging out of the cell to the right. docs/gotchas.md -> Waybar.
+	if grep -qE '^\s*font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;' "$STYLE_CSS"; then
+		ok "the bar asks for Symbols Nerd Font Mono before 3270, so icon ink sits inside its cell"
+	else
+		bad "style-solid.css no longer names Symbols Nerd Font Mono ahead of 3270 Nerd Font" \
+			"3270 patches the icons in at a 0.54em advance, so their ink overflows to the right and padding cannot centre it"
 	fi
 fi
 
@@ -2588,7 +2716,7 @@ fi
 # module from every layout is silent — the bar is just one icon shorter.
 inhibitor=0
 for cfg in "${CONFIGS[@]}"; do
-	jq -e '.["modules-right"] | index("custom/idle-inhibitor")' "$cfg" >/dev/null 2>&1 &&
+	jq -e '[.["modules-right"][] | sub("#.*$"; "")] | index("custom/idle-inhibitor")' "$cfg" >/dev/null 2>&1 &&
 		inhibitor=$((inhibitor + 1))
 done
 if [[ $inhibitor -eq 0 ]]; then

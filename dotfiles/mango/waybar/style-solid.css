@@ -5,13 +5,22 @@
 
 @import url("colors.css");
 
+/* Symbols FIRST, 3270 second. 3270 patches the Nerd Font icons in at their
+   natural width but keeps its own narrow 0.54em advance, so the ink overflows
+   the cell to the right and no symmetric padding can centre it — ten of this
+   bar's modules emitted a glyph that did, by up to a full em. Pango falls back
+   per character, so Symbols supplies the icons and 3270 the digits and text.
+   Symbols carries 10,519 codepoints of which only 14 are outside the Nerd Font
+   PUA and the bar prints none of them, so nothing else changes hands.
+   Measured, not assumed: docs/gotchas.md -> Waybar. */
 * {
-    font-family: "3270 Nerd Font", monospace;
+    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
     font-size: 14px;
     font-weight: bold;
     border: none;
     border-radius: 0;
     min-height: 0;
+    margin: 0;
 }
 
 window#waybar {
@@ -57,16 +66,55 @@ window#waybar.bottom {
 #custom-power-profile {
     background: transparent;
     color: @text;
-    border-radius: 0;
-    margin: 0;
-    padding: 0 6px;
+}
+
+/* The bar's base rhythm. `.module` is waybar's own class (AModule.hpp:15), added
+   to the SAME widget that carries the `#id` and the `.sep` tag — the label for
+   an ALabel module, `box_` for taskbar, tray and workspaces.
+
+   Not `*`, which also matches the label inside a workspace button, the image
+   inside a taskbar button and the icon inside a tray item: padding there lands
+   on top of the button's own and reads as excessive spacing. And not
+   `.modules-right > *` either — that matches waybar's EventBox WRAPPER, one
+   level out from the widget the rest of this sheet styles, so the padding went
+   somewhere that does not draw it and modules rendered flush against each
+   other while `.sep` alone still had its gap.
+
+   A class, so `.sep` below can override it: same specificity, later in the
+   sheet, so `.sep` wins. An #id rule setting padding would beat both and take
+   the group gap off one side of a separator; there are none. */
+.module {
+    padding: 0 5px;
+}
+
+/* ── Group separators ─────────────────────────────────────────────── */
+
+/* THE ONLY separator rule. A layout in modules/home/waybar.nix is a list of
+   groups and appends `#sep` to the first module of each group after the first;
+   waybar splits a module name on `#` and adds the suffix as a style class, so
+   the line is drawn wherever the LAYOUT says a group begins. It replaced
+   fifteen `border-left` rules keyed by module, under which the groups were
+   whatever fell out of the modules a layout happened to carry. docs/adr/0042.
+
+   Both sides of the line, deliberately. A border sits BETWEEN margin and
+   padding, so `margin-left` alone puts every pixel of the gap before the line
+   and none after it — which reads as each group shifted left against its own
+   separator, and is how this first shipped. 11px each side, measured off a
+   screenshot, against ~10px between modules inside a group.
+
+   This wins because the base padding above is a class of the same specificity
+   sitting earlier in the sheet. An #id rule that sets padding beats both and
+   takes the gap off one side; there are none, deliberately. */
+.sep {
+    border-left: 1px solid @overlay;
+    margin-left: 6px;
+    padding-left: 11px;
 }
 
 /* ── VPN ──────────────────────────────────────────────────────────── */
 
 #custom-vpn {
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 #custom-vpn.connected {
@@ -75,15 +123,16 @@ window#waybar.bottom {
 
 /* ── Workspaces ───────────────────────────────────────────────────── */
 
-#workspaces {
+/* The buttons carry the padding; the module carries none, so a button
+   background reaches the module edge and the two do not stack. */
+#workspaces,
+#taskbar {
     padding: 0;
-    border-right: 1px solid @overlay;
 }
 
 #workspaces button {
     background: transparent;
     color: @subtext;
-    border-radius: 0;
     padding: 0 8px;
     margin: 0;
     min-width: 18px;
@@ -107,10 +156,6 @@ window#waybar.bottom {
 
 /* ── Taskbar ──────────────────────────────────────────────────────── */
 
-#taskbar {
-    padding: 0;
-}
-
 /* min-width must not exceed the icon, or the icon is not centred. waybar packs
    the GtkImage into the button's box with pack_start (taskbar.cpp: content_.add),
    so it sits at the START of the content box — any width min-width adds beyond
@@ -122,7 +167,6 @@ window#waybar.bottom {
 #taskbar button {
     background: transparent;
     color: @subtext;
-    border-radius: 0;
     padding: 2px 9px;
     margin: 0;
     min-width: 14px;
@@ -161,8 +205,10 @@ window#waybar.bottom {
 #clock {
     font-size: 16px;
     color: @text;
-    padding: 0 14px;
-    border-right: 1px solid @overlay;
+    /* Left only: the 14px this used to carry on both sides was for the screen
+       edge, and on the right it made time-to-weather the widest gap on the bar
+       — wider than a group boundary. */
+    padding: 0 5px 0 12px;
 }
 
 #cpu {
@@ -179,9 +225,6 @@ window#waybar.bottom {
 #memory.warning  { color: @yellow; }
 #memory.critical { color: @red; }
 
-#network {
-  border-left: 1px solid @overlay;
-}
 #network.disconnected { color: @red; }
 
 #tray {
@@ -192,9 +235,6 @@ window#waybar.bottom {
     /* NixOS logo, coloured at rest rather than only on hover. */
     color: @blue;
     font-size: 16px;
-    min-width: 28px;
-    padding: 0 4px;
-    border-left: 1px solid @overlay;
 }
 
 #custom-power:hover {
@@ -202,29 +242,11 @@ window#waybar.bottom {
     background: @overlay;
 }
 
-/* ── Scratchpad indicators ────────────────────────────────────────── */
-
-#custom-scratch-spotify,
-#custom-scratch-equibop {
-    color: @subtext;
-    font-size: 13px;
-    padding: 0 8px;
-    background: transparent;
-    /*border-right: 1px solid @overlay;*/
-}
-
-#custom-scratch-spotify.active,
-#custom-scratch-equibop.active {
-    color: @accent;
-}
-
 /* ── Notifications ────────────────────────────────────────────────── */
 
 #custom-notification {
     color: @subtext;
     font-size: 13px;
-    min-width: 28px;
-    padding: 0 0px;
 }
 
 #custom-notification.notification { color: @yellow; }
@@ -247,7 +269,6 @@ window#waybar.bottom {
 
 #bluetooth { 
   color: @text; 
-  border-left: 1px solid @overlay;
 }
 #bluetooth.connected { color: @accent; }
 #bluetooth.off,
@@ -255,41 +276,22 @@ window#waybar.bottom {
 
 /* ── Audio ────────────────────────────────────────────────────────── */
 
-#pulseaudio {
-  border-left: 1px solid @overlay;
-}
 #pulseaudio.muted { color: @subtext; }
-
-/* ── Backlight ────────────────────────────────────────────────────── */
-
-#backlight {
-   border-left: 1px solid @overlay;
-}
 
 /* ── Night mode ───────────────────────────────────────────────────── */
 
 #custom-night-mode {
     font-size: 13px;
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 #custom-night-mode.on { color: @yellow; }
 
 /* ── Idle inhibitor ───────────────────────────────────────────────── */
 
-/* Same override, and for the same reason as #custom-power-profile below —
-   measured, not assumed. In 3270 nf-md-sleep/sleep_off (U+F04B2/F04B3) carry a
-   1080/2000 advance around ink spanning 0..1836, so 756 units hang out of the
-   cell to the right and no symmetric padding can centre them. Symbols Nerd
-   Font Mono gives both a full 2048/2048 advance with the ink inside it. The
-   comment that used to sit here claimed the opposite. */
 #custom-idle-inhibitor {
-    font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
-    padding: 0 8px;
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 /* The two glyphs differ only by a slash, so the colour carries the state. */
@@ -301,19 +303,9 @@ window#waybar.bottom {
 
 /* ── Power profile ────────────────────────────────────────────────── */
 
-/* font-family is NOT cosmetic here. 3270 patches the Font Awesome icons in at
-   their natural width but keeps its own narrow 0.54em advance, so the ink
-   overflows the cell to the right (fa-circle_half_stroke: advance 1080/2000,
-   ink 0..1846) and symmetric padding cannot centre it — it sat hard against
-   the right border. Symbols Nerd Font Mono gives every one of these glyphs a
-   full 1em advance with the ink centred inside it, so the padding below does
-   what it says. */
 #custom-power-profile {
-    font-family: "Symbols Nerd Font Mono", monospace;
     font-size: 13px;
-    padding: 0 8px;
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 /* These names come from the `class` field of power-profile.sh, which reports
@@ -329,22 +321,11 @@ window#waybar.bottom {
 
 /* ── Phone (KDE Connect) ──────────────────────────────────────────── */
 
-/* Had no rule at all until 2026-08-16, so it rendered flush against
-   #custom-power-profile and read as a second icon inside it; gotchas.md → Waybar.
-
-   Symbols Nerd Font Mono for the same measured reason as power-profile above:
-   in 3270 fa-mobile (U+F10B) overflows its 874/2000 cell by 395 units and the
-   nf-md-battery set by 126. 3270 is named after it and is NOT redundant with
-   the `*` rule — this module also emits digits ("󰂂 85%") and the Symbols font
-   is symbols-only, so without it the percentage falls to generic monospace
-   beside a battery module rendering its own in 3270. Pango falls back per
-   character. */
+/* Had no rule at all until 2026-08-16, so it rendered flush against its
+   neighbour and read as a second icon inside it; docs/gotchas.md -> Waybar. */
 #custom-phone {
-    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
     font-size: 13px;
-    padding: 0 8px;
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 /* phone-status.sh emits `disconnected` and `offline` with empty text, so those
@@ -357,16 +338,9 @@ window#waybar.bottom {
 
 /* ── Weather ──────────────────────────────────────────────────────── */
 
-/* nf-weather (U+E3xx) is carried by both bar fonts, checked before the glyphs
-   went into weather.sh — but the module also emits digits (" 15°C"), so
-   3270 is named for the same reason #custom-phone names it: Pango falls back
-   per character, and a symbols-only font leaves the temperature in generic
-   monospace beside a clock rendering its own in 3270. */
 #custom-weather {
-    font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
     font-size: 13px;
     color: @subtext;
-    border-left: 1px solid @overlay;
 }
 
 /* THE POINT OF THE MODULE. `ok` is a current reading; `stale` is the last one
@@ -380,11 +354,6 @@ window#waybar.bottom {
 #custom-weather.error   { color: @red; }
 
 /* ── Battery ──────────────────────────────────────────────────────── */
-
-#battery {
-  border-right: 1px solid @overlay;
-  border-left: 1px solid @overlay;
-}
 
 #battery.charging,
 #battery.plugged { color: @green; }
@@ -414,7 +383,6 @@ window#waybar.bottom {
 tooltip {
     background: @base;
     border: 1px solid @overlay;
-    border-radius: 0;
     color: @text;
 }
 

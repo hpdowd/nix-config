@@ -1023,20 +1023,28 @@ git by codepoint. Verify with `jq -r` piped through a codepoint dump, not by eye
 A glyph the font lacks renders as an empty box with nothing in any log — check
 with `fc-list ':charset=<hex>' family` before swapping one in.
 
-**Icon-only modules need a font with a full 1em advance.** `custom/power-profile`
-renders in `Symbols Nerd Font Mono`, not the bar's `3270 Nerd Font`: 3270 patches
-Font Awesome icons in at natural width but keeps a narrow 0.54em advance, so the
-ink overflows its cell to the right with all the slack on the left. **Padding
-cannot fix it** — symmetric padding centres the advance box, not the ink. The
-module gets *wider* when fixed, since the real advance was understated.
+**The whole bar asks for `Symbols Nerd Font Mono` before `3270 Nerd Font`**, and
+that ordering is load-bearing. 3270 patches the Nerd Font icons in at their
+natural width but keeps a narrow 0.54em advance, so the ink overflows its cell to
+the right with all the slack on the left. **Padding cannot fix it** — symmetric
+padding centres the advance box, not the ink. A module gets *wider* when fixed,
+since the real advance was understated.
 
-> **A module that also emits text must name `3270 Nerd Font` after the symbols
-> font**, not fall through to generic `monospace`. `Symbols Nerd Font Mono` is
-> symbols-only — it carries no digits and no `%` — so `custom/phone`, which
-> renders `󰂂 85%`, would take its percentage from whatever fontconfig resolves
-> `monospace` to, sitting beside a `battery` module rendering its own in 3270.
-> Pango falls back per character, so listing both gets the glyph from the first
-> and the digits from the second.
+> Font-family **order** is the fix, not fallback. Pango only falls back for a
+> codepoint the first font LACKS, and 3270 has these glyphs — badly — so it wins
+> unless Symbols is named first. Naming Symbols first is safe because it carries
+> 10,519 codepoints of which only 14 are outside the Nerd Font PUA (`U+23FB`–`FE`,
+> `2630`, `2665`, `26A1`, `276C`–`2771`, `2B58`) and the bar prints none of them:
+> icons come from Symbols, digits and text fall through to 3270 per character.
+
+This was four per-module `font-family` overrides until 2026-08-21, on
+`custom/power-profile`, `custom/idle-inhibitor`, `custom/phone` and
+`custom/weather`. **Ten modules needed it** — measured, in 3270 Regular, worst
+overflow first: `custom/notification` and `network` and `pulseaudio` a full em,
+`cpu` and `custom/power` +920, `ext/workspaces` and `custom/control-center` +766,
+`backlight` +756, `memory` +535, `mpris` +305. The four that had it were the four
+someone had looked at. `custom/control-center` was reported as "the icon isn't
+centred in its module", which is what this looks like from the outside.
 
 **Measure the advance, don't infer it from how the glyph looks.** Two comments in
 `style-solid.css` claimed the opposite of what the fonts do and were corrected
@@ -1044,10 +1052,13 @@ only after measuring. `fc-list ':charset=<hex>'` answers whether a glyph exists,
 not whether it fits; for that, read `hmtx` against the glyph's ink bounds:
 
 ```sh
-ft=$(nix eval --raw nixpkgs#python3Packages.fonttools.outPath)
-PYTHONPATH=$(echo "$ft"/lib/python3.*/site-packages) nix shell nixpkgs#python3 \
-  --command python -c '…TTFont(path); hmtx[g] vs glyf[g].xMax…'
+nix shell --impure --expr 'with import <nixpkgs> {}; python3.withPackages (ps: [ ps.fonttools ])' \
+  --command python3 -c '…TTFont(path); hmtx[g] against a BoundsPen over glyphSet…'
 ```
+
+Only the invocation was ever wrong; `glyf[g].xMax` reads correctly for the
+patched icons (they are simple glyphs, not composites). A `BoundsPen` over
+`getGlyphSet()` gives the same number and also covers composites.
 
 `nix shell nixpkgs#python3Packages.fonttools -c python` does **not** work — that
 puts the `ttx` CLI on `PATH` without putting the module on `PYTHONPATH`, and the
@@ -1145,6 +1156,60 @@ empty custom module is indistinguishable from an absent one. `custom/power-profi
 emitted `{"text":""}` for a while because its icons were written as literal
 glyphs and lost in transit; they are `$'\uXXXX'` escapes now, deliberately.
 
+**A separator draws the group; the spacing has to agree with it.** Replacing the
+module-keyed borders left every module on `padding: 0 6px`, so the gap inside a
+group (12px) and the gap between two groups (13px) were the same — the line said
+"new group" and the rhythm said "same group", and the widest gap on the bar was
+`#clock`'s 14px padding sitting between the time and the weather beside it. The
+bar is `padding: 0 5px` with `margin-left: 10px` on `.sep` now: 20–24px between
+groups against ≤12px inside one, measured off a screenshot rather than judged.
+
+> Compensation for the 0.54em advance was scattered through this too, and it all
+> reads as spacing: `padding: 0 8px` on three icon modules, `min-width: 28px` on
+> two more, and a **double space** in ten `format` strings where `battery`,
+> `mpris` and `bluetooth` used one. A glyph overflowing its cell looks jammed
+> against its own number, and the fix people reach for is more space. Fix the
+> font first, then take the compensation back out — otherwise it is doubled.
+
+**A separator keyed to a module moves when a layout drops its neighbour.**
+`style-solid.css` drew the bar's groups with fifteen `border-left` rules keyed by
+module id until 2026-08-21, so grouping was a property of the module while the
+thing it separates is a property of position. `custom/weather`'s one border
+opened a group containing `cpu memory` in `full` and `custom/control-center` in
+`focus`, and twelve of `full`'s sixteen right-hand modules carried a border, so
+nearly every boundary was a line and nothing read as grouped. A layout is a list
+of groups now and the sheet has one `.sep` rule; `docs/adr/0042`.
+
+> waybar turns `network#sep` into the widget `network` with the style class
+> `sep` — `factory.cpp:129` splits the name, `ALabel.cpp:34` adds the class, and
+> `wlr/taskbar.cpp`, `sni/tray.cpp` and `ext/workspace_manager.cpp` each carry
+> the same three lines for their `box_`. **Its config key must carry the suffix
+> too**: the factory looks up `config_[name]`, not `config_[ref]`, so
+> `network#sep` with its settings under `network` renders waybar's defaults and
+> says nothing.
+
+> **The group gap needs a margin AND a padding, and both must live in the `*`
+> rule.** A border is drawn between margin and padding, so `margin-left` puts
+> space *before* the line and `padding-left` puts it *after* — a `.sep` carrying
+> only the margin gives the group its whole gap on one side, which reads as
+> every group shifted left against its own separator. That is how this first
+> shipped and how it was reported.
+>
+> GTK CSS ranks selectors as the web does, so an `#id` rule setting either
+> property beats `.sep` and takes the gap off that side for the module it names.
+> `#workspaces { padding: 0 }` did, and `#workspaces` leads a group in all three
+> layouts.
+>
+> **Style a module through `.module`, waybar's own class** (`AModule.hpp:15`) —
+> it is added to the same widget as the `#id` and the `#sep` tag, so a rule on
+> it reaches exactly what the rest of the sheet reaches. The two obvious
+> alternatives are both wrong and fail differently: `*` also matches the label
+> inside a workspace button, the image inside a taskbar button and the icon
+> inside a tray item, and stacks its padding on the button's own; while
+> `.modules-right > *` matches the **EventBox wrapper** one level out, so the
+> padding is set on a widget that never draws it and every module inside a group
+> renders flush against its neighbour.
+
 **A waybar module with no CSS rule, and one with an empty `format`, both render
 without erroring.** Since 2026-08-20 `checks/static.sh` asserts both, for every
 module every layout carries: a rule exists in `style-solid.css`, and no `format`
@@ -1157,6 +1222,21 @@ module built, validated and rendered as nothing.
 > the keys have to be QUOTED: `.modules-left` is jq for `.modules` minus `left`,
 > which yields null rather than an error — so the first version of the check
 > scanned nothing and only the zero-floor caught it.
+
+**`sed '/\/\*/,/\*\//d'` does not strip CSS comments — it strips most of the
+file.** A sed range looks for its end pattern from the NEXT line on, so a
+one-line `/* ── Tooltip ── */` header opens a range that closes only at the
+following comment's `*/`, taking every rule between them. The first version of
+the rule→module check in `checks/static.sh` scanned the two thirds of
+`style-solid.css` that survived this and passed — including on a deliberately
+planted orphan rule, which is how it was caught. Flatten first, then match
+comments as a unit:
+
+```sh
+tr '\n' ' ' <"$f" | sed 's|/\*[^*]*\*\+\([^/*][^*]*\*\+\)*/| |g'
+```
+
+The tell was the count: 15 styled ids where the sheet has 23.
 
 **And the inverse: a module invisible for long enough loses its stylesheet.**
 `custom/phone` was listed in the `full` layout and in hud's, but had **no CSS

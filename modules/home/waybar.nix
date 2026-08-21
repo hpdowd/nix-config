@@ -114,7 +114,7 @@ let
     };
 
     cpu = {
-      format = "  {usage}%";
+      format = " {usage}%";
       tooltip-format = "CPU: {usage}%\nLoad: {load}";
       interval = 2;
       states = {
@@ -125,8 +125,8 @@ let
     };
 
     memory = {
-      format = "  {percentage}%";
-      format-alt = "  {used:0.1f}·{total:0.1f}G";
+      format = " {percentage}%";
+      format-alt = " {used:0.1f}·{total:0.1f}G";
       tooltip-format = "{used:0.1f} / {total:0.1f} GiB";
       interval = 5;
       states = {
@@ -160,10 +160,10 @@ let
 
     network = {
       interval = 3;
-      format-wifi = "  {essid}";
-      format-ethernet = "󰈀  {ifname}";
-      format-linked = "  No IP";
-      format-disconnected = "  ✗";
+      format-wifi = " {essid}";
+      format-ethernet = "󰈀 {ifname}";
+      format-linked = " No IP";
+      format-disconnected = " ✗";
       format-disabled = "";
       tooltip-format = "{ifname}  {ipaddr}/{cidr}\nGateway: {gwaddr}\nStrength: {signalStrength}%";
       format-alt = "↓{bandwidthDownBytes} ↑{bandwidthUpBytes}";
@@ -199,8 +199,8 @@ let
       # glyphs are non-empty deliberately. docs/gotchas.md -> Waybar for why
       # each of those is load-bearing; docs/adr/0033 for why there is no
       # `custom/microphone`.
-      format = "{icon}  {volume}%  {format_source}";
-      format-muted = "  muted  {format_source}";
+      format = "{icon} {volume}% {format_source}";
+      format-muted = " muted {format_source}";
       format-source = ""; # nf-fa-microphone, U+F130
       format-source-muted = ""; # nf-fa-microphone_slash, U+F131
       tooltip = false;
@@ -224,7 +224,7 @@ let
     };
 
     backlight = {
-      format = "{icon}  {percent}%";
+      format = "{icon} {percent}%";
       format-icons = [
         "󰖔"
         "󰖨"
@@ -436,24 +436,65 @@ let
     spacing = 0;
   };
 
+  # ── Separators are structure ──────────────────────────────────────────────
+  #
+  # A side is a list of GROUPS, flattened here into the flat list waybar wants.
+  # Every group after the first has `#sep` appended to its first member: waybar
+  # splits a module name on `#` (factory.cpp:129), names the widget after the
+  # part before it and adds the part after as a STYLE CLASS (ALabel.cpp:34, and
+  # the same three lines in wlr/taskbar, sni/tray and ext/workspace_manager), so
+  # one `.sep` rule in style-solid.css draws every separator.
+  #
+  # The point is that grouping now belongs to the LAYOUT. It used to be fifteen
+  # `border-left` rules keyed by module, so which groups appeared depended on
+  # which modules a layout happened to carry — `custom/weather` opened a group
+  # containing `cpu memory` in one layout and `custom/control-center` in
+  # another, and neither was chosen. docs/adr/0042.
+  tagGroups =
+    groups:
+    let
+      present = lib.filter (g: g != [ ]) groups;
+    in
+    lib.concatLists (
+      lib.imap0 (i: g: if i == 0 then g else [ "${lib.head g}#sep" ] ++ lib.tail g) present
+    );
+
+  # `foo#sep` -> `foo`. Definitions, tweaks and the assertions are all keyed by
+  # the module's real name; only the emitted list carries the suffix.
+  unTag = n: lib.head (lib.splitString "#" n);
+
   # Assemble a layout. `tweaks` patches a module for this layout only; every
   # such entry is a deliberate divergence and should say why at the call site.
   mkBar =
     {
       left,
-      center ? [ "custom/window" ],
+      center ? [ [ "custom/window" ] ],
       right,
       bar ? { },
       tweaks ? { },
     }:
     let
-      used = left ++ center ++ right;
+      leftM = tagGroups left;
+      centerM = tagGroups center;
+      rightM = tagGroups right;
+      emitted = leftM ++ centerM ++ rightM;
+      used = map unTag emitted;
       unknown = lib.subtractLists (lib.attrNames modules) used;
       # A tweak for a module this layout does not carry is silently ignored by
       # waybar — which is how the old hand-written config-hud.jsonc ended up
       # defining a custom/power it never displayed.
       deadTweaks = lib.subtractLists used (lib.attrNames tweaks);
-      defs = lib.genAttrs used (n: modules.${n} // (tweaks.${n} or { }));
+      # Keyed by the EMITTED name: waybar looks a tagged module's config up under
+      # the suffixed key (factory.cpp passes `config_[name]`, not `config_[ref]`),
+      # so `network#sep` with its settings under `network` renders with waybar's
+      # defaults and nothing says so.
+      defs = lib.genAttrs emitted (
+        n:
+        let
+          b = unTag n;
+        in
+        modules.${b} // (tweaks.${b} or { })
+      );
     in
     assert lib.assertMsg (
       unknown == [ ]
@@ -465,16 +506,19 @@ let
     // bar
     // defs
     // {
-      modules-left = left;
-      modules-center = center;
-      modules-right = right;
+      modules-left = leftM;
+      modules-center = centerM;
+      modules-right = rightM;
     };
 
   toWaybar = name: value: (pkgs.formats.json { }).generate name value;
 
   # ── The three layouts ─────────────────────────────────────────────────────
-  # The clock leads modules-left in every layout and custom/window sits in the
-  # centre, so switching layout with SUPER+/ never moves them.
+  #
+  # Each side is a list of GROUPS, and the group order is the SAME in all three:
+  # a layout may drop a module but never reposition one, so SUPER+/ moves
+  # nothing that both layouts carry. `checks/static.sh` asserts that, because it
+  # is an invariant a plausible-looking edit can break in silence.
   #
   # These are position-INDEPENDENT. The top/bottom variants are derived below
   # rather than written out.
@@ -482,84 +526,118 @@ let
     # full — everything.
     full = mkBar {
       left = [
-        "clock"
-        "ext/workspaces"
-        "custom/layout"
-        "mpris"
-        "wlr/taskbar"
+        # Time and weather are one reading of "what is it like now", so they
+        # share a group and no line divides them.
+        [
+          "clock"
+          "custom/weather"
+        ]
+        [
+          "ext/workspaces"
+          "custom/layout"
+        ]
+        [
+          "mpris"
+          "wlr/taskbar"
+        ]
       ];
       right = [
-        "custom/notification"
-        # Second from the left of modules-right in BOTH layouts that carry it,
-        # so SUPER+/ does not move it. On the right despite pairing with the
-        # clock: modules-left is identical across all three layouts on purpose.
-        #
-        # NOT in `minimal`, which is deliberately near-empty — the
-        # control-centre row is the way in there, and `stale` is that row's
-        # honest state when no module is keeping the cache warm. docs/adr/0038.
-        "custom/weather"
-        "cpu"
-        "memory"
-        "network"
-        "custom/vpn"
-        "bluetooth"
-        "pulseaudio"
-        "backlight"
-        "custom/night-mode"
-        "custom/idle-inhibitor"
-        "custom/power-profile"
-        "custom/phone"
-        "battery"
-        "tray"
-        "custom/power"
+        [ "custom/notification" ]
+        [
+          "cpu"
+          "memory"
+        ]
+        # custom/phone is KDE Connect, so it belongs with the radios rather than
+        # beside the battery it happens to report.
+        [
+          "network"
+          "custom/vpn"
+          "bluetooth"
+          "custom/phone"
+        ]
+        [
+          "pulseaudio"
+          "backlight"
+          "custom/night-mode"
+        ]
+        [
+          "custom/idle-inhibitor"
+          "custom/power-profile"
+          "battery"
+        ]
+        [
+          "custom/control-center"
+          "tray"
+        ]
+        [ "custom/power" ]
       ];
     };
 
     # focus — drops the taskbar and the cpu/memory/phone readouts.
     focus = mkBar {
       left = [
-        "clock"
-        "ext/workspaces"
-        "custom/layout"
-        "mpris"
-      ];
-      right = [
-        "custom/notification"
         # Weather is ambient, not diagnostic — it is not one of the cpu/memory
         # readouts this layout drops. `focus` is the daily layout, so leaving it
         # out left the cache with nothing keeping it warm and the control-centre
         # row parked at `stale` as its DEFAULT rather than its edge case.
-        "custom/weather"
-        "custom/control-center"
-        "network"
-        "custom/vpn"
-        "bluetooth"
-        "pulseaudio"
-        "backlight"
-        "custom/night-mode"
-        "custom/idle-inhibitor"
-        "custom/power-profile"
-        "battery"
-        "tray"
-        "custom/power"
+        [
+          "clock"
+          "custom/weather"
+        ]
+        [
+          "ext/workspaces"
+          "custom/layout"
+        ]
+        [ "mpris" ]
+      ];
+      right = [
+        [ "custom/notification" ]
+        [
+          "network"
+          "custom/vpn"
+          "bluetooth"
+        ]
+        [
+          "pulseaudio"
+          "backlight"
+          "custom/night-mode"
+        ]
+        [
+          "custom/idle-inhibitor"
+          "custom/power-profile"
+          "battery"
+        ]
+        [
+          "custom/control-center"
+          "tray"
+        ]
+        [ "custom/power" ]
       ];
     };
 
     # minimal — battery, tray and power only, plus the one way in to everything
     # else. This is where a single entry point is worth most: the toggles this
     # layout drops are exactly the ones the control centre still reaches.
+    #
+    # No custom/weather: this layout is deliberately near-empty, the
+    # control-centre row is the way in, and `stale` is that row's honest state
+    # when no module is keeping the cache warm. docs/adr/0038.
     minimal = mkBar {
       left = [
-        "clock"
-        "ext/workspaces"
-        "custom/layout"
-        "mpris"
+        [ "clock" ]
+        [
+          "ext/workspaces"
+          "custom/layout"
+        ]
+        [ "mpris" ]
       ];
       right = [
-        "custom/control-center"
-        "battery"
-        "tray"
-        "custom/power"
+        [ "battery" ]
+        [
+          "custom/control-center"
+          "tray"
+        ]
+        [ "custom/power" ]
       ];
       # More room on the right, so the title gets more characters.
       tweaks."custom/window".max-length = 80;

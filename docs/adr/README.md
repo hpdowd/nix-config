@@ -53,6 +53,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0039](0039-the-gate-asserts-its-own-size.md) | The gate asserts its own size | Accepted (applies the floor discipline of [0011](0011-shell-is-gated-too.md) and [0014](0014-declare-the-namer-not-just-the-file.md) to the file that enforces it) |
 | [0040](0040-config-conf-is-a-link-not-a-copy.md) | `config.conf` is a link, not a copy | Accepted (extends the link ownership of [0034](0034-colour-follows-the-mode-artefacts-do-not.md); keeps the `recursive` tree of [0002](0002-out-of-store-dotfiles.md)) |
 | [0041](0041-artefacts-are-generated-not-named.md) | Artefacts are generated from the palette, not named | Accepted (amends [0032](0032-the-theme-file-owns-its-artefacts.md), [0034](0034-colour-follows-the-mode-artefacts-do-not.md)) |
+| [0042](0042-separators-belong-to-the-layout.md) | Bar separators belong to the layout, not to the module | Accepted (extends [0009](0009-generated-config-over-linked-files.md)) |
 
 ## Format
 

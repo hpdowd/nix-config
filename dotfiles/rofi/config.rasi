@@ -38,6 +38,13 @@ configuration {
   show-icons: false;
   drun-display-format: "{name}";
 
+  /* Typing matches whatever the entry's case is. This is rofi's default, and
+   * it is written out anyway for the same reason `lines` is: on rofi 2.0 the
+   * file beats the command line, so `-i` at a call site is not something to
+   * rely on — and `kb-toggle-case-sensitivity` (the backtick) flips it inside a
+   * running menu, which is a keystroke away from every hand-built menu here. */
+  case-sensitive: false;
+
   calc {
     /* Without this, Enter on a result does nothing: rofi-calc writes the
      * result to stdout, and a rofi spawned from a keybind has no stdout

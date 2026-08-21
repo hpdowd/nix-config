@@ -60,7 +60,10 @@ rofi_menu() {
 	# Not zero: rofi draws the prompt and nothing else, which reads as a menu
 	# that failed to load rather than one with nothing to offer.
 	if [ "$n" -lt 1 ]; then n=1; fi
-	printf '%s\n' "$entries" | rofi -dmenu -theme-str "listview { lines: $n; }" "$@"
+	# `-i` as well as `case-sensitive: false` in config.rasi: the file is what
+	# actually decides on rofi 2.0, and this is the half a reader of a menu
+	# script can see.
+	printf '%s\n' "$entries" | rofi -dmenu -i -theme-str "listview { lines: $n; }" "$@"
 }
 
 # noctalia mode runs its own bar, so the three waybar scripts must refuse

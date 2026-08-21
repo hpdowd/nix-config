@@ -2,11 +2,11 @@
 #
 # This file used to BE the palette. It is now the dispatcher, and its interface
 # is deliberately unchanged where it can be: it still evaluates to a flat `rec`
-# attrset of bare hex, so all thirteen colour consumers and `pkgs/default.nix`
+# attrset of bare hex, so all twelve colour consumers and `pkgs/default.nix`
 # read it exactly as before.
 #
 # THE COLOUR KEY NAMES ARE GRUVBOX'S, and every theme file must supply all of
-# them. They outlived the scheme that named them because thirteen consumers and
+# them. They outlived the scheme that named them because twelve consumers and
 # `checks/static.sh` address colours by them; renaming is a separate change from
 # recolouring. Where a name no longer describes its value — Catppuccin's
 # `magenta` is its *pink*, `cyan` its *teal*; Nord's `magenta` slot holds its

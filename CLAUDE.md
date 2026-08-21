@@ -94,7 +94,7 @@ both the package and its config, and values can be shared —
 `modules/home/themes/*.nix` that `modules/home/scheme.nix` names (`docs/adr/0030`;
 switching is that one string plus a rebuild, and five ship: `heartbox`,
 `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`) — feeding
-swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's
+swaylock, imv, nvim, swaync, the lock-background ramp and the bar's
 `colors.css` — and, *per mode*, kitty, foot, rofi, ncspot, Equibop and mango, instead
 of the same hex codes transcribed into four files with nothing keeping them in
 step. A **drifted palette looks deliberate**, which is why it gets a check
@@ -229,7 +229,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — forty-two records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — forty-three records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |

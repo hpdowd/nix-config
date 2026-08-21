@@ -367,10 +367,9 @@ The rule itself now lives in `packages.nix`'s header, where it was missing.
 
 Two of the three are now answered:
 
-- **`fsel` — settled, not open.** nixpkgs is still 3.1.0 at this pin and the
-  override still builds 3.6.0, which is what our `config.toml` is written for.
-  The old note quoted a "delete this block if 3.1.0 is fine" comment that no
-  longer exists. Nothing to do until nixpkgs catches up.
+- **`fsel` — gone, 2026-08-21.** The override that pinned 3.6.0 left with the
+  package: `SUPER+space` is `rofi -show drun` now (`docs/adr/0043`), so there is
+  no version to track against nixpkgs at all.
 - **`nixos-hardware` — the module exists.** `lenovo-thinkpad-l14-amd` is real,
   and this machine is a ThinkPad L14 Gen 5 / Ryzen 5 Pro 7535U. It is a superset
   of the four modules `flake.nix:66-69` already import, plus exactly two kernel

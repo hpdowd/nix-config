@@ -42,20 +42,20 @@ no longer the day-long, ungated job the row above used to describe.
 
 ---
 
-## 1. The palette — one file, thirteen consumers
+## 1. The palette — one file, twelve consumers
 
 **To switch between schemes that already exist, edit `modules/home/scheme.nix`
 — one string — and rebuild.** That is the whole operation; §2 and §3 below are
 only for bringing a *new* scheme in.
 
 `modules/home/palette.nix` is a dispatcher over `modules/home/themes/*.nix` and
-still evaluates to the same flat attrset it always did, so all thirteen
+still evaluates to the same flat attrset it always did, so all twelve
 consumers read it unchanged: **kitty, foot, imv, swaylock, waybar, rofi, mango,
-nvim, swaync, fsel, ncspot, Equibop and the lock-screen background ramp**.
+nvim, swaync, ncspot, Equibop and the lock-screen background ramp**.
 
 Why a file and not a `local.theme` option: `pkgs/default.nix` builds the lock
 ramp and is an **overlay**, so it cannot read `config.*`. An option reaches
-twelve consumers and misses the thirteenth — the one surface nobody looks at
+eleven consumers and misses the twelfth — the one surface nobody looks at
 closely. `docs/adr/0030`.
 
 ### `scheme.nix` is the ARTEFACT scheme; `modes.nix` is the colour one
@@ -170,8 +170,8 @@ matters: the semantic roles are defined in terms of the canonical names, so a
 | `muted` | `bg`, `fg`, `dim`, `accent`, `ok`, `err`, `surface`, `overlay` | ncspot only |
 
 **Values are bare hex, no leading `#`.** Every consumer spells it differently —
-kitty `#rrggbb`, foot bare, GTK CSS `#`, mango `0xrrggbbaa`, fsel and swaync
-decimal `rgb(r, g, b)` — so the shared form is the one they all build from.
+kitty `#rrggbb`, foot bare, GTK CSS `#`, mango `0xrrggbbaa`, swaync decimal
+`rgb(r, g, b)` — so the shared form is the one they all build from.
 
 > **Names outside the ramp earn their place by acquiring a consumer.** `mauve`
 > is the accent and `mantle` is Equibop's recessed background; both are
@@ -405,7 +405,6 @@ G=$(nix eval --raw '.#nixosConfigurations.thinkpad.config.home-manager.users.hen
 grep -r 'color=' "$G/home-files/.config/mango/universal/colors-tiling.conf"
 cat "$G/home-files/.config/nvim/lua/plugins/colorscheme.lua"
 cat "$G/home-files/.config/nvim/lua/config/scheme.lua"
-cat "$G/home-files/.config/fsel/config.toml"
 sed -n '1,16p' "$G/home-files/.config/swaync/style.css"
 ```
 

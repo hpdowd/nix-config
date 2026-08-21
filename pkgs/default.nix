@@ -553,26 +553,6 @@ in
   });
 
   # ==========================================================================
-  # fsel — version override
-  # ==========================================================================
-  # nixpkgs has 3.1.0; our config.toml is written for 3.6.0. Delete once nixpkgs
-  # catches up. Override the GitHub source, not the release tarball —
-  # buildRustPackage needs a Cargo.lock, and only a build catches its absence.
-  fsel = prev.fsel.overrideAttrs (_old: rec {
-    version = "3.6.0";
-    src = prev.fetchFromGitHub {
-      owner = "Mjoyufull";
-      repo = "fsel";
-      tag = version;
-      hash = "sha256-yUenkuZ5ryUSpeGjJPO7xgbMObZ5SeBs8/LKU3ROo4g=";
-    };
-    cargoDeps = prev.rustPlatform.fetchCargoVendor {
-      inherit src;
-      hash = "sha256-WmHrMALgP52OJH1acrB7DMgo/8FMgksPyXpeRL9Q7s0=";
-    };
-  });
-
-  # ==========================================================================
   # Brother MFC-L3740CDW printer driver
   # ==========================================================================
   # Unused — driverless IPP Everywhere works (printing.nix). Kept as fallback.

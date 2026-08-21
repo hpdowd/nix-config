@@ -115,8 +115,8 @@
     EDITOR = "nvim";
     VISUAL = "nvim";
     BUN_INSTALL = "$HOME/.bun";
-    # XDG_CONFIG_HOME stays default; fsel/walker are pointed at
-    # ~/.config/mango per-keybind instead.
+    # XDG_CONFIG_HOME stays default; the mango tree is reached per-keybind
+    # instead.
   };
 
   programs.git = {

@@ -1,6 +1,7 @@
 # 0021 — rofi replaces walker and elephant
 
-**Status:** Accepted (2026-08-14)
+**Status:** Accepted (2026-08-14), **amended 2026-08-21 — the launcher moved to
+rofi too** ([0043](0043-the-launcher-is-rofis-drun.md))
 
 Supersedes [0019](0019-elephant-builds-only-reached-providers.md) (elephant
 builds only the providers something reaches). Follows
@@ -55,7 +56,8 @@ animation rules in `universal/rule.conf` that had never matched anything.
 **Replace walker and elephant with rofi. No daemon, no provider backend, and
 the launcher stays where it was.**
 
-`fsel` keeps `SUPER+space`; noctalia mode keeps its own launcher. rofi is the
+`fsel` keeps `SUPER+space` (**no longer true — [0043](0043-the-launcher-is-rofis-drun.md)**);
+noctalia mode keeps its own launcher. rofi is the
 **menu** layer only — `-dmenu` for the nine scripts, and two plugin modes for
 the two prefixes that were used.
 

@@ -12,11 +12,15 @@
  */
 
 configuration {
-  /* Only the modes something actually reaches. `calc` and `emoji` come from
-   * the two plugins in modules/system/desktop.nix; naming a mode whose plugin
-   * is not built makes `rofi -show calc` print "Mode calc is not found" to a
-   * stderr nobody is reading and exit 1 — a key that does nothing. The list
-   * here and the plugin list there are held together by checks/static.sh. */
+  /* Only the modes something actually reaches: `drun` on SUPER+space, `calc`
+   * and `emoji` on their own keys, and `run` from the mode switcher beside
+   * drun — nothing opened a switcher until drun went on a key.
+   *
+   * `calc` and `emoji` come from the two plugins in
+   * modules/system/desktop.nix; naming a mode whose plugin is not built makes
+   * `rofi -show calc` print "Mode calc is not found" to a stderr nobody is
+   * reading and exit 1 — a key that does nothing. The list here and the plugin
+   * list there are held together by checks/static.sh. */
   modes: "drun,run,calc,emoji";
 
   /* Menu entries carry Font Awesome glyphs ( and friends) in the string
@@ -27,7 +31,10 @@ configuration {
   font: "Hack Nerd Font 11";
 
   /* The glyphs are already in the text; icon lookup would add a per-entry
-   * theme scan for nothing. drun is the exception and is not on a key. */
+   * theme scan for nothing. drun IS on a key now (docs/adr/0043) and still
+   * does without them: icons there would resolve the icon SET, which is a
+   * `native = false` stand-in on this scheme and falls back silently
+   * (docs/adr/0041). */
   show-icons: false;
   drun-display-format: "{name}";
 
@@ -106,27 +113,22 @@ configuration {
   highlight:                   bold;
 }
 
-/* THE MENU HAS TO DRAW ITS OWN EDGE. rofi 2.0 is a LAYER SURFACE —
- * `layerrule=...,layer_name:rofi` in universal/rule.conf is what reaches it,
- * and `mmsg get all-clients` does not list it while it is on screen — so mango
- * draws no border on it, and the `windowrule=...,appid:Rofi` pair above those
- * matches nothing. With `shadows=0` and `layer_shadows=0` there is nothing else
- * separating the menu from a window the same colour behind it.
+/* THE MENU HAS TO DRAW ITS OWN EDGE. rofi 2.0 is a LAYER SURFACE — mango does
+ * not list it in `mmsg get all-clients` and draws no border on it, and with
+ * `shadows=0` and `layer_shadows=0` there is nothing else separating the menu
+ * from a window the same colour behind it.
  *
- * @subtext, NOT @overlay and NOT @accent, and the middle is the point. @overlay
- * was 1.67:1 in gruvbox and 1.45:1 in nord — invisible against @base, which is
- * what most windows here are. @accent is legible (5.94:1) and IS mango's
- * `focuscolor`, but a saturated ring reads as an alert rather than an edge.
- * @subtext is achromatic: it loses the hue and keeps the separation.
- *
- * Measured across every scheme in service, not just the selected one:
- * gruvbox 5.30:1, mocha 7.37:1, mocha-high-contrast 8.42:1, nord 9.25:1.
- * `bg3` and `comment` were the other candidates and both collapse in nord
- * (1.69:1), which is the border this replaced. */
+ * @accent, and it IS mango's `focuscolor` — the launcher wears the ring the
+ * focused window wears. It replaced achromatic @subtext on 2026-08-21, when
+ * SUPER+space became `rofi -show drun`; docs/adr/0043 has the argument.
+ * Measured against @base across every scheme in service, not just the selected
+ * one: heartbox 3.87:1, gruvbox 5.94:1, nord 5.99:1, mocha 8.07:1,
+ * mocha-high-contrast 9.23:1. `bg3` and `comment` are still unusable — both
+ * collapse in nord (1.69:1). */
 window {
   background-color: @base;
   border:           1px;
-  border-color:     @subtext;
+  border-color:     @accent;
   border-radius:    0;
   padding:          0;
   width:            40em;
@@ -211,6 +213,28 @@ element-icon {
   background-color: inherit;
   text-color:       inherit;
   vertical-align:   0.5;
+}
+
+/* THE MODE SWITCHER DRAWS FOR `-show drun` AND FOR NOTHING ELSE — the nine
+ * hand-built menus are `-dmenu`, which is single-mode. It had no rule at all
+ * until SUPER+space became a rofi mode (docs/adr/0043), so it would have
+ * rendered on rofi's own metrics the first time the launcher opened. Flat, and
+ * the selected tab is underlined rather than blocked: `selected-normal-background`
+ * is already the accent block, and two of those in one window compete. */
+mode-switcher {
+  border:       1px 0 0 0;
+  border-color: @overlay;
+}
+
+button {
+  padding:    4px 10px;
+  text-color: @subtext;
+}
+
+button selected {
+  text-color:   @text;
+  border:       0 0 2px 0;
+  border-color: @accent;
 }
 
 /* `-mesg` is unused today, but an unstyled widget inherits rofi's built-in

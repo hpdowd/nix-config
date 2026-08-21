@@ -133,9 +133,9 @@ Two rules follow from this and explain most of the surprises:
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
 │   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
 ├── dotfiles/                  the hand-written dotfiles that remain
-│   ├── mango/                 compositor: modes, waybar CSS, fsel, scripts
+│   ├── mango/                 compositor: modes, waybar CSS, scripts
 │   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
-│   ├── swaync/ glow/ fsel/    apps with no module, or whose module is not adopted
+│   ├── swaync/ glow/          apps with no module, or whose module is not adopted
 │   ├── rofi/                  config.rasi — config AND theme (ADR 0021)
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
@@ -282,7 +282,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `heartbox`. This is the **artefact** scheme: the built artefacts, the icon set, nvim, and every colour consumer not listed in the row below |
 | Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently both are `heartbox` |
 | The per-mode colours themselves | `modules/home/mode-theme.nix` — generates `kitty/colors-<mode>.conf`, `foot/colors-<mode>` and `rofi/colors-<mode>.rasi`, plus the activation seed for the three links. The colours are **not** in `programs.nix` any more |
-| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, fsel, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
+| Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
 | Which schemes exist | `modules/home/themes/`. Five ship: `heartbox`, `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`. All native but `heartbox`'s icon set, which is the repo's one stand-in (`native = false`) and is reported on every run. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
 | The GTK / Qt / cursor theme | GENERATED from the selected theme file's colours by `pkgs/default.nix` — `paletteGtk`, `paletteKvantum`, `paletteCursors` (`docs/adr/0041`). yazi's flavour and Zed's theme are written the same way. Only the **icon set** is still a name in the `packages` block |
 | nvim's colourscheme, Zed's theme, noctalia's scheme | the theme file's `apps` block. nvim and Zed take the **artefact** scheme's; noctalia takes the one `modes.nix` gives its mode, since it runs in that mode only (`docs/adr/0034`) |
@@ -304,7 +304,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode. Its `lines: 12` is a **fixed height** and only the cap for `rofi -show drun\|run\|window\|calc\|emoji`; hand-built menus size themselves through `lib.sh`'s `rofi_menu <max>` (`-theme-str`, since `-l` loses to the theme — `docs/gotchas.md` → rofi). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
-| Launcher entries | fsel's `config.toml` is **generated** in `modules/home/dotfiles.nix`; menu contents are in the `scripts/menus/*.sh` that build them |
+| Launcher entries | The launcher is `rofi -show drun` (`docs/adr/0043`) and its entries are the `.desktop` files in the profiles — nothing to declare; menu contents are in the `scripts/menus/*.sh` that build them |
 | rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for both desktop modes |
 | how tall a menu is | `lib.sh`'s `rofi_menu <max>`, at the call site — **not** `config.rasi`, and never `-l` |
 | Wallpaper | `~/.local/share/mango/wallpaper.png` — **not** in the repo |
@@ -536,8 +536,8 @@ Then revert, in order of how easy each is to miss:
 
 Every **shared** bind can stay exactly as it is: they all name
 `scripts/menus/shell.sh`, whose noctalia branch is only reached when
-`current_mode` says so, which after this is never. The nine fallbacks — fsel,
-rofi, swaync, `lockscreen -f` — are what a machine without noctalia was using
+`current_mode` says so, which after this is never. The nine fallbacks — rofi,
+swaync, `lockscreen -f` — are what a machine without noctalia was using
 anyway. `universal/bind-shared.conf` keeps its name; it was
 `bind-tiling-hud.conf` and that name is the one that would be wrong.
 
@@ -658,7 +658,7 @@ disagreed with the writers about the path, silently. `lib.sh` also holds
 |---|---|
 | `SUPER+Return` | foot (terminal) |
 | `SUPER+SHIFT+Return` | kitty |
-| `SUPER+Space` | Launcher — fsel, or noctalia's own in `noctalia` mode |
+| `SUPER+Space` | Launcher — `rofi -show drun`, or noctalia's own in `noctalia` mode |
 | `SUPER+=` | Calculator (`rofi -show calc`, result to the clipboard) — rofi in every mode |
 | `SUPER+;` | Emoji picker |
 | `SUPER+B` | Zen browser |
@@ -841,8 +841,7 @@ is missing from the bar, **run its script by hand first**:
 
 | Piece | Role |
 |---|---|
-| **fsel** | Primary launcher (`SUPER+Space`), floating foot terminal pinned right |
-| **rofi** | Every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
+| **rofi** | The launcher (`SUPER+Space`, `-show drun` — `docs/adr/0043`) and every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
 | **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
 | **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |

@@ -94,8 +94,8 @@ in
     # profiles carrying one binary makes PATH order decide which you get.
     wayfreeze
 
-    # Launchers & menus
-    fsel # SUPER+Space launcher; the overlay pins 3.6.0
+    # Launchers & menus. SUPER+space is `rofi -show drun` since docs/adr/0043;
+    # there is no separate launcher package any more.
     # nixpkgs `rofi` is the merged wayland fork; `rofi-wayland` is gone. It is
     # a wrapper over `rofi-unwrapped`, so plugins go through `plugins = [...]`
     # — listing them as separate systemPackages entries drops a .so into a

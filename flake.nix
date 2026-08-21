@@ -20,7 +20,7 @@
 
     # --- Third-party flakes --------------------------------------------------
     # Only these two. Everything else once sourced from a flake — mango, walker,
-    # elephant, fsel and the rest — is in nixpkgs (checked 2026-07-27).
+    # elephant and the rest — is in nixpkgs (checked 2026-07-27).
 
     # zen-browser-bin — not in nixpkgs
     zen-browser = {

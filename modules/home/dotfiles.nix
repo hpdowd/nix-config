@@ -31,9 +31,9 @@ let
   # `predefinedScheme`, and those three have to be the same word.
   noctaliaScheme = (modePalette "noctalia").apps.noctalia;
 
-  # Bare "rrggbb" → { r; g; b; } as integers. fsel and swaync both want decimal
-  # channels, which is the spelling that let two copies of the palette hide:
-  # grepping this repo for `d79921` found neither `rgb(215, 153, 33)`.
+  # Bare "rrggbb" → { r; g; b; } as integers. swaync wants decimal channels,
+  # which is the spelling that let a copy of the palette hide: grepping this
+  # repo for `d79921` never found `rgb(215, 153, 33)`.
   rgbOf = c: {
     r = lib.fromHexString (builtins.substring 0 2 c);
     g = lib.fromHexString (builtins.substring 2 2 c);
@@ -518,35 +518,6 @@ in
 
     # --- Store-based ---------------------------------------------------------
     "glow".source = ../../dotfiles/glow; # no home-manager module at this pin
-
-    # fsel has no module, but the whole file is nine settings and two colours —
-    # small enough that generating all of it beats splitting it, so there is no
-    # dotfiles/fsel/ any more. Terminal bg/fg come from foot.
-    #
-    # fsel wants decimal `rgb(r, g, b)`, which is the spelling that hid this
-    # copy of the accent: grepping the repo for `d79921` never found it.
-    "fsel/config.toml".text =
-      let
-        rgb = c: "rgb(${toString (rgbOf c).r}, ${toString (rgbOf c).g}, ${toString (rgbOf c).b})";
-      in
-      ''
-        # GENERATED from modules/home/palette.nix — edit that, then rebuild.
-        highlight_color = "${rgb p.accent}"
-        cursor = "█"
-
-        pin_color = "${rgb p.accent}"
-        pin_icon = "*"
-
-        terminal_launcher = "foot -e"
-
-        [app_launcher]
-        filter_desktop = true
-        filter_actions = false
-        list_executables_in_path = false
-        match_mode = "fuzzy"
-        ranking_mode = "frecency"
-        pinned_order = "ranking"
-      '';
 
     # rofi reads ~/.config/rofi/config.rasi and nothing in the mango tree points
     # at it, so this declaration is the only thing that connects the two

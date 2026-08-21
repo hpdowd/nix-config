@@ -1308,8 +1308,7 @@ done
 #
 # The value checked is the accent in each consumer's own spelling, because the
 # spelling is where copies hid — `d79921` is `0xd79921ff` to mango and
-# `rgb(215, 153, 33)` to fsel and swaync, and a repo-wide grep for the hex found
-# neither.
+# `rgb(215, 153, 33)` to swaync, and a repo-wide grep for the hex found neither.
 # Read the accent from the RESOLVED palette, not from a hex typed here — a
 # check carrying its own copy of the value it is checking passes forever and
 # proves nothing. It used to be read back out of `rofi/colors.rasi`, one of the
@@ -1361,7 +1360,6 @@ while IFS='|' read -r path want label; do
 		ok "$label: $path is generated from the palette"
 	fi
 done <<-EOF
-	fsel/config.toml|${ACCENT_RGB}|fsel
 	swaync/style.css|${ACCENT_RGB}|swaync
 EOF
 # ncspot and Equibop used to be two more rows here, against the ARTEFACT accent.

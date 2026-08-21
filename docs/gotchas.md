@@ -492,11 +492,12 @@ than reporting a merge that was about to be overwritten.
 **The program has to be told where it is, and that pointer is config too.**
 Three cases found on 2026-08-09, all of which looked fully converted:
 `elephant` read `~/.config/elephant/menus.toml` for its menu path, not the
-mango tree the menus lived in; `fsel` reads `~/.config/fsel`, reached only by a
+mango tree the menus lived in; `fsel` read `~/.config/fsel`, reached only by a
 hand-made symlink; the bitwarden provider read
 `~/.config/elephant/bitwarden.toml`. Every bridge was in `@home` and in no
 repo, so all three worked here and on no other machine. All were declared
-(ADR 0014); the elephant pair left with walker.
+(ADR 0014); the elephant pair left with walker, and fsel with the launcher
+(`docs/adr/0043`).
 
 **`rofi` is the live instance of the same shape.** It reads
 `~/.config/rofi/config.rasi` and nothing in the mango tree points at it, so
@@ -826,11 +827,29 @@ list it while it is on screen. mango therefore draws **no border** on it. The
 The consequence is visual and was live for months: with `shadows=0` and
 `layer_shadows=0`, rofi's own 1px `@overlay` edge was the only thing separating
 the menu from a window the same colour behind it — 1.67:1 in gruvbox, 1.45:1 in
-nord. It wears `@subtext` now: **5.30–9.25:1 across the four schemes**, and
-achromatic on purpose. `@accent` is equally legible and is mango's own
-`focuscolor`, but a saturated ring reads as an alert rather than an edge;
-`bg3` and `comment` are calmer still and both collapse to 1.69:1 in nord, which
-is the border being replaced.
+nord. It wore `@subtext` from then until 2026-08-21 and wears **`@accent`**
+now, which is mango's own `focuscolor` — one ring, drawn by whichever surface
+is in front, since the launcher became a rofi mode (`docs/adr/0043`).
+**3.87–9.23:1 against `@base` across the five schemes in service.** `bg3` and
+`comment` are calmer still and both collapse to 1.69:1 in nord, which is the
+border `@subtext` replaced.
+
+**Global options belong on the command line when only one caller wants them.**
+The launcher passes `-matching fuzzy -sort -sorting-method fzf`; the nine
+hand-built `-dmenu` menus want rofi's default matching over their short,
+hand-ordered entries. Unlike `-l` below, the command line **does** win for
+these — `rofi -matching fuzzy -dump-config` is the cheap way to see which way
+a given option resolves, and it is worth checking per option rather than
+assuming either direction.
+
+**A `-dmenu` window never shows a mode switcher, so styling it is invisible
+work until it isn't.** `-dmenu` is single-mode; `-show drun` draws tabs for
+every mode in `modes:`. Until the launcher became one, no window here had ever
+rendered a `mode-switcher`, so it carried no rule and would have come up on
+rofi's own metrics. Its widgets are `mode-switcher` and `button` (plus
+`button selected`), and they resolve colour through the `*` role sweep either
+way — so the failure would have been shape, not colour, which is the harder
+one to notice.
 
 **`lines` is a fixed height, `dynamic` does not fit to contents, and `-l` is
 ignored.** All three at once, which is why every menu on this machine was
@@ -1701,13 +1720,13 @@ the GTK4 SCSS. Nixpkgs has no gruvbox GTK theme that ships `gtk-4.0` — check
 before assuming a rename will do.
 
 **Colours are generated from a single Nix palette** — `modules/home/palette.nix`,
-feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, fsel, Equibop, the
+feeding kitty, foot, swaylock, imv, ncspot, nvim, mango, swaync, Equibop, the
 lock-background ramp, the bar's `colors.css` and rofi's `colors.rasi`. Change it
 once and rebuild. See `docs/adr/0028`.
 
 **Grepping for a hex code does not find every copy of it.** The 2026-08-17 audit
 found twelve copies the palette was not reaching, in five spellings — mango
-writes `0xd79921ff`, fsel and swaync write `rgb(215, 153, 33)`, and nvim and the
+writes `0xd79921ff`, swaync writes `rgb(215, 153, 33)`, and nvim and the
 GTK/Kvantum/cursor/noctalia themes carry no hex at all. A repo-wide grep for
 `d79921` found **neither** decimal copy. `checks/static.sh` now asserts the
 accent is present in each consumer's own spelling, and — the other direction —

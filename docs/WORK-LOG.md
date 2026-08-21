@@ -3011,3 +3011,57 @@ fresh tag with two new windows was equally borderless.
 sit flush. That is what the option existed to prevent, and there is no way to
 keep it without keeping the bug. `checks/static.sh` now fails if either mode
 config sets it back to `1`.
+
+---
+
+## 2026-08-21 · The launcher is a rofi mode, and the ring is the accent
+
+`SUPER+space` was `fsel`, a TUI launched as `foot -a fsel-launcher -e fsel
+--detach` and floated by an appid rule. It worked; what it cost was carried for
+one key. `docs/adr/0043` has the argument.
+
+**Removed:** the package line in `modules/system/desktop.nix`, the version
+override in `pkgs/default.nix` (3.6.0 over nixpkgs' 3.1.0, two hashes to
+re-check on every bump), the generated `fsel/config.toml`, its row in the
+palette table in `checks/static.sh`, and the `appid:fsel-launcher` window rule.
+
+**Added:** nothing but flags.
+
+```sh
+fb_launcher() { rofi -show drun -matching fuzzy -sort -sorting-method fzf; }
+```
+
+`drun` and `run` were already in `config.rasi`'s `modes:` list and reached by
+nothing — the state rofi itself was in before ADR 0021.
+
+**The flags are on the command line on purpose.** `matching` and `sort` are
+global and the nine `-dmenu` menus want rofi's defaults. Verified with
+`rofi -matching fuzzy -dump-config` that the command line wins for both; `-l`
+famously does not, which is why this was checked rather than assumed.
+
+**Two things the swap surfaced that were not asked for.**
+
+- The **mode switcher** had no rule in `config.rasi`. `-dmenu` is single-mode,
+  so no window here had ever drawn one; `-show drun` draws four tabs. Styled
+  flat, selected tab underlined rather than blocked — `selected-normal-background`
+  is already an accent block and two of those in one window compete.
+- **Icons stay off.** drun with `show-icons: true` resolves the icon *set*,
+  which is a `native = false` stand-in on `heartbox` and falls back silently
+  (`docs/adr/0041`).
+
+**The border is `@accent`,** replacing the achromatic `@subtext` chosen when
+rofi drew menus only. The same surface is the launcher now, and `@accent` is
+mango's `focuscolor` — one ring, drawn by whichever of the two is in front.
+Measured against `@base` across every scheme in service: heartbox 3.87:1,
+gruvbox 5.94:1, nord 5.99:1, mocha 8.07:1, mocha-high-contrast 9.23:1.
+
+**The cost:** pinning is gone — `pin_color`, `pin_icon` and `pinned_order` have
+no rofi equivalent, and rofi's own drun history covers only the frecency half.
+The pins were unused, which is the whole of why this is affordable. The sidebar
+geometry goes too: 420×1000 at x=98, against rofi's centred 40em.
+
+`nix flake check` passes, including the rofi-mode scan — which reads
+`-show <mode>` out of the mango tree and asserts rofi loads it, so the new bind
+was gated by an assertion that already existed. **Not yet rebuilt**; the theme
+was verified with `rofi -no-config -theme … -dump-theme` against a copy, which
+parses and leaves no `var(lightbg)`-style built-in unresolved.

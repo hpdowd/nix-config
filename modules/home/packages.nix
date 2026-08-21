@@ -263,5 +263,5 @@
   #   ttf-phosphor-icons   dropped, unreferenced — was a DankMaterialShell dep
   #
   # Packaged locally in ../../pkgs/default.nix:
-  #   fsel (3.5.2), brother-mfc-l3740cdw, curseforge
+  #   brother-mfc-l3740cdw, curseforge
 }

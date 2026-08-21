@@ -22,7 +22,11 @@ set -u
 
 # The tiling half. Functions, not strings: `clipboard` is a pipeline and
 # needs a shell, and quoting a command through a variable does not survive it.
-fb_launcher() { foot -a fsel-launcher -e fsel --detach; }
+# rofi, not fsel-in-foot (docs/adr/0043). Fuzzy matching and fzf sorting on the
+# command line, not in config.rasi: those are global and the hand-built menus
+# below want rofi's default matching. Command line beats config.rasi for both
+# — unlike `-l`, which the theme overrides. docs/gotchas.md -> rofi.
+fb_launcher() { rofi -show drun -matching fuzzy -sort -sorting-method fzf; }
 fb_lock() { lockscreen -f; }
 # 12: cliphist keeps hundreds of entries and this is the menu that would fill
 # the screen. Filtering is the way in, as with the access-point list.

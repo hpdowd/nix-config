@@ -3065,3 +3065,67 @@ geometry goes too: 420×1000 at x=98, against rofi's centred 40em.
 was gated by an assertion that already existed. **Not yet rebuilt**; the theme
 was verified with `rofi -no-config -theme … -dump-theme` against a copy, which
 parses and leaves no `var(lightbg)`-style built-in unresolved.
+
+---
+
+## 2026-08-21 · The weather module grew a forecast, and a way out of the tooltip
+
+**One request now carries everything the tooltip shows.** `fetch()` asks
+open-meteo for 19 fields at `forecast_days=5` instead of 8 at 1 — wind
+direction, mean-sea-level pressure, sunrise/sunset, UV index, daily rain
+probability, and hourly temperature, rain probability, code and daylight. The
+response went from about 1 KB to 5.3 KB, on the same host at the same cadence,
+so nothing new learns where this machine is.
+
+The tooltip reads: now and feels-like, today's range with its rain chance,
+humidity, UV with its WHO band, wind with the compass point it comes from,
+pressure with a trend, sunrise/sunset with the day's length, then the next four
+three-hourly steps and the next four days. Both blocks are byte-padded, which
+aligns exactly — every value in a column carries the same number of multi-byte
+characters, so constant bytes is constant width — and they call `icon_for`, so
+the thirteen-glyph WMO ladder still has one owner.
+
+**The pressure trend is the one fact a single response cannot carry**, so the
+cache stopped being the response verbatim: it holds `.history`, six hours of
+`{t, p}` samples pruned on write. `render()` compares against a sample aged 2–4
+hours and **claims no trend when it has none** — a delta measured over the
+fifteen minutes since the last poll is noise wearing an arrow. Four branches,
+all exercised against doctored caches: falling 1.8 in 3h 1min, rising 2.3 in
+2h 38min, `steady` under 1 hPa, and silence at 40 minutes' separation.
+
+**A fourth verb, `open`.** Right-click on the bar module; second entry on the
+control-centre row, which is a picker now (Refresh now / Open forecast) rather
+than a bare refresh. The page is `local.location.forecastUrl`, generated into
+`weather-location.env` beside the coordinates, defaulting to
+`weather.com/weather/today/l/<lat>,<lon>` — which resolves to that site's city
+page, and is a **second host learning the location**, reached once per click
+rather than four times an hour. That trade is why it is an option: open-meteo's
+own docs page tells nobody new and is one line away. `setsid -f`, because both
+callers wait and `xdg-open` waits on the browser when none is running.
+
+**Three assertions, each mutation-tested.**
+
+| Assertion | Mutation | What it caught |
+|---|---|---|
+| the query and the tooltip name the same fields, per block, both ways | dropped `pressure_msl` from the URL | `current.pressure_msl is read out of the cache and never asked for` |
+| every verb the bar or the control centre passes is implemented | deleted the `open)` branch | `weather.sh is called with a verb it does not implement: open` |
+| the https handler resolves to an installed `.desktop` | `zen.desktop` for `zen-beta.desktop` | `mimeapps.list hands https to zen.desktop and nothing installs it` |
+
+The third is the one worth having: it is exactly the failure `universal/bind.conf`
+records, where the mime association pointed at a nonexistent `zen.desktop` and
+`SUPER+b` silently opened chromium for a month. `weather.sh open` goes through
+that same association, so the gate now covers it.
+
+`render()` costs 30 ms against the old 10 ms. The control-centre render costs
+its slowest row and this is still not it — 73 ms, measured when that menu was
+built.
+
+**Unrelated, in the same pass: menu search is explicitly case-insensitive.**
+`case-sensitive: false` in `config.rasi` and `-i` in `lib.sh`'s `rofi_menu`.
+Both were already rofi's default, so this pins it rather than changes it — the
+file is what actually decides on rofi 2.0, and `kb-toggle-case-sensitivity` (the
+backtick) can flip it from inside a running menu.
+
+**Not rebuilt yet.** `nix flake check` passes; everything under `dotfiles/` is a
+store path, so the new verb and the widened query need a `rebuild` before the
+bar or the control centre sees them.

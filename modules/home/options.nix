@@ -51,6 +51,25 @@
       example = -0.1276;
       description = "Longitude, decimal degrees, east positive.";
     };
+    # Where `weather.sh open` goes. weather.com, which resolves `/l/<lat>,<lon>`
+    # to its own city page — so this is a SECOND host learning where this
+    # machine is, on top of the open-meteo request docs/adr/0038 counts as the
+    # feature's cost. That is a trade, which is why it is an option and not a
+    # constant in the script: `https://open-meteo.com/en/docs?latitude=…` tells
+    # nobody new, and is the value to set if that matters more than the page.
+    #
+    # The coordinates are interpolated rather than templated, so an override is
+    # a whole URL and there is no placeholder language to get wrong.
+    forecastUrl = lib.mkOption {
+      type = lib.types.str;
+      default =
+        "https://weather.com/weather/today/l/"
+        + "${toString config.local.location.latitude}"
+        + ",${toString config.local.location.longitude}";
+      example = "https://www.windy.com/?53.350,-6.260,10";
+      description = "The page a right-click on the weather module opens.";
+    };
+
     name = lib.mkOption {
       type = lib.types.str;
       default = "Dublin";

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: weather.sh <status|read|refresh>
+# Usage: weather.sh <status|read|refresh|open>
 #
 # The one owner of "what the weather is" here; custom/weather and the
 # control-centre row are both readers. docs/adr/0038.
@@ -8,6 +8,8 @@
 #   read     the menu row   cache only, NEVER a socket — that render is parallel
 #                           and costs its slowest row (73 ms). Asserted.
 #   refresh  Enter on it    fetches past the TTL, then signals waybar
+#   open     right-click    hands the coordinates to a browser. No network of
+#                           its own, and no reader — it renders nothing.
 #
 # Three classes, because a served cache that does not say it is one is
 # yesterday's temperature in today's font: `ok`, `stale` (greyed, with its age)
@@ -125,8 +127,13 @@ load_location() {
 
 # Atomic: `mv` after a complete write, so a killed fetch leaves the previous
 # reading intact rather than a truncated file that renders `error` forever.
+#
+# ONE REQUEST CARRIES THE WHOLE TOOLTIP. Every field asked for here is read by
+# render() and every field render() reads is asked for here — checks/static.sh
+# asserts both directions, because a name dropped from this URL is one tooltip
+# line that stops rendering while the six around it stay right.
 fetch() {
-	local tmp out
+	local tmp out hist now
 	load_location || return 1
 	mkdir -p "$STATE_DIR" || return 1
 	tmp=$(mktemp "$CACHE.XXXXXX") || return 1
@@ -136,10 +143,11 @@ fetch() {
 	out=$(curl -sS --fail --max-time 10 --get "$API" \
 		--data-urlencode "latitude=$WEATHER_LAT" \
 		--data-urlencode "longitude=$WEATHER_LON" \
-		--data-urlencode "current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m" \
-		--data-urlencode "daily=temperature_2m_max,temperature_2m_min" \
+		--data-urlencode "current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,pressure_msl" \
+		--data-urlencode "hourly=temperature_2m,precipitation_probability,weather_code,is_day" \
+		--data-urlencode "daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max" \
 		--data-urlencode "timezone=auto" \
-		--data-urlencode "forecast_days=1" 2>/dev/null) || {
+		--data-urlencode "forecast_days=5" 2>/dev/null) || {
 		rm -f "$tmp"
 		return 1
 	}
@@ -147,6 +155,21 @@ fetch() {
 	# A captive portal answers 200 with HTML, and HTML in the cache is a
 	# reading that never expires and never parses.
 	jq -e '.current.temperature_2m != null' >/dev/null 2>&1 <<<"$out" || {
+		rm -f "$tmp"
+		return 1
+	}
+
+	# The trend is the one fact a single response cannot carry, so the cache
+	# keeps six hours of pressure samples and render() compares against one
+	# about three hours old. THE CACHE IS THEREFORE NOT THE RESPONSE VERBATIM.
+	# Fewer than two hours apart, no trend is claimed and the line stops at the
+	# reading — a trend computed over fifteen minutes is noise wearing an arrow.
+	now=$(date +%s)
+	hist=$(jq -c '[.history[]? | select(.t != null and .p != null)]' "$CACHE" 2>/dev/null) || hist=""
+	[ -n "$hist" ] || hist='[]'
+	out=$(jq -c --argjson h "$hist" --argjson now "$now" \
+		'.history = (($h + [{t: $now, p: .current.pressure_msl}])
+			| map(select(.p != null and ($now - .t) <= 21600)))' <<<"$out") || {
 		rm -f "$tmp"
 		return 1
 	}
@@ -174,6 +197,62 @@ human_age() {
 	fi
 }
 
+# Eight points from a bearing. `wind_direction_10m` is where the wind comes
+# FROM, which is why the line printing this says "from": an arrow has to pick a
+# convention and half the world reads it the other way.
+compass() {
+	local deg=${1%%.*}
+	[ -n "$deg" ] || return 0
+	# Doubled, so the boundaries land on 22.5° exactly rather than on 23.
+	case $(((deg * 2 + 45) % 720 / 90)) in
+	0) printf 'N' ;;
+	1) printf 'NE' ;;
+	2) printf 'E' ;;
+	3) printf 'SE' ;;
+	4) printf 'S' ;;
+	5) printf 'SW' ;;
+	6) printf 'W' ;;
+	7) printf 'NW' ;;
+	esac
+}
+
+# WHO's five bands. A bare UV number means nothing to anyone, and the bands are
+# defined on the value, so this TRUNCATES — rounding puts 2.75 in `moderate`,
+# which is the band above the one it is in.
+uv_band() {
+	local n=${1%%.*}
+	[ -n "$n" ] || return 0
+	if [ "$n" -lt 3 ]; then
+		printf 'low'
+	elif [ "$n" -lt 6 ]; then
+		printf 'moderate'
+	elif [ "$n" -lt 8 ]; then
+		printf 'high'
+	elif [ "$n" -lt 11 ]; then
+		printf 'very high'
+	else
+		printf 'extreme'
+	fi
+}
+
+# From two "YYYY-MM-DDTHH:MM" strings, in human_age's units so the tooltip reads
+# in one system. `10#` because 08 and 09 are not octal numbers.
+day_length() {
+	local a=$1 b=$2 m
+	m=$((10#${b:11:2} * 60 + 10#${b:14:2} - (10#${a:11:2} * 60 + 10#${a:14:2})))
+	[ "$m" -lt 0 ] && m=$((m + 1440))
+	printf '%sh %smin' "$((m / 60))" "$((m % 60))"
+}
+
+# waybar sets a custom module's tooltip with set_tooltip_markup, so a bare `&`
+# in the place name is invalid Pango and the tooltip does not appear AT ALL —
+# not "appears wrong". The place name is the only value here that comes from
+# outside this script.
+esc() {
+	local s=${1//&/&amp;}
+	printf '%s' "${s//</&lt;}"
+}
+
 # `alt` is waybar's own key, unused when `format` is "{}", so it carries the
 # phrase the control-centre row wants as a FIELD. Cutting it out of the tooltip
 # instead rendered "light" for "light drizzle" — gotchas.md -> Waybar.
@@ -183,20 +262,63 @@ emit() {
 }
 
 render() {
-	local cls=$1 age=$2 fields code day temp feels hum wind hi lo icon desc tip
+	local cls=$1 age=$2 blob rest fields hourly daily
+	local code day temp feels hum wind wdir press hi lo pop uv sunrise sunset ptenths page
+	local icon desc tip t hcode hday htemp hpop dname dcode dhi dlo dpop rng dir abs
 
-	# One jq, joined on U+001F — `read` with IFS=$'\t' cannot see an empty
-	# leading field, and any of these can be null. gotchas.md -> Scripts.
-	fields=$(jq -r '[
-		.current.weather_code, .current.is_day, .current.temperature_2m,
-		.current.apparent_temperature, .current.relative_humidity_2m,
-		.current.wind_speed_10m,
-		.daily.temperature_2m_max[0], .daily.temperature_2m_min[0]
-	] | map(. // "" | tostring) | join("\u001f")' "$CACHE" 2>/dev/null) || {
+	# One jq for every field the tooltip shows: joined on U+001F inside a block
+	# and U+001E between the three, because `read` with IFS=$'\t' cannot see an
+	# empty leading field and any of these can be null. gotchas.md -> Scripts.
+	# The separators arrive as ARGUMENTS so this file carries no control bytes.
+	blob=$(jq -r --arg us $'\037' --arg rs $'\036' --argjson now "$(date +%s)" '
+		def s: . // "" | tostring;
+		def j: join($us);
+		. as $w
+		| ($w.current.time // "") as $t0
+		| ([range(0; ($w.hourly.time // [] | length))
+		    | select($w.hourly.time[.] > $t0)]) as $fut
+		| ([$fut[0], $fut[3], $fut[6], $fut[9]] | map(select(. != null))) as $pick
+		| (($w.history // [])
+		   | map(select(.t != null and .p != null
+		         and ($now - .t) >= 7200 and ($now - .t) <= 21600))
+		   | sort_by((($now - .t) - 10800) | length) | first) as $ref
+		| [([$w.current.weather_code, $w.current.is_day, $w.current.temperature_2m,
+		     $w.current.apparent_temperature, $w.current.relative_humidity_2m,
+		     $w.current.wind_speed_10m, $w.current.wind_direction_10m,
+		     $w.current.pressure_msl,
+		     $w.daily.temperature_2m_max[0], $w.daily.temperature_2m_min[0],
+		     $w.daily.precipitation_probability_max[0], $w.daily.uv_index_max[0],
+		     $w.daily.sunrise[0], $w.daily.sunset[0],
+		     (if $ref == null or $w.current.pressure_msl == null then null
+		      else (($w.current.pressure_msl - $ref.p) * 10 | round) end),
+		     (if $ref == null then null else ($now - $ref.t) end)] | map(s) | j),
+		   ($pick | map(. as $i |
+		      [$w.hourly.time[$i][11:16],
+		       ($w.hourly.weather_code[$i] | s), ($w.hourly.is_day[$i] | s),
+		       ($w.hourly.temperature_2m[$i] | s),
+		       ($w.hourly.precipitation_probability[$i] | s)] | j) | join("\n")),
+		   ([range(1; ($w.daily.time // [] | length))] | map(. as $i |
+		      [(($w.daily.time[$i] + "T12:00:00Z")
+		        | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime | strftime("%a")),
+		       ($w.daily.weather_code[$i] | s), ($w.daily.temperature_2m_max[$i] | s),
+		       ($w.daily.temperature_2m_min[$i] | s),
+		       ($w.daily.precipitation_probability_max[$i] | s)] | j) | join("\n"))]
+		| join($rs)
+	' "$CACHE" 2>/dev/null) || {
 		emit "$ICON_NA $UNKNOWN" "the cache is unreadable" error "Weather: the cache is unreadable"
 		return
 	}
-	IFS=$'\037' read -r code day temp feels hum wind hi lo <<<"$fields"
+
+	# Split by hand, NOT with `read`: both forecast blocks contain newlines and
+	# `read` stops at the first one.
+	rest=$blob
+	fields=${rest%%$'\036'*}
+	rest=${rest#*$'\036'}
+	hourly=${rest%%$'\036'*}
+	daily=${rest#*$'\036'}
+
+	IFS=$'\037' read -r code day temp feels hum wind wdir press hi lo pop uv \
+		sunrise sunset ptenths page <<<"$fields"
 
 	[ -n "$code" ] && [ -n "$temp" ] || {
 		emit "$ICON_NA $UNKNOWN" "the cached reading has no temperature in it" error \
@@ -207,19 +329,73 @@ render() {
 	icon=$(icon_for "$code" "${day:-1}")
 	desc=$(describe "$code")
 
-	# The bar rounds; the tooltip keeps the decimal.
-	tip="$WEATHER_NAME — $desc"
+	# The bar rounds; the tooltip keeps the decimal. The two forecast blocks
+	# round as well — a column of one-decimal temperatures is four characters of
+	# noise per line.
+	tip="$(esc "$WEATHER_NAME") — $desc"
 	tip+=$'\n'"Now ${temp}°C"
 	[ -n "$feels" ] && [ "$feels" != "$temp" ] && tip+=" (feels ${feels}°C)"
-	[ -n "$hi" ] && [ -n "$lo" ] && tip+=$'\n'"Today ${lo}–${hi}°C"
+	if [ -n "$hi" ] && [ -n "$lo" ]; then
+		tip+=$'\n'"Today ${lo}–${hi}°C"
+		[ -n "$pop" ] && tip+=" · rain ${pop}%"
+	fi
 	[ -n "$hum" ] && tip+=$'\n'"Humidity ${hum}%"
-	[ -n "$wind" ] && tip+=$'\n'"Wind ${wind} km/h"
+	# One decimal, and the band read off THAT figure rather than the raw one, so
+	# the word and the number cannot disagree at a boundary.
+	if [ -n "$uv" ]; then
+		uv=$(printf '%.1f' "$uv")
+		tip+=$'\n'"UV $uv ($(uv_band "$uv"))"
+	fi
+	if [ -n "$wind" ]; then
+		tip+=$'\n'"Wind ${wind} km/h"
+		[ -n "$wdir" ] && tip+=" from $(compass "$wdir")"
+	fi
+	if [ -n "$press" ]; then
+		tip+=$'\n'"Pressure ${press} hPa"
+		# Tenths, as an integer, so nothing here has to do arithmetic on a
+		# float. Under 1 hPa over three hours is `steady` — the word the number
+		# would otherwise invite you to over-read.
+		if [ -n "$ptenths" ] && [ -n "$page" ]; then
+			abs=${ptenths#-}
+			if [ "$abs" -lt 10 ]; then
+				tip+=" · steady"
+			else
+				if [ "$ptenths" = "$abs" ]; then dir=rising; else dir=falling; fi
+				tip+=" · $dir $((abs / 10)).$((abs % 10)) in $(human_age "$page")"
+			fi
+		fi
+	fi
+	[ -n "$sunrise" ] && [ -n "$sunset" ] &&
+		tip+=$'\n'"Sun ${sunrise:11:5} – ${sunset:11:5} · $(day_length "$sunrise" "$sunset")"
+
+	# Both blocks are byte-padded, which aligns them exactly: every value in a
+	# column carries the same number of multi-byte characters, so a constant
+	# byte width is a constant printed width.
+	if [ -n "$hourly" ]; then
+		tip+=$'\n'
+		while IFS=$'\037' read -r t hcode hday htemp hpop; do
+			[ -n "$t" ] || continue
+			[ -n "$htemp" ] && htemp=$(printf '%.0f°C' "$htemp")
+			[ -n "$hpop" ] && hpop="$hpop%"
+			tip+=$'\n'"$(printf '%s  %s %6s %5s' "$t" "$(icon_for "$hcode" "${hday:-1}")" "$htemp" "$hpop")"
+		done <<<"$hourly"
+	fi
+	if [ -n "$daily" ]; then
+		tip+=$'\n'
+		while IFS=$'\037' read -r dname dcode dhi dlo dpop; do
+			[ -n "$dname" ] || continue
+			rng=""
+			[ -n "$dlo" ] && [ -n "$dhi" ] && rng=$(printf '%.0f–%.0f°C' "$dlo" "$dhi")
+			[ -n "$dpop" ] && dpop="$dpop%"
+			tip+=$'\n'"$(printf '%-5s %s %10s %5s' "$dname" "$(icon_for "$dcode" 1)" "$rng" "$dpop")"
+		done <<<"$daily"
+	fi
 
 	# The age is the whole point of the class, so it goes in both the tooltip
 	# and `alt` — the control-centre row sees only `alt`.
 	if [ "$cls" = stale ]; then
 		desc+=" · $(human_age "$age") old"
-		tip+=$'\n'"Stale — last fetched $(human_age "$age") ago"
+		tip+=$'\n\n'"Stale — last fetched $(human_age "$age") ago"
 	fi
 
 	emit "$icon $(printf '%.0f' "$temp")°C" "$desc" "$cls" "$tip"
@@ -291,12 +467,39 @@ do_refresh() {
 	pkill -RTMIN+13 waybar 2>/dev/null || true
 }
 
+# The way out to a page no tooltip can hold. Reached by a RIGHT-click on the
+# bar and by the control centre's second weather row.
+#
+# The URL is `local.location.forecastUrl`, not a constant here: which site it is
+# decides who besides open-meteo learns where this machine is, and that belongs
+# next to the coordinates. docs/adr/0044.
+#
+# `setsid -f` because BOTH callers wait on this and xdg-open waits on the
+# browser when one is not already running — the control-centre loop would hang
+# until Zen exits. The exit status goes with it, so the two failures worth a
+# sentence are checked before the fork, and the third (a mime association
+# pointing at a .desktop that is not installed, which silently opens some other
+# browser) is asserted by checks/static.sh instead.
+do_open() {
+	if [ -z "${WEATHER_URL:-}" ]; then
+		notify-send -u critical "Weather" \
+			"No forecast URL — weather-location.env is not in the generation"
+		return 1
+	fi
+	command -v xdg-open >/dev/null 2>&1 || {
+		notify-send -u critical "Weather" "xdg-open is not on PATH"
+		return 1
+	}
+	setsid -f xdg-open "$WEATHER_URL" >/dev/null 2>&1
+}
+
 case "${1:-status}" in
 status) do_status ;;
 read) do_read ;;
 refresh) do_refresh ;;
+open) do_open ;;
 *)
-	echo "Usage: $0 <status|read|refresh>"
+	echo "Usage: $0 <status|read|refresh|open>"
 	exit 1
 	;;
 esac

@@ -55,6 +55,7 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0041](0041-artefacts-are-generated-not-named.md) | Artefacts are generated from the palette, not named | Accepted (amends [0032](0032-the-theme-file-owns-its-artefacts.md), [0034](0034-colour-follows-the-mode-artefacts-do-not.md)) |
 | [0042](0042-separators-belong-to-the-layout.md) | Bar separators belong to the layout, not to the module | Accepted (extends [0009](0009-generated-config-over-linked-files.md)) |
 | [0043](0043-the-launcher-is-rofis-drun.md) | The launcher is rofi's drun mode; fsel is removed | Accepted (completes [0021](0021-rofi-replaces-walker-and-elephant.md); follows [0034](0034-colour-follows-the-mode-artefacts-do-not.md)) |
+| [0044](0044-one-request-carries-the-tooltip.md) | One request carries the tooltip, and the way past it is a link | Accepted (extends [0038](0038-weather-is-a-bar-module-the-menu-reads.md)) |
 
 ## Format
 

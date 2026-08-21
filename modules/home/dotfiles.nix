@@ -336,6 +336,11 @@ in
       WEATHER_LON=${toString config.local.location.longitude}
       # Quoted: "New York" unquoted is an assignment followed by a command.
       WEATHER_NAME=${lib.escapeShellArg config.local.location.name}
+      # escapeShellArg, which quotes only when it must: today's default needs
+      # none, but an override carrying `&` between query parameters would be a
+      # background job in a bare assignment — and would still LOOK right in the
+      # file. Read by `weather.sh open` alone.
+      WEATHER_URL=${lib.escapeShellArg config.local.location.forecastUrl}
     '';
 
     # The cursor, generated for the same reason and with a sharper failure. This

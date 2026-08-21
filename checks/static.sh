@@ -562,7 +562,7 @@ if [[ -f $WEATHER_SH ]]; then
 			"weather.sh has no coordinates and every reading is an error row: $LOC_ENV"
 	else
 		locmiss=""
-		for v in WEATHER_LAT WEATHER_LON WEATHER_NAME; do
+		for v in WEATHER_LAT WEATHER_LON WEATHER_NAME WEATHER_URL; do
 			grep -q "^$v=" "$LOC_ENV" || locmiss+="  $v"$'\n'
 			grep -q "\$$v" "$WEATHER_SH" || locmiss+="  $v is generated but weather.sh never reads it"$'\n'
 		done
@@ -571,7 +571,7 @@ if [[ -f $WEATHER_SH ]]; then
 		grep -q 'weather-location\.env' "$WEATHER_SH" ||
 			locmiss+="  weather.sh does not name weather-location.env"$'\n'
 		if [[ -z $locmiss ]]; then
-			ok "weather-location.env is generated and weather.sh reads all three of its values"
+			ok "weather-location.env is generated and weather.sh reads all four of its values"
 		else
 			bad "the generated coordinates and weather.sh disagree" "$locmiss"
 		fi
@@ -634,6 +634,91 @@ if [[ -f $WEATHER_SH ]]; then
 			bad "weather.sh's describe() and icon_for() cover different WMO codes" \
 				"a code with a phrase and no glyph draws nf-weather-na and looks merely unsettled:$wmomiss"
 		fi
+	fi
+
+	# 5. THE QUERY AND THE TOOLTIP, from both ends. open-meteo returns exactly
+	#    the fields asked for and says nothing about the rest, so a name dropped
+	#    from the URL is ONE tooltip line that stops rendering while the six
+	#    around it stay right — and a field asked for and never read is a fetch
+	#    nobody uses. Compared per block, so `is_day` under `hourly` cannot
+	#    stand in for `is_day` under `current`.
+	wreq=$(
+		sed -n 's/.*--data-urlencode "\(current\|hourly\|daily\)=\([^"]*\)".*/\1 \2/p' "$WEATHER_SH" |
+			while read -r blk list; do
+				tr ',' '\n' <<<"$list" | sed "/^$/d; s/^/$blk./"
+			done | sort -u
+	)
+	# render() reads the cache as `$w.<block>.<field>`; `.time` comes back
+	# unasked with every block, so it is the one name not in the URL.
+	wused=$(
+		grep -oE '[$]w\.(current|hourly|daily)\.[a-z_0-9]+' "$WEATHER_SH" |
+			sed 's/^[$]w\.//' | grep -vE '\.time$' | sort -u
+	)
+	if [[ -z $wreq || -z $wused ]]; then
+		bad "could not read the open-meteo field lists from weather.sh — the scan is broken, not the repo" \
+			"requested=$(wc -l <<<"$wreq") read=$(wc -l <<<"$wused")"
+	else
+		wfmiss=""
+		for f in $wused; do
+			grep -qxF "$f" <<<"$wreq" || wfmiss+="  $f is read out of the cache and never asked for"$'\n'
+		done
+		for f in $wreq; do
+			grep -qxF "$f" <<<"$wused" || wfmiss+="  $f is asked for and never read"$'\n'
+		done
+		if [[ -z $wfmiss ]]; then
+			ok "all $(wc -l <<<"$wreq") open-meteo fields weather.sh requests are read by render(), and no others"
+		else
+			bad "weather.sh's request and its tooltip disagree about fields" "$wfmiss"
+		fi
+	fi
+
+	# 6. EVERY VERB A CALLER PASSES EXISTS. `weather.sh open` with no `open`
+	#    branch prints usage to a stderr nobody reads and exits 1 — a
+	#    right-click that does nothing whatever, which is the outcome
+	#    menus/control-center.sh refuses to have. docs/adr/0038.
+	wverbs=$(sed -n '/^case /,/^esac/p' "$WEATHER_SH" | sed -n 's/^\([a-z]\+\)).*/\1/p' | sort -u)
+	wcallers=$(
+		{
+			jq -r '.["custom/weather"] | to_entries[] | .value | strings' \
+				"$WAYBAR_DIR/config-full-top.jsonc" 2>/dev/null |
+				grep -oE 'weather\.sh [a-z]+'
+			# The closing quote is load-bearing here: "a class weather.sh does
+			# not emit" is a sentence in that file, and `does` is not a verb.
+			grep -oE 'weather\.sh" [a-z]+' "$CC" 2>/dev/null
+		} | awk '{print $2}' | sort -u
+	)
+	if [[ -z $wverbs || -z $wcallers ]]; then
+		bad "could not read weather.sh's verbs from both sides — the scan is broken, not the repo" \
+			"implemented=[${wverbs//$'\n'/ }] called=[${wcallers//$'\n'/ }]"
+	else
+		wvmiss=""
+		for v in $wcallers; do
+			grep -qxF "$v" <<<"$wverbs" || wvmiss+=" $v"
+		done
+		if [[ -z $wvmiss ]]; then
+			ok "every weather.sh verb the bar and the control centre call is implemented: ${wcallers//$'\n'/ }"
+		else
+			bad "weather.sh is called with a verb it does not implement:$wvmiss" \
+				"it prints usage and exits 1, so the click does nothing at all"
+		fi
+	fi
+
+	# 7. THE BROWSER `open` REACHES. xdg-open resolves this through
+	#    mimeapps.list and falls back to whatever else claims the scheme when
+	#    the .desktop it names is not installed — silently, which is how
+	#    SUPER+b opened chromium for a month (universal/bind.conf).
+	whandler=$(
+		sed -n 's|^x-scheme-handler/https=||p' "$GEN_CFG/mimeapps.list" 2>/dev/null |
+			tr ';' '\n' | sed '/^$/d' | head -1
+	)
+	if [[ -z $whandler ]]; then
+		bad "no https handler in the generated mimeapps.list" \
+			"weather.sh open lands wherever xdg-open guesses"
+	elif [[ -e "$GEN/home-path/share/applications/$whandler" || -e "$SYS/sw/share/applications/$whandler" ]]; then
+		ok "https opens $whandler, which this generation installs — weather.sh open reaches it"
+	else
+		bad "mimeapps.list hands https to $whandler and nothing installs it" \
+			"xdg-open falls back to another browser without saying so"
 	fi
 fi
 

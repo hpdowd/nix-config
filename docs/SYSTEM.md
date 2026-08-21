@@ -734,7 +734,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
-| `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`) |
+| `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`). Weather is the one row whose Enter opens a picker rather than doing a thing — Refresh now, or Open forecast, which closes the panel (`docs/adr/0044`) |
 | bar button, every layout | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
@@ -804,7 +804,7 @@ is missing from the bar, **run its script by hand first**:
 | `custom/power-profile` | `system/power-profile.sh` | `RTMIN+11` |
 | `custom/night-mode` | `menus/night-mode.sh` | `RTMIN+9` |
 | `custom/phone` | `kdeconnect/phone-status.sh` | 30 s |
-| `custom/weather` | `system/weather.sh` | `RTMIN+13`, plus a 300 s poll (`full` and `focus`) |
+| `custom/weather` | `system/weather.sh` | `RTMIN+13`, plus a 300 s poll (`full` and `focus`). Left-click refetches, **right-click opens the forecast page** |
 
 > **`phone-status.sh` takes verbs: `status` (the default, so waybar's argument-less
 > `exec` still works) and `ring`.** The KDE Connect device id is written **once**,
@@ -812,17 +812,29 @@ is missing from the bar, **run its script by hand first**:
 > `… ring` rather than spelling `kdeconnect-cli -d <id> --ring` again. `ring`
 > `notify-send`s when the phone is unreachable instead of failing silently.
 
-> **`weather.sh` takes three verbs and only two may touch the network:**
+> **`weather.sh` takes four verbs and only two may touch the network:**
 > `status` (the bar — fetches when the 900 s cache has expired), `read` (the
 > control-centre row — cache only, never a socket, because that menu renders in
-> parallel and costs its slowest row) and `refresh` (Enter on that row — fetches
-> past the cache, then raises `RTMIN+13` so the bar moves too). Coordinates come
-> from `local.location` in `modules/home/options.nix` via the generated
+> parallel and costs its slowest row), `refresh` (fetches past the cache, then
+> raises `RTMIN+13` so the bar moves too) and `open` (hands
+> `local.location.forecastUrl` to `xdg-open` — no network of its own, and it
+> renders nothing). Coordinates come from `local.location` in
+> `modules/home/options.nix` via the generated
 > `mango/universal/weather-location.env`; the cache is `$STATE_DIR/weather.json`.
 > A reading served from a failed fetch is `class` `stale`, greyed, with its age
 > in the tooltip. **`minimal` carries no weather module**, so nothing keeps the
-> cache warm there and the control-centre row is normally `stale` until Enter —
+> cache warm there and the control-centre row is normally `stale` until Refresh —
 > `docs/adr/0038`.
+
+> **One fetch carries the whole tooltip** — 19 fields, `forecast_days=5`. Now,
+> feels-like, today's range and rain chance, humidity, UV with its WHO band,
+> wind with the compass point it blows from, pressure with a trend over about
+> three hours, sunrise/sunset with the day's length, then the next four
+> three-hourly steps and the next four days. The trend is the one fact a single
+> response cannot carry, so the cache also keeps six hours of pressure samples
+> and claims nothing when they are too close together. `checks/static.sh`
+> asserts the query and the tooltip name the same fields, in both directions —
+> `docs/adr/0044`.
 | `custom/power` | — opens wlogout | — |
 
 > **`pulseaudio` is one module showing two devices.** `{format_source}` in its

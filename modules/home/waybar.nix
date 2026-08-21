@@ -322,6 +322,9 @@ let
       interval = 300;
       signal = 13;
       on-click = "${s}/system/weather.sh refresh";
+      # The tooltip is a reading, not a forecast site. Right-click is the way
+      # out to one, and the verb is the script's so the bar holds no URL.
+      on-click-right = "${s}/system/weather.sh open";
       tooltip = true;
     };
 

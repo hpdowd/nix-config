@@ -469,9 +469,28 @@ act_power() { "$MANGO_DIR/scripts/system/power-profile-cycle.sh"; }
 # rather than returning silently — an action that appears to do nothing is the
 # one outcome a row must never have.
 act_phone() { "$MANGO_DIR/scripts/kdeconnect/phone-status.sh" ring; }
-# The only action here that goes to the network. Signals waybar too, so the bar
-# and this row move together.
-act_weather() { "$MANGO_DIR/scripts/system/weather.sh" refresh; }
+# Two useful things to do with a reading, so this row is a PICKER rather than a
+# verb — the shape act_network and act_volume already have. `refresh` stays
+# first: in `minimal` no bar module keeps the cache warm, so it is what the row
+# is FOR, and it is the only action in this menu that goes to the network.
+#
+# `open` hands the screen to a browser, so it closes the panel. The two labels
+# are named for the same reason LABEL is: the printed list and the case that
+# dispatches it cannot then drift apart.
+WEATHER_REFRESH="Refresh now"
+WEATHER_OPEN="Open forecast"
+act_weather() {
+	local choice
+	choice=$(printf '%s\n%s\n' "$WEATHER_REFRESH" "$WEATHER_OPEN" |
+		rofi_menu 2 -no-custom -p "Weather") || return 0
+	case "$choice" in
+	"$WEATHER_REFRESH") "$MANGO_DIR/scripts/system/weather.sh" refresh ;;
+	"$WEATHER_OPEN")
+		"$MANGO_DIR/scripts/system/weather.sh" open
+		close=1
+		;;
+	esac
+}
 act_dnd() { swaync-client -d -sw >/dev/null; }
 act_notify() {
 	swaync-client -t -sw

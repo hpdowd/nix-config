@@ -492,6 +492,18 @@ findings and several describing state that a later round changed; `index.scss`
 reached 74% comment. Consolidated to one entry, 342 lines to 114. Write one
 entry per session and rewrite it as the work moves.
 
+**Caps-for-emphasis is gone from the files that can take a script.** 321
+comment lines across 34 files, `NOT` (75 uses) and the rest to normal case,
+proved a no-op by drvPath with `dotfiles/` held out.
+
+**25 `.nix` files are still shouting, and scripting them is what does not work.**
+They embed script bodies in `''` strings where a `#` line is data. Two attempts
+at detecting those spans both moved the hash — the second understood `''$`,
+`'''` and `''\\` escapes and still missed something — and the tell is a changed
+`swayidle.service`, `wlogout/layout` and `gtk-4.0/gtk.css`, from `lockscreen`
+and `palette-gtk` rebuilding. **Read those 25 rather than scripting them**, or
+skip them: the gain is cosmetic and the failure is silent.
+
 **Still open: house phrasing.** `which is why` ×51, `reads as` ×56, `rather than
 a` ×136 across docs and comments. That is a prose rewrite of ~19,000 lines, not
 a cut, and it needs its own decision about how far to take it.

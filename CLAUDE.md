@@ -97,8 +97,8 @@ switching is that one string plus a rebuild, and five ship: `heartbox`,
 swaylock, imv, nvim, swaync, the lock-background ramp and the bar's
 six generated layouts — and, *per mode*, kitty, foot, rofi, ncspot, Equibop and mango, instead
 of the same hex codes transcribed into four files with nothing keeping them in
-step. A **drifted palette looks deliberate**, which is why it gets a check
-rather than a convention: `checks/static.sh` asserts every generated colour is
+step. A **drifted palette looks deliberate**, so it gets a check rather than a
+convention: `checks/static.sh` asserts every generated colour is
 used and every reference resolves.
 
 **Most of what the palette could not colour is now generated from it**
@@ -260,7 +260,7 @@ adding more works against that. A one-line reason plus a pointer is the target.
 
 Documentation, comments and commit messages here are **direct and concise**. The
 argument lives in one place — the ADR or the gotchas entry — and everything else
-points at it. Writing it twice is not thoroughness; it is two copies that drift.
+points at it. Writing it twice creates two copies that drift.
 
 - **Comments: a one-line reason plus a pointer.** `# <what and why>. docs/adr/00NN`
   A file past ~30% comment is a signal to move text out, not a well-documented

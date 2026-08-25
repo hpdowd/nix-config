@@ -803,7 +803,7 @@ stops working; don't assume the module owns the behaviour.
 **`pam_fprintd`'s `timeout` fires once; `max-tries` is a different counter.** A
 timeout returns `PAM_AUTHINFO_UNAVAIL` immediately rather than consuming a try,
 so an *untouched* sensor costs `timeout` seconds and no more — upstream's default
-30 s is the whole of the stall people mistake for a hang. `max-tries` (default 3)
+30 s is the stall people mistake for a hang. `max-tries` (default 3)
 only counts real `verify-no-match` results, i.e. a finger that was read and
 rejected, each getting a fresh `timeout` window. Set via
 `rules.auth.fprintd.settings`, **not** `args` — `args` is computed from

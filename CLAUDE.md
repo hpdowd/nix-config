@@ -67,7 +67,7 @@ including several theories that looked right and were not.
 |---|---|
 | zsh | new shell, or `source ~/.config/zsh/conf.d/<file>.zsh` |
 | Mangowm | `~/.config/mango/scripts/reload.sh` — never under sudo |
-| mode / waybar | `mango-reload`, `waybar-reload` |
+| mode / bar | `mango-reload`; the bar is `~/.config/mango/scripts/wayle/wayle-restart.sh` (docs/adr/0045) |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
 | foot, zed, htop, imv, yazi | restart the app |
@@ -95,7 +95,7 @@ both the package and its config, and values can be shared —
 switching is that one string plus a rebuild, and five ship: `heartbox`,
 `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`) — feeding
 swaylock, imv, nvim, swaync, the lock-background ramp and the bar's
-`colors.css` — and, *per mode*, kitty, foot, rofi, ncspot, Equibop and mango, instead
+six generated layouts — and, *per mode*, kitty, foot, rofi, ncspot, Equibop and mango, instead
 of the same hex codes transcribed into four files with nothing keeping them in
 step. A **drifted palette looks deliberate**, which is why it gets a check
 rather than a convention: `checks/static.sh` asserts every generated colour is
@@ -137,14 +137,19 @@ every mode that runs them must wear `scheme.nix`'s scheme, and only `noctalia`
 — which runs neither — may differ. Build-time modes were rejected — they buy only the half
 that is already one line.
 
-**Four link paths are owned by `apply_theme` and by nothing else** —
-`kitty/current-theme.conf`, `foot/themes/noctalia`, `rofi/colors.rasi`,
-`ncspot/config.toml`. None may become an `xdg.configFile`; that is the
-two-owners activation failure, and `checks/static.sh` asserts they are absent
-from the generation. For ncspot that means **`programs.ncspot.settings` must
-stay `{ }`** — the module claims the path the moment it holds one value. A
-missing link is silent in kitty, rofi and ncspot and **fatal in foot**, which is
-why `mode-theme.nix` seeds them at activation — see `docs/gotchas.md` → Theming.
+**Five link paths are owned by a script and by nothing else.** Four are
+`apply_theme`'s — `kitty/current-theme.conf`, `foot/themes/noctalia`,
+`rofi/colors.rasi`, `ncspot/config.toml` — and the fifth is
+`wayle/config.toml`, re-pointed per layout and position by
+`scripts/wayle/wayle-restart.sh` (`docs/adr/0045`). None may become an
+`xdg.configFile`; that is the two-owners activation failure, and
+`checks/static.sh` asserts all five are absent from the generation. For ncspot
+and wayle that means **`programs.ncspot.settings` and `services.wayle.settings`
+must stay `{ }`** — each module claims its path the moment it holds one value.
+A missing link is silent in kitty, rofi and ncspot, **fatal in foot**, and in
+wayle leaves a plausible bar that is not this one — which is why
+`mode-theme.nix` and `wayle.nix` seed them at activation. See
+`docs/gotchas.md` → Theming.
 
 Equibop is per-mode too and needs no link: it enables a theme by *filename* from
 its own `settings.json`, which `apply_theme` rewrites — so the generated file is
@@ -226,10 +231,11 @@ silently dropping everything below it. Don't remove the `unalias`.
 
 | When you're… | Read |
 |---|---|
+| unsure how packages, profiles, wrappers or generated config work at all | `docs/NIX-PRIMER.md` — the mechanism under §6's tiers |
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — forty-four records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — forty-five records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |

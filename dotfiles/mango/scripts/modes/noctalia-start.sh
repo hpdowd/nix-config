@@ -22,7 +22,18 @@
 #   not come up, and says why.
 set -u
 
+# `systemctl --user stop`, NOT pkill: the unit owns wayle (docs/adr/0005), and
+# stop is idempotent. Both go — wayle is this machine's other SHELL, not just
+# its other bar: it draws the tiling bar, owns notifications there and drives
+# the wallpaper engine through awww. noctalia does all three itself.
+# docs/adr/0045.
+systemctl --user stop wayle 2>/dev/null
+systemctl --user stop awww 2>/dev/null
+
+# Retired, but a session predating docs/adr/0045 still has one. See the note in
+# tiling/autostart.conf for why this is not `-f`.
 pkill waybar 2>/dev/null
+
 pkill -x dsearch 2>/dev/null
 pkill -f '^swaync( |$)' 2>/dev/null
 

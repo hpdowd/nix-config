@@ -42,6 +42,9 @@ PAL_SCHEME=$(jq -r '.artefact // empty' "$SCHEMES" 2>/dev/null)
 pal() { jq -r ".schemes.\"$PAL_SCHEME\"$1 // empty" "$SCHEMES" 2>/dev/null; }
 
 WAYBAR_DIR="$GEN/home-files/.config/mango/waybar"
+# wayle's own XDG directory, NOT under the mango tree. Only `layouts/` may be
+# here — see the config.toml assertion below.
+WAYLE_DIR="$GEN/home-files/.config/wayle"
 # What home-manager actually wrote. Anything generated is read from HERE rather
 # than from its source under dotfiles/ — several files have no source any more.
 GEN_CFG="$GEN/home-files/.config"
@@ -280,10 +283,14 @@ elif [[ ${#MODES[@]} -gt 0 ]]; then
 	fi
 fi
 
-# The ceiling on how far modes.nix may diverge. waybar and swaync are the two
-# consumers NOT on the runtime swap — generated once, from scheme.nix — and
-# noctalia runs neither. So every OTHER mode has to wear the artefact scheme,
-# or it gets a bar from a scheme it is not wearing.
+# The ceiling on how far modes.nix may diverge. wayle is the consumer NOT on
+# the runtime swap — its six layouts are generated once, palette and all, from
+# scheme.nix — and noctalia does not run it. So every OTHER mode has to wear
+# the artefact scheme, or it gets a bar from a scheme it is not wearing.
+#
+# waybar and swaync were the two named here until 2026-08-24. wayle replaced
+# both in tiling (docs/adr/0045); they are still generated, and still wear this
+# scheme, but no mode starts them.
 #
 # noctalia may differ, and does: everything it runs — its own shell, mango's
 # chrome, kitty, foot, rofi, ncspot and Equibop — follows modes.nix.
@@ -308,7 +315,7 @@ elif [[ -n $barerr ]]; then
 	bad "a mode running waybar and swaync does not wear the artefact scheme '$PAL_SCHEME'" \
 		"those are generated once, from scheme.nix, so the mode would be half one scheme and half the other:"$'\n'"$barerr"
 else
-	ok "the $barmodes mode(s) running waybar and swaync wear '$PAL_SCHEME', which is what those are generated from"
+	ok "the $barmodes mode(s) running wayle wear '$PAL_SCHEME', which is what its layouts are generated from"
 fi
 
 # no_border_when_single=1 removes EVERY tiled window's border on mango 0.16.0,
@@ -494,6 +501,61 @@ if [[ -f $CC ]]; then
 			ok "all ${#CC_ROWS[@]} control-centre rows have a label, a state_* and an act_*"
 		else
 			bad "control-centre row mismatch" "$ccerr"
+		fi
+
+		# Ctrl+Enter's half. NOT folded into CC_FNS above: that loop demands both
+		# halves of every row, and refresh_* is the one a row may lack. Only the
+		# reverse direction is checkable, and it is the one that fails silently —
+		# a refresh_* whose suffix is not a row is never reached by dispatch(),
+		# and a key that does nothing looks exactly like a key with nothing to do.
+		#
+		# The binding is checked with it: a refresh_* with no `-kb-custom-1` on
+		# the rofi call is dead code, and the reverse is a key bound to nothing.
+		#
+		# And the key it binds has to be FREE. rofi ships `Control+Return` as
+		# `kb-accept-custom`, and a key with two actions is an error DIALOG where
+		# the panel should be — so binding it without `-kb-accept-custom ""` in
+		# the same call breaks `SUPER+C` outright. Checked as a pair, because
+		# either half alone is wrong: unsetting a default nothing rebinds gives up
+		# a key for free.
+		#
+		# COMMENTS ARE STRIPPED FIRST, and the first cut of this check did not do
+		# that: `grep -c kb-accept-custom` matched the paragraph in control-center.sh
+		# that EXPLAINS the unset, so deleting the unset itself still passed. A scan
+		# satisfied by prose about the thing is this file's own signature bug.
+		mapfile -t CC_REFRESH < <(
+			sed -n 's/^refresh_\([a-z][a-z-]*\)() {.*/\1/p' "$CC" | sort -u
+		)
+		cc_code=$(grep -v '^[[:space:]]*#' "$CC")
+		cc_kb=$(grep -c -- '-kb-custom-1' <<<"$cc_code")
+		if [[ ${#CC_REFRESH[@]} -eq 0 || $cc_kb -eq 0 ]]; then
+			bad "the control centre has ${#CC_REFRESH[@]} refresh_* and $cc_kb -kb-custom-1 — one half of the refresh key is missing" \
+				"a bind with no function is a key that does nothing; a function with no bind is unreachable"
+		else
+			ccrerr=""
+			for id in "${CC_REFRESH[@]}"; do
+				printf '%s\n' "${CC_ROWS[@]}" | grep -qxF "$id" ||
+					ccrerr+="  refresh_$id() exists, but ROWS does not list $id"$'\n'
+			done
+			cc_ret_key=$(sed -n 's/^CC_KB_REFRESH="\(.*\)"$/\1/p' "$CC" | head -1)
+			# The unset has to be DECLARED and USED: the assignment alone leaves it
+			# off the rofi call, which is the breakage with none of the protection.
+			cc_free_val=$(sed -n 's/^CC_KB_FREE="\(.*\)"$/\1/p' "$CC" | head -1)
+			cc_free_used=$(grep -c 'CC_KB_FREE' <<<"$cc_code")
+			if [[ $cc_ret_key == *Return* ]]; then
+				if [[ $cc_free_val != "-kb-accept-custom" ]]; then
+					ccrerr+="  the refresh key is $cc_ret_key, which rofi ships as kb-accept-custom, and CC_KB_FREE ([$cc_free_val]) does not unset it"$'\n'
+				elif [[ $cc_free_used -lt 2 ]]; then
+					ccrerr+="  CC_KB_FREE unsets kb-accept-custom but is never passed to rofi — $cc_ret_key stays double-bound"$'\n'
+				fi
+			elif [[ -n $cc_free_val ]]; then
+				ccrerr+="  kb-accept-custom is unset, but the refresh key ($cc_ret_key) does not need it freed"$'\n'
+			fi
+			if [[ -z $ccrerr ]]; then
+				ok "the control centre's refresh key ($cc_ret_key) is bound, freed, and its ${#CC_REFRESH[@]} refresh_* all name a row"
+			else
+				bad "control-centre refresh_* mismatch" "$ccrerr"
+			fi
 		fi
 	fi
 fi
@@ -2410,6 +2472,250 @@ else
 	fi
 fi
 
+printf '\nGenerated wayle layouts\n'
+
+# 1. config.toml MUST NOT BE IN THE GENERATION.
+#
+# scripts/wayle/wayle-restart.sh owns that path as a link, re-pointing it per
+# (layout, position). `services.wayle.settings` holding ONE value makes the
+# home-manager module claim it, and two owners for one path is an activation
+# failure — the same trap that keeps `programs.ncspot.settings` empty
+# (docs/adr/0034). The failure is loud at switch time and invisible in review,
+# which is why it is asserted rather than commented. docs/adr/0045.
+if [[ -e "$WAYLE_DIR/config.toml" ]]; then
+	bad "home-manager claims wayle/config.toml, which wayle-restart.sh owns as a link" \
+		"set services.wayle.settings back to { } — one value in it claims the path"
+else
+	ok "wayle/config.toml is absent from the generation, so the runtime link has one owner"
+fi
+
+# 2. Every layout, in both positions. Named rather than counted: a count alone
+# passes when one layout vanishes and another is added twice, and the NAMES are
+# what wayle-restart.sh builds its filename from — a missing one falls back to
+# full/top, which notifies but keeps running.
+mapfile -t WLAYOUTS < <(find "$WAYLE_DIR/layouts" -name '*.toml' 2>/dev/null | sort)
+wmiss=""
+for l in full focus minimal; do
+	for pos in top bottom; do
+		[[ -s "$WAYLE_DIR/layouts/$l-$pos.toml" ]] || wmiss+="  $l-$pos.toml"$'\n'
+	done
+done
+if [[ -n $wmiss ]]; then
+	bad "a generated wayle layout is missing" "$wmiss"
+elif [[ ${#WLAYOUTS[@]} -ne 6 ]]; then
+	bad "expected 6 generated wayle layouts (3 layouts x 2 positions), found ${#WLAYOUTS[@]}" \
+		"$(printf '%s ' "${WLAYOUTS[@]##*/}")"
+else
+	ok "6 generated wayle layouts — full, focus and minimal, each top and bottom"
+fi
+
+if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
+	# 3. Every custom module's `command` names a script that EXISTS and is
+	# EXECUTABLE. wayle discards a custom module's stderr and renders nothing
+	# when the command fails, so a moved script is an empty widget and no more —
+	# this repo's signature bug, and the same check the waybar configs get.
+	# Nix preserves the mode bit, so a script committed 644 arrives 444 and
+	# fails only at runtime.
+	wrefs=0
+	wmissing=""
+	while read -r ref; do
+		[[ -z $ref ]] && continue
+		wrefs=$((wrefs + 1))
+		[[ -x "$MANGO/scripts/${ref#*scripts/}" ]] || wmissing+="  $ref"$'\n'
+	done < <(
+		# The ARRAY, not the directory: every entry under it is a symlink into
+		# the store, and `grep -r` skips symlinks while recursing. The floor
+		# below caught exactly that, which is what it is for.
+		grep -hoE '[~]/\.config/mango/scripts/[^ "'"'"']*' "${WLAYOUTS[@]}" | sort -u
+	)
+	if [[ $wrefs -eq 0 ]]; then
+		bad "no script references read from the wayle layouts — the scan is broken, not the repo"
+	elif [[ -n $wmissing ]]; then
+		bad "a wayle custom module names a missing or non-executable script" "$wmissing"
+	else
+		ok "all $wrefs script references in the wayle layouts resolve and are executable"
+	fi
+
+	# 4. Every module a layout carries has a definition.
+	#
+	# wayle.nix asserts this at EVAL for its own names, which is the loud half.
+	# This is the other half: a custom module is defined by an `id` and REFERRED
+	# TO as `custom-<id>`, so the two spellings can come apart in a way the Nix
+	# assertion cannot see — it compares the list it just built against itself.
+	# wayle renders an unknown module id as nothing at all.
+	undef=""
+	seen_ids=0
+	for cfg in "${WLAYOUTS[@]}"; do
+		mapfile -t ids < <(
+			sed -n '/^\[\[bar.layout\]\]/,/^\[[a-z]/p' "$cfg" |
+				grep -oE '"[a-z0-9-]+"' | tr -d '"' | sort -u
+		)
+		mapfile -t defined < <(
+			grep -oE '^id = "[a-z0-9-]+"' "$cfg" | sed 's/id = "/custom-/;s/"$//' | sort -u
+		)
+		for id in "${ids[@]}"; do
+			case "$id" in
+			top | bottom) continue ;;
+			custom-*)
+				seen_ids=$((seen_ids + 1))
+				printf '%s\n' "${defined[@]}" | grep -qxF "$id" ||
+					undef+="  $(basename "$cfg"): $id has no [[modules.custom]] with that id"$'\n'
+				;;
+			esac
+		done
+	done
+	# The floor. The layout section moved from a flat `left = [...]` to
+	# `[[bar.layout.left]]` group tables when grouping became wayle's own
+	# (docs/adr/0045), and an extraction that stops matching passes by finding
+	# nothing — which is exactly what this check exists to stop.
+	if [[ $seen_ids -eq 0 ]]; then
+		bad "no custom-* ids read from the wayle layouts — the scan is broken, not the repo"
+	elif [[ -n $undef ]]; then
+		bad "a wayle layout carries a custom module id nothing defines" "$undef"
+	else
+		ok "all $seen_ids custom-* ids across the wayle layouts have a [[modules.custom]] definition"
+	fi
+
+	# 5. A custom module with no `icon-name` shows no icon.
+	#
+	# `icon-show` DEFAULTS TRUE, so one without an icon still gets the widget and
+	# draws 22px of nothing between its neighbours — the whole of why the bar read
+	# as loose whatever the spacing knobs said. Every script here already puts its
+	# glyph in the text. wayle.nix derives the key from the definition; this is the
+	# floor under that, because an empty slot looks like spacing, not like a bug.
+	slotted=""
+	cblocks=0
+	for cfg in "${WLAYOUTS[@]}"; do
+		while IFS='|' read -r cid hasname hasshow; do
+			cblocks=$((cblocks + 1))
+			[[ $hasname == 1 || $hasshow == 1 ]] ||
+				slotted+="  $(basename "$cfg"): custom-$cid has neither icon-name nor icon-show = false"$'\n'
+		done < <(
+			awk '
+				function flush() { if (inblk) { print id "|" hn "|" hs; inblk = 0 } }
+				/^\[\[modules\.custom\]\]/ { flush(); inblk = 1; id = ""; hn = 0; hs = 0; next }
+				/^\[/ { flush() }
+				inblk && /^id = / { id = $3; gsub(/"/, "", id) }
+				inblk && /^icon-name = / { hn = 1 }
+				inblk && /^icon-show = false/ { hs = 1 }
+				END { flush() }
+			' "$cfg"
+		)
+	done
+	if [[ $cblocks -eq 0 ]]; then
+		bad "no [[modules.custom]] blocks read from the wayle layouts — the scan is broken, not the repo"
+	elif [[ -n $slotted ]]; then
+		bad "a wayle custom module reserves an icon slot it never fills" "$slotted"
+	else
+		ok "all $cblocks wayle custom module definitions either name an icon or hide the slot"
+	fi
+
+	# 6. `bar.padding` is zero, so the active workspace tag reaches the bar's
+	# edges. The key is a MARGIN on the section: any value insets every module
+	# from the bar's top and bottom, and the one widget on this bar that draws a
+	# background — the active tag — then stops short at both ends. index.scss
+	# takes the height back as vertical padding on `.mod`, which the workspaces
+	# module opts out of. Nothing about that is visible in a diff of the value.
+	ppad=""
+	for cfg in "${WLAYOUTS[@]}"; do
+		grep -qE '^padding = 0(\.0+)?$' "$cfg" ||
+			ppad+="  $(basename "$cfg"): $(grep -E '^padding = ' "$cfg" || echo 'no padding key')"$'\n'
+	done
+	if [[ -n $ppad ]]; then
+		bad "a wayle layout sets bar.padding, which insets the active workspace tag" "$ppad"
+	else
+		ok "all ${#WLAYOUTS[@]} wayle layouts leave bar.padding at 0, so the active tag is full height"
+	fi
+
+	# 7. The sheet's `$groups` list is exactly the set of groups the layouts
+	# declare. Every rule in index.scss is built from that one variable — the
+	# within-group gap and the separator both need an ID to out-specify wayle's
+	# own rules, so a group missing from the list keeps wayle's spacing while
+	# every other group loses it. That is invisible: the bar renders, and one
+	# group is merely roomier.
+	#
+	# The same shape as the waybar module/CSS check above, and for the reason
+	# docs/adr/0042 gives.
+	SCSS="$GEN_CFG/wayle/styles/index.scss"
+	if [[ ! -s $SCSS ]]; then
+		bad "wayle/styles/index.scss is missing from the generation" \
+			"the bar falls back to wayle's own spacing, which renders and looks merely loose"
+	else
+		# index.scss carries no DESCENDANT `*` selector. GTK4 parents a
+		# menubutton's popover INSIDE the menubutton, so `.mod *` matches every
+		# widget in every dropdown — the calendar, the notification list, the
+		# dashboard — and flattens wayle's own styling of them. The bar looks
+		# exactly as intended while everything it opens looks broken, which is
+		# why this is a check and not a comment. `> *` is fine: a popover is a
+		# child of the module, so a direct-child selector stops one short of it.
+		#
+		# It lives HERE, after `$SCSS` is assigned and checked. Its first cut
+		# sat above that line and grepped an empty path — passing by finding
+		# nothing, over a mutation that added `.mod *` deliberately.
+		mapfile -t STARS < <(
+			sed 's|//.*||' "$SCSS" | grep -nE '(^|[^>[:space:]])[[:space:]]+[*]|^[*]' || true
+		)
+		if [[ ${#STARS[@]} -gt 0 ]]; then
+			bad "index.scss uses a descendant \`*\`, which reaches inside every dropdown" \
+				"$(printf '  %s\n' "${STARS[@]}")"
+		else
+			ok "index.scss uses no descendant \`*\`, so no rule here reaches into a dropdown"
+		fi
+
+		# The declaration wraps across lines and is joined with `+`, so this
+		# reads the whole statement rather than one line of it.
+		mapfile -t SCSS_IDS < <(
+			sed -n '/^[$]groups:/,/;[[:space:]]*$/p' "$SCSS" |
+				grep -oE '#[a-z][a-z0-9-]*' | tr -d '#' | sort -u
+		)
+		mapfile -t GROUP_IDS < <(
+			# `(^|[^-])name`: a module's `icon-name = "ld-power-symbolic"` also
+			# ends in `name = "…"` and was read as a group nobody had styled.
+			# The `^` alternative is load-bearing — the group names sit at the
+			# START of a line, so requiring a preceding character matched the
+			# icon names and nothing else.
+			grep -hoE '(^|[^-])name = "[a-z][a-z0-9-]*"' "${WLAYOUTS[@]}" |
+				sed 's/.*name = "//;s/"//' | sort -u
+		)
+		if [[ ${#SCSS_IDS[@]} -eq 0 || ${#GROUP_IDS[@]} -eq 0 ]]; then
+			bad "no group ids read from index.scss or the layouts — the scan is broken, not the repo"
+		else
+			gmiss=""
+			for g in "${GROUP_IDS[@]}"; do
+				printf '%s\n' "${SCSS_IDS[@]}" | grep -qxF "$g" ||
+					gmiss+="  layout group '$g' is missing from index.scss's \$groups"$'\n'
+			done
+			for c in "${SCSS_IDS[@]}"; do
+				printf '%s\n' "${GROUP_IDS[@]}" | grep -qxF "$c" ||
+					gmiss+="  index.scss's \$groups names '#$c', which no layout groups"$'\n'
+			done
+			if [[ -n $gmiss ]]; then
+				bad "wayle group/stylesheet mismatch" "$gmiss"
+			else
+				ok "all ${#GROUP_IDS[@]} wayle layout groups are named in index.scss's \$groups, and no others are"
+			fi
+		fi
+	fi
+
+	# 8. The palette reaches them. A wayle layout with no [styling.palette] wears
+	# wayle's OWN default colours, which is a complete, plausible theme and not
+	# this machine's — the drifted-palette failure docs/adr/0028 gets a check for
+	# rather than a convention. Checked against the artefact scheme's own bg.
+	wbg=$(pal '.bg0')
+	pmiss=""
+	for cfg in "${WLAYOUTS[@]}"; do
+		grep -qF "bg = \"#$wbg\"" "$cfg" || pmiss+="  $(basename "$cfg")"$'\n'
+	done
+	if [[ -z $wbg ]]; then
+		bad "no bg0 read from the scheme — the scan is broken, not the repo"
+	elif [[ -n $pmiss ]]; then
+		bad "a wayle layout does not carry this scheme's background (#$wbg)" \
+			"it would wear wayle's own palette, which looks deliberate:"$'\n'"$pmiss"
+	else
+		ok "all ${#WLAYOUTS[@]} wayle layouts carry the '$PAL_SCHEME' background #$wbg"
+	fi
+fi
+
 printf '\nGenerated waybar configs\n'
 
 # Every layout, in both positions. Named rather than counted: a count alone
@@ -2877,6 +3183,12 @@ else
 			# window full of boxes rather than a slightly different typeface.
 			sed -nE 's/^[[:space:]]*font:[[:space:]]*"(.*) [0-9]+"[[:space:]]*;.*/\1/p' \
 				"$SRC/dotfiles/rofi/config.rasi" 2>/dev/null
+			# wayle: `font-sans`/`font-mono` under [general], one per layout.
+			# It falls back to its own default without a word, so a name this
+			# machine lacks looks merely unstyled — `Inter` was written here and
+			# is not installed. docs/adr/0045.
+			sed -nE 's/^font-(sans|mono) = "(.*)"$/\2/p' \
+				"$WAYLE_DIR"/layouts/*.toml 2>/dev/null
 		)
 		wanted=$(printf '%s\n' "$wanted" | grep -vE '^(auto|monospace|sans-serif|serif|inherit)?$' | sort -u)
 
@@ -2888,8 +3200,22 @@ else
 			while IFS= read -r name; do
 				[[ -z $name ]] && continue
 				# Either a bare family, or "<family> <style>".
-				if ! printf '%s\n' "$FAMILIES" | awk -F'|' -v n="$name" \
-					'$1 == n || $1 " " $2 == n { found = 1 } END { exit !found }'; then
+				#
+				# `%{family}` is a COMMA-SEPARATED alias list — JetBrainsMono
+				# scans as "JetBrainsMono Nerd Font,JetBrainsMono NF,…" and any
+				# of those resolve. Matching the whole field reported a font
+				# that is installed as missing, which is a false positive, and a
+				# check that cries wolf is one nobody reads. Split on commas and
+				# try each alias.
+				if ! printf '%s\n' "$FAMILIES" | awk -F'|' -v n="$name" '
+					{
+						c = split($1, fams, ",")
+						for (i = 1; i <= c; i++) {
+							gsub(/^[ \t]+|[ \t]+$/, "", fams[i])
+							if (fams[i] == n || fams[i] " " $2 == n) { found = 1 }
+						}
+					}
+					END { exit !found }'; then
 					missing+=("$name")
 				fi
 			done <<<"$wanted"
@@ -2897,7 +3223,7 @@ else
 			if [[ ${#missing[@]} -gt 0 ]]; then
 				bad "font names that resolve to nothing (silent fallback)" "${missing[*]}"
 			else
-				ok "all $want_count font names referenced by kitty, foot and waybar resolve"
+				ok "all $want_count font names referenced by kitty, foot, rofi and wayle resolve"
 			fi
 		fi
 	fi

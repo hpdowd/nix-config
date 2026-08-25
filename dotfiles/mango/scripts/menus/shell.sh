@@ -40,8 +40,8 @@ fb_notify_clear() { swaync-client -C; }
 fb_dnd() { swaync-client -d; }
 # The two keys that used to refuse in noctalia mode. They are the "configure the
 # bar" keys, and each mode's bar is configured by its own thing.
-fb_bar_settings() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
-fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
+fb_bar_settings() { "$MANGO_DIR/scripts/wayle/wayle-layout.sh"; }
+fb_bar_toggle() { "$MANGO_DIR/scripts/wayle/wayle-position.sh"; }
 # Keep-awake used to be noctalia-only, because the only inhibitor outside it was
 # a bool inside the waybar process with no way in from a key. There is a unit
 # now, so this key works in both modes. docs/adr/0031.

@@ -445,7 +445,12 @@ in
       };
 
     "mango/noctalia/settings-pinned.json".text = builtins.toJSON {
-      wallpaper.enabled = false;
+      # ON, reversing docs/adr/0020's "wallpaper off (awww owns it)". awww no
+      # longer owns it across the machine: wayle drives it in tiling and
+      # noctalia drives it here, because each mode's shell already has a
+      # wallpaper manager and the shared script had to be stopped for one of
+      # them anyway. docs/adr/0045.
+      wallpaper.enabled = true;
       nightLight.enabled = false;
       idle.enabled = false;
       general.lockOnSuspend = false;

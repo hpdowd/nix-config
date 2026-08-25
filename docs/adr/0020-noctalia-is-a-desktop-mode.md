@@ -86,7 +86,9 @@ is partial and carries no `settingsVersion`: upstream's migrations all guard on
 the old key being present, so they no-op rather than corrupting it.
 
 Only the keys that would otherwise fight this machine are set — `wallpaper` off
-(`awww` owns it), `nightLight` off (`wlsunset` does), `idle` off and
+(`awww` owns it) — **superseded 2026-08-24 by
+[0045](0045-wayle-is-the-tiling-shell.md): each mode owns its wallpaper, and
+this one is now `true`** — `nightLight` off (`wlsunset` does), `idle` off and
 `lockOnSuspend` off (swayidle and `lockscreen -f` do), `syncGsettings` off (
 [0004](0004-mode-scripts-own-theming.md) put GTK in Nix's hands). App theming is
 already off upstream and is pinned off anyway: it writes matugen output into

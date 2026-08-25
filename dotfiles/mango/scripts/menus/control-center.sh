@@ -134,6 +134,33 @@ declare -A LABEL=(
 # stays under it, because growing past it pages again and pages silently.
 CC_MAX_LINES=24
 
+# Ctrl+Enter — the modifier on the accept key, so the row's second verb is
+# spelled as what it is: the other thing to do with THIS row.
+#
+# IT IS NOT FREE, AND THAT IS THE WHOLE COST OF PICKING IT. rofi ships
+# `Control+Return` as `kb-accept-custom` ("return what I typed, not what is
+# selected"), so binding it without unsetting that first is a startup ERROR
+# DIALOG where the panel should be. Hence CC_KB_FREE below, and the pair is
+# asserted in checks/static.sh — a bind is not a bind until the default holding
+# the key lets go. `rofi -list-keybindings` prints the table to check against.
+#
+# Unsetting costs nothing HERE and only here: the call passes `-no-custom`, so
+# accept-custom had nothing to accept. Today it falls into dmenu.c's
+# `only_selected` else-branch, which restarts the view without acting — a key
+# that already did nothing and never said so.
+#
+# On the COMMAND LINE, not in config.rasi: both mean something on this menu
+# alone, exactly as `-no-custom` does — and `kb-accept-custom` must keep its
+# default in menus/network-menu.sh, where the typed string IS the answer. The
+# command line wins for a `configuration` setting; it is only the THEME that
+# overrides it, which is why `lines` is a `-theme-str`. docs/gotchas.md -> rofi.
+CC_KB_REFRESH="Control+Return"
+CC_KB_FREE="-kb-accept-custom"
+# NO `-mesg` HINT, deliberately. It was here on 2026-08-24 and came straight
+# back out: a permanent line of instructions above a list whose whole point is
+# that it SHOWS you the state (docs/adr/0033) is the panel explaining itself
+# instead of reporting. The keys are in docs/SYSTEM.md §8.
+
 # ── State ─────────────────────────────────────────────────────────────────
 #
 # Each state_<id> prints "<icon><TAB><state>". Two fields because of the three
@@ -434,7 +461,7 @@ state_bar() {
 	# (docs/adr/0035): hud forced its own, so this row had to special-case it or
 	# name a bar nobody could see — and `act_bar` still opened a picker whose
 	# choice that mode then discarded.
-	printf '%s\t%s' "$ICON_BAR" "$(waybar_layout), $(waybar_position)"
+	printf '%s\t%s' "$ICON_BAR" "$(bar_layout), $(bar_position)"
 }
 
 # ── Actions ───────────────────────────────────────────────────────────────
@@ -469,34 +496,30 @@ act_power() { "$MANGO_DIR/scripts/system/power-profile-cycle.sh"; }
 # rather than returning silently — an action that appears to do nothing is the
 # one outcome a row must never have.
 act_phone() { "$MANGO_DIR/scripts/kdeconnect/phone-status.sh" ring; }
-# Two useful things to do with a reading, so this row is a PICKER rather than a
-# verb — the shape act_network and act_volume already have. `refresh` stays
-# first: in `minimal` no bar module keeps the cache warm, so it is what the row
-# is FOR, and it is the only action in this menu that goes to the network.
+# The one row with two useful verbs, and since 2026-08-24 they are two KEYS
+# rather than a sub-picker: Enter opens the forecast, Ctrl+Enter refetches. The
+# picker was a second surface drawn over the reading you opened the panel to
+# look at, to choose between two things. docs/adr/0044.
 #
-# `open` hands the screen to a browser, so it closes the panel. The two labels
-# are named for the same reason LABEL is: the printed list and the case that
-# dispatches it cannot then drift apart.
-WEATHER_REFRESH="Refresh now"
-WEATHER_OPEN="Open forecast"
+# `open` hands the screen to a browser, so it closes the panel.
 act_weather() {
-	local choice
-	choice=$(printf '%s\n%s\n' "$WEATHER_REFRESH" "$WEATHER_OPEN" |
-		rofi_menu 2 -no-custom -p "Weather") || return 0
-	case "$choice" in
-	"$WEATHER_REFRESH") "$MANGO_DIR/scripts/system/weather.sh" refresh ;;
-	"$WEATHER_OPEN")
-		"$MANGO_DIR/scripts/system/weather.sh" open
-		close=1
-		;;
-	esac
+	"$MANGO_DIR/scripts/system/weather.sh" open
+	close=1
 }
 act_dnd() { swaync-client -d -sw >/dev/null; }
 act_notify() {
 	swaync-client -t -sw
 	close=1
 }
-act_bar() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
+act_bar() { "$MANGO_DIR/scripts/wayle/wayle-layout.sh"; }
+
+# Ctrl+Enter's half, and it is OPTIONAL. A row without one falls through to the
+# re-render every press already does — which re-reads its state, so the key
+# reads as a refresh everywhere rather than as dead on twelve rows out of
+# thirteen. Weather is the only fact here that lives off this machine and so the
+# only one with anything to fetch. checks/static.sh asserts each refresh_* names
+# a row: a misspelt one is a key that silently does nothing.
+refresh_weather() { "$MANGO_DIR/scripts/system/weather.sh" refresh; }
 
 # ── The floor ─────────────────────────────────────────────────────────────
 #
@@ -568,12 +591,17 @@ render() {
 # Match on the rendered "  <label>  ·  " rather than on a `case` of hand-typed
 # strings: the label is then written once, in LABEL, and a row cannot be
 # unreachable because its two spellings drifted.
+#
+# `$1` is the verb the KEY chose — `act` for Enter, `refresh` for Ctrl+Enter — so
+# the two bindings share this one lookup and a row is still declared in exactly
+# two places. `act_*` is guaranteed by the floor above; `refresh_*` is not.
 dispatch() {
-	local choice=$1 id
+	local verb=$1 choice=$2 id fn
 	for id in "${ROWS[@]}"; do
 		[ "$id" = - ] && continue
 		if [[ $choice == *"  ${LABEL[$id]}  ·  "* ]]; then
-			"act_$id"
+			fn="${verb}_$id"
+			if declare -F "$fn" >/dev/null; then "$fn"; fi
 			return 0
 		fi
 	done
@@ -583,7 +611,22 @@ dispatch() {
 }
 
 while [ "$close" -eq 0 ]; do
-	choice=$(render | rofi_menu "$CC_MAX_LINES" -no-custom -p "Control") || exit 0
+	# ROFI'S EXIT STATUS IS THE KEYBINDING, and `-kb-custom-N` is the ONLY way to
+	# tell one accept key from another: 0 accept, 1 cancel, 10-28 the custom binds
+	# in order (rofi-dmenu(5)). Enter, Shift+Enter and Ctrl+Enter all exit 0 on
+	# their own bindings — dmenu.c hands MENU_OK and MENU_CUSTOM_INPUT the same
+	# `retv = TRUE`, and only MENU_CUSTOM_COMMAND becomes `10 + n`.
+	#
+	# So the status is CAPTURED rather than tested: the `|| exit 0` that used to
+	# close this line would take 10 for a cancel and shut the panel instead of
+	# refreshing it.
+	choice=$(render | rofi_menu "$CC_MAX_LINES" -no-custom -p "Control" \
+		"$CC_KB_FREE" "" -kb-custom-1 "$CC_KB_REFRESH")
+	case $? in
+	0) verb=act ;;
+	10) verb=refresh ;;
+	*) exit 0 ;;
+	esac
 	[ -n "$choice" ] || exit 0
-	dispatch "$choice" || true
+	dispatch "$verb" "$choice" || true
 done

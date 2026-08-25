@@ -9,6 +9,7 @@ different questions:
 | Document | Answers |
 |---|---|
 | **`docs/SYSTEM.md`** (this file) | How is the system laid out, and how do I use it? |
+| `docs/NIX-PRIMER.md` | How do packages and configs work at all? The mechanism under §6 |
 | `CLAUDE.md` | What has bitten us, and what must not be undone? |
 | `docs/adr/` | Why is it built this way rather than the obvious way? |
 | `docs/WORK-LOG.md` | What changed since 30 July 2026, and what did it cost? |
@@ -128,8 +129,11 @@ Two rules follow from this and explain most of the surprises:
 │   ├── shell.nix              zsh, aliases, PATH, env, git
 │   ├── programs.nix           GENERATED configs: kitty, foot, zed, htop,
 │   │                          yazi, ncspot, imv, wlogout. No files in dotfiles/ for these
-│   ├── waybar.nix             GENERATED: the three waybar layouts, from one set
-│   │                          of module definitions
+│   ├── waybar.nix             GENERATED: the three waybar layouts. Still built,
+│   │                          started by nothing since ADR 0045
+│   ├── wayle.nix              GENERATED: the tiling bar's six layouts and its
+│   │                          _colors.scss; the only owner of services.wayle.
+│   │                          Its STYLESHEET is dotfiles/wayle/ (ADR 0045)
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
 │   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
 ├── dotfiles/                  the hand-written dotfiles that remain
@@ -137,6 +141,7 @@ Two rules follow from this and explain most of the surprises:
 │   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
 │   ├── swaync/ glow/          apps with no module, or whose module is not adopted
 │   ├── rofi/                  config.rasi — config AND theme (ADR 0021)
+│   ├── wayle/                 index.scss — the bar's spacing rules (ADR 0045)
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
 │   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
@@ -330,7 +335,8 @@ file from typed options; **there is no config file in this repo at all.**
 | ncspot | `programs.ncspot` — **`settings = { }` deliberately**: that leaves `config.toml` unclaimed for the per-mode symlink (`docs/adr/0034`). One value here re-claims it and breaks activation |
 | wlogout | `programs.wlogout` |
 | swaylock | `programs.swaylock` — **`package = null`**, see §9 |
-| The three waybar layouts (x2 positions = 6 files) | `modules/home/waybar.nix` |
+| The three waybar layouts (x2 positions = 6 files) | `modules/home/waybar.nix` — still generated, started by nothing (ADR 0045) |
+| wayle — the tiling bar's three layouts (x2 positions = 6 files), plus `_colors.scss` | `modules/home/wayle.nix`. **`services.wayle.settings` stays `{ }`**, leaving `config.toml` for the runtime link, exactly as ncspot does (ADR 0045). The *stylesheet* is tier 2 — see below |
 
 This is where a config should end up unless there is a reason it cannot. The
 argument is not tidiness:
@@ -361,7 +367,14 @@ rebuild.
 
 Currently: `mango` (with `recursive = true`), `nvim`, `swaync` (body only), `glow`,
 `zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
-`nwg-look`, `rofi/config.rasi` and the `gtk-3.0`/`gtk-4.0` assets.
+`nwg-look`, `rofi/config.rasi`, `wayle/styles/index.scss` and the
+`gtk-3.0`/`gtk-4.0` assets.
+
+> **`wayle/styles/index.scss` is the same shape as waybar's `style-*.css`**:
+> rules, not settings, beside a generated `_colors.scss`. It is not optional —
+> wayle's `button-gap` and `button-label-padding` clamp at 0.25, so the config
+> layer cannot make a dense bar and the sheet is where the spacing actually
+> lives. ADR 0045; `docs/gotchas.md` → Wayle.
 
 > **`rofi/config.rasi` is declared as a FILE, not a directory.** rofi writes a
 > cache and `rofi.png` next to it, so linking the parent would give one path two
@@ -734,7 +747,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
 | `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
-| `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`). Weather is the one row whose Enter opens a picker rather than doing a thing — Refresh now, or Open forecast, which closes the panel (`docs/adr/0044`) |
+| `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`). Weather is the one row with two verbs, and they are two keys: **Enter** opens the forecast and closes the panel, **Ctrl+Enter** refetches and stays (`docs/adr/0044`). On any other row Ctrl+Enter just re-renders |
 | bar button, every layout | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
 | `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
@@ -1608,6 +1621,7 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-20.)*
 
 | Document | Read it when |
 |---|---|
+| `docs/NIX-PRIMER.md` | Before §6 makes sense — store paths, profiles, wrappers, activation |
 | `CLAUDE.md` | Before changing anything — the rules that apply to every task |
 | `docs/gotchas.md` | Before changing one area — the failure catalogue, by area |
 | `docs/adr/0001` … `0012` | Before undoing something that looks redundant |
@@ -1630,3 +1644,4 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0008 | Arch was removed outright |
 | 0009 | Generate config from Nix where a module exists; link files only where one does not |
 | 0010 | `nix flake check` is the gate; lints tuned to fire only on real findings |
+| 0045 | wayle is the tiling mode's shell, and each mode owns its wallpaper |

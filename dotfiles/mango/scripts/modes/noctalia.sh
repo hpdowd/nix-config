@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Noctalia mode — noctalia-shell replaces waybar and swaync. docs/adr/0020.
+# Noctalia mode — noctalia-shell replaces wayle and swaync. docs/adr/0020, 0045.
 # The body is apply_mode() in ../lib.sh, as for tiling.
 . "$HOME/.config/mango/scripts/lib.sh"
 

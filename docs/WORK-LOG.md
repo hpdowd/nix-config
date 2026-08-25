@@ -3129,3 +3129,314 @@ backtick) can flip it from inside a running menu.
 **Not rebuilt yet.** `nix flake check` passes; everything under `dotfiles/` is a
 store path, so the new verb and the widened query need a `rebuild` before the
 bar or the control centre sees them.
+
+---
+
+## 2026-08-24 · The weather row is two keys, not a picker
+
+**`SUPER+C` → weather: Enter opens the forecast, Ctrl+Enter refetches.** The
+sub-picker that ADR 0044 added three days ago is gone. It was a second rofi
+surface drawn on top of the reading you opened the panel to look at, offering a
+choice between two things, and it cost a keystroke to reach either one. Both
+verbs are unchanged — `weather.sh open` and `weather.sh refresh` — only the way
+in is. The modifier on the accept key, because that is what the second verb
+is: the other thing to do with *this* row.
+
+**`-kb-custom-N` is the only accept key a `-dmenu` caller can tell apart.**
+Enter, Shift+Enter and Ctrl+Enter all exit **0** on their own default bindings —
+`modes/dmenu.c` hands `MENU_OK`, `MENU_CUSTOM_INPUT` and `MENU_OK |
+MENU_CUSTOM_ACTION` the same `retv = TRUE`, and only `MENU_CUSTOM_COMMAND`
+becomes `10 + n`. So the answer is an **exit status**, 10–28 across the nineteen
+custom binds. Every menu in this repo is written `choice=$(… rofi …) || exit 0`,
+which reads 10 as a cancel and **closes the panel instead of refreshing it** —
+from the keyboard, a key that does nothing. The loop captures `$?` into a `case`.
+
+**`Control+Return` is not free, and taking it is the price of the pairing.**
+rofi ships it as `kb-accept-custom`; binding on top of that is neither ignored
+nor warned about — `source/keyb.c` collects `Binding ``Control+Return`` is
+already bound` into an **error dialog drawn where the menu should be**. The call
+passes `-kb-accept-custom ""` (`rofi-keys(5)` → *Unsetting a binding*) to free
+it, on the command line so `menus/network-menu.sh` keeps the default, where the
+typed string is the answer. It costs the panel nothing: with `-no-custom` set,
+`MENU_CUSTOM_INPUT` falls into `dmenu.c`'s `only_selected` else-branch and just
+restarts the view — Ctrl+Enter there had always done nothing, silently.
+
+**`refresh_<id>` is an optional second half beside `act_<id>`.** `dispatch()`
+takes the verb the key chose and looks up `${verb}_$id`, so both bindings share
+the one label-matched lookup and a row is still declared in exactly two places.
+Weather is the only implementer, because it is the only fact in the panel that
+lives off this machine; on every other row Ctrl+Enter falls through to the
+re-render each press already does, which re-reads that row's state. So the key
+is honest on all thirteen rows rather than dead on twelve.
+
+**A `-mesg` hint was tried and dropped the same day.** Removing the picker
+removed the only place the two verbs were visible, so the call carried
+`Enter · open the forecast   Ctrl+Enter · refresh it` in the `message` widget
+for one rebuild. It reads wrong: a standing line of instructions above a list
+whose whole point is that it *shows you the state* (ADR 0033) is the panel
+explaining itself rather than reporting. The keys are documented in
+`docs/SYSTEM.md` §8, which is where a keybind belongs. `config.rasi` still
+styles `message` against the day some caller passes one — as it did before this.
+
+**Four mutations, and the third one is why this entry is worth reading.**
+
+| Mutation | What it caught |
+|---|---|
+| `refresh_weather` → `refresh_wether` | `refresh_wether() exists, but ROWS does not list wether` |
+| dropped `-kb-custom-1` from the rofi call | `1 refresh_* and 0 -kb-custom-1 — one half of the refresh key is missing` |
+| `CC_KB_FREE` no longer unsets `kb-accept-custom` | **nothing, at first** — see below |
+| `CC_KB_FREE` declared but never passed to rofi | `CC_KB_FREE unsets kb-accept-custom but is never passed to rofi — Control+Return stays double-bound` |
+
+The third mutation **passed** on the first cut of the check. It counted
+`grep -c kb-accept-custom` over the whole of `control-center.sh`, and the file
+carries a paragraph *explaining* why the unset is there — so deleting the unset
+left the explanation behind and the scan was satisfied by it. A check answered
+by prose about the thing it checks is this repo's signature bug wearing the
+uniform of the fix for it. Comments are stripped before the scan now, and the
+same strip was applied to the `-kb-custom-1` count beside it, which had the
+identical hole waiting.
+
+**Not rebuilt yet.** `nix flake check` passes (33 checks, 133 static
+assertions); `dotfiles/mango/` is a store path, so this needs a `rebuild` before
+`SUPER+C` sees it.
+
+---
+
+## 2026-08-25 · The wayle gaps were seven empty icon slots
+
+Six pairs on the bar sat too far apart — clock/weather, workspaces/layout,
+network/vpn, bluetooth/volume, brightness/night-mode, night-mode/idle-inhibitor
+— after four rounds of tuning `module-gap`, `button-gap` and
+`button-label-padding` had moved them about 2px in total.
+
+**Not spacing. `icon-show` defaults to true**, so a custom module with no
+`icon-name` still draws a 22px image widget with nothing in it, wedged between
+its neighbours where it reads as a gap. Seven of the nine custom modules here
+put their glyph in the *text* their script prints, so seven of those slots were
+empty. `wayle.nix` now derives `icon-show = m ? icon-name`, so a new module
+cannot forget it, and `checks/static.sh` asserts it over all 54 definitions in
+the six generated layouts.
+
+**The measurement is why this took one round instead of five.** Crop the bar
+strip out of `grim` output and print the runs of background-coloured columns:
+clock→weather was 27px, workspaces→layout 33px. Then paint one debug colour per
+widget level (`.bar-group`, `.bar-item`, `button.toggle`, `.bar-button-content`,
+`.bar-button-label`) and re-read the columns — the 22px blocks showed up as
+content-coloured and label-free, which named the culprit outright. wayle's own
+stylesheet is compiled into the binary and readable with
+`strings bin/.wayle-wrapped | grep -F '.bar-'`.
+
+**wayle's own selectors out-specify `.mod`**, which is the second finding:
+`menubutton.bar-button.basic .bar-button-content` is (0,3,1) against `.mod *`'s
+(0,1,0), so the sheet's zeroing never touched wayle's values at all — what it
+removes is the GTK theme's padding and `min-width`, which is most of the
+distance and not the same thing. `.mod label { margin-left: 2px }` was dead for
+the same reason and is gone; `button-gap` owns icon-to-label.
+
+The within-group gap is now `#<group> > * + *` at 3px, and the group separator's
+margin and padding drop 4px → 3px. Measured after: clock→weather 3px,
+network→vpn 6px, brightness→night-mode 6px, workspaces→layout 14px (the rest is
+`mango-workspaces`' own trailing tag padding).
+
+**Not rebuilt yet.** `nix flake check` passes; verified by pointing the live
+`config.toml` and `index.scss` at the built generation, screenshotting, and
+restoring — so this needs a `rebuild` to land.
+
+---
+
+## 2026-08-25 · The wayle audit, and two beliefs that did not survive it
+
+Asked to check the wayle config was clean before tuning it further. Two of its
+load-bearing explanations were wrong, and both had been *reasoned* from a true
+observation rather than measured.
+
+**`.mod`, wayle's own `.module`, and `#<group> > *` are one widget.** The sheet
+carried a twelve-line list of `#<group> > *` rules and a paragraph explaining
+that the gap between modules belongs to a wrapper `.mod` cannot reach. Painting
+each selector a different colour and reading the pixel columns settles it in one
+screenshot: there is no wrapper. The claim came from a real observation — cutting
+`.mod`'s padding narrows the workspace tag blocks and barely moves the
+module-to-module distance — but that distance was seven empty icon slots, so
+*nothing* would have moved it. The twelve-line list is gone; `$groups` is the
+sheet's only structure, and `checks/static.sh` now asserts against that variable
+instead of against a rule shape.
+
+**Neither gap key works.** Last entry blamed `button-group-module-gap` being
+inert on wayle's `class` replacing its own `module` class. It does not — a probe
+painting `.bar.top .bar-group > .module` lights up every module. The selectors
+match; the CSS variables behind `module-gap` and `button-group-module-gap` stay
+0 whatever the TOML says, verified at `3.0` with the sheet's own rule removed.
+`padding` and `padding-ends` are the same `Spacing` type and both work, so it is
+those two keys and not the type. Both stay written as `0.0` — that is the value
+wanted the day they start working, which is a different case from
+`button-icon-padding`, inert by design and therefore not written at all.
+
+**The three layouts are now subtractions from one.** `full`, `focus` and
+`minimal` were three hand-written trees with the same group order and two
+verbatim copies of the same comments. `focus` is `{ groups = [ "load" ]; modules
+= [ "custom-phone" ]; }` and `minimal` is five groups and one module; the shared
+order is true by construction rather than by an assertion, and the one-key-attrset
+encoding (`{ time = [ … ]; }`) and its two `lib.head (lib.attrNames g)` readers
+are gone with it. `knownModules` no longer re-lists the eleven names already in
+`nativeNames`, and its unreachable native `power` entry — shadowed by
+`custom-power`, styled by nothing — is dropped.
+
+Also: `.mod button, .mod box, .mod label, .mod image` are pixel-for-pixel dead
+beside `.mod *`; `wayle-layout.sh` was the one script in its directory without
+`set -u`. All six generated TOMLs are byte-identical before and after, which is
+the check that the layout restructure changed nothing.
+
+**Still open:** nothing starts waybar any more. `modules/home/waybar.nix`, its
+six generated configs, `dotfiles/mango/scripts/waybar/`, the `waybar-reload`
+alias and the waybar half of `checks/static.sh` are a retired subsystem the
+repo still builds. Retiring it is its own change.
+
+**Not rebuilt yet.** `nix flake check` passes.
+
+---
+
+## 2026-08-25 · wayle wears waybar's rhythm, and the tag fills the bar
+
+Both bars were up at once for the comparison, wayle above waybar. Two asks: match
+waybar's spacing, and give the active workspace tag the full bar height it has
+there.
+
+**The spacing is `style-solid.css`'s numbers, ported rather than guessed.**
+`.mod { padding: 0 5px }` — waybar's `.module` rule — puts 10px between two
+modules and makes the gap part of the click target; the group's `margin-left:
+6px; padding-left: 6px` around its `border-left` puts 11px on each side of the
+divider, which is the same 11/11 waybar gets from `.sep` off its own module
+padding. `padding-ends = 0.35` plus the module's own 5px lands the first module
+12px from the screen edge, which is what `#clock { padding: 0 5px 0 12px }` does
+over there. Measured after: 11-12px inside a group, 21-26px across one, against
+waybar's 10-14 and 19-28.
+
+**The tag stopped short because `bar.padding` is a margin on the SECTION.** Not
+padding inside the bar: it insets every module from both edges, and a highlight
+cannot escape an inset it sits inside. Measured before, the wayle bar was 31px
+with the tag block spanning rows 4-26; waybar's spanned all 31 of its own. So
+`bar.padding` is 0 now and the height comes back as `.mod { padding: 4px 5px }`,
+which `#workspaces > *` opts out of — waybar says the same thing as
+`#workspaces { padding: 0 }`. Bar 31px, tag 31px, unchanged height.
+
+> The bar's height is now the tallest module's natural 23px plus 2×4px. That
+> made `#focus .mod`'s vertical padding load-bearing by accident for one round:
+> at 5px it made `window-title` 33px and the whole bar grew to 33.
+
+`checks/static.sh` asserts `bar.padding = 0` across the six layouts. It is the
+kind of value that reads as a spacing preference and silently takes the
+highlight's ends off.
+
+**One process note.** `nix eval --raw` on a generated `.source` gives a store
+path it has not built, so `ln -sfn` at it leaves a DANGLING link —
+`wayle-restart.sh` then fails both its guards, never reaches `systemctl
+restart`, and the old process keeps serving the old config. Three measurements
+were taken against a config that was not the one on disk before the missing file
+showed up in a `grep`. Realise with `nix build --print-out-paths` when the point
+is to look at the result.
+
+**Not rebuilt yet.** `nix flake check` passes.
+
+---
+
+## 2026-08-25 · The sheet was breaking every dropdown, and was dead weight
+
+"The benefits of wayle are practically removed by styling it this way — the
+dropdowns and menus look bad and it's more difficult to configure." Both halves
+had the same cause and the same fix.
+
+**GTK4 parents a menubutton's popover INSIDE the menubutton.** So
+`.mod, .mod * { padding: 0; margin: 0; min-width: 0; min-height: 0; border:
+none; border-radius: 0 }` was not a rule about the bar. It matched every widget
+in every dropdown — the calendar grid, the notification list, the dashboard —
+and flattened wayle's own styling of all of them. The bar looked exactly as
+intended, and everything it opened looked broken, with nothing connecting the
+two.
+
+**And the rule was dead.** Removing it measured pixel-for-pixel identical: same
+31px bar, same 31px tag, same gap runs across all 1920 columns. It had been
+compensating for the seven empty icon slots; once those went,
+`button-variant = "basic"`, `button-rounding = "none"` and
+`button-border-location = "none"` already said everything it said, from the
+config layer, and wayle's own `all: unset` on `button.toggle` handles the GTK
+theme it was written for.
+
+Two more rules went the same way once measured. `#workspaces button { padding:
+0 8px; min-width: 18px }` is `tag-padding` in the TOML — `0.8` puts the active
+tag block at 34px, which is exactly what waybar's rule measures. And the
+`.bar-button-content` margin override bought 2px that `.mod { padding: 4px }`
+absorbs by being one pixel under waybar's 5px.
+
+**Four rules left**, and the header now states what each says that the config
+layer cannot: `.mod`'s padding (both gap keys are inert), the group's
+`border-left` (`button-group-border-location` would draw one on the first group
+too, against the screen edge), `#workspaces > *`'s vertical opt-out
+(`bar.padding` is a margin the highlight cannot reach into), and `#focus .mod`
+(no per-module padding key). The bar is unchanged; everything it opens is
+wayle's again.
+
+**The check for it passed on the mutation first.** `checks/static.sh` gained an
+assertion that no descendant `*` appears in the sheet, and the first cut sat
+above the line that assigns `$SCSS` — so it grepped an empty path and reported
+a clean bill of health over a `.mod *` added deliberately to break it. Moved
+below the assignment, it names the offending line. Every new check here gets a
+mutation, and this is why.
+
+**Not rebuilt yet.** `nix flake check` passes.
+
+---
+
+## 2026-08-25 · The icons were 1.54x the text, by wayle's own default
+
+"The icons in the bar are too big in comparison to the text." They were, by
+construction: wayle draws a button icon at `1.6rem` and its label at `1.04rem`.
+Measured off the running bar, that is 20px of icon ink beside 9px digits.
+waybar's ratio is the other way round — 8px glyphs beside 11px digits — because
+its icons *are* text, the same Nerd Font at the same `font-size`.
+
+`button-icon-size = 0.7` lands between the two. One knob covers both halves of
+the report: the native modules carry real icons and move with it, and so do
+`custom-power` and `custom-control-center`; the other seven customs print their
+glyph in the TEXT, so they were never part of the problem and do not move.
+
+**It took 3px off the bar, which nobody asked for.** The height was riding on
+the tallest module, and the icon *was* the tallest thing in it — 23px natural
+became 20px, so 31px became 28px. `.mod` now carries `min-height: 23px`, which
+STATES the height instead of inheriting it. An icon or font change no longer
+arrives as a bar-height change from the other side of the config.
+
+**Two measurements were of the wrong file first.** The bar layout had been
+switched to `focus`, and `wayle-restart.sh` builds its filename from the state
+file — so probes pointed at `full-top.toml` changed nothing, twice, and the
+1px difference between them was antialiasing. `readlink -f
+~/.config/wayle/config.toml` says which layout is actually live; check it before
+editing one.
+
+---
+
+## 2026-08-25 · The power group is waybar's again, and icons stand off their text
+
+**`custom-idle-inhibitor`, `custom-power-profile` and `battery` are one group**,
+which is how `modules/home/waybar.nix` has had them all along. Battery was split
+out here on 2026-08-24 because the within-group gap was 3px and a group boundary
+was the only way to hold the power profile off the battery icon. At waybar's
+10px it is the boundary that reads as too much, so the reason expired with the
+number that caused it. `minimal` had to change with it: it dropped the whole
+`power` group and kept `battery`, which is now the same group — so it drops the
+two modules instead and keeps the group. `#battery` came out of the sheet's
+`$groups`, and the check that matches that list against the layouts is what
+would have caught it either way.
+
+**`button-gap = 0.6`.** It sat at the 0.25 ScaleFactor floor from the round that
+was hunting empty icon slots, and at the floor a native module's icon touches
+its own text. It reaches native modules only: the seven customs print their
+glyph in the text, so their spacing is a space in the script's output.
+
+**Three probes measured nothing, again, and for a new reason.** The bar layout
+was switched from `full` to `focus` and back while the probes ran, and
+`wayle-restart.sh` builds its filename from the state file — so a probe editing
+`focus-top.toml` moved nothing once `full` was live, and three "identical"
+comparison strips were the same config three times. There is now a
+`probe.sh` in the scratchpad that reads
+`$XDG_STATE_HOME/mango/bar-{layout,position}` first and edits whichever file
+that names. Assume nothing about which of the six is live.

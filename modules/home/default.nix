@@ -52,6 +52,10 @@ in
     # change — a config with two owners fails activation.
     ./programs.nix
     ./waybar.nix
+    # The tiling mode's bar. Its own file for waybar.nix's reason — a bar's
+    # layouts are large — and it generates SIX files, none of them config.toml.
+    # docs/adr/0045.
+    ./wayle.nix
     ./dotfiles.nix
     ./theme.nix
     # The per-mode colour sidecars kitty, foot and rofi reach through a runtime

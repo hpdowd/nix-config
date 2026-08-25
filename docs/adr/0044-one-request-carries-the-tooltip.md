@@ -1,6 +1,7 @@
 # 0044 — One request carries the tooltip, and the way past it is a link
 
-**Status:** Accepted (2026-08-21)
+**Status:** Accepted (2026-08-21). **Amended 2026-08-24 — the control-centre
+row is two keys, not a picker** (see the Decision's fourth verb, below).
 
 Extends [0038](0038-weather-is-a-bar-module-the-menu-reads.md): same owner, same
 three classes, and every *reading* still comes from the one host. It widens what
@@ -40,9 +41,43 @@ there is none to claim** — a trend measured over the fifteen minutes since the
 last poll is noise wearing an arrow.
 
 **A fourth verb, `open`, and it is the only one that reads nothing and renders
-nothing.** Right-click on the bar module; second entry on the control-centre
+nothing.** Right-click on the bar module; ~~second entry on the control-centre
 row, which is therefore a picker now rather than a verb — the shape
-`act_network` and `act_volume` already have.
+`act_network` and `act_volume` already have.~~
+
+> ⚠️ **Amended 2026-08-24.** The picker is gone; the row's two verbs are two
+> **keys** on the panel itself — **Enter** opens the forecast, **Ctrl+Enter**
+> (`-kb-custom-1`) refetches. A picker was a second rofi surface drawn over the
+> reading you opened the panel to look at, to choose between two things, and it
+> cost a keystroke to reach either. The panel is a reader (0033); its one
+> fetching row now costs one key.
+>
+> **The modifier on the accept key, because that is what the action is** — the
+> other thing to do with *this* row, not a verb of its own. The cost is that
+> `Control+Return` is not free: rofi ships it as `kb-accept-custom`, and a key
+> with two actions is an **error dialog where the panel should be**. So the
+> call unsets it — `-kb-accept-custom ""` — which costs nothing here, since
+> `-no-custom` had already left accept-custom with nothing to accept. It was a
+> key that did nothing and never said so.
+>
+> The trap underneath is rofi's, and it is in `docs/gotchas.md` → rofi:
+> `-kb-custom-N` is the **only** accept key a `-dmenu` caller can distinguish,
+> because Enter, Shift+Enter and Ctrl+Enter all exit 0 on their own bindings —
+> the answer is an exit status of 10–28, and the `|| exit 0` every menu here is
+> written with reads it as a cancel and closes the panel. The loop captures
+> `$?` into a `case`.
+>
+> `refresh_<id>` is an **optional** second half beside `act_<id>`, and weather
+> is its only implementer: it is the one fact here that lives off this machine.
+> On every other row Ctrl+Enter falls through to the re-render each press
+> already does, which re-reads that row's state, so the key is honest everywhere
+> rather than dead on twelve rows. `checks/static.sh` asserts each `refresh_*`
+> names a row, that the bind exists, and that the default holding the key is
+> unset — four mutations, all caught. **One of them was not, at first:** the
+> check grepped for `kb-accept-custom` across the whole file and was satisfied
+> by the *comment explaining the unset*, so deleting the unset passed. Comments
+> are stripped before the scan now. A check answered by prose about the thing is
+> this repo's signature bug wearing the uniform of the fix for it.
 
 **The page is `local.location.forecastUrl`, beside the coordinates, and it
 defaults to weather.com** — `/weather/today/l/<lat>,<lon>`, which resolves to

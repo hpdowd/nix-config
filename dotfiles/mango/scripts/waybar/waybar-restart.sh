@@ -16,13 +16,13 @@
 # on top of it — including the two pickers, whose own guards fire before this
 # one. Kill rather than merely return: this is also the path that a switch INTO
 # noctalia takes, so leaving a stale bar up would be the visible failure.
-if ! mode_has_waybar; then
+if ! mode_has_bar; then
 	pkill waybar
 	exit 0
 fi
 
-POSITION=$(waybar_position)
-LAYOUT=$(waybar_layout)
+POSITION=$(bar_position)
+LAYOUT=$(bar_layout)
 
 # One stylesheet. There were two until hud left (docs/adr/0035): hud was a MODE
 # that also forced a layout and a stylesheet, which is why the layout was

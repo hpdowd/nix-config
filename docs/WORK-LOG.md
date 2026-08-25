@@ -3316,3 +3316,51 @@ bin/.wayle-wrapped | grep -F '.bar-'`.
 Nothing starts waybar. `modules/home/waybar.nix`, its six generated configs,
 `dotfiles/mango/scripts/waybar/`, the `waybar-reload` alias and the waybar half
 of `checks/static.sh` are still built on every rebuild.
+
+---
+
+## 2026-08-25 · The documentation pass, and what it found instead
+
+Asked to apply the same treatment to the whole repo. Measured first, and three
+of the four things that worked on the wayle docs had almost nothing left to do.
+
+| Checked | Found |
+|---|---|
+| comment lines appearing verbatim in a doc | 4, repo-wide |
+| doc references to files that do not exist | ~0 — the 72 raw hits are runtime paths, generated files, or history the ADRs correctly record |
+| multi-entry `WORK-LOG` days | 2026-08-20 has ten entries and 2026-08-18 four, but each covers a *different change*. Correct as written |
+| the biggest comment blocks in `pkgs/default.nix` | the argument itself, and it lives nowhere else |
+
+The 2026-08-12 and 2026-08-20 passes had already taken the duplication. Recorded
+in `docs/PLAN-idiomatic-nix.md` §5d so a fourth cutting pass is not attempted on
+the strength of their yields.
+
+### What was done
+
+**Caps-for-emphasis, 321 comment lines across 34 files.** `NOT` alone was used
+75 times. Acronyms, keybind names and shell variables untouched; a run starting
+a sentence keeps its capital, except the program names this repo deliberately
+writes lowercase.
+
+**Five stale claims.** Two assertion counts in the plan ledgers (117 and 124,
+against 142), and four `SYSTEM.md` rows still naming waybar as the bar you
+reload, change or bump `-b` in — wayle's since `docs/adr/0045`.
+
+**Three mannered lines** in `CLAUDE.md` and `gotchas.md`. A sweep found only
+eight candidates across all 4,650 lines of the three live docs, so the raw
+connective counts overstated this.
+
+### What could not be scripted
+
+25 `.nix` files still use caps for emphasis. They embed script bodies in `''`
+strings, where a `#` line is data. Two detectors both moved the system
+`drvPath` — the second understood `''$`, `'''` and `''\` escapes and still
+missed one. The tell is a changed `swayidle.service`, `wlogout/layout` and
+`gtk-4.0/gtk.css`, from `lockscreen` and `palette-gtk` rebuilding. Both attempts
+were reverted. Read those files or leave them; the gain is cosmetic and the
+failure is silent.
+
+> **Recapture the drvPath baseline after every commit that touches
+> `dotfiles/`.** home-manager is a NixOS module here, so store content feeds the
+> system closure too. A baseline taken before two such commits reported MOVED
+> for several rounds against edits that were a no-op.

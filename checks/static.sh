@@ -2610,6 +2610,50 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		ok "all $cblocks wayle custom module definitions either name an icon or hide the slot"
 	fi
 
+	# 5b. The one custom module whose resting state is empty text hides itself —
+	# and BOTH halves are needed, which is the whole reason this is a check.
+	#
+	# `hide-if-empty` tests the command's OUTPUT. `phone-status.sh status`
+	# answers `{"text":"","tooltip":…}` whenever the phone is unreachable, which
+	# is most of the time — a JSON object, and so not empty. The key was set on
+	# its own first and changed nothing: the module kept its button and ~10px of
+	# bar with nothing in it, which read as bluetooth's padding for two rounds of
+	# tuning the wrong key. The `bar` verb exists to make that output actually
+	# empty, and the control centre still calls `status` because it needs
+	# `.class` to tell `offline` from `disconnected`.
+	#
+	# So: the key without the verb is inert, and the verb without the key draws
+	# an empty button. Neither half fails loudly. docs/gotchas.md -> Wayle.
+	hidemiss=""
+	phoneblocks=0
+	for cfg in "${WLAYOUTS[@]}"; do
+		while IFS='|' read -r cid hashide hasbar; do
+			[[ $cid == "phone" ]] || continue
+			phoneblocks=$((phoneblocks + 1))
+			[[ $hashide == 1 ]] ||
+				hidemiss+="  $(basename "$cfg"): custom-phone has no hide-if-empty = true"$'\n'
+			[[ $hasbar == 1 ]] ||
+				hidemiss+="  $(basename "$cfg"): custom-phone's command is not phone-status.sh's \`bar\` verb, so hide-if-empty sees a JSON object and never fires"$'\n'
+		done < <(
+			awk '
+				function flush() { if (inblk) { print id "|" hd "|" hb; inblk = 0 } }
+				/^\[\[modules\.custom\]\]/ { flush(); inblk = 1; id = ""; hd = 0; hb = 0; next }
+				/^\[/ { flush() }
+				inblk && /^id = / { id = $3; gsub(/"/, "", id) }
+				inblk && /^hide-if-empty = true/ { hd = 1 }
+				inblk && /^command = .*phone-status\.sh bar"$/ { hb = 1 }
+				END { flush() }
+			' "$cfg"
+		)
+	done
+	if [[ $phoneblocks -eq 0 ]]; then
+		bad "no custom-phone block read from any wayle layout — the scan is broken, or the module left without this check"
+	elif [[ -n $hidemiss ]]; then
+		bad "wayle's custom-phone holds its gap when the phone is away" "$hidemiss"
+	else
+		ok "custom-phone pairs hide-if-empty with the \`bar\` verb in all $phoneblocks layouts that carry it"
+	fi
+
 	# 6. `bar.padding` is zero, so the active workspace tag reaches the bar's
 	# edges. The key is a margin on the section: any value insets every module
 	# from the bar's top and bottom, and the one widget on this bar that draws a
@@ -2694,6 +2738,27 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 				"$(printf '  %s\n' "${STARS[@]}")"
 		else
 			ok "index.scss uses no descendant \`*\`, so no rule here reaches into a dropdown"
+		fi
+
+		# Every rule here that touches a `.bar-button-*` node carries an id.
+		#
+		# wayle styles those nodes itself, at (0,2,2) for `.bar-button-label`
+		# and (0,3,1) for `.bar-button-content`. A selector built from our own
+		# classes tops out at (0,2,1) and loses — and a rule that loses is a
+		# rule that renders, so the bar looks deliberate and one value is
+		# wayle's. `.mod-clock .bar-button-label { font-size }` sat here inert
+		# from the day it was written; the clock wore the bar default and
+		# nothing said so. An id beats anything wayle can write.
+		mapfile -t WEAKBTN < <(
+			sed 's|//.*||' "$SCSS" |
+				grep -nE '\.bar-button-[a-z]+' |
+				grep -v '#' || true
+		)
+		if [[ ${#WEAKBTN[@]} -gt 0 ]]; then
+			bad "index.scss styles a .bar-button-* node without an id, so wayle's own rule wins and this one is inert" \
+				"$(printf '  %s\n' "${WEAKBTN[@]}")"
+		else
+			ok "every index.scss rule touching a .bar-button-* node carries an id, so it out-specifies wayle's own"
 		fi
 
 		# The declaration wraps across lines and is joined with `+`, so this

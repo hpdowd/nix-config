@@ -3418,3 +3418,118 @@ Two entries in `~/.local/share/applications/` named `/usr/bin` for binaries that
 `discord-455712169795780630.desktop` (dolphin-emu). A failing `TryExec` hides an
 entry with no error, which is this repo's signature shape. Repointed at bare
 names so `PATH` resolves them, rather than deleted.
+
+---
+
+## 2026-08-25 · Three bar tweaks, and the one that was not a spacing problem
+
+Asked for: workspaces flush to their dividers, a slightly larger bluetooth icon
+with less padding on its right, and a battery icon that is not line art.
+
+### The bluetooth padding was an empty module
+
+The 20px between the bluetooth glyph and the `#output` divider decomposed as
+4px of icon-box slack, **10px of `custom-phone`**, and 6px of group margin.
+`phone-status.sh` returns `{"text":""}` whenever the phone is unreachable, which
+is its documented resting state — waybar drew nothing for that, wayle draws the
+button anyway. `.mod-bluetooth { padding-right: 0 }` had already been spent on
+the same complaint two rounds earlier and moved 4px of it.
+
+> Found by painting `.mod-custom-phone` green and screenshotting. Four rounds of
+> reading `padding` keys had not.
+
+**`hide-if-empty = true` alone did nothing, and shipped that way.** The key
+tests the command's OUTPUT, and a JSON object carrying an empty `.text` is not
+an empty output. It took a second half: `phone-status.sh` grew a `bar` verb that
+prints nothing in the resting state, and the module names it. The control centre
+keeps calling `status`, which always answers — it reads `.class` to separate
+`offline` from `disconnected`, and silence there would mean the script had not
+run. `checks/static.sh` asserts the pair, because the key without the verb is
+inert and the verb without the key draws an empty button.
+
+The remaining 6px is the next group's margin, which no rule on bluetooth can
+reach — `margin-right: -4px` takes four of it. A negative margin does work in
+GTK4 CSS, as it did in waybar.
+
+### CSS cannot size one module's icon
+
+`-gtk-icon-size`, `-gtk-icon-transform` and `transform: scale()` are no-ops on a
+module at every depth. Every module icon is a wayle-drawn `widget`, not a
+`GtkImage`: `.module image` matches **one** thing on the whole bar, the systray
+item, so wayle's own `menubutton.bar-button > button.toggle image` rule is
+vestigial for the `basic` variant. `.mod-<name> > *` and `> button.toggle` match
+nothing either — the direct child is a `widget`.
+
+`bar.button-icon-size` is the only size knob and it is bar-wide. Left at 0.7:
+with the phone gap gone, the bluetooth module reads correctly at its own size.
+
+The clock went the other way, and took two tries.
+
+### Battery: Adwaita's ladder, and why naming it was not enough
+
+`battery.level-icons`, `charging-icon` and `alert-icon` were wayle's defaults
+written out verbatim — the bundled `md-battery_android_*`, a 1px frame with a
+fill bar inside.
+
+The first attempt named the freedesktop `battery-level-*` ladder and **shipped a
+battery that never changed**. That name belongs to freedesktop, so the icon
+theme answers it: Papirus, here. Papirus draws the level as a solid path over a
+full-height body at 35% opacity — and GTK renders a symbolic icon as a *mask*
+filled with one colour, which flattens the opacity. Eleven rungs, one picture.
+The low ones came out orange as well, because Papirus tags them
+`class="warning"` and GTK repaints that with the palette's warning colour, over
+`icon-color`.
+
+Adwaita cuts the level out of one path, which survives the mask. Getting Adwaita
+takes a name no theme claims, so `pkgs/default.nix` copies its battery
+symbolics under an `adw-` prefix and `wayle.nix` puts the package in
+`home.packages` — eleven rungs, plus `adw-battery-charging` (the empty-charging
+art: one charging icon is all wayle takes, and every levelled spelling claims a
+charge the label contradicts) and `adw-battery-missing`.
+
+> The tell was a fixed `level-icons = ["battery-level-90-symbolic"]` on the live
+> config rendering identically to the ladder at 25%. Testing by re-pointing
+> `~/.config/wayle/config.toml` at a scratch TOML costs a `systemctl restart`,
+> not a rebuild.
+
+### Workspaces, flush
+
+`.mod-mango-workspaces { padding: 0 }` took the module's own 4px; the remaining
+6px each side is the divider rhythm every group shares. Two ids take it to zero
+for this group alone — `#workspaces`' `padding-left` is the space *after* the
+divider before it, `#playing`'s `margin-left` the space *before* the divider
+after it. Both need `:not(:first-child)` to match the divider rule's
+specificity; a bare `#workspaces` loses and changes nothing, which was the first
+attempt. Measured 10px → 6px → 0 on the live bar.
+
+### The clock rule had never worked
+
+`.mod-clock .bar-button-label { font-size }` is (0,2,1). wayle styles
+`menubutton.bar-button .bar-button-label` at (0,2,2), so it won, and the clock
+had worn the bar default since the rule was written. Raising 1.25rem to 1.6rem
+changed nothing, which is how it was reported the second time.
+
+The proof is one measurement: with the selector at id strength, 1.04rem (wayle's
+own default) puts the `#time`/`#workspaces` divider at x=172, and so does every
+value the weak selector was ever given. `#time .mod-clock .bar-button-label`
+moves it — 1.4rem puts it at 182.
+
+> The first round of measurements said the clock *was* growing. It was not: the
+> bounding-box window was widened along with each font size, so the box grew and
+> the text did not. Fix the measurement window before trusting a sweep.
+
+1.4rem is the ceiling. `.module`'s `min-height: 23px` is a floor, not a cap: at
+1.5rem the label outgrows it and the bar goes to 32px, at 1.8rem to 37px. The
+bar's height is its exclusive zone, so that moves every tiled window.
+
+`checks/static.sh` now asserts every rule in `index.scss` touching a
+`.bar-button-*` node carries an id. A rule that loses on specificity still
+renders, so nothing else would catch the next one.
+
+### Centring the bluetooth glyph
+
+18px on its left, 6px on its right. The right section is packed right-to-left,
+so `padding-right` and `margin-right` cancel exactly and neither moves the
+glyph — only the left pair does. `padding-left: 0` with `margin-left: -2px;
+margin-right: -2px` moves it 6px left and holds the section's total width, so
+nothing else on the bar shifts. 14px and 12px now, measured.

@@ -1,5 +1,5 @@
 // =====================================================================
-// Wayle — tiling bar. Seven rules, each doing something no config key can.
+// Wayle — tiling bar. Nine rules, each doing something no config key can.
 // Reach for a key in modules/home/wayle.nix first.
 //
 // Never write a descendant `*` here. GTK4 parents a menubutton's popover
@@ -50,24 +50,42 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
 // ── Per-module ────────────────────────────────────────────────────────────
 
 // The active tag is the only thing here that draws a background, and it runs
-// the full height of the bar. `bar.padding` cannot make that room — it is a
-// margin outside the section.
+// the full height of the bar on all four sides. `bar.padding` cannot make that
+// room — it is a margin outside the section. The two ids below take the rest.
 .mod-mango-workspaces {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding: 0;
 }
 
 // Bluetooth's glyph is the narrowest on the bar and floats in a square icon
-// box, so its divider sat 22px off it against 13-16px elsewhere.
+// box, so it sat 18px off its left neighbour and 6px off its divider. All four
+// values are one thing — moving the glyph left inside a right-anchored section
+// without changing what the section is worth. `padding-left` moves it; the two
+// margins hold the total, so nothing else on the bar shifts. Measured 14px and
+// 12px, from 18 and 6.
+//
+// Do not reason about which side a value lands on: the right section is packed
+// right-to-left, so `padding-right` and `margin-right` cancel exactly and only
+// the left pair moves anything. Screenshot and count columns.
 .mod-bluetooth {
-  padding-right: 0;
+  padding-left: 0;
+  padding-right: 4px;
+  margin-left: -2px;
+  margin-right: -2px;
 }
 
 // The clock is the one label with its own size — `clock` has no `label-size`,
-// only the bar does. Same proportion as `#clock { font-size: 16px }` on a 14px
-// waybar.
-.mod-clock .bar-button-label {
-  font-size: 1.25rem;
+// only the bar does.
+//
+// `#time` IS LOAD-BEARING. wayle styles `menubutton.bar-button
+// .bar-button-label` (0,2,2); `.mod-clock .bar-button-label` is (0,2,1) and
+// loses, so this rule sat here inert from the day it was written and the clock
+// wore the bar default. The id buys the point it was short.
+//
+// 1.4rem is the ceiling, not a preference: `.module`'s 23px min-height states
+// the bar's height, and at 1.5rem the label outgrows it and the bar goes to
+// 32px. Measure the bar after changing this, not the text.
+#time .mod-clock .bar-button-label {
+  font-size: 1.4rem;
 }
 
 // The centre title sits on the bar's centre, not in the space the sides leave,
@@ -84,4 +102,21 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
 // stays on the group id.
 #power > * + * {
   margin-left: 5px;
+}
+
+// Workspaces alone sits FLUSH against both its dividers: 6px of bar between a
+// filled block and a line reads as a mistake where the same 6px beside text
+// reads as rhythm. Two groups, because a divider's two halves belong to
+// different ones — `#workspaces`' padding is the space after the divider
+// BEFORE it, `#playing`'s margin the space before the divider AFTER it.
+//
+// `:not(:first-child)` is not decoration: the divider rule carries it, so a
+// bare `#workspaces` is a specificity short and loses. Everything else keeps
+// its 6px.
+#workspaces:not(:first-child) {
+  padding-left: 0;
+}
+
+#playing:not(:first-child) {
+  margin-left: 0;
 }

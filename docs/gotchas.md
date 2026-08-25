@@ -1050,7 +1050,7 @@ stylesheet in `dotfiles/wayle/index.scss`.
 
 ### The stylesheet
 
-`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is seven
+`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is nine
 rules, and each one does something the config layer cannot. Use a config key
 first; add a rule only when no key exists or the key does not work.
 
@@ -1074,10 +1074,18 @@ short. `checks/static.sh` asserts the pattern stays absent.
 > measured identical to not being there.
 
 **wayle's own selectors out-specify a bare class.** Its sheet styles
-`menubutton.bar-button.basic .bar-button-content` (0,3,1) and
+`menubutton.bar-button.basic .bar-button-content` (0,3,1),
+`menubutton.bar-button .bar-button-label` (0,2,2) and
 `.bar.top .bar-group > .module + .module` (0,5,0); a class is (0,1,0) and loses
-to both. To change a value wayle sets, use an id. The built-in sheet is compiled
-into the binary: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
+to all three. To change a value wayle sets, use an id. The built-in sheet is
+compiled into the binary: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
+
+> **This cost the clock.** `.mod-clock .bar-button-label { font-size }` is
+> (0,2,1) against wayle's (0,2,2), so it was inert from the day it was written
+> and the clock wore the bar default. Nothing said so — a rule that loses is a
+> rule that renders. It reads as `#time .mod-clock .bar-button-label` now, and
+> `checks/static.sh` asserts every rule here that touches a `.bar-button-*`
+> carries an id.
 
 **`class` takes one class, not a list.** `class = "mod mod-clock"` is dropped
 whole — GTK's `add_css_class` rejects a name containing a space. That one slot
@@ -1107,6 +1115,25 @@ of a divider, 12px at the screen edge. `.module { padding: 4px }` gives the firs
 two; the group's `margin-left: 6px; padding-left: 6px` around its `border-left`
 gives the second. Change one and change the other.
 
+**Negative margins work, and the right section is packed right-to-left.** So on
+a module in it, `padding-right` and `margin-right` cancel exactly and neither
+moves the glyph — only `padding-left` and `margin-left` do. Bluetooth sat 18px
+off its left neighbour and 6px off its divider, because its glyph is the
+narrowest on the bar and floats in a square icon box. Dropping `padding-left`
+moves it left; `margin-left: -2px; margin-right: -2px` holds the section's total
+width so nothing else shifts. 14px and 12px now.
+
+Do not reason about which side a value lands on. Screenshot it and count
+columns.
+
+**`#workspaces` is the one exception, and it takes two ids.** The active tag
+draws a background, and 6px of bar between a filled block and a line reads as a
+mistake where the same 6px beside text reads as rhythm. A divider's two halves
+belong to different groups, so flush means `#workspaces { padding-left: 0 }` and
+`#playing { margin-left: 0 }` — and both need `:not(:first-child)`, because the
+divider rule carries it and a bare id is a specificity short. Written without
+it, the rule parses, applies to nothing, and the gap does not move.
+
 **`module-gap` and `button-group-module-gap` do nothing.** Both compile to a
 `margin-left` on selectors that match, but the CSS variables behind them stay 0
 whatever the TOML says. Verified at `3.0` with the sheet's own gap rule removed.
@@ -1123,6 +1150,11 @@ spacing preference.
 `button-icon-size` once took 3px off the whole bar, because the icon was the
 tallest thing in it. `.module` carries `min-height: 23px` so the height is declared:
 23 + 2×4px = 31px.
+
+**`min-height` is a floor, not a cap.** A label bigger than 23px still grows the
+bar, and the bar's height is its exclusive zone, so every tiled window moves.
+The clock hits this at 1.5rem: 31px → 32px, and 1.8rem gives 37px. After
+changing a font size here, measure the bar, not the text.
 
 **Do not use the `separator` module.** It sits as a direct child of the section
 box rather than inside a group, so nothing in the sheet reaches its wrapper and
@@ -1144,6 +1176,29 @@ definition names an icon; `checks/static.sh` asserts it.
 
 > This was the whole of "the gaps are too big", after four rounds of tuning
 > spacing keys moved them ~2px.
+
+**An empty custom module keeps its button, and `hide-if-empty` defaults false.**
+waybar rendered nothing for `{"text":""}`; wayle draws the button anyway, so the
+module holds ~10px of bar with nothing in it. `custom-phone` did that whenever
+the phone was unreachable — which is most of the time — and it was reported, and
+diagnosed twice, as bluetooth's right-hand padding.
+
+> Found by painting `.mod-custom-phone` green and screenshotting: a solid block
+> sat between the bluetooth glyph and the divider. `padding-right: 0` had
+> already been spent on the same 10px two rounds earlier, and moved 4px of it.
+
+**`hide-if-empty` tests the command's OUTPUT, not the rendered label** — and
+setting it alone changed nothing, because these scripts emit waybar JSON and
+`{"text":"","tooltip":…}` is not an empty output. It takes both halves:
+`phone-status.sh` grew a `bar` verb that prints *nothing* in the resting state,
+and the module names that verb. The control centre still calls `status`, which
+always answers — it reads `.class` to tell `offline` from `disconnected`, and
+silence there would mean "the script did not answer at all".
+
+The key without the verb is inert; the verb without the key draws an empty
+button. Neither half fails loudly, so `checks/static.sh` asserts the pair. It
+also hides on `"0"` and `"false"`, so it is wrong for a module that can
+legitimately say either — `phone` is the only one of the nine here.
 
 **Every icon a module draws is a name you can change.** `battery.level-icons`,
 `charging-icon`, `alert-icon`; `network.wifi-signal-icons` and its four wired
@@ -1170,7 +1225,39 @@ Lucide and Tabler outline, which sit thin beside bold text.
 |---|---|
 | the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar draws all of them |
 | Adwaita's symbolics | filled and already in the system profile — `audio-volume-{low,medium,high,muted}`, `display-brightness` |
-| the bundled `md-battery_android_*` | the only Material set here: solid, with a bolt for charging and a `!` for alert |
+| Adwaita's `battery-level-*`, copied under an `adw-` prefix | the ladder. The bare name resolves through the ICON THEME, not to Adwaita — see below |
+
+**A symbolic icon is rendered as a MASK filled with one colour, so any level
+drawn as opacity is flattened.** Papirus — the icon theme in service — answers
+the freedesktop name `battery-level-NN-symbolic` with a full-height body at 35%
+opacity under a solid level path. All eleven rungs therefore render as the same
+solid battery, and the low ones come out orange besides: Papirus tags them
+`class="warning"`, which GTK repaints with the palette's warning colour over
+whatever `icon-color` says.
+
+Adwaita cuts the level out of ONE path, so the mask keeps it. Getting Adwaita
+takes more than naming it — the icon theme is searched first, and Papirus has
+every `battery-level-*`. `pkgs/default.nix` copies Adwaita's under an `adw-`
+prefix that no theme claims, and `wayle.nix` puts that package in
+`home.packages`. The same trap is waiting for any icon whose *state* is drawn
+with opacity rather than with ink.
+
+> The tell is an icon that never changes. `battery-level-90-symbolic` and
+> `battery-level-20-symbolic` rendered identically on the bar; the label beside
+> it read 25%.
+
+**No CSS reaches a module icon's size.** Every module icon is a wayle-drawn
+`widget`, not a `GtkImage` — `.module image` matches exactly one thing on the
+whole bar, the systray item. So `-gtk-icon-size`, `-gtk-icon-transform` and
+`transform: scale()` are all no-ops on a module, at every depth
+(`.mod-x`, `.mod-x widget`, `.mod-x widget widget`), and wayle's own
+`menubutton.bar-button > button.toggle image` rule is vestigial for this
+variant. `bar.button-icon-size` is the only size knob and it is bar-wide. To
+make ONE icon read larger, pick a heavier name instead.
+
+> `.mod-<name> > *` and `> button.toggle` match nothing either — the direct
+> child is a `widget`. `.mod-<name> widget` is the handle, and it is a
+> descendant selector, so it reaches into that module's dropdown too.
 
 **A native `format` sees only `{{ percent }}`.** Not mute, not charging. So
 `volume` and `battery` keep their icon widget — `icon-muted`, `charging-icon`

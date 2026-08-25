@@ -3,8 +3,9 @@
 # written. `ring` is a verb here rather than a `kdeconnect-cli -d <id> --ring`
 # in waybar.nix's on-click, because that spelled the ID a second time and the
 # control-centre row would have made it a third — docs/adr/0005, one owner per
-# fact. Bare invocation is `status`, because waybar's `exec` calls it with no
-# argument.
+# fact. Two read verbs, and bare invocation is still `status`: `status` always
+# answers, `bar` stays silent when there is nothing to show — the only thing
+# wayle's `hide-if-empty` can see.
 
 DEVICE="ca2da407b0d74e098414a3a0d76b1502"
 NAME="Galaxy S22+"
@@ -73,6 +74,21 @@ do_status() {
 		"$ICON" "$CHARGE" "$NAME" "$CHARGE" "$CLASS"
 }
 
+# The BAR's entry point: `status`, with its resting state as silence.
+#
+# wayle's `hide-if-empty` tests the command's OUTPUT, not the rendered label, so
+# `{"text":"","tooltip":...}` is not empty to it and the module keeps its button
+# — ~10px of bar with nothing in it, which read as bluetooth's padding for two
+# rounds. The control centre still calls `status`: it needs `.class` to tell
+# `offline` from `disconnected`, and silence there would read as "the script did
+# not answer at all". gotchas.md -> Wayle.
+do_bar() {
+	local j
+	j=$(do_status)
+	[ -n "$(printf '%s' "$j" | jq -r '.text // ""')" ] || return 0
+	printf '%s\n' "$j"
+}
+
 # Rings the phone, or says why it cannot. Both callers — the bar's on-click and
 # the control centre's row — used to get silence when the phone was away, which
 # is indistinguishable from the ring having failed.
@@ -90,9 +106,10 @@ do_ring() {
 
 case "${1:-status}" in
 status) do_status ;;
+bar) do_bar ;;
 ring) do_ring ;;
 *)
-	echo "Usage: ${0##*/} <status|ring>"
+	echo "Usage: ${0##*/} <status|bar|ring>"
 	exit 1
 	;;
 esac

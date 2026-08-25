@@ -87,8 +87,15 @@ let
     }
     {
       id = "phone";
-      command = "${s}/kdeconnect/phone-status.sh";
+      # `bar`, NOT the bare call the control centre makes: `hide-if-empty` tests
+      # this command's OUTPUT, and `status` answers with a JSON object carrying
+      # an empty `.text`, which is not empty. The pair is the only reason the
+      # verb exists. Resting state is an unreachable phone, which is most of the
+      # time — and was 10px of dead bar between bluetooth and the divider,
+      # reported as bluetooth's padding. docs/gotchas.md -> Wayle.
+      command = "${s}/kdeconnect/phone-status.sh bar";
       interval-ms = 30000;
+      hide-if-empty = true;
       format = "{{ text }}";
       tooltip-format = "{{ tooltip }}";
       class-format = "{{ class }}";
@@ -96,7 +103,7 @@ let
       # the script that already holds it.
       left-click = "${s}/kdeconnect/phone-status.sh ring";
       right-click = "kdeconnect-cli --refresh";
-      on-action = "${s}/kdeconnect/phone-status.sh";
+      on-action = "${s}/kdeconnect/phone-status.sh bar";
     }
     {
       id = "night-mode";
@@ -232,12 +239,13 @@ let
     };
 
     # ── Icons that read as solid ──────────────────────────────────────────
-    # wayle's 361 bundled icons are outline. Three ways round it, no new
-    # dependency: the glyph in `format` where the module has no state beyond
-    # its number; Adwaita's filled symbolics; the bundled Material battery
-    # ladder. A native `format` sees only `{{ percent }}`, which is why
-    # `volume` and `battery` keep their icon widget — `icon-muted` and
-    # `charging-icon` are the only way those states show.
+    # wayle's 361 bundled icons are outline, including its Material battery
+    # ladder. Two ways round it, no new dependency: the glyph in `format` where
+    # the module has no state beyond its number, and a freedesktop name the
+    # icon theme already answers — Adwaita's filled symbolics, Papirus's
+    # two-tone `battery-level-*`. A native `format` sees only `{{ percent }}`,
+    # which is why `volume` and `battery` keep their icon widget — `icon-muted`
+    # and `charging-icon` are the only way those states show.
     # docs/gotchas.md -> Wayle. checks/static.sh resolves every name.
     cpu = {
       icon-show = false;
@@ -307,18 +315,36 @@ let
     # second opinion on them: waybar warned at 30/15 while upower acted at
     # 20/5, so the colour change marked nothing. checks/static.sh asserts the
     # two still agree.
+    # Adwaita's ladder, NOT wayle's bundled `md-battery_android_*` — which these
+    # three keys restated verbatim, so they were the default written out.
+    # Material's is a 1px frame with a fill bar inside and reads as line art
+    # beside bold text.
+    #
+    # `adw-`, not the bare `battery-level-*` name: that one belongs to
+    # freedesktop, so the ICON THEME answers it and Papirus's eleven rungs all
+    # render as the same solid battery. pkgs/default.nix carries the mechanism;
+    # `adwaitaBatteryIcons` in `home.packages` below carries the files.
+    #
+    # Eleven, because the ladder is 0-100 in tens and wayle divides the range
+    # evenly among however many it is given. docs/gotchas.md -> Wayle.
     battery.level-icons = [
-      "md-battery_android_0-symbolic"
-      "md-battery_android_frame_1-symbolic"
-      "md-battery_android_frame_2-symbolic"
-      "md-battery_android_frame_3-symbolic"
-      "md-battery_android_frame_4-symbolic"
-      "md-battery_android_frame_5-symbolic"
-      "md-battery_android_frame_6-symbolic"
-      "md-battery_android_frame_full-symbolic"
+      "adw-battery-level-0-symbolic"
+      "adw-battery-level-10-symbolic"
+      "adw-battery-level-20-symbolic"
+      "adw-battery-level-30-symbolic"
+      "adw-battery-level-40-symbolic"
+      "adw-battery-level-50-symbolic"
+      "adw-battery-level-60-symbolic"
+      "adw-battery-level-70-symbolic"
+      "adw-battery-level-80-symbolic"
+      "adw-battery-level-90-symbolic"
+      "adw-battery-level-100-symbolic"
     ];
-    battery.charging-icon = "md-battery_android_frame_bolt-symbolic";
-    battery.alert-icon = "md-battery_android_alert-symbolic";
+    # One charging icon is all wayle takes, so it is Adwaita's EMPTY-charging
+    # art — a frame with a bolt. Every levelled spelling claims a charge the
+    # label beside it contradicts.
+    battery.charging-icon = "adw-battery-charging-symbolic";
+    battery.alert-icon = "adw-battery-missing-symbolic";
 
     battery.thresholds = [
       {
@@ -666,6 +692,12 @@ in
     # It adds no theme-provider package because `theme-provider` is `wayle`.
     autoInstallDependencies = true;
   };
+
+  # The battery ladder, and it has to be a PACKAGE rather than a name: the icon
+  # theme answers `battery-level-*` first and Papirus's rungs are all the same
+  # icon once GTK masks them. pkgs/default.nix says why. Here rather than in
+  # packages.nix because the bar is its only consumer.
+  home.packages = [ pkgs.adwaitaBatteryIcons ];
 
   # NEITHER UNIT MAY START AT LOGIN. The module wants both on
   # graphical-session.target, which runs in every mode — including noctalia,

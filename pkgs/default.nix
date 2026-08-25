@@ -126,6 +126,40 @@ in
     '';
 
   # ==========================================================================
+  # adwaitaBatteryIcons — Adwaita's battery ladder, out from under the theme
+  # ==========================================================================
+  # `battery-level-*` is a freedesktop name, so the ICON THEME answers it first
+  # — Papirus here — and Papirus draws the level as a second path at 35%
+  # opacity over a full-height body. GTK renders a symbolic icon as a MASK
+  # filled with one colour, which flattens that opacity: all eleven rungs come
+  # out as the same solid battery. Its `warning` class also repaints the low
+  # ones orange, over whatever `icon-color` says. Adwaita cuts the level out of
+  # ONE path, so the mask keeps it.
+  #
+  # Copied under `adw-`, wayle's own prefix convention for a source set, so no
+  # icon theme can shadow them again and the ladder does not follow the scheme.
+  # A missing source name fails the build here rather than falling back in
+  # silence on the bar. docs/gotchas.md -> Wayle.
+  adwaitaBatteryIcons =
+    prev.runCommand "adwaita-battery-icons"
+      {
+        meta.description = "Adwaita's battery symbolics under a name no icon theme claims";
+      }
+      ''
+        src=${prev.adwaita-icon-theme}/share/icons/Adwaita/symbolic
+        dst=$out/share/icons/hicolor/scalable/status
+        mkdir -p "$dst"
+        for n in 0 10 20 30 40 50 60 70 80 90 100; do
+          cp "$src/status/battery-level-$n-symbolic.svg" \
+            "$dst/adw-battery-level-$n-symbolic.svg"
+        done
+        cp "$src/legacy/battery-empty-charging-symbolic.svg" \
+          "$dst/adw-battery-charging-symbolic.svg"
+        cp "$src/status/battery-missing-symbolic.svg" \
+          "$dst/adw-battery-missing-symbolic.svg"
+      '';
+
+  # ==========================================================================
   # paletteCursors — the cursor set, recoloured from the palette
   # ==========================================================================
   # docs/adr/0041. catppuccin/cursors carries the Volantes art (GPL-2) as 68

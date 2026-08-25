@@ -186,7 +186,7 @@ All defined as zsh aliases in `modules/home/shell.nix`:
 | `generations` | `nixos-rebuild list-generations` | See what you can roll back to |
 | `gc` | `nix-collect-garbage --delete-older-than 30d` | Reclaim store space |
 | `search` | `nix search nixpkgs` | Find a package name |
-| `waybar-reload` | Restart waybar from the current state | After a `rebuild` that touched the bar |
+| `waybar-reload` | Restart waybar from the current state | Waybar is retired in tiling mode (ADR 0045); the bar is `scripts/wayle/wayle-restart.sh` |
 | `mango-reload` | Re-apply the mode and dispatch `reload_config` | After a `rebuild` that touched keybinds, rules or autostart |
 
 The mango scripts are not on `$PATH` — `~/.scripts` is, `~/.config/mango/scripts`
@@ -227,7 +227,7 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Changed | Apply with |
 |---|---|
 | Anything under `dotfiles/mango/` | `rebuild`, **then** `mango-reload` |
-| Waybar layouts (`modules/home/waybar.nix`) or CSS | `rebuild`, then `waybar-reload` |
+| The bar (`modules/home/wayle.nix`, `dotfiles/wayle/index.scss`) | `rebuild`, then `scripts/wayle/wayle-restart.sh` |
 | kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | `rebuild`, then restart the terminal — no live reload |
 | zed, htop, imv, yazi | `rebuild`, then restart the app |
@@ -304,10 +304,10 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Window rules | `dotfiles/mango/universal/rule.conf` |
 | Per-workspace layout | `dotfiles/mango/universal/tag.conf` |
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
-| Waybar modules | `modules/home/waybar.nix` — **generated.** There are no `config*.jsonc` files in this repo |
+| Bar modules | `modules/home/wayle.nix` — **generated**, six layouts. `waybar.nix` is the same shape and still built, started by nothing (ADR 0045) |
 | Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
 | rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode. Its `lines: 12` is a **fixed height** and only the cap for `rofi -show drun\|run\|window\|calc\|emoji`; hand-built menus size themselves through `lib.sh`'s `rofi_menu <max>` (`-theme-str`, since `-l` loses to the theme — `docs/gotchas.md` → rofi). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
-| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in the waybar `custom/power` on-click too** |
+| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in `custom-power`'s click in `wayle.nix` too** (and `waybar.nix`, while it is still built) |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | The launcher is `rofi -show drun` (`docs/adr/0043`) and its entries are the `.desktop` files in the profiles — nothing to declare; menu contents are in the `scripts/menus/*.sh` that build them |
 | rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for both desktop modes |

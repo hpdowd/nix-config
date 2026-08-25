@@ -349,7 +349,7 @@ should read as a decision rather than a gap.
 **Landed, and the machine wears it.** `modules/home/themes/heartbox.nix`;
 `scheme.nix` and both modes in `modes.nix` name it; noctalia's scheme file is
 generated into `~/.config/noctalia/colorschemes/`; one check widened.
-`nix flake check`: **124 assertions, 0 failing**.
+`nix flake check`: **124 assertions, 0 failing** (2026-08-21; 142 as of 2026-08-25).
 
 Flipping it broke exactly **one** assertion, which is the whole point of having
 built the generators first — `noctalia has no colour scheme named Heartbox`,

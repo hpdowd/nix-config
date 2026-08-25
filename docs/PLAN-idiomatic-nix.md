@@ -39,8 +39,8 @@ them; the surrounding quote is the durable half.
 
 **What the gate is today.** `nix flake check` runs six checks: the system
 closure, the home closure, statix, deadnix, shellcheck **and shfmt** over 43
-tracked scripts, and `checks/static.sh` — **117 assertions across 15 sections,
-0 failing**. It was 19 assertions when Phase 4 closed. Two live checks that need a running
+tracked scripts, and `checks/static.sh` — **142 assertions, 0 failing**
+(2026-08-25). It was 19 assertions when Phase 4 closed. Two live checks that need a running
 compositor stay in `./verify-claims.sh` (69 lines).
 
 ## The framing, corrected
@@ -462,6 +462,39 @@ stale-count fixes were in **`dotfiles/` files, which are store content** — a
 comment there is data by definition and legitimately moves the hash. The
 `drvPath` test proves a no-op for Nix comments only; stash the `dotfiles/`
 changes before running it.
+
+### 5d — third pass: the instrument says stop ✅ 2026-08-25
+
+Measured before cutting, and the numbers say the comment-cutting passes are
+finished. Counted with the snippet under "Measure the comments the same way
+twice": **comments 2724 / code 4639** for `*.nix`.
+
+| Checked | Found |
+|---|---|
+| comment lines appearing verbatim in a doc | **4**, repo-wide |
+| doc references to files that do not exist | ~0 — the 72 hits are runtime paths, generated files, or history (hud, walker, fsel, elephant) that the ADRs correctly record as removed |
+| multi-entry `WORK-LOG` days | 2026-08-20 has ten entries and 2026-08-18 has four, but each covers a **different change**. Correct as written |
+| the largest blocks in `pkgs/default.nix` | the argument itself — the KvantumAlt measurement, the cursor sentinel counts — and it lives nowhere else |
+
+So do not run a fourth comment-cutting pass expecting the 2026-08-12 and
+2026-08-20 yields. The duplication those passes existed to remove is gone.
+
+**What the pass did find, and it is the class 5d named:** stale claims stated in
+a confident voice. Five fixed — two assertion counts in the ledgers of this file
+and `PLAN-generated-artefacts.md`, and four `SYSTEM.md` rows still naming waybar
+as the bar you reload, change or bump `-b` in, which has been wayle's job since
+`docs/adr/0045`. Grep for a subsystem's name after it is replaced, not for prose
+style.
+
+**One anti-pattern is real and was mine.** `WORK-LOG` gained nine entries for a
+single day's work on a single subsystem, each restating the previous round's
+findings and several describing state that a later round changed; `index.scss`
+reached 74% comment. Consolidated to one entry, 342 lines to 114. Write one
+entry per session and rewrite it as the work moves.
+
+**Still open: house phrasing.** `which is why` ×51, `reads as` ×56, `rather than
+a` ×136 across docs and comments. That is a prose rewrite of ~19,000 lines, not
+a cut, and it needs its own decision about how far to take it.
 
 ### 5e — format the shell too ✅ DONE 2026-08-20
 

@@ -3533,3 +3533,25 @@ so `padding-right` and `margin-right` cancel exactly and neither moves the
 glyph — only the left pair does. `padding-left: 0` with `margin-left: -2px;
 margin-right: -2px` moves it 6px left and holds the section's total width, so
 nothing else on the bar shifts. 14px and 12px now, measured.
+
+### Four `.hm-bak` files, and why the sweep does not hold
+
+The 2026-08-25 Arch sweep above removed eight and reported none left. Four were
+back, or had never been in scope:
+
+| File | Held |
+|---|---|
+| `wayle/styles/index.scss.hm-bak` | the pre-`.mod-<name>` sheet, from the `.mod`/`.sep` era |
+| `wayle/styles/_colors.scss.hm-bak` | a generated file, one variable |
+| `noctalia/colorschemes/Heartbox/Heartbox.json.hm-bak` | the same scheme, before `mError` split from `mPrimary` |
+| `.local/share/icons/default/index.theme.hm-bak` | nwg-look's cursor line, still naming `Simp1e-Gruvbox-Dark` |
+
+Nothing unique in any of them; all four deleted.
+
+They are not residue. Home-manager writes one whenever a real file sits where it
+wants a symlink, so any edit made directly under `~/.config` to a managed path
+leaves one behind at the next rebuild — including the write-then-restore loop
+this session used twice to test stylesheet changes without rebuilding. Restore
+that link by pointing it at `…-home-manager-files/.config/…`, or delete the file
+and let activation recreate it. A stale store path is not the same thing and
+does not count as home-manager's own.

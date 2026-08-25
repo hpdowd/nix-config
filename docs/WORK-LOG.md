@@ -3490,3 +3490,57 @@ command. Not done for that reason; a declarative fetch into `pkgs/` is the
 version worth having, with the caveat that wayle's own SVGs are GTK grappa
 format and raw Tabler ones are stroke-based, so recolouring needs checking
 before it is worth the derivation.
+
+---
+
+## 2026-08-25 · Solid icons, without a new dependency
+
+Four asks, and the interesting half is that "wayle's icons are all outline" had
+three answers rather than none.
+
+**`cpu` and `ram` print waybar's own Nerd Font glyph in `format`**, with
+`icon-show = false`. That is how waybar draws every icon it has, and it means
+these two take the label's size and weight for free. It only works where the
+module has no state beyond its number: a native `format` sees `{{ percent }}`
+and nothing else — not mute, not charging.
+
+**`volume` and `brightness` take Adwaita's symbolics**, which are filled and
+already in the system profile. They stay icons rather than text for exactly the
+reason above: `icon-muted` is the only way mute is visible at all.
+
+**`battery` takes the bundled `md-battery_android_*` ladder** — the one Material
+set in the package, and the closest thing to the phone-style icon that was
+asked for: solid, wide, a bolt for charging and a `!` for the alert. The
+percentage cannot go inside it.
+
+**The glyphs needed style-solid.css's font stack.** With `font-sans` as one
+family, `cpu` rendered as `<glyph>8%`: 3270 patches Nerd Font icons in at
+natural width but keeps its own narrow 0.54em advance, so the ink overflows and
+eats the space after it. `"Symbols Nerd Font Mono, 3270 Nerd Font"` fixes it,
+and the font check had to learn to split a stack on commas — it was looking up
+the whole string as one family.
+
+**A new assertion: every icon name in the layouts resolves to a file.** It now
+matters more than it did — `audio-volume-*` and `display-brightness` come from
+Adwaita in the SYSTEM profile, not from wayle's own 361, so dropping
+adwaita-icon-theme would silently restyle two modules. `find -L`, because both
+icon trees are symlink farms and without it Adwaita's `symbolic/status/` is
+never entered and every name in it reads as missing. Mutation-tested by
+misspelling `audio-volume-high`.
+
+**Spacing.** Bluetooth is icon-only with the narrowest glyph on the bar, so it
+floats in a square box and its divider sat 22px off it against 13-16px
+elsewhere; dropping its own padding takes that to 18. The `power` group gets
+5px more between items, because idle-inhibitor and power-profile are bare
+glyphs with no number after them and at 10px read as one run-on symbol.
+
+> Two hooks were tried for bluetooth and neither exists. `class = "mod
+> mod-bluetooth"` is dropped whole — GTK rejects a class name with a space — and
+> `icon-only` is a button variant, not a matchable class. `nth-child(3)` is what
+> is left, and it is stable because one ordered list defines the order for all
+> three layouts.
+>
+> The wildcard check caught `#power > * + *` on the way in. Sibling combinators
+> are as safe as child ones — a module's sibling is another module, never
+> something inside one — so the pattern learned about `+` and `~` rather than
+> the rule changing.

@@ -2627,6 +2627,38 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		ok "all ${#WLAYOUTS[@]} wayle layouts leave bar.padding at 0, so the active tag is full height"
 	fi
 
+	# 6b. Every icon name a layout references resolves to a file.
+	#
+	# A name that does not is not an error: wayle falls back to its own default
+	# and the module renders, wearing an icon nobody chose. The same failure the
+	# FONT names get a check for, and now a live dependency — `audio-volume-*`
+	# and `display-brightness` come from Adwaita in the SYSTEM profile, not from
+	# wayle's own 361, so dropping adwaita-icon-theme would silently restyle two
+	# modules.
+	#
+	# `find -L`: both trees are symlink farms, and without it Adwaita's
+	# `symbolic/status/` is never entered and every name in it reads as missing.
+	iconnames=$(
+		grep -hoE '"[a-z][a-z0-9_-]*-symbolic"' "${WLAYOUTS[@]}" 2>/dev/null |
+			tr -d '"' | sort -u
+	)
+	icon_count=$(printf '%s\n' "$iconnames" | grep -c .)
+	if [[ $icon_count -lt 5 ]]; then
+		bad "only $icon_count icon names extracted from the wayle layouts — the scan is broken, not the config"
+	else
+		imissing=()
+		while IFS= read -r n; do
+			[[ -z $n ]] && continue
+			find -L "$GEN/home-path/share/icons" "$SYS/sw/share/icons" \
+				-name "$n.svg" -print -quit 2>/dev/null | grep -q . || imissing+=("$n")
+		done <<<"$iconnames"
+		if [[ ${#imissing[@]} -gt 0 ]]; then
+			bad "wayle icon names that resolve to nothing (silent fallback)" "${imissing[*]}"
+		else
+			ok "all $icon_count icon names in the wayle layouts resolve to a file"
+		fi
+	fi
+
 	# 7. The sheet's `$groups` list is exactly the set of groups the layouts
 	# declare. Every rule in index.scss is built from that one variable — the
 	# within-group gap and the separator both need an ID to out-specify wayle's
@@ -2648,12 +2680,14 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		# exactly as intended while everything it opens looks broken, which is
 		# why this is a check and not a comment. `> *` is fine: a popover is a
 		# child of the module, so a direct-child selector stops one short of it.
+		# `+` and `~` are sibling combinators and equally safe — a module's
+		# sibling is another module, never something inside one.
 		#
 		# It lives HERE, after `$SCSS` is assigned and checked. Its first cut
 		# sat above that line and grepped an empty path — passing by finding
 		# nothing, over a mutation that added `.mod *` deliberately.
 		mapfile -t STARS < <(
-			sed 's|//.*||' "$SCSS" | grep -nE '(^|[^>[:space:]])[[:space:]]+[*]|^[*]' || true
+			sed 's|//.*||' "$SCSS" | grep -nE '(^|[^>+~[:space:]])[[:space:]]+[*]|^[*]' || true
 		)
 		if [[ ${#STARS[@]} -gt 0 ]]; then
 			bad "index.scss uses a descendant \`*\`, which reaches inside every dropdown" \
@@ -3190,6 +3224,12 @@ else
 			sed -nE 's/^font-(sans|mono) = "(.*)"$/\2/p' \
 				"$WAYLE_DIR"/layouts/*.toml 2>/dev/null
 		)
+		# A config may name a STACK — wayle's `font-sans` is
+		# "Symbols Nerd Font Mono, 3270 Nerd Font", the same two-family fallback
+		# style-solid.css uses, because 3270's advance is too narrow for the
+		# glyphs it patches in. Split it, or the whole stack is looked up as one
+		# family name and reported missing.
+		wanted=$(printf '%s\n' "$wanted" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 		wanted=$(printf '%s\n' "$wanted" | grep -vE '^(auto|monospace|sans-serif|serif|inherit)?$' | sort -u)
 
 		want_count=$(printf '%s\n' "$wanted" | grep -c .)

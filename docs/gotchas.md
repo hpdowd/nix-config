@@ -1168,6 +1168,34 @@ pulls more from a CDN and `wayle icons import` takes local SVGs.
 `--weight-bold` in wayle's own sheet whatever the bar says. Two scales, and
 setting the bar's moves everything except the tags.
 
+**Three ways to get an icon that reads as solid**, in order of preference. All
+361 bundled icons are Lucide/Tabler *outline*, which sit thin beside bold text.
+
+| | when |
+|---|---|
+| the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar does all of them |
+| Adwaita's own symbolics | filled, already in the system profile — `audio-volume-{low,medium,high,muted}`, `display-brightness` |
+| the bundled `md-battery_android_*` | the only Material set here, and the closest thing to a phone battery: solid, with a bolt for charging and a `!` for alert |
+
+> **A native `format` sees only `{{ percent }}`.** Not mute, not charging. So
+> `volume` and `battery` keep their icon *widget* — `icon-muted`,
+> `charging-icon` and `alert-icon` are the only way those states show at all.
+
+**A glyph in a label needs the two-family font stack.** `font-sans` must be
+`"Symbols Nerd Font Mono, 3270 Nerd Font"`, the same stack and the same reason
+as `style-solid.css`: 3270 patches the Nerd Font icons in at natural width but
+keeps its own narrow 0.54em advance, so the ink overflows to the right and eats
+the space after it. With one family, `cpu` renders as `<glyph>8%`.
+
+**A native `format` is real Jinja2** — `{% if percent > 50 %}…{% endif %}`
+evaluates. Verified on the running bar, not assumed.
+
+**`class` takes ONE class, not a list.** `class = "mod mod-clock"` is dropped
+whole (GTK's `add_css_class` rejects a name with a space), so there is no
+per-module CSS hook — `#<group> > *:nth-child(n)` is the only handle, and it is
+stable here because one ordered list in `wayle.nix` defines the order for all
+three layouts. `icon-only` is a button *variant*, not a class you can match.
+
 **Do not use the `separator` module.** It sits as a direct child of the SECTION
 box rather than inside a group, so nothing in the sheet can reach its wrapper
 and its padding survives everything. Draw the divider as a `border-left` on the

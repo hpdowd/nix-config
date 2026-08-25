@@ -105,6 +105,26 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
   font-size: 1.25rem;
 }
 
+// Bluetooth is icon-only and its glyph is the narrowest on the bar, so it
+// floats in a square icon box and the group's divider sat 22px off it against
+// 13-16px everywhere else. Dropping its own padding takes that to 18px; the
+// rest is the box, which no key here can narrow.
+//
+// `nth-child(3)` is bluetooth in both layouts that carry this group — one
+// ordered list in wayle.nix defines the order for all three, so a positional
+// selector is as stable as a name would be. `minimal` has no `radios`.
+#radios > *:nth-child(3) {
+  padding-right: 0;
+}
+
+// Idle inhibitor, power profile and battery share a group since they stopped
+// being two, and the first two are bare glyphs with no number after them — at
+// the bar's 10px they read as one run-on symbol. 5px more, here rather than in
+// the group's own padding, so the group's edges keep the bar's rhythm.
+#power > * + * {
+  margin-left: 5px;
+}
+
 // The centre title sits on the BAR's centre, not in the space the other two
 // sides leave, so it can collide with a long left side. The caps in wayle.nix
 // are the first defence; this stops the text being the thing that grows.

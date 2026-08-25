@@ -241,6 +241,51 @@ let
       popup-layer = "overlay";
     };
 
+    # ── Icons that read as solid ──────────────────────────────────────────
+    #
+    # wayle's own 361 bundled icons are Lucide and Tabler OUTLINE, which sit
+    # thin beside bold text. Three answers, in order of preference, and no new
+    # dependency in any of them:
+    #
+    #   cpu, ram      the icon is TEXT — waybar's own Nerd Font glyph in
+    #                 `format`, so it takes the label's size and weight. Only
+    #                 works where the module has no state beyond its number,
+    #                 which these two do not.
+    #   volume,       Adwaita's `audio-volume-*` and `display-brightness`, which
+    #   brightness    are filled and already in the generation. Kept as ICONS
+    #                 rather than text because `format` sees only `percent` —
+    #                 mute is not a placeholder, and `icon-muted` is the only
+    #                 way to show it.
+    #   battery       Material's Android battery ladder, bundled with wayle and
+    #                 the closest thing here to the phone-style icon: solid,
+    #                 wide, with a bolt for charging and a `!` for the alert.
+    #
+    # `checks/static.sh` resolves every one of these names against the two icon
+    # trees the generation has. A name that does not resolve falls back without
+    # a word — the same failure the font names get a check for.
+    cpu = {
+      icon-show = false;
+      format = " {{ percent }}%";
+    };
+
+    ram = {
+      icon-show = false;
+      format = " {{ percent }}%";
+    };
+
+    volume = {
+      level-icons = [
+        "audio-volume-low-symbolic"
+        "audio-volume-medium-symbolic"
+        "audio-volume-high-symbolic"
+      ];
+      icon-muted = "audio-volume-muted-symbolic";
+    };
+
+    # One icon, not a ladder: Adwaita ships a single brightness symbolic, and a
+    # one-element array is how `level-icons` says "the same at every level".
+    brightness.level-icons = [ "display-brightness-symbolic" ];
+
     # Icon only. `disconnected-icon` and `connected-icon` already carry the
     # state, so the label was the word "Disconnected" sitting on the bar
     # whenever nothing was paired — which is most of the time.
@@ -297,6 +342,19 @@ let
     # second opinion on them: waybar warned at 30/15 while upower acted at
     # 20/5, so the colour change marked nothing. checks/static.sh asserts the
     # two still agree.
+    battery.level-icons = [
+      "md-battery_android_0-symbolic"
+      "md-battery_android_frame_1-symbolic"
+      "md-battery_android_frame_2-symbolic"
+      "md-battery_android_frame_3-symbolic"
+      "md-battery_android_frame_4-symbolic"
+      "md-battery_android_frame_5-symbolic"
+      "md-battery_android_frame_6-symbolic"
+      "md-battery_android_frame_full-symbolic"
+    ];
+    battery.charging-icon = "md-battery_android_frame_bolt-symbolic";
+    battery.alert-icon = "md-battery_android_alert-symbolic";
+
     battery.thresholds = [
       {
         below = 20;
@@ -499,7 +557,13 @@ let
       # `Inter` was here and is not installed. These two are what waybar's CSS
       # asks for and what fonts.nix ships; checks/static.sh asserts they exist.
       general = {
-        font-sans = "3270 Nerd Font";
+        # TWO FAMILIES, Symbols FIRST — style-solid.css's stack, and for its
+        # reason: 3270 patches the Nerd Font icons in at their natural width but
+        # keeps its own narrow 0.54em advance, so a glyph printed in a label
+        # overflows its cell to the right and eats the space after it. `cpu` and
+        # `ram` render their icon as TEXT (below), and both read as `<glyph>8%`
+        # with one family here. Pango falls back per character.
+        font-sans = "Symbols Nerd Font Mono, 3270 Nerd Font";
         font-mono = "JetBrainsMono Nerd Font";
       };
 

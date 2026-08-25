@@ -5,9 +5,9 @@
 # control-centre row are both readers. docs/adr/0038.
 #
 #   status   the bar        fetches when the cache has expired
-#   read     the menu row   cache only, NEVER a socket — that render is parallel
+#   read     the menu row   cache only, never a socket — that render is parallel
 #                           and costs its slowest row (73 ms). Asserted.
-#   refresh  Enter on it    fetches past the TTL, then signals waybar
+#   refresh  Enter on it    fetches past the ttl, then signals waybar
 #   open     right-click    hands the coordinates to a browser. No network of
 #                           its own, and no reader — it renders nothing.
 #
@@ -117,7 +117,7 @@ icon_for() {
 }
 
 # Refuses rather than defaults: `latitude=&longitude=` is a request open-meteo
-# ANSWERS, with the weather at 0°N 0°E. gotchas.md -> Scripts.
+# Answers, with the weather at 0°N 0°E. gotchas.md -> Scripts.
 load_location() {
 	[ -r "$LOCATION_ENV" ] || return 1
 	# shellcheck source=/dev/null
@@ -128,7 +128,7 @@ load_location() {
 # Atomic: `mv` after a complete write, so a killed fetch leaves the previous
 # reading intact rather than a truncated file that renders `error` forever.
 #
-# ONE REQUEST CARRIES THE WHOLE TOOLTIP. Every field asked for here is read by
+# One request carries the whole tooltip. Every field asked for here is read by
 # render() and every field render() reads is asked for here — checks/static.sh
 # asserts both directions, because a name dropped from this URL is one tooltip
 # line that stops rendering while the six around it stay right.
@@ -161,7 +161,7 @@ fetch() {
 
 	# The trend is the one fact a single response cannot carry, so the cache
 	# keeps six hours of pressure samples and render() compares against one
-	# about three hours old. THE CACHE IS THEREFORE NOT THE RESPONSE VERBATIM.
+	# about three hours old. The cache is therefore not the response verbatim.
 	# Fewer than two hours apart, no trend is claimed and the line stops at the
 	# reading — a trend computed over fifteen minutes is noise wearing an arrow.
 	now=$(date +%s)
@@ -198,7 +198,7 @@ human_age() {
 }
 
 # Eight points from a bearing. `wind_direction_10m` is where the wind comes
-# FROM, which is why the line printing this says "from": an arrow has to pick a
+# From, which is why the line printing this says "from": an arrow has to pick a
 # convention and half the world reads it the other way.
 compass() {
 	local deg=${1%%.*}
@@ -217,7 +217,7 @@ compass() {
 }
 
 # WHO's five bands. A bare UV number means nothing to anyone, and the bands are
-# defined on the value, so this TRUNCATES — rounding puts 2.75 in `moderate`,
+# defined on the value, so this truncates — rounding puts 2.75 in `moderate`,
 # which is the band above the one it is in.
 uv_band() {
 	local n=${1%%.*}
@@ -235,7 +235,7 @@ uv_band() {
 	fi
 }
 
-# From two "YYYY-MM-DDTHH:MM" strings, in human_age's units so the tooltip reads
+# From two "yyyy-mm-ddthh:mm" strings, in human_age's units so the tooltip reads
 # in one system. `10#` because 08 and 09 are not octal numbers.
 day_length() {
 	local a=$1 b=$2 m
@@ -245,7 +245,7 @@ day_length() {
 }
 
 # waybar sets a custom module's tooltip with set_tooltip_markup, so a bare `&`
-# in the place name is invalid Pango and the tooltip does not appear AT ALL —
+# in the place name is invalid Pango and the tooltip does not appear at all —
 # not "appears wrong". The place name is the only value here that comes from
 # outside this script.
 esc() {
@@ -254,7 +254,7 @@ esc() {
 }
 
 # `alt` is waybar's own key, unused when `format` is "{}", so it carries the
-# phrase the control-centre row wants as a FIELD. Cutting it out of the tooltip
+# phrase the control-centre row wants as a field. Cutting it out of the tooltip
 # instead rendered "light" for "light drizzle" — gotchas.md -> Waybar.
 emit() {
 	jq -cn --arg text "$1" --arg alt "$2" --arg cls "$3" --arg tip "$4" \
@@ -269,7 +269,7 @@ render() {
 	# One jq for every field the tooltip shows: joined on U+001F inside a block
 	# and U+001E between the three, because `read` with IFS=$'\t' cannot see an
 	# empty leading field and any of these can be null. gotchas.md -> Scripts.
-	# The separators arrive as ARGUMENTS so this file carries no control bytes.
+	# The separators arrive as arguments so this file carries no control bytes.
 	blob=$(jq -r --arg us $'\037' --arg rs $'\036' --argjson now "$(date +%s)" '
 		def s: . // "" | tostring;
 		def j: join($us);
@@ -309,7 +309,7 @@ render() {
 		return
 	}
 
-	# Split by hand, NOT with `read`: both forecast blocks contain newlines and
+	# Split by hand, not with `read`: both forecast blocks contain newlines and
 	# `read` stops at the first one.
 	rest=$blob
 	fields=${rest%%$'\036'*}
@@ -340,7 +340,7 @@ render() {
 		[ -n "$pop" ] && tip+=" · rain ${pop}%"
 	fi
 	[ -n "$hum" ] && tip+=$'\n'"Humidity ${hum}%"
-	# One decimal, and the band read off THAT figure rather than the raw one, so
+	# One decimal, and the band read off that figure rather than the raw one, so
 	# the word and the number cannot disagree at a boundary.
 	if [ -n "$uv" ]; then
 		uv=$(printf '%.1f' "$uv")
@@ -446,10 +446,10 @@ do_read() {
 	fi
 }
 
-# Forced, past the TTL — the only path that ignores the cache. Reached by Enter
-# on the control-centre row AND by a click on the bar module.
+# Forced, past the ttl — the only path that ignores the cache. Reached by Enter
+# on the control-centre row and by a click on the bar module.
 #
-# SAYS SO WHEN IT FAILS. With no cache behind it the row re-renders identically,
+# Says so when it fails. With no cache behind it the row re-renders identically,
 # which is the "action that appears to do nothing" menus/control-center.sh
 # refuses to have. The two failures need different sentences: one is a network,
 # the other is a rebuild.
@@ -467,14 +467,14 @@ do_refresh() {
 	pkill -RTMIN+13 waybar 2>/dev/null || true
 }
 
-# The way out to a page no tooltip can hold. Reached by a RIGHT-click on the
+# The way out to a page no tooltip can hold. Reached by a right-click on the
 # bar and by the control centre's second weather row.
 #
 # The URL is `local.location.forecastUrl`, not a constant here: which site it is
 # decides who besides open-meteo learns where this machine is, and that belongs
 # next to the coordinates. docs/adr/0044.
 #
-# `setsid -f` because BOTH callers wait on this and xdg-open waits on the
+# `setsid -f` because both callers wait on this and xdg-open waits on the
 # browser when one is not already running — the control-centre loop would hang
 # until Zen exits. The exit status goes with it, so the two failures worth a
 # sentence are checked before the fork, and the third (a mime association

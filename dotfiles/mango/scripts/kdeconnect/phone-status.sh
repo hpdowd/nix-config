@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# KDE Connect phone status as waybar JSON, and the ONE place the device ID is
+# Kde Connect phone status as waybar JSON, and the one place the device ID is
 # written. `ring` is a verb here rather than a `kdeconnect-cli -d <id> --ring`
 # in waybar.nix's on-click, because that spelled the ID a second time and the
 # control-centre row would have made it a third — docs/adr/0005, one owner per
@@ -73,7 +73,7 @@ do_status() {
 		"$ICON" "$CHARGE" "$NAME" "$CHARGE" "$CLASS"
 }
 
-# Rings the phone, or SAYS WHY IT CANNOT. Both callers — the bar's on-click and
+# Rings the phone, or says why it cannot. Both callers — the bar's on-click and
 # the control centre's row — used to get silence when the phone was away, which
 # is indistinguishable from the ring having failed.
 do_ring() {

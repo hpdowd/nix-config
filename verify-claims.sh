@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-check the assertions CLAUDE.md makes that only a LIVE session can answer.
+# Re-check the assertions CLAUDE.md makes that only a live session can answer.
 #
 # Everything decidable from the source or the build output moved into
 # `nix flake check` on 2026-08-03 (checks/static.sh) — it was a manual step
@@ -11,7 +11,7 @@
 #
 #   ./verify-claims.sh -q       failures only
 #
-# Exit 0 if every check passes, 1 otherwise. Checks are SKIPPED (not failed)
+# Exit 0 if every check passes, 1 otherwise. Checks are skipped (not failed)
 # when run headless.
 
 set -uo pipefail
@@ -48,7 +48,7 @@ else
 	# CLAUDE.md asserted for months that mango advertised no wl_output, so
 	# `wlopm --json` returned []. That became false at some point, and believing
 	# it is why sleep blanking was built on the backlight — which cannot idle
-	# the DISPLAY block, so the machine drew 4.1 W through every "suspend" and
+	# the display block, so the machine drew 4.1 W through every "suspend" and
 	# died overnight. If this check fails, re-read the Suspend section.
 	if command -v wlopm >/dev/null && [[ $(wlopm --json 2>/dev/null) == *'"output"'* ]]; then
 		ok "wlopm enumerates an output (sleep blanking depends on this)"

@@ -6,12 +6,12 @@
 # `mmsg dispatch reload_config`, so a reload re-reads all three state files.
 # This is the single place that knows how they combine.
 #
-# It only SELECTS a file and re-points a link. Every (layout, position) pair is
+# It only selects a file and re-points a link. Every (layout, position) pair is
 # generated as its own TOML by modules/home/wayle.nix, because `bar.location`
 # lives in the file and wayle takes no flag for it — the same reason waybar
 # needed six configs. docs/adr/0045.
 #
-# ~/.config/wayle/config.toml IS THIS SCRIPT'S, and no xdg.configFile may claim
+# ~/.config/wayle/config.toml is this script's, and no xdg.configFile may claim
 # it: two owners for one path is an activation failure, not a merge. That is why
 # `services.wayle.settings` is `{ }`, exactly as `programs.ncspot.settings` is.
 # checks/static.sh asserts the path is absent from the generation.
@@ -21,10 +21,10 @@ set -u
 
 # noctalia mode has its own shell. Every caller below would otherwise start
 # wayle on top of it — including the two pickers, whose own guards fire before
-# this one. Stop rather than merely return: this is also the path a switch INTO
+# this one. Stop rather than merely return: this is also the path a switch into
 # noctalia takes, so leaving a stale bar up would be the visible failure.
 #
-# `systemctl --user stop`, NOT pkill: the unit is the owner (docs/adr/0005), and
+# `systemctl --user stop`, not pkill: the unit is the owner (docs/adr/0005), and
 # stop is idempotent and harmless when the unit is already down.
 if ! mode_has_bar; then
 	systemctl --user stop wayle 2>/dev/null
@@ -56,7 +56,7 @@ if [ ! -f "$SRC" ]; then
 fi
 
 # `ln -sfn`, and the link points at the ~/.config path rather than into the
-# store, so it survives a rebuild: the TARGET is itself a home-manager symlink
+# store, so it survives a rebuild: the target is itself a home-manager symlink
 # and gets re-pointed there. Same shape as apply_theme's four links.
 ln -sfn "$SRC" "$WAYLE_DIR/config.toml"
 

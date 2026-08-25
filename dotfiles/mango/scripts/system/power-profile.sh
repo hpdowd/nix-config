@@ -2,9 +2,9 @@
 # Waybar module: the active TLP power profile. Prints one JSON object.
 #
 # Reads TLP's own state file rather than /sys/firmware/acpi/platform_profile,
-# which this used to poll. That attribute is a thinkpad_acpi DYTC hint and is
+# which this used to poll. That attribute is a thinkpad_acpi dytc hint and is
 # identical across all three profiles for every value the scheduler sees —
-# governor, EPP, min, max and boost do not move with it. It reported a mode
+# governor, epp, min, max and boost do not move with it. It reported a mode
 # that did not exist. docs/adr/0017.
 
 PWRFILE=/run/tlp/last_pwr

@@ -1,19 +1,19 @@
 # Hardware / filesystem layout.
 #
-# IMPORTANT: After booting the NixOS installer, run
+# Important: After booting the NixOS installer, run
 #     nixos-generate-config --root /mnt --show-hardware-config
 # and diff it against this file. This version was written from your live Arch
 # system (`lsblk -f`, /etc/fstab) so the UUIDs are real, but the installer is
 # the authority on kernel modules for your exact hardware.
 #
 # Your current Arch layout on /dev/nvme0n1:
-#   p1  vfat  32D9-7457                              -> /boot  (1 GiB ESP)
+#   p1  vfat  32D9-7457                              -> /boot  (1 GiB esp)
 #   p2  btrfs 3c2d15a1-3a17-4715-99e5-969f27027571   -> subvols @ @home @pkg @log swap
 #
-# This config assumes the SIDE-BY-SIDE migration described in MIGRATION.md:
-# NixOS gets new subvolumes (@nixos, @nix) on the SAME btrfs filesystem, and
+# This config assumes the side-by-side migration described in migration.md:
+# NixOS gets new subvolumes (@nixos, @nix) on the same btrfs filesystem, and
 # reuses your existing @home. Nothing in @ or @home is destroyed, so you can
-# boot back into Arch from the same ESP until you're happy.
+# boot back into Arch from the same esp until you're happy.
 {
   config,
   lib,
@@ -90,7 +90,7 @@ in
     neededForBoot = true;
   };
 
-  # Shared ESP. 1 GiB is tight for NixOS, which keeps a kernel+initrd per
+  # Shared esp. 1 GiB is tight for NixOS, which keeps a kernel+initrd per
   # generation — see boot.nix, where we cap systemd-boot to 6 entries.
   fileSystems."/boot" = {
     device = espUUID;
@@ -103,10 +103,10 @@ in
   };
 
   # Hibernation swap, added 2026-07-31. Its own subvolume because a swapfile
-  # must be NODATACOW and must never be snapshotted — keeping it out of @nixos
+  # must be nodatacow and must never be snapshotted — keeping it out of @nixos
   # means a snapshot of / never tries to capture 20 GiB of swap.
   #
-  # NO compress=zstd:3 here, unlike every other mount in this file. btrfs
+  # No compress=zstd:3 here, unlike every other mount in this file. btrfs
   # rejects a compressed swapfile and `swapon` reports `Invalid argument`,
   # which reads like a corrupt file rather than a wrong mount option.
   fileSystems."/swap" = {
@@ -124,20 +124,20 @@ in
   # in the RAM being saved.
   #
   # Created by hand with `btrfs filesystem mkswapfile --size 20g`, and
-  # deliberately declared WITHOUT a `size` attribute — NixOS recreates the file
+  # deliberately declared without a `size` attribute — NixOS recreates the file
   # when `size` is set, and the resume_offset below is only valid for the file
   # that exists right now. 20 GiB against 14 GiB of RAM leaves room for zram's
   # compressed pages, which are in RAM and so land in the image too.
   swapDevices = [ { device = "/swap/swapfile"; } ];
 
-  # Resume from hibernation. BOTH lines are required for a swapfile:
+  # Resume from hibernation. Both lines are required for a swapfile:
   # resumeDevice names the filesystem, resume_offset locates the image inside
-  # it. Getting this wrong does NOT fail loudly — the machine boots fresh and
+  # it. Getting this wrong does not fail loudly — the machine boots fresh and
   # silently discards the hibernated session, which looks like "hibernate
   # didn't work" rather than "resume was misconfigured".
   #
   # The offset came from `btrfs inspect-internal map-swapfile -r
-  # /swap/swapfile` and is valid ONLY for this exact file. Recreating,
+  # /swap/swapfile` and is valid only for this exact file. Recreating,
   # resizing, defragmenting or `btrfs balance`-ing it moves the image and
   # breaks resume — re-run that command and update this number if the swapfile
   # is ever touched.

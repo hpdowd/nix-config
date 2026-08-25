@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Daemon: syncs /tmp/scratch-* state files with mango focus events.
-# Signals waybar (SIGRTMIN+8) only when state actually changes.
+# Signals waybar (sigrtmin+8) only when state actually changes.
 # Start from autostart.sh; restarts automatically if mmsg -w exits.
 
 SCRATCHPADS=(spotify equibop)
@@ -11,8 +11,8 @@ SCRATCHPADS=(spotify equibop)
 # socket to mango for as long as the session lasted. `-P $$` is by parent, not
 # by name, so it cannot reach another script's watcher.
 #
-# The signal traps must `exit`. A handler that only cleans up REPLACES SIGTERM's
-# default action, so logind's SIGTERM stopped killing this script: it reaped the
+# The signal traps must `exit`. A handler that only cleans up replaces sigterm's
+# default action, so logind's sigterm stopped killing this script: it reaped the
 # watcher, fell back into the loop below, and spun on `sleep 1` until the scope
 # hit DefaultTimeoutStopUSec and SIGKILLed it — 90 s added to every shutdown and
 # reboot, logged only as `session-N.scope: Stopping timed out`.

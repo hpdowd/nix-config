@@ -8,15 +8,15 @@
 # activation failure. Instead the file is written from here, in two halves that
 # differ in when they apply (docs/adr/0022):
 #
-#   settings.json         preferences. Written ONCE, when there is no file at
+#   settings.json         preferences. Written once, when there is no file at
 #                         all. Editing it does nothing to a machine that has
 #                         already run the mode — by design; they are yours to
-#                         change from noctalia's own UI afterwards.
+#                         change from noctalia's own ui afterwards.
 #   settings-pinned.json  the keys that would otherwise fight this machine —
 #                         wallpaper, night light, idle, lock-on-suspend,
 #                         gsettings sync, app theming, plugin updates, and the
-#                         colour scheme. Merged over the live file on EVERY
-#                         entry into the mode, so noctalia's UI will visibly
+#                         colour scheme. Merged over the live file on every
+#                         entry into the mode, so noctalia's ui will visibly
 #                         revert a change to one of these on the next switch.
 #                         Change them here, not there.
 #
@@ -40,7 +40,7 @@ if systemctl --user is-active --quiet noctalia; then
 	notify-send "Noctalia" "Already running — pinned settings not re-applied"
 else
 	pin_tmp=$(mktemp)
-	# `.[0] * .[1]` is jq's RECURSIVE merge, right-hand wins, so the pin
+	# `.[0] * .[1]` is jq's recursive merge, right-hand wins, so the pin
 	# replaces only the leaves it names and leaves the rest of the object
 	# alone. Guarded: a settings.json noctalia left half-written must not be
 	# replaced by jq's empty output.

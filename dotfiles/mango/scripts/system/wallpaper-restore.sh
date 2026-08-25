@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Re-applies the saved wallpaper through wayle, in tiling mode.
 #
-# Called by wayle-restart.sh AFTER the unit is up — not from an autostart line.
+# Called by wayle-restart.sh after the unit is up — not from an autostart line.
 # It ran from universal/autostart.conf until 2026-08-24, for both modes,
 # because awww was the machine's single wallpaper owner. It is not any more:
 # wayle drives the engine in tiling and noctalia manages its own, so a shared
 # restore would fight noctalia for the layer surface. docs/adr/0045.
 #
-# `wayle wallpaper set`, NOT `awww img`: awww is wayle's engine here and wayle
+# `wayle wallpaper set`, not `awww img`: awww is wayle's engine here and wayle
 # holds the state that goes with it (transition, cycling, per-monitor). Driving
 # awww underneath it is the two-owners failure docs/adr/0005 records, and the
 # loser is silent.

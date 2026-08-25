@@ -8,16 +8,16 @@
 {
   boot.loader.systemd-boot = {
     enable = true;
-    # Your ESP is only 1 GiB and is SHARED with Arch's kernel+initramfs
+    # Your esp is only 1 GiB and is shared with Arch's kernel+initramfs
     # (~60 MiB). NixOS writes a full kernel + initrd per generation, roughly
     # 120 MiB each, so an unbounded list will fill the partition and break
-    # `nixos-rebuild`. 6 is a safe ceiling; raise it if you enlarge the ESP.
+    # `nixos-rebuild`. 6 is a safe ceiling; raise it if you enlarge the esp.
     configurationLimit = 6;
     editor = false; # don't let anyone type init=/bin/sh at the boot menu
   };
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Tracks mainline closely — currently 7.1.5. Do NOT "fix" the amdgpu/TTM crash
+  # Tracks mainline closely — currently 7.1.5. Do not "fix" the amdgpu/TTM crash
   # by dropping to `pkgs.linuxPackages` (6.18.40): the Arch install that preceded
   # this ran the same 7.1.5 and never crashed, so the version is not the variable
   # — Overdrive was, and it is off in power.nix. See docs/gotchas.md → Power.
@@ -58,7 +58,7 @@
 
   # Snapper: on NixOS this is much less load-bearing than on Arch, because
   # every rebuild already produces a rollback-able generation. Kept for /home,
-  # which generations do NOT cover.
+  # which generations do not cover.
   services.snapper = {
     configs.home = {
       SUBVOLUME = "/home";

@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# The control centre — one menu that SHOWS the state of every toggle, instead of
+# The control centre — one menu that shows the state of every toggle, instead of
 # ten keys you have to remember and a bar you have to squint at.
 #
-# WHY THIS EXISTS. noctalia's control centre was one of the shell.sh actions
+# Why this exists. noctalia's control centre was one of the shell.sh actions
 # with `fb=none`, i.e. a key that reported "Only in noctalia mode" everywhere
 # else. The gap was never the toggles — every one of them already had a
-# key and a script here — it was that nothing showed you the SET, or the state
+# key and a script here — it was that nothing showed you the set, or the state
 # each one was in. That is most of what "cohesive" means when noctalia is
 # described that way: not a nicer widget, one place where the state is legible.
 #
-# WHAT IS NOT REPRODUCIBLE, and is not attempted. noctalia is one process
+# What is not reproducible, and is not attempted. noctalia is one process
 # holding one state model, so its bar glyph, its OSD and its control-centre
 # slider cannot disagree. Here every fact has a different owner, and this file
-# is a READER of those owners, never a second one:
+# is a reader of those owners, never a second one:
 #
-#   - five rows take their icon AND their state from the waybar module that
+#   - five rows take their icon and their state from the waybar module that
 #     owns the fact (`night-mode.sh status`, `idle-inhibit.sh status`,
 #     `power-profile.sh`, `phone-status.sh status`, `weather.sh read`), parsed
 #     out of the JSON those modules already emit. Reproducing the glyph here
@@ -25,11 +25,11 @@
 #   - the rest read the same command their own menu reads, and nothing here
 #     writes state: every action delegates to the script that already owned it.
 #
-# SO A ROW CAN ONLY EVER BE STALE, NEVER WRONG — it is rebuilt from scratch on
+# So a row can only ever be stale, never wrong — it is rebuilt from scratch on
 # every open and after every action, which is why the menu re-renders in a loop
-# rather than closing. That loop IS the feature.
+# rather than closing. That loop is the feature.
 #
-# `?` IS A STATE. An unreadable owner renders as `?`, never as "off": "the thing
+# `?` is a state. An unreadable owner renders as `?`, never as "off": "the thing
 # is off" and "I could not ask" are the two this repo keeps confusing, and a row
 # that quietly reads "off" for a broken module is this codebase's signature bug
 # with a nicer font. Every state_* below has that branch, deliberately.
@@ -48,9 +48,9 @@ set -u
 # `fc-list ':charset=f0f3' family` before they went in; a family that covers
 # none of them renders boxes rather than erroring.
 #
-# ICON_ETH is nf-md-ethernet and NOT nf-fa-network_wired (U+F6FF), which is what
+# ICON_ETH is nf-md-ethernet and not nf-fa-network_wired (U+F6FF), which is what
 # menus/network-menu.sh reaches for: Hack Nerd Font does not cover U+F6FF, so
-# fontconfig falls through to IBM Plex Sans TC and draws a box. Nothing errors.
+# fontconfig falls through to ibm Plex Sans tc and draws a box. Nothing errors.
 ICON_WIFI=$'\uF1EB'      # nf-fa-wifi
 ICON_ETH=$'\U000F0200'   # nf-md-ethernet, waybar's own format-ethernet glyph
 ICON_BT=$'\uF294'        # nf-fa-bluetooth
@@ -65,7 +65,7 @@ ICON_POWER=$'\uF0E7'     # nf-fa-bolt
 ICON_BELL=$'\uF0F3'      # nf-fa-bell
 ICON_BELL_OFF=$'\uF1F6'  # nf-fa-bell_slash
 ICON_BAR=$'\uF0C9'       # nf-fa-bars
-# Only a FALLBACK. When the phone is up, the row's icon is the battery glyph
+# Only a fallback. When the phone is up, the row's icon is the battery glyph
 # custom/phone itself chose — one owner for those ten, as with night/awake/power.
 ICON_PHONE=$'\U000F011C' # nf-md-cellphone
 # Fallback only — custom/weather picks among thirteen by WMO code and daylight;
@@ -78,7 +78,7 @@ SEP=$'────────────────────────'
 # cannot each invent their own spelling of it.
 UNKNOWN='?'
 
-# The rows, in order. `-` is a separator. This list and the LABEL map below are
+# The rows, in order. `-` is a separator. This list and the label map below are
 # the only place a row is declared; checks/static.sh reads this array and
 # asserts every id has a label, a state_* and an act_*, because a missing half
 # is a bash "command not found" on a stderr nobody reads — the row would render
@@ -117,57 +117,57 @@ declare -A LABEL=(
 	[bar]="Bar"
 )
 
-# `-l` is COMPUTED, and that is the whole point of it being here rather than a
+# `-l` is computed, and that is the whole point of it being here rather than a
 # number. dotfiles/rofi/config.rasi sets `lines: 12` as a shared ceiling — right
-# for the clipboard and the AP list, where paging is the honest answer, and
-# wrong here: this menu is a SET, and a set you have to page through is the
+# for the clipboard and the ap list, where paging is the honest answer, and
+# wrong here: this menu is a set, and a set you have to page through is the
 # "nothing showed you the set" problem docs/adr/0033 was written to close,
 # rebuilt one layer down. At eleven rows and two separators it rendered 13 and
 # paged at 12.
 #
-# render() prints exactly one line per ROWS element — separators included, since
-# a `-` becomes a SEP line — so ${#ROWS[@]} IS the rendered height, and a row
+# render() prints exactly one line per rows element — separators included, since
+# a `-` becomes a sep line — so ${#rows[@]} is the rendered height, and a row
 # added later widens the window instead of silently reintroducing page two.
 # `dynamic: true` in the theme still shrinks the list to its contents, so this
 # is a ceiling being raised for one menu, not a height being forced.
-# 24 is a ceiling this menu will not reach — checks/static.sh asserts ROWS
+# 24 is a ceiling this menu will not reach — checks/static.sh asserts rows
 # stays under it, because growing past it pages again and pages silently.
 CC_MAX_LINES=24
 
 # Ctrl+Enter — the modifier on the accept key, so the row's second verb is
-# spelled as what it is: the other thing to do with THIS row.
+# spelled as what it is: the other thing to do with this row.
 #
-# IT IS NOT FREE, AND THAT IS THE WHOLE COST OF PICKING IT. rofi ships
+# It is not free, and that is the whole cost of picking it. rofi ships
 # `Control+Return` as `kb-accept-custom` ("return what I typed, not what is
-# selected"), so binding it without unsetting that first is a startup ERROR
-# DIALOG where the panel should be. Hence CC_KB_FREE below, and the pair is
+# selected"), so binding it without unsetting that first is a startup error
+# Dialog where the panel should be. Hence CC_KB_FREE below, and the pair is
 # asserted in checks/static.sh — a bind is not a bind until the default holding
 # the key lets go. `rofi -list-keybindings` prints the table to check against.
 #
-# Unsetting costs nothing HERE and only here: the call passes `-no-custom`, so
+# Unsetting costs nothing here and only here: the call passes `-no-custom`, so
 # accept-custom had nothing to accept. Today it falls into dmenu.c's
 # `only_selected` else-branch, which restarts the view without acting — a key
 # that already did nothing and never said so.
 #
-# On the COMMAND LINE, not in config.rasi: both mean something on this menu
+# On the command line, not in config.rasi: both mean something on this menu
 # alone, exactly as `-no-custom` does — and `kb-accept-custom` must keep its
-# default in menus/network-menu.sh, where the typed string IS the answer. The
-# command line wins for a `configuration` setting; it is only the THEME that
+# default in menus/network-menu.sh, where the typed string is the answer. The
+# command line wins for a `configuration` setting; it is only the theme that
 # overrides it, which is why `lines` is a `-theme-str`. docs/gotchas.md -> rofi.
 CC_KB_REFRESH="Control+Return"
 CC_KB_FREE="-kb-accept-custom"
-# NO `-mesg` HINT, deliberately. It was here on 2026-08-24 and came straight
+# No `-mesg` hint, deliberately. It was here on 2026-08-24 and came straight
 # back out: a permanent line of instructions above a list whose whole point is
-# that it SHOWS you the state (docs/adr/0033) is the panel explaining itself
+# that it shows you the state (docs/adr/0033) is the panel explaining itself
 # instead of reporting. The keys are in docs/SYSTEM.md §8.
 
 # ── State ─────────────────────────────────────────────────────────────────
 #
-# Each state_<id> prints "<icon><TAB><state>". Two fields because of the three
+# Each state_<id> prints "<icon><tab><state>". Two fields because of the three
 # rows that take their icon from the module that owns the fact; the renderer
 # does not care which kind a row is.
 
-# Pull several fields out of a waybar module's own JSON, in ONE jq. The three
+# Pull several fields out of a waybar module's own JSON, in one jq. The three
 # module-backed rows want two or three fields each, and a jq per field is three
 # processes for one answer — on a menu that re-renders after every action.
 #
@@ -177,14 +177,14 @@ CC_KB_FREE="-kb-accept-custom"
 # module said nothing" must not arrive here looking different, because only the
 # second one is allowed to render as anything but a state.
 #
-# JOINED ON U+001F, NOT A TAB, AND @tsv IS GONE WITH IT. `IFS=$'\t' read` cannot
-# see an empty leading field: TAB is IFS *whitespace*, so bash strips it and
+# Joined on U+001F, not a tab, and @tsv is gone with it. `IFS=$'\t' read` cannot
+# see an empty leading field: tab is IFS *whitespace*, so bash strips it and
 # collapses runs of it, and `\toffline` arrives as one field. Every reader here
-# then takes the CLASS as its icon and renders `?` for a module that answered
+# then takes the class as its icon and renders `?` for a module that answered
 # perfectly — which is exactly the failure this file was written to make
 # impossible, hiding inside the helper that was supposed to prevent it. It sat
 # here unnoticed because night, awake and power always emit a glyph;
-# custom/phone emits an empty text as its RESTING state, and it bit on the
+# custom/phone emits an empty text as its resting state, and it bit on the
 # first render. U+001F is not whitespace, so empty fields survive.
 #
 # `gsub` replaces what @tsv used to escape: a tooltip may carry a real newline
@@ -194,16 +194,16 @@ jfields() {
 		<<<"$1" 2>/dev/null
 }
 
-# NOT `nmcli dev wifi`. That is a scan: "by default, nmcli ensures that the
+# Not `nmcli dev wifi`. That is a scan: "by default, nmcli ensures that the
 # access point list is no older than 30 seconds and triggers a network scan if
 # necessary" (nmcli(1)), and a scan is seconds — 6.4 s measured on the first
-# call here, during which the WHOLE MENU has not appeared, because this is the
+# call here, during which the whole menu has not appeared, because this is the
 # first row. menus/network-menu.sh carries its cache and its `--warm` verb for
 # exactly that reason; this row sidesteps it instead.
 #
 # `nmcli dev` reads properties and never scans. One call answers the ethernet
 # question and the wifi question together, which is also why there is one awk
-# rather than two: DEVICE, TYPE, STATE and CONNECTION is the whole row.
+# rather than two: device, type, state and connection is the whole row.
 state_network() {
 	local out kind value radio
 	out=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev 2>/dev/null) || {
@@ -289,7 +289,7 @@ state_volume() {
 		printf '%s\t%s' "$ICON_VOL" "$UNKNOWN"
 		return
 	}
-	# "Volume: 0.87", or "Volume: 1.20 [MUTED]" — the shape volume-menu.sh reads.
+	# "Volume: 0.87", or "Volume: 1.20 [muted]" — the shape volume-menu.sh reads.
 	vol=$(awk '{ printf "%d", $2 * 100 }' <<<"$info")
 	if [[ $info == *"[MUTED]"* ]]; then
 		printf '%s\t%s' "$ICON_MUTE" "muted (${vol}%)"
@@ -298,8 +298,8 @@ state_volume() {
 	fi
 }
 
-# THE ROW THAT PAID FOR THE REST. Every other fact here was already on the bar
-# or under a key; mic mute state was on NOTHING but the ThinkPad LED, driven by
+# The row that paid for the rest. Every other fact here was already on the bar
+# or under a key; mic mute state was on nothing but the ThinkPad led, driven by
 # the `micmute-led` user unit (modules/system/audio.nix) — so a dead daemon and
 # a live microphone looked the same from the outside, on the one fact whose
 # failure mode is being heard when you thought you were not. waybar's
@@ -373,20 +373,20 @@ state_power() {
 	printf '%s\t%s' "$icon" "${cls:-$UNKNOWN}"
 }
 
-# The fifth module-backed row, and the one whose `.text` is NOT a bare glyph:
+# The fifth module-backed row, and the one whose `.text` is not a bare glyph:
 # custom/phone emits "<battery glyph> <charge>%", so the icon and the number
 # arrive in one field and `read` splits them. Taking the glyph from there rather
 # than reproducing it is the same rule as night/awake/power, and it matters more
-# here — the module picks between TEN battery glyphs by charge, and a second
+# here — the module picks between ten battery glyphs by charge, and a second
 # copy of that ladder would drift on the first edit.
 #
-# ALL FIVE of phone-status.sh's classes are handled, enumerated out of the
+# All five of phone-status.sh's classes are handled, enumerated out of the
 # script rather than off the one value observed while writing this. `offline`
 # and `disconnected` are different answers — the daemon is down, versus the
 # daemon is up and the phone is elsewhere — and only the first is a fault, so
 # folding them together would hide it.
 #
-# An empty `.text` is NORMAL here, not a failure: the module renders nothing
+# An empty `.text` is normal here, not a failure: the module renders nothing
 # when the phone is away, deliberately (gotchas.md -> Waybar). So the fallback
 # icon carries every row that is not a live phone, and `?` stays reserved for
 # "the script did not answer at all".
@@ -409,14 +409,14 @@ state_phone() {
 	esac
 }
 
-# The sixth module-backed row, and the only owner here that can be OUT OF DATE
+# The sixth module-backed row, and the only owner here that can be out of date
 # rather than merely unreadable — `stale` is a state, not a failure and not `?`.
 # docs/adr/0038.
 #
-# `read`, NOT `status`: `status` fetches on an expired cache, and this runs
+# `read`, not `status`: `status` fetches on an expired cache, and this runs
 # inside a parallel render. checks/static.sh asserts the verb.
 #
-# `.alt` carries the phrase as a FIELD — cut out of the tooltip instead it
+# `.alt` carries the phrase as a field — cut out of the tooltip instead it
 # rendered "light" for "light drizzle" (gotchas.md -> Waybar).
 state_weather() {
 	local j text alt cls icon temp
@@ -429,7 +429,7 @@ state_weather() {
 	# One branch: `alt` already carries the difference. Kept out of `*` all the
 	# same — a class weather.sh does not emit is `?`, not a temperature.
 	ok | stale) printf '%s\t%s' "$icon" "${temp:-$UNKNOWN}${alt:+, $alt}" ;;
-	# The module's own sentence, which says WHICH failure it was — no reading
+	# The module's own sentence, which says which failure it was — no reading
 	# cached, unreachable, or coordinates missing from the generation. More
 	# specific than `?`, so it stands, exactly as power's words do.
 	error) printf '%s\t%s' "$icon" "${alt:-$UNKNOWN}" ;;
@@ -457,7 +457,7 @@ state_notify() {
 }
 
 state_bar() {
-	# The stored layout is the layout on screen. That was NOT true until hud left
+	# The stored layout is the layout on screen. That was not true until hud left
 	# (docs/adr/0035): hud forced its own, so this row had to special-case it or
 	# name a bar nobody could see — and `act_bar` still opened a picker whose
 	# choice that mode then discarded.
@@ -480,7 +480,7 @@ act_bluetooth() { "$MANGO_DIR/scripts/menus/bluetooth-menu.sh"; }
 act_vpn() { "$MANGO_DIR/scripts/menus/vpn-menu.sh"; }
 act_volume() { "$MANGO_DIR/scripts/menus/volume-menu.sh"; }
 # Character for character what XF86AudioMicMute runs (universal/bind.conf), so
-# the key, the LED and this row cannot disagree: `micmute-led` watches PipeWire
+# the key, the led and this row cannot disagree: `micmute-led` watches PipeWire
 # rather than the caller, and so needs nothing from either.
 act_microphone() { wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; }
 act_night() { "$MANGO_DIR/scripts/menus/night-mode.sh" menu; }
@@ -513,7 +513,7 @@ act_notify() {
 }
 act_bar() { "$MANGO_DIR/scripts/wayle/wayle-layout.sh"; }
 
-# Ctrl+Enter's half, and it is OPTIONAL. A row without one falls through to the
+# Ctrl+Enter's half, and it is optional. A row without one falls through to the
 # re-render every press already does — which re-reads its state, so the key
 # reads as a refresh everywhere rather than as dead on twelve rows out of
 # thirteen. Weather is the only fact here that lives off this machine and so the
@@ -559,15 +559,15 @@ render() {
 		printf '%s  could not render — mktemp failed\n' "$UNKNOWN"
 		return
 	}
-	# RETURN, not EXIT. An EXIT trap would be this script's only one and would
+	# Return, not exit. An exit trap would be this script's only one and would
 	# outlive the purpose — see docs/gotchas.md → Scripts for what a trap that
-	# replaces a signal's default action costs. network-menu.sh uses RETURN here
+	# replaces a signal's default action costs. network-menu.sh uses return here
 	# too.
 	trap 'rm -rf "$dir"' RETURN
 
 	for id in "${ROWS[@]}"; do
 		[ "$id" = - ] && continue
-		# stderr is deliberately NOT redirected: a module that fails has
+		# stderr is deliberately not redirected: a module that fails has
 		# something to say, and this is a menu you opened by hand.
 		"state_$id" >"$dir/$id" &
 	done
@@ -589,7 +589,7 @@ render() {
 }
 
 # Match on the rendered "  <label>  ·  " rather than on a `case` of hand-typed
-# strings: the label is then written once, in LABEL, and a row cannot be
+# strings: the label is then written once, in label, and a row cannot be
 # unreachable because its two spellings drifted.
 #
 # `$1` is the verb the KEY chose — `act` for Enter, `refresh` for Ctrl+Enter — so
@@ -611,13 +611,13 @@ dispatch() {
 }
 
 while [ "$close" -eq 0 ]; do
-	# ROFI'S EXIT STATUS IS THE KEYBINDING, and `-kb-custom-N` is the ONLY way to
+	# Rofi's exit status is the keybinding, and `-kb-custom-N` is the only way to
 	# tell one accept key from another: 0 accept, 1 cancel, 10-28 the custom binds
 	# in order (rofi-dmenu(5)). Enter, Shift+Enter and Ctrl+Enter all exit 0 on
 	# their own bindings — dmenu.c hands MENU_OK and MENU_CUSTOM_INPUT the same
-	# `retv = TRUE`, and only MENU_CUSTOM_COMMAND becomes `10 + n`.
+	# `retv = true`, and only MENU_CUSTOM_COMMAND becomes `10 + n`.
 	#
-	# So the status is CAPTURED rather than tested: the `|| exit 0` that used to
+	# So the status is captured rather than tested: the `|| exit 0` that used to
 	# close this line would take 10 for a cancel and shut the panel instead of
 	# refreshing it.
 	choice=$(render | rofi_menu "$CC_MAX_LINES" -no-custom -p "Control" \

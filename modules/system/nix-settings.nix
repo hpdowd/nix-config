@@ -47,7 +47,7 @@
   nix.registry.nixpkgs.flake = inputs.nixpkgs;
   nix.nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
 
-  # NAMED, not blanket. `allowUnfree = true` permits ANY unfree package,
+  # Named, not blanket. `allowUnfree = true` permits any unfree package,
   # including one arriving transitively — so an input that starts pulling one in
   # is something you find out about later, if at all. A predicate turns that
   # into a build error naming the package.

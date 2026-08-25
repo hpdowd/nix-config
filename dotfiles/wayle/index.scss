@@ -2,7 +2,7 @@
 // Wayle — tiling bar. Seven rules, each doing something no config key can.
 // Reach for a key in modules/home/wayle.nix first.
 //
-// NEVER WRITE A DESCENDANT `*` HERE. GTK4 parents a menubutton's popover
+// Never write a descendant `*` here. GTK4 parents a menubutton's popover
 // inside the menubutton, so `.mod *` restyles every dropdown. `> *`, `+ *`
 // and `~ *` stop one level short and are safe. checks/static.sh asserts it.
 //
@@ -21,7 +21,7 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
 // 10px between modules, style-solid.css's rhythm. `module-gap` and
 // `button-group-module-gap` are inert, so this is the only way to say it.
 //
-// `min-height` STATES the bar's height. Without it the bar is however tall the
+// `min-height` states the bar's height. Without it the bar is however tall the
 // tallest module happens to be, and an icon-size change moves it.
 .mod {
   padding: 4px;
@@ -66,7 +66,7 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
   font-size: 1.25rem;
 }
 
-// The centre title sits on the BAR's centre, not in the space the sides leave,
+// The centre title sits on the bar's centre, not in the space the sides leave,
 // so it can collide with a long left side. `label-max-length` is the first
 // defence; this stops the text being what grows.
 #focus .mod {

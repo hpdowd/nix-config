@@ -130,7 +130,7 @@ choice=$(printf '%s' "$menu" | rofi_menu 12 -no-custom -p "$WIFI")
 
 # ── Helpers for handling choice ───────────────────────────────────────
 extract_ssid_from_entry() {
-	# entry format: "▪▪▪▪  ${ssid}" or "▪▪▪▪  ${ssid}  ${CHECK}"
+	# entry format: "▪▪▪▪  ${ssid}" or "▪▪▪▪  ${ssid}  ${check}"
 	local entry="$1"
 	entry="${entry#* }"           # strip signal bars
 	entry="${entry# }"            # strip leading spaces
@@ -139,7 +139,7 @@ extract_ssid_from_entry() {
 }
 
 extract_vpn_name() {
-	# entry format: "${SHIELD}  ${name}" or "${SHIELD}  ${name}  ·  on"
+	# entry format: "${shield}  ${name}" or "${shield}  ${name}  ·  on"
 	local entry="$1"
 	entry="${entry#"${SHIELD}  "}"
 	entry="${entry%  ·  on}"
@@ -216,7 +216,7 @@ case "$choice" in
 		fi
 	else
 		# Unknown network — prompt for password
-		# NOT "${MENU[@]}": this is the one prompt where the typed string is the
+		# Not "${menu[@]}": this is the one prompt where the typed string is the
 		# answer, so it must not carry `-no-custom` — with it, Enter returns
 		# nothing and the connection attempt runs with an empty password. Empty
 		# stdin is deliberate; rofi returns the input when no row matches.

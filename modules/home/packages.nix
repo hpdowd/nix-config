@@ -1,7 +1,7 @@
 # User packages. Anything replaced by a NixOS module (pipewire, tlp, keyd, cups,
 # podman, steam, …) lives in modules/system/ instead.
 #
-# ONE OWNER PER PACKAGE. A package is installed by exactly one of: its
+# One owner per package. A package is installed by exactly one of: its
 # `programs.*` module, a `home.packages` entry here, or
 # `environment.systemPackages`. User applications go in home; things needed
 # before login or by a system unit go in system. A tool that does nothing
@@ -90,7 +90,7 @@
       stylua
       shfmt
 
-      # --- AI / dev assistants ------------------------------------------------
+      # --- ai / dev assistants ------------------------------------------------
       claude-code
       opencode
       codex
@@ -104,7 +104,7 @@
       # --- Languages / toolchains ---------------------------------------------
       rustup
       # gfortran ships its own cc/c++, colliding with clang. buildEnv only errors
-      # when priorities are EQUAL, so lowPrio on clang does nothing — hiPrio is
+      # when priorities are equal, so lowPrio on clang does nothing — hiPrio is
       # what breaks the tie. Cost: cc/c++ resolve to clang, unlike Arch.
       (lib.hiPrio clang)
       gfortran
@@ -115,7 +115,7 @@
       nodejs
       bun
       go
-      # dlv. helix's built-in DAP was the only thing wired to this; nvim has no
+      # dlv. helix's built-in dap was the only thing wired to this; nvim has no
       # dap config, so it is now a standalone CLI debugger. Kept deliberately.
       delve
 
@@ -163,7 +163,7 @@
       exiftool
       ghostscript # ~/.scripts/pdf_to_a4 needs gs
 
-      # --- Notes / PKM --------------------------------------------------------
+      # --- Notes / pkm --------------------------------------------------------
       obsidian
       anki
       iotas
@@ -212,7 +212,7 @@
       winboat
 
       # --- System / disk ------------------------------------------------------
-      # nvd is here and NOT in the devShell: the `rebuild` aliases call it, and
+      # nvd is here and not in the devShell: the `rebuild` aliases call it, and
       # from an ordinary shell a devShell-only binary exits 127 silently.
       nvd
       btrfs-progs
@@ -251,9 +251,9 @@
     ];
 
   # Not in nixpkgs — all decided 2026-07-29, none of it open:
-  #   piavpn-bin           PIA already runs through NetworkManager (8 OpenVPN
+  #   piavpn-bin           pia already runs through NetworkManager (8 OpenVPN
   #                        profiles, passwords inline, certs under @home). Only
-  #                        the GUI kill switch / port forwarding is lost.
+  #                        the gui kill switch / port forwarding is lost.
   #   freedownloadmanager  replaced by qbittorrent; torrent half only
   #   torbrowser-launcher  tor-browser itself is packaged
   #   betterbird-bin       thunderbird, the upstream it forks

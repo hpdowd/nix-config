@@ -3,17 +3,17 @@
 # Generalises notify.sh, which did exactly this for the notification panel from
 # 2026-08-14 and is now this file's `notify` row. docs/adr/0023.
 #
-# WHY A SCRIPT AND NOT A PER-MODE bind= OVERRIDE. mango's binds append and the
-# dispatcher stops at the FIRST match (src/mango.c: "only match the first
+# Why a script and not a per-mode bind= override. mango's binds append and the
+# dispatcher stops at the first match (src/mango.c: "only match the first
 # keybind"), so a mode conf sourced ahead of universal/bind.conf really would
-# override it — but mango also prints a `[WARNING] Key binding conflict` naming
+# override it — but mango also prints a `[warning] Key binding conflict` naming
 # both files and lines for every duplicate, and thirteen of those on every start
 # is how a real conflict warning stops being read. One bind, one script.
 #
-# THE FAILURE THIS GUARDS. `noctalia-shell ipc call <target> <fn>` prints
-# "Target not found." or "Function not found." and EXITS 0 — the same shape as
+# The failure this guards. `noctalia-shell ipc call <target> <fn>` prints
+# "Target not found." or "Function not found." and exits 0 — the same shape as
 # the dwl-era `mmsg -s -d` that broke five scripts silently. A successful void
-# call prints nothing, so OUTPUT is the signal and the exit status is worthless.
+# call prints nothing, so output is the signal and the exit status is worthless.
 # checks/static.sh asserts every pair below against the shipped shell; this is
 # the runtime backstop for the case the check cannot see.
 set -u
@@ -48,7 +48,7 @@ fb_bar_toggle() { "$MANGO_DIR/scripts/wayle/wayle-position.sh"; }
 fb_keep_awake() { "$MANGO_DIR/scripts/system/idle-inhibit.sh" toggle; }
 # The control centre stopped being noctalia-only on 2026-08-19, the same way
 # keep-awake did: not by reimplementing the panel, but because every toggle it
-# shows already had an owner here and only the SET of them was missing. It is a
+# shows already had an owner here and only the set of them was missing. It is a
 # rofi menu that re-renders after each action rather than a resident surface —
 # the state model is not shared, so the honest version is one that rebuilds.
 # docs/adr/0033.
@@ -123,7 +123,7 @@ dock)
 # Keep-awake. Both halves are a real Wayland inhibitor over
 # zwp_idle_inhibit_manager_v1, which mango advertises — quickshell's own
 # IdleInhibitor in noctalia, wlinhibit.service elsewhere — so either way it
-# suppresses SWAYIDLE's ladder, not just noctalia's (pinned-off) idle service.
+# suppresses swayidle's ladder, not just noctalia's (pinned-off) idle service.
 # Each shell keeps its own indicator honest that way; one mechanism driving
 # both would leave the other's icon lying. docs/adr/0031.
 keep-awake)

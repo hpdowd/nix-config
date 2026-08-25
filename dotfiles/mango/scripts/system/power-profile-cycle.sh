@@ -2,15 +2,15 @@
 # Left-click toggles balanced <-> performance. Fanless is right-click only.
 #
 # Rewritten 2026-08-12. This wrote /sys/firmware/acpi/platform_profile, which
-# moved a thinkpad_acpi DYTC hint and nothing else: governor, EPP, min freq,
+# moved a thinkpad_acpi dytc hint and nothing else: governor, epp, min freq,
 # max freq and boost were byte-identical across all three settings, so the
 # toggle changed the bar and not the machine. TLP owns those, and TLP 1.9
-# carries a third profile (SAV, `tlp power-saver`) beyond its AC/BAT split.
+# carries a third profile (sav, `tlp power-saver`) beyond its AC/BAT split.
 # docs/adr/0017.
 #
 # `power-mode` is the root wrapper from modules/system/power.nix -- it runs tlp
-# and pins the iGPU, which tlp cannot do for SAV on its own. wheel may run it
-# NOPASSWD; nothing else here needs root.
+# and pins the iGPU, which tlp cannot do for sav on its own. wheel may run it
+# Nopasswd; nothing else here needs root.
 #
 # Pass a profile to set it directly. `fanless` is the name the bar and the docs
 # use; `power-saver` is TLP's own verb and both are accepted, because the error
@@ -40,7 +40,7 @@ else
 fi
 
 case "${1:-}" in
-# The two everyday modes only. Fanless is deliberately NOT on this path: it
+# The two everyday modes only. Fanless is deliberately not on this path: it
 # caps every core at 418 MHz, which is far too large a penalty to land on by
 # clicking one time too many. Right-click is the only way in. From fanless,
 # a left-click exits to balanced rather than doing nothing.

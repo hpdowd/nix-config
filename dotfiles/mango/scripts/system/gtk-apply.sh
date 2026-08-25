@@ -11,7 +11,7 @@
 #   cp "$GTK3/gtk-tiling.css"      "$GTK3/gtk.css"
 #   cp "$GTK3/settings-tiling.ini" "$GTK3/settings.ini"    (and the GTK4 pair)
 #       Dead. The `-tiling` files were byte-identical to their targets, this
-#       script took a $MODE argument and then ignored it, and BOTH modes called
+#       script took a $mode argument and then ignored it, and both modes called
 #       it as `gtk-apply.sh tiling` anyway. The same empty indirection as the
 #       `active-theme.*` symlinks. Those source files are deleted.
 #
@@ -20,14 +20,14 @@
 #       every rebuild and at login. Leaving both in place is the conflict
 #       theme.nix warned about — whichever ran last would win.
 #
-# What is left is the part home-manager does NOT do:
+# What is left is the part home-manager does not do:
 #
 #   - GTK_THEME in the systemd user environment, so user services started
 #     outside the login shell still get the theme.
 #   - Restarting the GTK portal, which caches the theme at startup and will
 #     otherwise keep serving the old one to Flatpak/portal clients.
 
-# READ from what home-manager actually wrote, not spelled out here. This was
+# Read from what home-manager actually wrote, not spelled out here. This was
 # `catppuccin-mocha-mauve-standard` as a literal, which made it one more place a
 # scheme change had to be remembered — and it exports GTK_THEME, so a stale name
 # here would override the correct settings.ini for every user service started

@@ -7,23 +7,23 @@
 # because the handover has an order and a failure path and separate exec= lines
 # have neither:
 #
-#   ORDER. swaync must be dead BEFORE noctalia claims
+#   Order. swaync must be dead before noctalia claims
 #   org.freedesktop.Notifications. The second claimant of a DBus name does not
 #   error, it just never receives a notification (docs/adr/0005).
 #
-#   FAILURE. The unit wedges easily: five crashes inside StartLimitIntervalSec
+#   Failure. The unit wedges easily: five crashes inside StartLimitIntervalSec
 #   leaves it `failed` permanently, and every later start then refuses with
 #   "attempted too often". `systemctl` does say so and exits 1 — but an `exec=`
 #   line has no reader for either, so it lands nowhere and the mode switch
 #   reports success. Observed on 2026-08-15: noctalia crash-looped against a
 #   stale WAYLAND_DISPLAY, and every switch afterwards produced no bar and no
-#   word. A mode that silently has neither a bar NOR a notification daemon is
+#   word. A mode that silently has neither a bar nor a notification daemon is
 #   the worst outcome available here, so this keeps swaync when noctalia does
 #   not come up, and says why.
 set -u
 
-# `systemctl --user stop`, NOT pkill: the unit owns wayle (docs/adr/0005), and
-# stop is idempotent. Both go — wayle is this machine's other SHELL, not just
+# `systemctl --user stop`, not pkill: the unit owns wayle (docs/adr/0005), and
+# stop is idempotent. Both go — wayle is this machine's other shell, not just
 # its other bar: it draws the tiling bar, owns notifications there and drives
 # the wallpaper engine through awww. noctalia does all three itself.
 # docs/adr/0045.
@@ -41,7 +41,7 @@ pkill -f '^swaync( |$)' 2>/dev/null
 # so it ends it. docs/adr/0037. Every entry, not just a switch — the unit is
 # WantedBy=graphical-session.target, so logging straight in here starts it.
 #
-# `stop`, NOT pkill: Restart=always would undo a kill in three seconds
+# `stop`, not pkill: Restart=always would undo a kill in three seconds
 # (docs/gotchas.md -> night light).
 night_light_was_on=0
 if systemctl --user is-active --quiet wlsunset; then
@@ -84,7 +84,7 @@ systemctl --user start noctalia 2>/dev/null
 # `start` returns as soon as the process is forked, so it says nothing about
 # whether the shell survived contact with the compositor — quickshell aborts
 # ~700 ms in when it cannot open the display. Wait for `active`, then confirm it
-# is STILL active a moment later: a crash-looping unit is briefly active on
+# is still active a moment later: a crash-looping unit is briefly active on
 # every restart, and a single check catches it in exactly that window.
 up=0
 for _ in $(seq 1 20); do

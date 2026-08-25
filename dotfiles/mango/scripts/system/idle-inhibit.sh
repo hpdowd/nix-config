@@ -2,11 +2,11 @@
 # Usage: idle-inhibit.sh <toggle|on|off|status|is-on>
 #
 # "Do not sleep" — the escape hatch for a long unattended build. It holds a
-# `zwp_idle_inhibit_manager_v1` inhibitor, which is the ONLY thing swayidle's
+# `zwp_idle_inhibit_manager_v1` inhibitor, which is the only thing swayidle's
 # ladder honours here: swayidle takes its idle signal from the compositor, and
 # `systemd-inhibit --what=idle` never reaches it (docs/SYSTEM.md §9).
 #
-# WHY A UNIT AND NOT WAYBAR'S BUILT-IN idle_inhibitor MODULE. That module holds
+# Why a unit and not waybar's built-in idle_inhibitor module. That module holds
 # the inhibitor on the bar's own layer surface, as a static bool in the waybar
 # process, toggled only by a click on the widget. waybar exposes no IPC and no
 # signal for it — SIGUSR1/2 drive bar visibility, and `signal` refreshes
@@ -16,7 +16,7 @@
 # with nothing logged. A unit outlives every one of those. docs/adr/0031.
 #
 # The inhibitor is wlinhibit, whose whole job is to hold one open until killed;
-# the unit is declared in modules/home/default.nix. Process lifetime IS the
+# the unit is declared in modules/home/default.nix. Process lifetime is the
 # state, so there is no state file to drift out of step with it — and so this
 # is the one mango script with no reason to source lib.sh.
 
@@ -27,7 +27,7 @@ UNIT=wlinhibit.service
 # Escapes, not literal glyphs, for the reason power-profile.sh gives: written
 # literally on 2026-07-31 its icons were lost in transit and every branch
 # assigned the empty string, so the module emitted {"text":""} and waybar drew
-# nothing. Both are past U+FFFF, so `\U` with eight digits — bash's `\u` takes
+# nothing. Both are past U+ffff, so `\U` with eight digits — bash's `\u` takes
 # four, and `3` silently means U+F04B followed by "3".
 ICON_ON=$'\U000F04B3'  # nf-md-sleep_off
 ICON_OFF=$'\U000F04B2' # nf-md-sleep
@@ -43,7 +43,7 @@ refresh_waybar() {
 do_on() {
 	systemctl --user start "$UNIT"
 
-	# `start` returns once the process is FORKED, not once it holds anything.
+	# `start` returns once the process is forked, not once it holds anything.
 	# wlinhibit prints "unable to aquire idle inhibit manager" and exits 1 when
 	# the compositor advertises none, and that lands after the return — so
 	# without this the key would report success and inhibit nothing.

@@ -3,7 +3,7 @@
 # Refuse to run as root. Under sudo, `~` becomes /root, so this fails with
 # "/root/.config/mango/scripts/mode.sh: No such file or directory" and then
 # "MANGO_INSTANCE_SIGNATURE is not set" — errors that read like a broken
-# install rather than "you used sudo". Worse, if root DID have a config tree,
+# install rather than "you used sudo". Worse, if root did have a config tree,
 # the mode script would write root-owned files into it and break the next
 # ordinary run. mmsg also has to talk to the compositor as the user owning the
 # session, so root cannot do anything useful here anyway.
@@ -14,7 +14,7 @@ fi
 
 ~/.config/mango/scripts/mode.sh
 
-# `mmsg dispatch reload_config`, NOT `mmsg -s -d reload_config`.
+# `mmsg dispatch reload_config`, not `mmsg -s -d reload_config`.
 #
 # The old form printed `{"error":"unknown command"}` and exited 0, so this
 # script reported success while never reloading anything — every "reload" was

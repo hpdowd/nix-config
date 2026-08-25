@@ -32,7 +32,7 @@
   # No password here on purpose — `mutableUsers` is on, so it lives in
   # /etc/shadow and stays out of git. On a fresh install `nixos-install` prompts
   # only for root, leaving this account locked; set it from the installer with
-  # `nixos-enter --root /mnt -c 'passwd henry'`. docs/archive/MIGRATION-GUIDE.md
+  # `nixos-enter --root /mnt -c 'passwd henry'`. docs/archive/migration-guide.md
   # step 8.3.
   users.users.henry = {
     isNormalUser = true;
@@ -74,7 +74,7 @@
   # Credential store for the nextcloud-client unit and the browsers.
   services.gnome.gnome-keyring.enable = true;
 
-  # Writes `user_allow_other` into /etc/fuse.conf, for FUSE mounts using
+  # Writes `user_allow_other` into /etc/fuse.conf, for fuse mounts using
   # `--allow-other`. NOTE: its only stated consumer was the rclone ProtonDrive
   # mount, removed 2026-07-30 — kept unaudited rather than dropped blind.
   programs.fuse.userAllowOther = true;

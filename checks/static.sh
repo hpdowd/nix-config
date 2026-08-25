@@ -14,7 +14,7 @@ usage="usage: static.sh <source-root> <home-manager-generation> <system-toplevel
 SRC=${1:?$usage}
 GEN=${2:?$usage}
 SYS=${3:?$usage}
-# Every scheme this machine WEARS, resolved by Nix:
+# Every scheme this machine wears, resolved by Nix:
 #
 #   .artefact          modules/home/scheme.nix — the widget art, icons, cursor,
 #                      yazi flavor, nvim plugin and Zed theme
@@ -26,7 +26,7 @@ SYS=${3:?$usage}
 # aliased role (`okColor = green;`) read as "role absent" — four of them did,
 # and went unaudited. docs/adr/0032.
 #
-# PLURAL, and that is the point of the shape: a legibility floor that only ever
+# Plural, and that is the point of the shape: a legibility floor that only ever
 # audited scheme.nix's would pass a mode nobody can read. Whatever `.schemes`
 # holds gets audited, so a scheme cannot enter service unaudited.
 SCHEMES=${4:?$usage}
@@ -42,10 +42,10 @@ PAL_SCHEME=$(jq -r '.artefact // empty' "$SCHEMES" 2>/dev/null)
 pal() { jq -r ".schemes.\"$PAL_SCHEME\"$1 // empty" "$SCHEMES" 2>/dev/null; }
 
 WAYBAR_DIR="$GEN/home-files/.config/mango/waybar"
-# wayle's own XDG directory, NOT under the mango tree. Only `layouts/` may be
+# wayle's own XDG directory, not under the mango tree. Only `layouts/` may be
 # here — see the config.toml assertion below.
 WAYLE_DIR="$GEN/home-files/.config/wayle"
-# What home-manager actually wrote. Anything generated is read from HERE rather
+# What home-manager actually wrote. Anything generated is read from here rather
 # than from its source under dotfiles/ — several files have no source any more.
 GEN_CFG="$GEN/home-files/.config"
 PROFILE="$GEN/home-path/bin"
@@ -126,7 +126,7 @@ else
 	ok "every script uses #!/usr/bin/env bash"
 fi
 
-# mmsg takes verbs. The dwl-era dash-flags return {"error":...} AND exit 0, so
+# mmsg takes verbs. The dwl-era dash-flags return {"error":...} and exit 0, so
 # a script using them reports success while doing nothing.
 if mmsg_flags=$(grep -rn 'mmsg[[:space:]]\+-' "$SRC/dotfiles" 2>/dev/null | grep -vE ':[0-9]+:[[:space:]]*#'); then
 	bad "mmsg called with dash-flags (unknown command, exit 0)" "$(echo "$mmsg_flags" | head -3)"
@@ -160,7 +160,7 @@ while read -r line; do
 	[[ -z $name ]] && continue
 	pk_n=$((pk_n + 1))
 	# System packages are not in the home profile — mango and elephant live in
-	# the system one, so checking only $PROFILE reports "cannot verify" for the
+	# the system one, so checking only $profile reports "cannot verify" for the
 	# targets most likely to be wrapped.
 	bin=""
 	for d in "$PROFILE" "$SYS/sw/bin"; do
@@ -221,7 +221,7 @@ printf '\nRuntime-selected files\n'
 
 # A file chosen by a shell conditional is never evaluated, so an unreachable
 # branch is invisible — four instances so far, the largest 765 lines, every one
-# looking maintained and two of them documented as the default. Checked BOTH
+# looking maintained and two of them documented as the default. Checked both
 # ways per selector: every value the selector can take must have a file, and
 # every file must be a value the selector can take. One direction alone misses
 # half the class — a missing file is a runtime fallback, a surplus file is dead
@@ -261,7 +261,7 @@ else
 fi
 
 # And every mode has a colour scheme, both ways. modules/home/dotfiles.nix
-# resolves each as `import ./themes/${modes.${mode}}.nix`, so a MISSING key is
+# resolves each as `import ./themes/${modes.${mode}}.nix`, so a missing key is
 # already an eval error — what this catches is the direction eval cannot see: a
 # key naming no mode, which is a colour scheme nothing can ever select while
 # reading like a mode that exists. docs/adr/0034.
@@ -283,9 +283,9 @@ elif [[ ${#MODES[@]} -gt 0 ]]; then
 	fi
 fi
 
-# The ceiling on how far modes.nix may diverge. wayle is the consumer NOT on
+# The ceiling on how far modes.nix may diverge. wayle is the consumer not on
 # the runtime swap — its six layouts are generated once, palette and all, from
-# scheme.nix — and noctalia does not run it. So every OTHER mode has to wear
+# scheme.nix — and noctalia does not run it. So every other mode has to wear
 # the artefact scheme, or it gets a bar from a scheme it is not wearing.
 #
 # waybar and swaync were the two named here until 2026-08-24. wayle replaced
@@ -297,7 +297,7 @@ fi
 #
 # Derived from modes.nix rather than naming `tiling`, so a mode added later is
 # asserted with nothing to remember. Until hud left (docs/adr/0035) this also
-# had to check tiling and hud against EACH OTHER, because two modes shared one
+# had to check tiling and hud against each other, because two modes shared one
 # generated bar; with one bar-bearing mode that half is gone.
 #
 # If waybar or swaync ever needs to differ by mode, it joins the swap first;
@@ -318,7 +318,7 @@ else
 	ok "the $barmodes mode(s) running wayle wear '$PAL_SCHEME', which is what its layouts are generated from"
 fi
 
-# no_border_when_single=1 removes EVERY tiled window's border on mango 0.16.0,
+# no_border_when_single=1 removes every tiled window's border on mango 0.16.0,
 # not just a lone one, and nothing says so. docs/gotchas.md → Desktop → mango
 nbws=$(grep -rn '^[[:space:]]*no_border_when_single[[:space:]]*=[[:space:]]*1' "$MANGO" --include='*.conf' || true)
 if [[ -z $nbws ]]; then
@@ -352,9 +352,9 @@ done < <(
 		# variable to expand — the scripts spell the path that way.
 		# shellcheck disable=SC2016
 		grep -rho '\$MANGO_DIR/scripts/[^" ]*' "$MANGO/scripts"
-		# mode.sh's `modes/$MODE.sh` is decided at runtime and cannot be
+		# mode.sh's `modes/$mode.sh` is decided at runtime and cannot be
 		# resolved here — and does not need to be: the mode/file check above
-		# already asserts a script exists for every value $MODE can hold.
+		# already asserts a script exists for every value $mode can hold.
 	} | grep -v 'scripts/[^ ]*\$' | sort -u
 )
 
@@ -366,8 +366,8 @@ else
 	bad "a mango config names a missing or non-executable script" "$missing"
 fi
 
-# Two binds on one key: mango prints `[WARNING] Key binding conflict` naming
-# both files and lines, then runs whichever was parsed FIRST (src/mango.c,
+# Two binds on one key: mango prints `[warning] Key binding conflict` naming
+# both files and lines, then runs whichever was parsed first (src/mango.c,
 # "only match the first keybind"). That warning goes to mango's stderr, where
 # nothing reads it — so the second bind looks installed and never fires. Built
 # per mode from the `source=` lines of its own conf, which is exactly the set
@@ -375,7 +375,7 @@ fi
 # xkb_keysym_to_lower(), so `SUPER,O` and `SUPER,o` are one key, not two.
 if [[ ${#MODES[@]} -gt 0 ]]; then
 	duperr=""
-	# The floor is on BINDS SEEN, not modes seen, and that distinction is the
+	# The floor is on binds seen, not modes seen, and that distinction is the
 	# whole point. `srcs` is built by matching the literal `source=./`; change
 	# that spelling and it comes back empty, the inner loop does nothing, and a
 	# per-mode counter still increments — so the scan would drop from 117 binds
@@ -451,9 +451,9 @@ else
 	fi
 fi
 
-# menus/control-center.sh builds its rows from one ROWS array and dispatches by
+# menus/control-center.sh builds its rows from one rows array and dispatches by
 # calling `state_<id>` and `act_<id>`. A row whose label or either function is
-# missing RENDERS AND THEN DOES NOTHING: bash reports "command not found" on a
+# missing renders and then does nothing: bash reports "command not found" on a
 # stderr nobody reads, and the entry sits there looking installed. The script
 # checks this itself before drawing, which catches it at the first press — this
 # catches it at `nix flake check`, which is before the press.
@@ -463,7 +463,7 @@ fi
 # recurring failure, not a pass. docs/adr/0033.
 CC="$MANGO/scripts/menus/control-center.sh"
 if [[ -f $CC ]]; then
-	# The ids between `ROWS=(` and its closing paren, minus the `-` separators.
+	# The ids between `rows=(` and its closing paren, minus the `-` separators.
 	mapfile -t CC_ROWS < <(
 		sed -n '/^ROWS=(/,/^)/p' "$CC" | sed -n 's/^\t\([a-z][a-z-]*\)$/\1/p' | sort -u
 	)
@@ -503,7 +503,7 @@ if [[ -f $CC ]]; then
 			bad "control-centre row mismatch" "$ccerr"
 		fi
 
-		# Ctrl+Enter's half. NOT folded into CC_FNS above: that loop demands both
+		# Ctrl+Enter's half. Not folded into CC_FNS above: that loop demands both
 		# halves of every row, and refresh_* is the one a row may lack. Only the
 		# reverse direction is checkable, and it is the one that fails silently —
 		# a refresh_* whose suffix is not a row is never reached by dispatch(),
@@ -512,16 +512,16 @@ if [[ -f $CC ]]; then
 		# The binding is checked with it: a refresh_* with no `-kb-custom-1` on
 		# the rofi call is dead code, and the reverse is a key bound to nothing.
 		#
-		# And the key it binds has to be FREE. rofi ships `Control+Return` as
-		# `kb-accept-custom`, and a key with two actions is an error DIALOG where
+		# And the key it binds has to be free. rofi ships `Control+Return` as
+		# `kb-accept-custom`, and a key with two actions is an error dialog where
 		# the panel should be — so binding it without `-kb-accept-custom ""` in
 		# the same call breaks `SUPER+C` outright. Checked as a pair, because
 		# either half alone is wrong: unsetting a default nothing rebinds gives up
 		# a key for free.
 		#
-		# COMMENTS ARE STRIPPED FIRST, and the first cut of this check did not do
+		# Comments are stripped first, and the first cut of this check did not do
 		# that: `grep -c kb-accept-custom` matched the paragraph in control-center.sh
-		# that EXPLAINS the unset, so deleting the unset itself still passed. A scan
+		# that explains the unset, so deleting the unset itself still passed. A scan
 		# satisfied by prose about the thing is this file's own signature bug.
 		mapfile -t CC_REFRESH < <(
 			sed -n 's/^refresh_\([a-z][a-z-]*\)() {.*/\1/p' "$CC" | sort -u
@@ -538,7 +538,7 @@ if [[ -f $CC ]]; then
 					ccrerr+="  refresh_$id() exists, but ROWS does not list $id"$'\n'
 			done
 			cc_ret_key=$(sed -n 's/^CC_KB_REFRESH="\(.*\)"$/\1/p' "$CC" | head -1)
-			# The unset has to be DECLARED and USED: the assignment alone leaves it
+			# The unset has to be declared and used: the assignment alone leaves it
 			# off the rofi call, which is the breakage with none of the protection.
 			cc_free_val=$(sed -n 's/^CC_KB_FREE="\(.*\)"$/\1/p' "$CC" | head -1)
 			cc_free_used=$(grep -c 'CC_KB_FREE' <<<"$cc_code")
@@ -564,7 +564,7 @@ fi
 # Every hand-built menu sizes itself through lib.sh's `rofi_menu`, which passes
 # `-theme-str`. A caller reaching for `rofi -dmenu` directly gets the theme's
 # fixed `lines: 12` instead — blank rows under a short menu, silent paging on a
-# long one, and `-l` does NOT fix it (the theme wins on rofi 2.0).
+# long one, and `-l` does not fix it (the theme wins on rofi 2.0).
 # docs/gotchas.md -> rofi.
 mapfile -t ROFI_RAW < <(
 	grep -rn 'rofi -dmenu' "$MANGO/scripts" | grep -v '^\S*:[0-9]*:[[:space:]]*#'
@@ -595,7 +595,7 @@ else
 fi
 
 # The control centre's ceiling has to stay above its row count, or it pages —
-# and it pages SILENTLY, which is how a thirteenth row got added without anyone
+# and it pages silently, which is how a thirteenth row got added without anyone
 # noticing page two had come back.
 if [[ -f $CC ]]; then
 	cc_cap=$(sed -n 's/^CC_MAX_LINES=\([0-9]\+\).*/\1/p' "$CC" | head -1)
@@ -1592,7 +1592,7 @@ while IFS='|' read -r m mscheme; do
 		equibop/themes/$m.theme.css|#${macc}|equibop
 	EOF
 
-	# Equibop DISPLAYS `@name`, and a name is not a colour — it read `Catppuccin
+	# Equibop displays `@name`, and a name is not a colour — it read `Catppuccin
 	# Mocha` through two scheme changes because every scan here greps for hex.
 	eqfile="$GEN_CFG/equibop/themes/$m.theme.css"
 	if [[ ! -s $eqfile ]]; then
@@ -1604,7 +1604,7 @@ while IFS='|' read -r m mscheme; do
 			"the name Equibop shows has drifted from the mode and scheme that generated the file"
 	fi
 
-	# ncspot is drawn ENTIRELY from `muted`, and the needle above only proves
+	# ncspot is drawn entirely from `muted`, and the needle above only proves
 	# that half was reached. `p.accent` where `m.accent` was meant is the right
 	# scheme and the wrong half — measured, it passed every other check here.
 	# So every hex in the file must be a `muted` value.
@@ -1652,7 +1652,7 @@ done <<-EOF
 	rofi/config.rasi|@import "colors"|rofi
 EOF
 
-# 3. The runtime link paths must NOT be in the generation. home-manager would
+# 3. The runtime link paths must not be in the generation. home-manager would
 # own a path the mode scripts re-point on every switch, which is two owners for
 # one file — and the rebuild after would either fight it or back it up forever.
 #
@@ -1669,7 +1669,7 @@ else
 	bad "a runtime link is also an xdg.configFile — two owners for one path" "$ownerr"
 fi
 
-# And apply_mode must SELECT rather than duplicate. `install`/`cp` here is the
+# And apply_mode must select rather than duplicate. `install`/`cp` here is the
 # thing docs/adr/0040 replaced: it worked, so a revert would look fine and would
 # quietly reintroduce a config.conf that no longer tracks its mode.
 # shellcheck disable=SC2016
@@ -1680,7 +1680,7 @@ else
 		"a copy stops tracking its mode the moment the mode conf is rebuilt"
 fi
 
-# And apply_mode has to CALL it. The rows above prove every file exists; this is
+# And apply_mode has to call it. The rows above prove every file exists; this is
 # the one that proves anything reads them at a mode switch. Same shape as the
 # idle-inhibitor assertion, and for the same reason: a mode switch that quietly
 # skips a step looks exactly like a mode switch.
@@ -1694,9 +1694,9 @@ else
 		"the per-mode colours would be generated and the links would never move"
 fi
 
-# nvim is the one consumer whose generated file is CONDITIONAL. A scheme that
+# nvim is the one consumer whose generated file is conditional. A scheme that
 # matches its own plugin takes upstream's colours and emits no palette.lua at
-# all (THEME-MIGRATION §3) — so "the file is missing" is correct for the two
+# all (theme-migration §3) — so "the file is missing" is correct for the two
 # schemes that match their plugin (gruvbox, nord) and a failure for the two that
 # deviate (mocha, mocha-high-contrast). Which case applies is read from the
 # theme, not assumed.
@@ -1760,10 +1760,10 @@ for mode in "${MODES[@]}"; do
 	fi
 done
 
-# Equibop enables its theme BY FILENAME and ignores a name matching no file,
+# Equibop enables its theme by filename and ignores a name matching no file,
 # without logging. The name apply_theme writes must be one home-manager
 # generates — two languages, two directories, one string. The name is the
-# MODE's since adr/0034, so what must agree is the suffix, for every mode.
+# Mode's since adr/0034, so what must agree is the suffix, for every mode.
 # SC2016: `$mode` is the literal text being searched for in lib.sh, not a
 # variable to expand here.
 # shellcheck disable=SC2016
@@ -1789,7 +1789,7 @@ fi
 # in a hand-written file is the drift the whole arrangement exists to prevent,
 # and it reads as deliberate once it is there.
 #
-# The needles are READ FROM palette.nix rather than listed here. A hardcoded
+# The needles are read from palette.nix rather than listed here. A hardcoded
 # list is fine until the scheme changes, at which point it scans for colours the
 # machine no longer uses, matches nothing, and reports success — this repo's
 # signature bug, in the check that exists to catch it. Whoever changes the
@@ -1840,7 +1840,7 @@ else
 fi
 
 # The ceiling above has a blind spot, and it is structural rather than a bug:
-# it greps for the hexes the CURRENT themes declare, so a colour NO theme names
+# it greps for the hexes the current themes declare, so a colour no theme names
 # matches nothing and reads as a pass. `#d5c4a1` — gruvbox's `fg2`, which this
 # palette does not have a role for — sat in programs.nix as kitty's inactive tab
 # foreground through gruvbox -> Catppuccin -> gruvbox, wearing a scheme the
@@ -1849,7 +1849,7 @@ fi
 #
 # So: no six-digit hex literal in any .nix outside modules/home/themes/, which
 # is where colours are declared and the only place they may be spelled. The pass
-# state is zero matches, so the floor is on the number of FILES scanned.
+# state is zero matches, so the floor is on the number of files scanned.
 mapfile -t NIXSCAN < <(
 	find "$SRC/modules" "$SRC/pkgs" -name '*.nix' -not -path '*/themes/*' 2>/dev/null
 )
@@ -1866,7 +1866,7 @@ else
 fi
 
 # The artefacts the palette cannot colour: GTK, Kvantum, icon and cursor themes.
-# Each is a NAME some other program resolves internally, and every one of them
+# Each is a name some other program resolves internally, and every one of them
 # fails the same way — the program falls back to its own default and looks
 # merely unstyled, which is indistinguishable from a theme someone chose. GTK
 # drops to Adwaita, Kvantum to its built-in style, and a cursor name that
@@ -1878,8 +1878,8 @@ fi
 # reported rather than passed over.
 printf '\nTheme packages\n'
 
-# Where each artefact actually LANDS, which is not one place — and for Kvantum
-# it is not ONE place either. A scheme's own Kvantum theme is linked into
+# Where each artefact actually lands, which is not one place — and for Kvantum
+# it is not one place either. A scheme's own Kvantum theme is linked into
 # ~/.config/Kvantum by dotfiles.nix (Kvantum reads that, not XDG_DATA_DIRS),
 # while the built-ins the stand-in schemes name ship inside the style plugin on
 # the profile. Both are searched, so a built-in is verified rather than waved
@@ -1908,14 +1908,14 @@ for kind in gtk kvantum icons cursor; do
 
 	# Search where the running session reads, not the store path the theme file
 	# implies: a package that is declared but never installed fails here. This
-	# runs for `attr = null` too — a toolkit built-in still has to BE there, and
+	# runs for `attr = null` too — a toolkit built-in still has to be there, and
 	# "Adwaita-dark" was caught by exactly this: GTK3 renders it from compiled-in
 	# resources, so it works and no directory for it exists anywhere. A name only
 	# GTK can resolve is a name no check can, so the theme files name a real
 	# package instead.
 	#
 	# `find -L`, and the -L is load-bearing. buildEnv collapses a share/
-	# subdirectory with a single contributor into a SYMLINK to that package, and
+	# subdirectory with a single contributor into a symlink to that package, and
 	# merges it into a real directory when several contribute. So share/themes is
 	# a symlink (only the GTK theme provides one) while share/icons is a real
 	# directory — and a plain `find` silently returns nothing for the first and
@@ -1962,7 +1962,7 @@ for kind in gtk kvantum icons cursor; do
 	# `@import` of `<theme>/gtk-4.0/gtk.css` into ~/.config/gtk-4.0/gtk.css.
 	# A theme with no gtk-4.0 directory makes that import fail at parse time and
 	# drops every libadwaita app to Adwaita — with GTK3 still themed, so the two
-	# toolkits merely LOOK different. `gruvbox-dark-gtk` shipped exactly that,
+	# toolkits merely look different. `gruvbox-dark-gtk` shipped exactly that,
 	# and the directory check above passed it. docs/gotchas.md → Theming.
 	if [[ $kind == gtk && -n $hit_path ]]; then
 		if [[ -r "$hit_path/gtk-4.0/gtk.css" ]]; then
@@ -1980,23 +1980,23 @@ if [[ $declared -lt 4 ]]; then
 elif [[ -z $standins ]]; then
 	ok "all 4 theme packages follow '$SCHEME'"
 else
-	# NOT a failure. A stand-in is a deliberate, declared choice — but it is one
+	# Not a failure. A stand-in is a deliberate, declared choice — but it is one
 	# nobody can see on screen without knowing to look, so it is stated on every
 	# run rather than left to be discovered.
 	ok "$declared theme packages declared for '$SCHEME'; stand-ins:"$'\n'"$standins"
 fi
 
-# The cursor is GENERATED from the palette now (docs/adr/0041), which buys two
+# The cursor is generated from the palette now (docs/adr/0041), which buys two
 # failures the "does the directory exist" scan above cannot see. Both were found
 # by hand on 2026-08-20, which is why they are assertions and not a paragraph.
 #
-#   index.theme      copied by upstream's OUTER build script, not by the
+#   index.theme      copied by upstream's outer build script, not by the
 #                    `scripts/build-cursors` this repo calls — and that one
 #                    `rm -rf`s its output directory first. Without it the
 #                    directory exists, holds all 46 cursors, passes the scan
-#                    above, and resolves to NOTHING in GTK and wlroots.
+#                    above, and resolves to nothing in GTK and wlroots.
 #   the colours      a substitution that stops matching leaves a complete,
-#                    valid, UNRECOLOURED set. The build asserts its own
+#                    valid, unrecoloured set. The build asserts its own
 #                    sentinels; this asserts the installed theme belongs to the
 #                    palette this machine is actually wearing.
 if [[ -n ${cursor_path:-} ]]; then
@@ -2010,7 +2010,7 @@ if [[ -n ${cursor_path:-} ]]; then
 	# `cursors_scalable/default/default.svg` is the plain pointer, which carries
 	# `fg0` as its body and `base` as its outline — the two roles paletteCursors
 	# substitutes into all 68 files. Reading the SVG rather than the xcursor
-	# binary: the bitmaps are rendered FROM these, so a match here proves the
+	# binary: the bitmaps are rendered from these, so a match here proves the
 	# substitution ran, and the binaries cannot disagree with their own source.
 	cur_svg="$cursor_path/cursors_scalable/default/default.svg"
 	cur_body=$(pal '.fg0')
@@ -2095,7 +2095,7 @@ fi
 # The GTK theme is generated too (docs/adr/0041, phase 3): Colloid compiled
 # against a `_color-palette-default.scss` written from the palette. A variable
 # renamed upstream is loud — sassc stops with `Undefined variable` — but the
-# file being written and never IMPORTED is not: Colloid changing which palette
+# file being written and never imported is not: Colloid changing which palette
 # `_tweaks.scss` pulls in gives a theme that builds, installs, resolves by
 # name, ships its gtk-4.0/gtk.css, and is Colloid's own blue. Every check above
 # passes it, and this one does not.
@@ -2156,16 +2156,16 @@ else
 			"expected #$yz_bg (bg0) and #$yz_accent (accent) in $yazi_flavor"
 	fi
 
-	# THE GLYPHS, BY CODEPOINT. yazi draws its status bar, its border and its
+	# The glyphs, by codepoint. yazi draws its status bar, its border and its
 	# which-key list out of five characters, and every one of them renders as
 	# nothing in a terminal without the font — so a glyph dropped in transit
 	# looks like a faithful copy and reaches the screen as a gap.
 	#
 	# That happened twice writing this file. The powerline separators went
 	# first and were caught; `which.separator` (U+EA9C) went the same way and
-	# was NOT, shipping as two spaces. Both were "verified" by reading the line.
+	# was not, shipping as two spaces. Both were "verified" by reading the line.
 	#
-	# So: the flavour holds ESCAPES, not characters — TOML resolves them, and
+	# So: the flavour holds escapes, not characters — TOML resolves them, and
 	# an escape is ASCII, which cannot be lost by anything that mangles UTF-8.
 	# Both halves are asserted: every escape present, and no raw non-ASCII byte
 	# anywhere in the file.
@@ -2187,7 +2187,7 @@ fi
 
 # Zed's theme is generated now (docs/adr/0041). This is the check
 # modules/home/programs.nix used to say could not exist: the theme came from
-# Zed's extension REGISTRY, so this file could assert that a name was declared
+# Zed's extension registry, so this file could assert that a name was declared
 # and nothing else — both halves lived on Zed's servers. A theme written into
 # the generation is gateable like every other artefact.
 #
@@ -2242,7 +2242,7 @@ fi
 # wlroots and carries on — then `setenv`s XCURSOR_THEME from it for every client
 # it spawns, so a stale name silently overrides home.pointerCursor for the whole
 # session. It sat at `catppuccin-mocha-mauve-cursors` through two scheme changes
-# because nothing here read it. So: the compositor's name must be the SAME name
+# because nothing here read it. So: the compositor's name must be the same name
 # that just resolved, and no hand-written mango file may set it again.
 cursor_name=$(pal '.packages.cursor.name')
 cursor_conf="$GEN_CFG/mango/universal/cursor.conf"
@@ -2267,30 +2267,30 @@ else
 		"$(printf '%s\n' "$stray_cursor" | sed "s|^$SRC/||") — generate it from home.pointerCursor instead"
 fi
 
-# Contrast. THE ONE PROPERTY NOTHING USED TO CHECK — docs/THEME-MIGRATION.md §4
+# Contrast. The one property nothing used to check — docs/theme-migration.md §4
 # said so in as many words: "what it does not catch: whether the new colours are
 # legible". That gap shipped a scheme whose comments sat at 3.36:1, which reads
 # as a considered choice rather than a mistake, because every colour in it was
 # individually plausible.
 #
-# Ratios are WCAG 2.x relative luminance, recomputed here from the RESOLVED
+# Ratios are wcag 2.x relative luminance, recomputed here from the resolved
 # palette on every run rather than copied from whoever last did the arithmetic.
 #
-# TWO FLOORS, because two different promises are being made:
+# Two floors, because two different promises are being made:
 #
-#   contrastFloor  what THIS MACHINE draws text with — the bar, the menus,
+#   contrastFloor  what this machine draws text with — the bar, the menus,
 #                  notifications, editor chrome, ncspot's rows
 #   ansiFloor      the sixteen terminal slots, which nothing here draws text in;
-#                  they are what OTHER programs print with, and they are the
+#                  they are what other programs print with, and they are the
 #                  scheme's published identity
 #
 # They were one number until 2026-08-18, which worked only because Catppuccin's
-# ANSI set IS its accent set. Gruvbox's normal red is 2.69:1 by upstream's
+# Ansi set is its accent set. Gruvbox's normal red is 2.69:1 by upstream's
 # design, so one combined floor would have had to be 2.6 for that scheme — and
 # `comment`, the role the whole check exists for, could then have rotted to the
 # same place unnoticed. docs/adr/0032.
 #
-# Both floors are declared BY the theme, and there is NO global minimum under
+# Both floors are declared by the theme, and there is no global minimum under
 # them. There was one — 3.0 — and it was removed on 2026-08-18 as an invention:
 # it came in with `mocha-high-contrast`, out of a request for more readable text,
 # and then read like an external requirement. It is not one. Nord ships its
@@ -2318,14 +2318,14 @@ contrast() {
 		}'
 }
 
-# Audited for EVERY scheme this machine wears, not only the artefact one.
+# Audited for every scheme this machine wears, not only the artefact one.
 # modes.nix can put a second scheme on screen (docs/adr/0034), and a floor that
 # only ever measured scheme.nix's would report a clean bill of health for a mode
 # nobody can read — the check passing by never looking, which is the failure
 # this whole file is built against. `.schemes` holds exactly the in-use set, so
 # a scheme cannot enter service unaudited.
 #
-# Each scheme is measured against ITS OWN declared floors. There is no global
+# Each scheme is measured against its own declared floors. There is no global
 # minimum under them: the assertion is "this theme is as legible as it claims",
 # and Nord's comment colour is 1.69:1 and that is Nord (docs/adr/0032).
 mapfile -t IN_USE < <(jq -r '.schemes | keys[]' "$SCHEMES" 2>/dev/null)
@@ -2367,7 +2367,7 @@ for PAL_SCHEME in "${IN_USE[@]}"; do
 			audit "$(contrast "$h" "$THEME_BG")" "$role #$h on bg0" "$FLOOR"
 		done
 
-		# ncspot's muted set against ITS OWN surface — ncspot fills whole rows with
+		# ncspot's muted set against its own surface — ncspot fills whole rows with
 		# that colour, so bg0 is the wrong reference and using it passes values that
 		# fail where they are actually drawn.
 		for role in fg dim accent ok; do
@@ -2379,7 +2379,7 @@ for PAL_SCHEME in "${IN_USE[@]}"; do
 			audit "$(contrast "$h" "$MUTED_SURFACE")" "muted.$role #$h on muted.surface" "$FLOOR"
 		done
 
-		# `muted.err` is a BACKGROUND — ncspot sets `error_bg` from it and draws
+		# `muted.err` is a background — ncspot sets `error_bg` from it and draws
 		# `error_fg` (= `muted.fg`) on top. Auditing it as a foreground against
 		# `surface` is a pair ncspot never draws, and it passed a live theme whose
 		# error row was **1.28:1**: light grey-blue text on light pink. The check was
@@ -2392,7 +2392,7 @@ for PAL_SCHEME in "${IN_USE[@]}"; do
 			ok "contrast: every UI text role in '$PAL_SCHEME' clears its floor of $FLOOR:1 (worst: $worst_n at $worst)"
 		fi
 
-		# The sixteen terminal slots. `black` is excluded — it is ANSI 0, a
+		# The sixteen terminal slots. `black` is excluded — it is ansi 0, a
 		# background tone, and nothing prints text in it.
 		aworst=""
 		aworst_n=""
@@ -2474,10 +2474,10 @@ fi
 
 printf '\nGenerated wayle layouts\n'
 
-# 1. config.toml MUST NOT BE IN THE GENERATION.
+# 1. config.toml must not be in the generation.
 #
 # scripts/wayle/wayle-restart.sh owns that path as a link, re-pointing it per
-# (layout, position). `services.wayle.settings` holding ONE value makes the
+# (layout, position). `services.wayle.settings` holding one value makes the
 # home-manager module claim it, and two owners for one path is an activation
 # failure — the same trap that keeps `programs.ncspot.settings` empty
 # (docs/adr/0034). The failure is loud at switch time and invisible in review,
@@ -2490,7 +2490,7 @@ else
 fi
 
 # 2. Every layout, in both positions. Named rather than counted: a count alone
-# passes when one layout vanishes and another is added twice, and the NAMES are
+# passes when one layout vanishes and another is added twice, and the names are
 # what wayle-restart.sh builds its filename from — a missing one falls back to
 # full/top, which notifies but keeps running.
 mapfile -t WLAYOUTS < <(find "$WAYLE_DIR/layouts" -name '*.toml' 2>/dev/null | sort)
@@ -2510,8 +2510,8 @@ else
 fi
 
 if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
-	# 3. Every custom module's `command` names a script that EXISTS and is
-	# EXECUTABLE. wayle discards a custom module's stderr and renders nothing
+	# 3. Every custom module's `command` names a script that exists and is
+	# Executable. wayle discards a custom module's stderr and renders nothing
 	# when the command fails, so a moved script is an empty widget and no more —
 	# this repo's signature bug, and the same check the waybar configs get.
 	# Nix preserves the mode bit, so a script committed 644 arrives 444 and
@@ -2523,7 +2523,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		wrefs=$((wrefs + 1))
 		[[ -x "$MANGO/scripts/${ref#*scripts/}" ]] || wmissing+="  $ref"$'\n'
 	done < <(
-		# The ARRAY, not the directory: every entry under it is a symlink into
+		# The array, not the directory: every entry under it is a symlink into
 		# the store, and `grep -r` skips symlinks while recursing. The floor
 		# below caught exactly that, which is what it is for.
 		grep -hoE '[~]/\.config/mango/scripts/[^ "'"'"']*' "${WLAYOUTS[@]}" | sort -u
@@ -2538,9 +2538,9 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 
 	# 4. Every module a layout carries has a definition.
 	#
-	# wayle.nix asserts this at EVAL for its own names, which is the loud half.
-	# This is the other half: a custom module is defined by an `id` and REFERRED
-	# TO as `custom-<id>`, so the two spellings can come apart in a way the Nix
+	# wayle.nix asserts this at eval for its own names, which is the loud half.
+	# This is the other half: a custom module is defined by an `id` and referred
+	# To as `custom-<id>`, so the two spellings can come apart in a way the Nix
 	# assertion cannot see — it compares the list it just built against itself.
 	# wayle renders an unknown module id as nothing at all.
 	undef=""
@@ -2578,7 +2578,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 
 	# 5. A custom module with no `icon-name` shows no icon.
 	#
-	# `icon-show` DEFAULTS TRUE, so one without an icon still gets the widget and
+	# `icon-show` defaults true, so one without an icon still gets the widget and
 	# draws 22px of nothing between its neighbours — the whole of why the bar read
 	# as loose whatever the spacing knobs said. Every script here already puts its
 	# glyph in the text. wayle.nix derives the key from the definition; this is the
@@ -2611,7 +2611,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 	fi
 
 	# 6. `bar.padding` is zero, so the active workspace tag reaches the bar's
-	# edges. The key is a MARGIN on the section: any value insets every module
+	# edges. The key is a margin on the section: any value insets every module
 	# from the bar's top and bottom, and the one widget on this bar that draws a
 	# background — the active tag — then stops short at both ends. index.scss
 	# takes the height back as vertical padding on `.mod`, which the workspaces
@@ -2631,7 +2631,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 	#
 	# A name that does not is not an error: wayle falls back to its own default
 	# and the module renders, wearing an icon nobody chose. The same failure the
-	# FONT names get a check for, and now a live dependency — `audio-volume-*`
+	# Font names get a check for, and now a live dependency — `audio-volume-*`
 	# and `display-brightness` come from Adwaita in the SYSTEM profile, not from
 	# wayle's own 361, so dropping adwaita-icon-theme would silently restyle two
 	# modules.
@@ -2673,8 +2673,8 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		bad "wayle/styles/index.scss is missing from the generation" \
 			"the bar falls back to wayle's own spacing, which renders and looks merely loose"
 	else
-		# index.scss carries no DESCENDANT `*` selector. GTK4 parents a
-		# menubutton's popover INSIDE the menubutton, so `.mod *` matches every
+		# index.scss carries no descendant `*` selector. GTK4 parents a
+		# menubutton's popover inside the menubutton, so `.mod *` matches every
 		# widget in every dropdown — the calendar, the notification list, the
 		# dashboard — and flattens wayle's own styling of them. The bar looks
 		# exactly as intended while everything it opens looks broken, which is
@@ -2683,7 +2683,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		# `+` and `~` are sibling combinators and equally safe — a module's
 		# sibling is another module, never something inside one.
 		#
-		# It lives HERE, after `$SCSS` is assigned and checked. Its first cut
+		# It lives here, after `$SCSS` is assigned and checked. Its first cut
 		# sat above that line and grepped an empty path — passing by finding
 		# nothing, over a mutation that added `.mod *` deliberately.
 		mapfile -t STARS < <(
@@ -2706,7 +2706,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 			# `(^|[^-])name`: a module's `icon-name = "ld-power-symbolic"` also
 			# ends in `name = "…"` and was read as a group nobody had styled.
 			# The `^` alternative is load-bearing — the group names sit at the
-			# START of a line, so requiring a preceding character matched the
+			# Start of a line, so requiring a preceding character matched the
 			# icon names and nothing else.
 			grep -hoE '(^|[^-])name = "[a-z][a-z0-9-]*"' "${WLAYOUTS[@]}" |
 				sed 's/.*name = "//;s/"//' | sort -u
@@ -2732,7 +2732,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 	fi
 
 	# 8. The palette reaches them. A wayle layout with no [styling.palette] wears
-	# wayle's OWN default colours, which is a complete, plausible theme and not
+	# wayle's own default colours, which is a complete, plausible theme and not
 	# this machine's — the drifted-palette failure docs/adr/0028 gets a check for
 	# rather than a convention. Checked against the artefact scheme's own bg.
 	wbg=$(pal '.bg0')
@@ -2754,10 +2754,10 @@ printf '\nGenerated waybar configs\n'
 
 # Every layout, in both positions. Named rather than counted: a count alone
 # passes when one layout vanishes and another is added twice, and the layout
-# NAMES are what waybar-restart.sh builds its filename from — a missing one is
+# Names are what waybar-restart.sh builds its filename from — a missing one is
 # the fallback-to-full path, which logs but keeps running. Was 4 layouts until
 # hud left (docs/adr/0035).
-# CONFIGS stays FULL PATHS — every scan below this point reads the files.
+# Configs stays full paths — every scan below this point reads the files.
 mapfile -t CONFIGS < <(find "$WAYBAR_DIR" -name 'config-*.jsonc' | sort)
 cfgmiss=""
 for l in full focus minimal; do
@@ -2775,7 +2775,7 @@ else
 fi
 
 # Every module a layout carries needs a CSS rule, and every `format` needs
-# something in it. Both are INVISIBLE — waybar renders the bar either way — and
+# something in it. Both are invisible — waybar renders the bar either way — and
 # both were made in one sitting adding `custom/control-center`: the glyph was
 # dropped writing the Nix (no \uXXXX escape, so it is literal UTF-8), and a new
 # module has no rule until someone writes one. docs/gotchas.md -> Waybar.
@@ -2800,7 +2800,7 @@ else
 			grep -qE "^\s*${id}[ ,{:]" "$STYLE_CSS" ||
 				grep -qxF "$id," "$STYLE_CSS" ||
 				cssmiss+="  $m -> $id (${cfg##*/})"$'\n'
-			# Quoted keys: `.modules-left` is jq for `.modules` MINUS `left`,
+			# Quoted keys: `.modules-left` is jq for `.modules` minus `left`,
 			# which yields null rather than an error and would empty the scan.
 			#
 			# `sub("#.*$";"")` drops the group tag a layout appends to the first
@@ -2854,8 +2854,8 @@ else
 	# written in prose is not one. `#custom-scratch-*` were found through comment
 	# text on the first attempt at this check, which passed for the wrong reason.
 	#
-	# NOT `sed '/\/\*/,/\*\//d'`. A sed range looks for its end pattern from the
-	# NEXT line on, so a one-line `/* ── Tooltip ── */` header opens a range that
+	# Not `sed '/\/\*/,/\*\//d'`. A sed range looks for its end pattern from the
+	# Next line on, so a one-line `/* ── Tooltip ── */` header opens a range that
 	# only closes at the following comment's `*/` — that ate two thirds of this
 	# sheet, and both scans below passed on the remains. Flatten first, then the
 	# standard non-greedy-by-construction C comment match.
@@ -2900,7 +2900,7 @@ else
 		ok "$tagged group separators, all drawn by the one .sep rule"
 	fi
 
-	# One canonical group order, and a layout may only DROP a module from it
+	# One canonical group order, and a layout may only drop a module from it
 	# (docs/adr/0042). Two layouts that disagree about the order of a module they
 	# both carry make SUPER+/ rearrange the bar under you — which is what the
 	# note "so SUPER+/ does not move it" used to ask a reader to maintain by
@@ -3042,7 +3042,7 @@ fi
 
 # Night light is killed from outside this repo: noctalia runs `pkill -x wlsunset`
 # in `Component.onCompleted`, unconditionally, on every start. systemd counts a
-# SIGTERM as a CLEAN exit, so `Restart=on-failure` did not bring it back and one
+# Sigterm as a clean exit, so `Restart=on-failure` did not bring it back and one
 # entry into noctalia mode ended night light for the session, silently.
 # docs/gotchas.md → night light.
 NIGHT_UNIT="$GEN/home-files/.config/systemd/user/wlsunset.service"
@@ -3086,7 +3086,7 @@ IDLE_UNIT="$GEN/home-files/.config/systemd/user/swayidle.service"
 if [[ ! -f $IDLE_UNIT ]]; then
 	bad "no generated swayidle.service — the scan is broken" "$IDLE_UNIT"
 else
-	# -o then `wc -l`, not `grep -c`: the whole ExecStart is ONE line, so `grep -c`
+	# -o then `wc -l`, not `grep -c`: the whole ExecStart is one line, so `grep -c`
 	# reports 1 however many timeouts are on it, and a ladder cut to a single
 	# timeout would still pass.
 	timeouts=$(grep -o ' timeout ' "$IDLE_UNIT" | wc -l)
@@ -3148,7 +3148,7 @@ else
 	ok "custom/idle-inhibitor is on the bar in $inhibitor of ${#CONFIGS[@]} layouts"
 fi
 
-# ...and the module only REPORTS the inhibitor now; the unit is what holds it.
+# ...and the module only reports the inhibitor now; the unit is what holds it.
 # Two ways that pairing breaks silently, so both are asserted. An [Install]
 # section would arm the inhibitor at every login, which is the failure the
 # whole thing exists to prevent and looks from the bar exactly like someone
@@ -3166,7 +3166,7 @@ fi
 # ...and apply_mode hands it over on the way into noctalia, which holds its own
 # inhibitor over quickshell with no getter to read it back. Dropping this line
 # is invisible: both inhibitors are real, so the machine still stays awake — it
-# is the OTHER shell's indicator that starts lying. docs/adr/0031.
+# is the other shell's indicator that starts lying. docs/adr/0031.
 LIBSH="$MANGO/scripts/lib.sh"
 if ! grep -q 'idle-inhibit\.sh' "$LIBSH"; then
 	bad "apply_mode does not hand the idle inhibitor over — entering noctalia would leave wlinhibit holding behind its indicator" \
@@ -3224,7 +3224,7 @@ else
 			sed -nE 's/^font-(sans|mono) = "(.*)"$/\2/p' \
 				"$WAYLE_DIR"/layouts/*.toml 2>/dev/null
 		)
-		# A config may name a STACK — wayle's `font-sans` is
+		# A config may name a stack — wayle's `font-sans` is
 		# "Symbols Nerd Font Mono, 3270 Nerd Font", the same two-family fallback
 		# style-solid.css uses, because 3270's advance is too narrow for the
 		# glyphs it patches in. Split it, or the whole stack is looked up as one
@@ -3241,7 +3241,7 @@ else
 				[[ -z $name ]] && continue
 				# Either a bare family, or "<family> <style>".
 				#
-				# `%{family}` is a COMMA-SEPARATED alias list — JetBrainsMono
+				# `%{family}` is a comma-separated alias list — JetBrainsMono
 				# scans as "JetBrainsMono Nerd Font,JetBrainsMono NF,…" and any
 				# of those resolve. Matching the whole field reported a font
 				# that is installed as missing, which is a false positive, and a
@@ -3305,9 +3305,9 @@ for fn in _nix-shell _nixos-option; do
 done
 
 # --- signal traps -----------------------------------------------------------
-# A handler trapped on a terminating signal REPLACES that signal's default
+# A handler trapped on a terminating signal replaces that signal's default
 # action — bash runs it and then resumes. Two mango watchers written that way
-# ignored logind's SIGTERM, kept looping, and held the session scope open until
+# ignored logind's sigterm, kept looping, and held the session scope open until
 # systemd SIGKILLed them 90 s later, on every shutdown and reboot. The shape is
 # one line from the correct one and reads as the more careful of the two, so it
 # gets a check rather than a convention. docs/gotchas.md → Scripts.
@@ -3332,20 +3332,20 @@ traps_seen=0
 traps_bad=()
 for f in "${SCRIPTS[@]}"; do
 	# Read once rather than redirecting the loop: `fn_body` below opens the same
-	# file, and a loop whose stdin IS that file is one refactor away from having
+	# file, and a loop whose stdin is that file is one refactor away from having
 	# its input consumed out from under it (SC2094).
 	mapfile -t lines <"$f"
 	for line in "${lines[@]}"; do
-		# `trap ACTION SIGSPEC...`. `trap -p` and `trap - SIG` reset rather than
+		# `trap action sigspec...`. `trap -p` and `trap - sig` reset rather than
 		# handle, so they carry no obligation to exit.
 		[[ $line =~ ^[[:space:]]*trap[[:space:]]+(\'[^\']*\'|\"[^\"]*\"|[^[:space:]]+)[[:space:]]+([A-Za-z0-9[:space:]]+)$ ]] || continue
 		action=${BASH_REMATCH[1]}
 		signals=${BASH_REMATCH[2]}
 
-		# Only signals whose default action terminates. EXIT is the right home
-		# for cleanup and must NOT exit. The `[A-Za-z0-9…]` above also drops the
+		# Only signals whose default action terminates. Exit is the right home
+		# for cleanup and must not exit. The `[A-Za-z0-9…]` above also drops the
 		# `RTMIN+8` form on purpose: a real-time signal here is waybar asking a
-		# module to refresh, where carrying on IS the point.
+		# module to refresh, where carrying on is the point.
 		[[ $signals == *TERM* || $signals == *INT* || $signals == *HUP* || $signals == *QUIT* || $signals == *PIPE* ]] || continue
 		traps_seen=$((traps_seen + 1))
 
@@ -3379,8 +3379,8 @@ fi
 
 printf '\nPackage ownership\n'
 
-# ONE OWNER PER PACKAGE (modules/home/packages.nix header). Asserted as
-# DIVERGENCE, not duplication: 20 names are in both lists and 19 resolve to the
+# One owner per package (modules/home/packages.nix header). Asserted as
+# Divergence, not duplication: 20 names are in both lists and 19 resolve to the
 # same store path, because environment.systemPackages is mostly NixOS module
 # defaults rather than this repo's doing. Flagging all 20 would be noise.
 # Flagging the one whose paths differ is useful: there the binary you get

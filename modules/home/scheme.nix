@@ -1,6 +1,6 @@
 # The scheme this machine wears. Change this line, rebuild, reload.
 #
-# A FILE rather than a home-manager option, and that is not laziness. The
+# A file rather than a home-manager option, and that is not laziness. The
 # lock-background ramp is built in `pkgs/default.nix`, which is an **overlay** —
 # it runs outside the module system and cannot read `config.*`. An option would
 # reach eleven consumers and not the twelfth, and the one it missed is the

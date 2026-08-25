@@ -21,8 +21,8 @@
       package = pkgs.qemu_kvm;
       runAsRoot = false;
       swtpm.enable = true; # Windows 11 guests (you run winboat)
-      # NOTE: the `ovmf` submodule was removed from NixOS — all OVMF images
-      # shipped with QEMU are now available by default, so UEFI guests work
+      # NOTE: the `ovmf` submodule was removed from NixOS — all ovmf images
+      # shipped with qemu are now available by default, so UEFI guests work
       # with no extra config.
     };
   };

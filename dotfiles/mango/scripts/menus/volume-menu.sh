@@ -11,7 +11,7 @@ SEP=$'────────────────────────'
 
 # ── Current state ──────────────────────────────────────────────────────
 sink_info=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
-# e.g. "Volume: 0.87" or "Volume: 1.20 [MUTED]"
+# e.g. "Volume: 0.87" or "Volume: 1.20 [muted]"
 vol_raw=$(awk '{print $2}' <<<"$sink_info")
 muted=false
 [[ "$sink_info" == *"[MUTED]"* ]] && muted=true

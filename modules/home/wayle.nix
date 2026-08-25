@@ -75,14 +75,6 @@ let
       on-action = "${s}/system/weather.sh status";
     }
     {
-      id = "layout";
-      command = "mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'";
-      interval-ms = 1000;
-      format = "{{ output }}";
-      left-click = "mmsg dispatch switch_layout";
-      on-action = "mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'";
-    }
-    {
       id = "vpn";
       command = "${s}/menus/vpn.sh";
       interval-ms = 5000;
@@ -371,10 +363,10 @@ let
       }
       {
         name = "workspaces";
-        modules = [
-          "mango-workspaces"
-          "custom-layout"
-        ];
+        # The tag row alone. The layout-symbol readout was dropped 2026-08-25:
+        # SUPER+n switches the layout (universal/bind.conf) and the symbol was
+        # not worth a module.
+        modules = [ "mango-workspaces" ];
       }
       {
         name = "playing";
@@ -499,12 +491,19 @@ let
       "systray"
     ];
 
-  # wayle's BarItem is `{ module, class }`. `mod` is how dotfiles/wayle/index.scss
-  # reaches a module's DESCENDANTS (`.mod *`); the module itself is the same
-  # widget as `#<group> > *`, so the group ids carry every other rule.
+  # wayle's BarItem is `{ module, class }`, and `class` is the ONLY per-module
+  # handle the bar has — wayle names no widget after its module, so `#clock`
+  # matches nothing. One class, never a list: GTK's `add_css_class` rejects a
+  # name containing a space, so `"mod mod-clock"` is dropped whole.
+  #
+  # That one slot buys identity rather than a shared class. The shared rules sit
+  # on wayle's own `.module`, which is the same widget — so `.mod-clock`,
+  # `.mod-battery`, `.mod-custom-weather` are free for per-module spacing.
+  # Prefixed because wayle's dropdowns already use bare `.battery`/`.bluetooth`.
+  # docs/gotchas.md -> Wayle.
   classed = m: {
     module = m;
-    class = "mod";
+    class = "mod-${m}";
   };
 
   toGroup = g: g // { modules = map classed g.modules; };
@@ -547,7 +546,9 @@ let
         scale = 1.0;
         exclusive = true;
         layer = "top";
-        bg = "bg-surface";
+        # `bg-base`, not wayle's default `bg-surface`: that token maps to bg1,
+        # one step up the ramp from what waybar's `window#waybar` draws.
+        bg = "bg-base";
         rounding = "none";
         shadow = "none";
         border-location = "none";

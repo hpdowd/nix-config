@@ -1038,38 +1038,56 @@ stylesheet in `dotfiles/wayle/index.scss`.
 rules, and each one does something the config layer cannot. Use a config key
 first; add a rule only when no key exists or the key does not work.
 
-**`.mod`, wayle's own `.module`, and `#<group> > *` are the same widget.** There
-is no wrapper between a group and its modules. Paint them one at a time to see
-it. `#<group>` ids come from the group's name in the layout; `.mod` is the class
-`wayle.nix` puts on every module.
+**`.module`, `.mod-<name>` and `#<group> > *` are the same widget.** There is no
+wrapper between a group and its modules. Paint them one at a time to see it.
+`.module` is wayle's own class; `#<group>` ids come from the group's name in the
+layout; `.mod-<name>` is the per-module class `wayle.nix` puts on every module.
+Shared rules go on `.module`, per-module ones on `.mod-<name>` **below it** —
+equal specificity, so source order decides.
 
 **Never write a descendant `*` here.** GTK4 parents a menubutton's popover
-inside the menubutton, so `.mod *` matches every widget in every dropdown — the
+inside the menubutton, so `.module *` matches every widget in every dropdown — the
 calendar, the notification list, the dashboard — and flattens wayle's styling of
 them. The bar looks correct and everything it opens does not. `> *`, `+ *` and
 `~ *` are safe: a popover is a child of the module, so those stop one level
 short. `checks/static.sh` asserts the pattern stays absent.
 
 > A blanket `.mod, .mod * { padding: 0; margin: 0; min-width: 0; … }` did this
-> for two weeks. It was compensating for the empty icon slots below, and once
-> those were gone it measured identical to not being there.
+> for two weeks, back when every module shared one `mod` class. It was
+> compensating for the empty icon slots below, and once those were gone it
+> measured identical to not being there.
 
-**wayle's own selectors out-specify `.mod`.** Its sheet styles
+**wayle's own selectors out-specify a bare class.** Its sheet styles
 `menubutton.bar-button.basic .bar-button-content` (0,3,1) and
-`.bar.top .bar-group > .module + .module` (0,5,0); `.mod *` is (0,1,0) and loses
+`.bar.top .bar-group > .module + .module` (0,5,0); a class is (0,1,0) and loses
 to both. To change a value wayle sets, use an id. The built-in sheet is compiled
 into the binary: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
 
 **`class` takes one class, not a list.** `class = "mod mod-clock"` is dropped
-whole — GTK's `add_css_class` rejects a name containing a space — so there is no
-per-module hook. `#<group> > *:nth-child(n)` is the only handle. It is stable
-because one ordered list in `wayle.nix` defines module order for all three
-layouts. `icon-only` is a button variant, not a class you can match.
+whole — GTK's `add_css_class` rejects a name containing a space. That one slot
+is spent on **identity**, not on a shared class: `class = "mod-${m}"`, so every
+module answers to `.mod-clock`, `.mod-battery`, `.mod-custom-weather`. Prefixed
+because wayle's dropdowns already use bare `.battery` and `.bluetooth`. The
+shared rules ride wayle's own `.module` instead. `icon-only` is a button
+variant, not a class you can match.
+
+> `#<group> > *:nth-child(n)` was the only handle until 2026-08-25, and it was
+> fragile in the way a positional selector always is: `#radios > *:nth-child(3)`
+> meant bluetooth only for as long as nothing was added ahead of it.
+
+**A custom module gets state classes too, and those DO take a list.**
+`class-format`'s result is split on whitespace and each word added as a class,
+combining with the JSON output's own `class` field. Every custom module here
+carries `class-format = "{{ class }}"`, so `weather.sh`'s `ok`/`stale`/`error`
+and `power-profile.sh`'s four profiles are live classes on the bar. Nothing in
+`index.scss` uses them — `docs/adr/0045` reserves colour for state that matters.
+Native modules have no equivalent; their state is config (`battery.thresholds`,
+`icon-muted`, `charging-icon`), not CSS.
 
 ### Spacing
 
 Ported from `style-solid.css`: 10px between modules in a group, 11px each side
-of a divider, 12px at the screen edge. `.mod { padding: 4px }` gives the first
+of a divider, 12px at the screen edge. `.module { padding: 4px }` gives the first
 two; the group's `margin-left: 6px; padding-left: 6px` around its `border-left`
 gives the second. Change one and change the other.
 
@@ -1087,7 +1105,7 @@ spacing preference.
 
 **The bar's height rides on the tallest module unless you state it.** Dropping
 `button-icon-size` once took 3px off the whole bar, because the icon was the
-tallest thing in it. `.mod` carries `min-height: 23px` so the height is declared:
+tallest thing in it. `.module` carries `min-height: 23px` so the height is declared:
 23 + 2×4px = 31px.
 
 **Do not use the `separator` module.** It sits as a direct child of the section

@@ -3,11 +3,17 @@
 // Reach for a key in modules/home/wayle.nix first.
 //
 // Never write a descendant `*` here. GTK4 parents a menubutton's popover
-// inside the menubutton, so `.mod *` restyles every dropdown. `> *`, `+ *`
+// inside the menubutton, so `.module *` restyles every dropdown. `> *`, `+ *`
 // and `~ *` stop one level short and are safe. checks/static.sh asserts it.
 //
-// `.mod`, wayle's own `.module` and `#<group> > *` are the same widget, and
-// wayle's own selectors out-specify `.mod` — use an id to beat one.
+// TWO HANDLES, and they are the same widget. `.module` is wayle's own class on
+// every module; `.mod-<name>` is the per-module class wayle.nix puts there,
+// because wayle names no widget after its module and `#clock` matches nothing.
+// Shared rules go on `.module`, per-module ones on `.mod-<name>` BELOW it —
+// equal specificity, so source order decides. `#<group>` is a third handle at
+// id strength, for rules about position rather than identity.
+//
+// wayle's own selectors out-specify all three — use an id to beat one.
 // docs/gotchas.md -> Wayle. docs/adr/0045.
 // =====================================================================
 
@@ -23,7 +29,10 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
 //
 // `min-height` states the bar's height. Without it the bar is however tall the
 // tallest module happens to be, and an icon-size change moves it.
-.mod {
+//
+// FIRST in the sheet deliberately: every `.mod-<name>` rule below carries the
+// same specificity and overrides this by sitting later.
+.module {
   padding: 4px;
   min-height: 23px;
 }
@@ -38,37 +47,41 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
   }
 }
 
+// ── Per-module ────────────────────────────────────────────────────────────
+
 // The active tag is the only thing here that draws a background, and it runs
 // the full height of the bar. `bar.padding` cannot make that room — it is a
 // margin outside the section.
-#workspaces > * {
+.mod-mango-workspaces {
   padding-top: 0;
   padding-bottom: 0;
 }
 
 // Bluetooth's glyph is the narrowest on the bar and floats in a square icon
-// box, so its divider sat 22px off it against 13-16px elsewhere. `nth-child(3)`
-// is bluetooth in both layouts carrying this group.
-#radios > *:nth-child(3) {
+// box, so its divider sat 22px off it against 13-16px elsewhere.
+.mod-bluetooth {
   padding-right: 0;
-}
-
-// Idle inhibitor and power profile are bare glyphs with no number after them,
-// and at the bar's 10px they run together.
-#power > * + * {
-  margin-left: 5px;
 }
 
 // The clock is the one label with its own size — `clock` has no `label-size`,
 // only the bar does. Same proportion as `#clock { font-size: 16px }` on a 14px
 // waybar.
-#time > *:first-child .bar-button-label {
+.mod-clock .bar-button-label {
   font-size: 1.25rem;
 }
 
 // The centre title sits on the bar's centre, not in the space the sides leave,
 // so it can collide with a long left side. `label-max-length` is the first
 // defence; this stops the text being what grows.
-#focus .mod {
+.mod-window-title {
   padding: 4px 8px;
+}
+
+// ── Positional ────────────────────────────────────────────────────────────
+
+// Idle inhibitor and power profile are bare glyphs with no number after them,
+// and at the bar's 10px they run together. About position, not identity, so it
+// stays on the group id.
+#power > * + * {
+  margin-left: 5px;
 }

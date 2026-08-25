@@ -1029,196 +1029,147 @@ Any fixed-set menu here is exposed the same way as it grows past twelve.
 ## Wayle
 
 The tiling mode's shell since 2026-08-24 — bar, notification daemon, OSD and
-wallpaper engine. `docs/adr/0045`. Config in
-`modules/home/wayle.nix`, stylesheet in `dotfiles/wayle/index.scss`.
+wallpaper engine. `docs/adr/0045`. Config in `modules/home/wayle.nix`,
+stylesheet in `dotfiles/wayle/index.scss`.
 
-### The styling layer is the one that matters
+### The stylesheet
 
-**`~/.config/wayle/styles/index.scss` overrides the built-in styling**, groups
-expose `#<name>` CSS ids and modules take a `class`. This is not a footnote: the
-config layer **cannot** produce a dense bar, because `button-gap` and
-`button-label-padding` are `ScaleFactor` and clamp at 0.25. Four rounds of
-tuning TOML values went nowhere before this file was found — and waybar's own
-density never came from waybar's config either, it came from `style-solid.css`.
-
-**NEVER WRITE A DESCENDANT `*` IN THIS SHEET.** GTK4 parents a menubutton's
-popover **inside** the menubutton, so `.mod *` matches every widget in every
-dropdown — the calendar, the notification list, the dashboard — and flattens
-wayle's own styling of them. The bar looks exactly as intended while everything
-it opens looks broken, and nothing connects the two. `> *` is safe: a popover is
-a child of the module, so a direct-child selector stops one level short.
-`checks/static.sh` asserts the pattern stays absent.
-
-> A blanket `.mod, .mod * { padding: 0; margin: 0; min-width: 0; … }` lived here
-> for two weeks doing exactly that. It was compensating for the empty icon slots
-> — once those were gone it measured pixel-for-pixel identical to not being
-> there, because `button-variant = "basic"`, `button-rounding = "none"` and
-> `button-border-location = "none"` already say all of it from the config layer,
-> and wayle's own `all: unset` on `button.toggle` handles the GTK theme.
+`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is seven
+rules, and each one does something the config layer cannot. Use a config key
+first; add a rule only when no key exists or the key does not work.
 
 **`.mod`, wayle's own `.module`, and `#<group> > *` are the same widget.** There
-is no separate wrapper. Paint them one at a time to see it — `.mod { background:
-red }` fills a whole module, and the group's colour shows only where that
-module's own margin exposes it. `checks/static.sh` asserts the sheet's `$groups`
-list is exactly the set of groups the layouts declare.
+is no wrapper between a group and its modules. Paint them one at a time to see
+it. `#<group>` ids come from the group's name in the layout; `.mod` is the class
+`wayle.nix` puts on every module.
 
-**Four rules is the whole sheet, and each one names what the config cannot say.**
-`.mod`'s padding (both gap keys are inert); the group's `border-left` (
-`button-group-border-location` would draw one on the first group too, against
-the screen edge); `#workspaces > *`'s vertical opt-out (`bar.padding` is a
-margin the highlight cannot reach into); and `#focus .mod` (no per-module
-padding key). Everything else — the tag's width via `tag-padding`, the button
-variant, the rounding, the borders, the colours — is a TOML value. Reach for the
-config layer first; a rule here has to earn its place by being impossible.
+**Never write a descendant `*` here.** GTK4 parents a menubutton's popover
+inside the menubutton, so `.mod *` matches every widget in every dropdown — the
+calendar, the notification list, the dashboard — and flattens wayle's styling of
+them. The bar looks correct and everything it opens does not. `> *`, `+ *` and
+`~ *` are safe: a popover is a child of the module, so those stop one level
+short. `checks/static.sh` asserts the pattern stays absent.
 
-> "The gap between modules belongs to a wrapper `.mod` cannot reach" was the
-> theory here for two weeks, from one true observation — cutting `.mod`'s
-> padding narrows the workspace tag blocks and moves the module-to-module
-> distance almost not at all. It moved almost not at all because that distance
-> was seven empty icon slots, not padding.
-
-**An icon-less custom module still reserves its icon slot.** `icon-show`
-defaults to **true**, so a module with no `icon-name` draws a 22px image widget
-with nothing in it — between its neighbours, where it reads as spacing. Seven of
-the nine custom modules here put their glyph in the *text* (the script's own
-output), so seven empty slots sat on the bar and no spacing knob touched them.
-`wayle.nix` derives `icon-show` from whether the definition names an icon, and
-`checks/static.sh` asserts it in the generated TOMLs.
-
-> This is what "the gaps are still too big" was, after four rounds of tuning
-> `module-gap`, `button-gap` and `button-label-padding` moved them ~2px in
-> total. Measure the bar — crop the strip out of `grim` output and find the runs
-> of background columns — rather than adjusting a knob and looking.
-
-**Neither gap key does anything.** `module-gap` and `button-group-module-gap`
-both compile to `margin-left: calc(var(--bar-…-gap-px) * 1px)` on selectors that
-match perfectly well — the variables behind them stay 0 whatever the TOML says.
-Verified at `3.0` with the sheet's own gap rule removed: nothing moved. Both are
-still written as `0.0`, because that is the value wanted the day they start
-working. The real within-group gap is `#<group> > * + *` in `index.scss`.
-
-> Not all `Spacing` keys are broken — `padding` and `padding-ends` both work.
-> It is the two gaps.
+> A blanket `.mod, .mod * { padding: 0; margin: 0; min-width: 0; … }` did this
+> for two weeks. It was compensating for the empty icon slots below, and once
+> those were gone it measured identical to not being there.
 
 **wayle's own selectors out-specify `.mod`.** Its sheet styles
 `menubutton.bar-button.basic .bar-button-content` (0,3,1) and
 `.bar.top .bar-group > .module + .module` (0,5,0); `.mod *` is (0,1,0) and loses
-to both. Zeroing through `.mod` removes the *GTK theme's* padding and
-`min-width`, which is worth doing and is not the same thing. To move a value
-wayle sets, use an id — that is why the gap rule is `#<group> > * + *`.
+to both. To change a value wayle sets, use an id. The built-in sheet is compiled
+into the binary: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
 
-> The built-in sheet is compiled into the binary and is the fastest way to see
-> which is which: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
+**`class` takes one class, not a list.** `class = "mod mod-clock"` is dropped
+whole — GTK's `add_css_class` rejects a name containing a space — so there is no
+per-module hook. `#<group> > *:nth-child(n)` is the only handle. It is stable
+because one ordered list in `wayle.nix` defines module order for all three
+layouts. `icon-only` is a button variant, not a class you can match.
+
+### Spacing
+
+Ported from `style-solid.css`: 10px between modules in a group, 11px each side
+of a divider, 12px at the screen edge. `.mod { padding: 4px }` gives the first
+two; the group's `margin-left: 6px; padding-left: 6px` around its `border-left`
+gives the second. Change one and change the other.
+
+**`module-gap` and `button-group-module-gap` do nothing.** Both compile to a
+`margin-left` on selectors that match, but the CSS variables behind them stay 0
+whatever the TOML says. Verified at `3.0` with the sheet's own gap rule removed.
+Both are still written as `0.0`, which is the value wanted if they start
+working. `padding` and `padding-ends` are the same type and both work.
 
 **`bar.padding` is a margin on the SECTION, not padding inside the bar.** Any
-value insets every module from the bar's top and bottom, so the one widget here
-that draws a background — the active workspace tag — stops short at both ends
-and reads as a chip rather than as the bar telling you where you are. It is `0`,
-and the height comes back as vertical padding on `.mod` in `index.scss`, which
-`#workspaces > *` opts out of. `checks/static.sh` asserts the zero, because a
-value there looks like a spacing preference and is a silent regression.
-
-> The bar's height is then the tallest module's natural height plus that
-> padding: 23px + 2×4px = the 31px it has always been. 23 is a measurement — a
-> module's font or icon size changing moves it.
-
-**The spacing is `style-solid.css`'s, ported.** `.mod { padding: 0 5px }` puts
-10px between two modules inside a group, and the group's `margin-left: 6px;
-padding-left: 6px` around its `border-left` puts 11px on each side of the
-divider — the same 11/11 waybar gets from `.sep`, by a different route. Change
-one and change the other; the pair is the rhythm.
-
-**A button icon is `1.6rem` against its label's `1.04rem`.** So a default wayle
-bar draws icons at 1.54x its own text — measured, 20px of ink beside 9px digits.
-waybar's ratio is the other way round, 8px glyphs beside 11px digits, because
-its icons *are* text: same font, same `font-size`. `button-icon-size = 0.7` here
-lands between the two. It is one knob for the bar, and it moves only the native
-modules and the two icon-only customs — the other seven print their glyph in the
-TEXT, so they follow `button-label-size`.
+value insets every module from the bar's top and bottom, so the active workspace
+tag — the one widget here that draws a background — stops short at both ends. It
+is `0`, and `checks/static.sh` asserts that, because a value there looks like a
+spacing preference.
 
 **The bar's height rides on the tallest module unless you state it.** Dropping
-`button-icon-size` took 3px off the whole bar, because the icon *was* the
-tallest thing in it. `index.scss` sets `min-height` on `.mod` so the height is
-declared rather than emergent — otherwise an icon or font change arrives as a
-bar-height change, from the other side of the config.
+`button-icon-size` once took 3px off the whole bar, because the icon was the
+tallest thing in it. `.mod` carries `min-height: 23px` so the height is declared:
+23 + 2×4px = 31px.
 
-**`button-gap` reaches native modules only.** It is the gap between a button's
-icon and its label, and the seven custom modules here print their glyph in the
-*text* (`icon-show = false`), so their spacing is a space character in the
-script's own output and no config key touches it. At the 0.25 ScaleFactor floor
-a native icon touches its own text; `0.6` is the measured value.
+**Do not use the `separator` module.** It sits as a direct child of the section
+box rather than inside a group, so nothing in the sheet reaches its wrapper and
+its padding survives everything. Draw the divider as a `border-left` on the group
+— a border costs no width. Two rounds of "the cross-group gaps are still too
+wide" were this.
 
-**Every icon a module draws is a name you can change.** `battery.level-icons`
-and `charging-icon`/`alert-icon`, `network.wifi-signal-icons` plus the four
-wired/wifi states, `bluetooth`'s four states, `brightness.level-icons`,
-`volume.level-icons`/`icon-muted`, `clock`/`cpu`/`ram`/`media`/`notifications`/
-`window-title`'s `icon-name`, and a custom module's `icon-name`, `icon-names`
-(indexed by percentage) or `icon-map` (keyed by the `alt` field). 361 icons ship
-in the package — `ld-` Lucide, `si-` Simple Icons, `tb-` Tabler, `md-` Material,
-`cm-` wayle's own. `wayle icons list` enumerates them, `wayle icons install`
-pulls more from a CDN and `wayle icons import` takes local SVGs.
+> Its defaults are also invisible: 1px of `fg-subtle` against a background a few
+> percent away. `border-strong` is no better; the border tokens derive from the
+> background.
 
-> A name that does not resolve falls back without a word, which is the same
-> failure class as the fonts — see `checks/static.sh`, which reads the font
-> names out of the generated layouts and asserts they exist.
+### Icons
 
-**The workspace module has its own typography.** `button-label-size` and
-`button-label-weight` are `bar-button` keys, and a tag is not a bar button —
-`.workspace-label` takes its size from `mango-workspaces.label-size` and is
-`--weight-bold` in wayle's own sheet whatever the bar says. Two scales, and
-setting the bar's moves everything except the tags.
+**`icon-show` defaults to true**, so a custom module with no `icon-name` draws a
+22px image widget with nothing in it, between its neighbours, where it reads as
+spacing. Seven of the nine custom modules here print their glyph in the text, so
+seven slots were empty. `wayle.nix` derives `icon-show` from whether the
+definition names an icon; `checks/static.sh` asserts it.
 
-**Three ways to get an icon that reads as solid**, in order of preference. All
-361 bundled icons are Lucide/Tabler *outline*, which sit thin beside bold text.
+> This was the whole of "the gaps are too big", after four rounds of tuning
+> spacing keys moved them ~2px.
+
+**Every icon a module draws is a name you can change.** `battery.level-icons`,
+`charging-icon`, `alert-icon`; `network.wifi-signal-icons` and its four wired
+and wifi states; `bluetooth`'s four states; `brightness.level-icons`;
+`volume.level-icons` and `icon-muted`; `icon-name` on clock, cpu, ram, media,
+notifications and window-title; and `icon-name`, `icon-names` (indexed by
+percentage) or `icon-map` (keyed by an `alt` field) on a custom module.
+
+361 icons ship in the package: `ld-` Lucide, `si-` Simple Icons, `tb-` Tabler,
+`md-` Material, `cm-` wayle's own. `wayle icons list` enumerates them, `wayle
+icons install` pulls more from a CDN, `wayle icons import` takes local SVGs. The
+last two write outside the flake, so a name added that way falls back silently on
+another machine.
+
+**A name that does not resolve falls back without a word.** `checks/static.sh`
+resolves every name in the layouts against the home and system icon trees. It
+needs `find -L`: both are symlink farms, and without it every name under
+Adwaita's `symbolic/status/` reads as missing.
+
+**Three ways to get an icon that reads as solid.** All 361 bundled icons are
+Lucide and Tabler outline, which sit thin beside bold text.
 
 | | when |
 |---|---|
-| the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar does all of them |
-| Adwaita's own symbolics | filled, already in the system profile — `audio-volume-{low,medium,high,muted}`, `display-brightness` |
-| the bundled `md-battery_android_*` | the only Material set here, and the closest thing to a phone battery: solid, with a bolt for charging and a `!` for alert |
+| the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar draws all of them |
+| Adwaita's symbolics | filled and already in the system profile — `audio-volume-{low,medium,high,muted}`, `display-brightness` |
+| the bundled `md-battery_android_*` | the only Material set here: solid, with a bolt for charging and a `!` for alert |
 
-> **A native `format` sees only `{{ percent }}`.** Not mute, not charging. So
-> `volume` and `battery` keep their icon *widget* — `icon-muted`,
-> `charging-icon` and `alert-icon` are the only way those states show at all.
+**A native `format` sees only `{{ percent }}`.** Not mute, not charging. So
+`volume` and `battery` keep their icon widget — `icon-muted`, `charging-icon`
+and `alert-icon` are the only way those states show.
+
+**A native `format` is real Jinja2.** `{% if percent > 50 %}…{% endif %}`
+evaluates. Verified on the running bar.
 
 **A glyph in a label needs the two-family font stack.** `font-sans` must be
-`"Symbols Nerd Font Mono, 3270 Nerd Font"`, the same stack and the same reason
-as `style-solid.css`: 3270 patches the Nerd Font icons in at natural width but
-keeps its own narrow 0.54em advance, so the ink overflows to the right and eats
-the space after it. With one family, `cpu` renders as `<glyph>8%`.
-
-**A native `format` is real Jinja2** — `{% if percent > 50 %}…{% endif %}`
-evaluates. Verified on the running bar, not assumed.
-
-**`class` takes ONE class, not a list.** `class = "mod mod-clock"` is dropped
-whole (GTK's `add_css_class` rejects a name with a space), so there is no
-per-module CSS hook — `#<group> > *:nth-child(n)` is the only handle, and it is
-stable here because one ordered list in `wayle.nix` defines the order for all
-three layouts. `icon-only` is a button *variant*, not a class you can match.
-
-**Do not use the `separator` module.** It sits as a direct child of the SECTION
-box rather than inside a group, so nothing in the sheet can reach its wrapper
-and its padding survives everything. Draw the divider as a `border-left` on the
-group instead — a border costs no width, being inside the group's own box. Two
-rounds of "the cross-group gaps are still too wide" were this.
-
-> Its defaults are also invisible — 1px of `fg-subtle`, against a background a
-> few percent away. `border-strong` is no better; the border tokens are derived
-> from the background. Grouping appeared to do nothing at all for two rounds.
+`"Symbols Nerd Font Mono, 3270 Nerd Font"` — 3270 patches the Nerd Font icons in
+at their natural width but keeps its own narrow 0.54em advance, so the ink
+overflows to the right and eats the space after it. With one family, `cpu`
+renders as `<glyph>8%`. Same stack and same reason as `style-solid.css`.
 
 ### Config keys that do not mean what they read like
 
 | Key | Reads like | Actually |
 |---|---|---|
-| `button-gap` | gap between buttons | gap between a button's **icon and its label** — the one gap key that works |
+| `button-gap` | gap between buttons | gap between a button's **icon and its label** — the one gap key that works, and only for native modules |
 | `button-icon-padding` | padding around icons | **inert** unless the variant is `block-prefix` or `icon-square` |
 | `button-label-padding` | horizontal only | drives **height** too — 0.4 → 0.25 took 4px off the bar |
-| `module-gap` | — | group-to-group gap — **inert**, see above |
-| `button-group-module-gap` | gap inside a group | **inert** too |
+| `button-icon-size` | — | `1.6rem`; the label is `1.04rem`, so the default bar's icons are 1.54x its text |
+| `module-gap` | group-to-group gap | **inert** |
+| `button-group-module-gap` | gap inside a group | **inert** |
+| `bar.padding` | padding inside the bar | a **margin on the section** |
 
 **`ScaleFactor` clamps to 0.25–3.0 silently.** `button-label-padding = 0.2`
-became 0.25 with nothing said. `Spacing` keys (`module-gap`, `padding`,
-`padding-ends`, `button-group-*-gap`) have no such floor and reach 0.
+became 0.25 with nothing said. `Spacing` keys have no floor and reach 0.
+
+**The workspace module has its own typography.** `button-label-size` and
+`button-label-weight` are bar-button keys and a tag is not a bar button.
+`.workspace-label` takes its size from `mango-workspaces.label-size` and is bold
+in wayle's own sheet whatever the bar says.
 
 ### Verify against the schema, always
 
@@ -1233,11 +1184,12 @@ would each have fallen back to a default in silence:
 | `clock.tooltip-format` | no such key; the calendar is `dropdown:calendar` |
 | `power.dropdown-*-command` | those are `dashboard`'s, and a NATIVE module's click takes an action string, not a shell command |
 
-A CUSTOM module's click takes either — "supports shell commands and dropdown
-toggles" — so `dropdown:notification` is valid there.
+A CUSTOM module's click takes either, so `dropdown:notification` is valid there.
 
 **`mango-workspaces` and `systray` reject `icon-color`/`label-color`.** The
-first colours by tag state, the second draws other apps' icons.
+first colours by tag state, the second draws other apps' icons. `systray` still
+takes `icon-scale`, `item-gap` and `internal-padding` — the last is padding at
+the *ends* of the tray container, on top of the module's own.
 
 **`wayle config default` writes a file; it does not print one.** It creates
 `~/.config/wayle/config.toml.example`; `wayle config schema` creates
@@ -1247,32 +1199,28 @@ first colours by tag state, the second draws other apps' icons.
 
 **Every module ships its own colour** — clock `accent`, battery `yellow`,
 notifications `green`, network `red`. With `button-variant = "basic"` there are
-no chips to contain them, so they show through raw and the bar reads as random
-clutter. Set both colour keys across the board; keep colour for state.
+no chips to contain them, so they show through raw. Set both colour keys across
+the board; keep colour for state.
 
 **It is a notification daemon.** Running it beside swaync is two claimants for
 `org.freedesktop.Notifications`, and the second never receives one without
-erroring — `docs/adr/0005`. `tiling/autostart.conf` kills swaync *before*
-starting it.
+erroring — `docs/adr/0005`. `tiling/autostart.conf` kills swaync before starting
+it.
 
 **There is no signal IPC.** waybar took a push (`pkill -RTMIN+N waybar`); wayle
 has `poll`, `watch` and `on-action` only. Every ported custom module carries
-`on-action` *and* an interval.
+`on-action` and an interval.
 
 **`general.font-sans` / `font-mono` fall back in silence.** `Inter` was written
 here — wayle's own example uses it — and this machine does not have it.
-`checks/static.sh` now reads both names out of the generated layouts and asserts
-they resolve.
-
-> Fixing that exposed a false positive in the same check: `fc-scan
-> --format '%{family}'` returns a **comma-separated alias list**
-> (`JetBrainsMono Nerd Font,JetBrainsMono NF,…`), and matching the whole field
-> reported an installed font as missing. It splits on commas now.
+`checks/static.sh` reads both names out of the generated layouts and asserts they
+resolve, splitting a stack on commas at both ends: `fc-scan --format '%{family}'`
+returns a comma-separated alias list, and a configured value may be a stack.
 
 **`services.wayle.settings` must stay `{ }`** — one value claims
 `~/.config/wayle/config.toml`, which `wayle-restart.sh` owns as a link.
-`index.scss` is the opposite case and IS claimed: wayle only seeds it when
-absent and never rewrites one that exists.
+`index.scss` is the opposite case and IS claimed: wayle only seeds it when absent
+and never rewrites one that exists.
 
 **Its units must not start at login.** `services.wayle` and `services.awww` both
 want `graphical-session.target`, which runs in every mode including noctalia —
@@ -1281,8 +1229,8 @@ two bars and two wallpaper layers in a mode that asked for neither. Both are
 
 **Nothing kills waybar any more, so a mode script has to.** The retirement took
 `exec=pkill waybar` out of `tiling/autostart.conf`, and a session predating the
-switch then kept its bar, holding an exclusive zone beside wayle's with both
-visible. Restored in both mode paths until waybar itself goes.
+switch kept its bar, holding an exclusive zone beside wayle's. Restored in both
+mode paths until waybar itself goes.
 
 > **Plain `pkill waybar`, not `pkill -f 'bin/waybar$'`.** waybar is invoked as
 > `waybar -c … -s …`, so its cmdline carries no path and the `bin/` anchor
@@ -1291,15 +1239,26 @@ visible. Restored in both mode paths until waybar itself goes.
 
 ### Measuring the bar
 
-The bar's height is its **exclusive zone**, which is a tiled window's `y`:
+Screenshot it and read pixels; do not adjust a knob and look.
 
-```
-mmsg get all-clients | jq -r '[.clients[]?|select(.is_floating==false)|select(.x==0)|.y]|unique[]'
-```
+- **Widths and gaps.** `grim`, crop the bar strip, print the runs of
+  background-coloured columns. That gives every gap in pixels.
+- **Which widget owns a gap.** Give each level a different background —
+  `.bar-group`, `.bar-item`, `button.toggle`, `.bar-button-content`,
+  `.bar-button-label` — and read the columns again.
+- **Height.** The bar's height is its exclusive zone, which is a tiled window's
+  `y`: `mmsg get all-clients | jq -r '[.clients[]?|select(.is_floating==false)|select(.x==0)|.y]|unique[]'`
 
-waybar was 32px; wayle is 31 at `padding = 0.25`. CSS cannot change it — the
-zone is computed from config — so a stylesheet probe that expects the height to
-move proves nothing either way.
+**Check which layout is live first.** `wayle-restart.sh` builds its filename from
+`$XDG_STATE_HOME/mango/bar-layout` and `bar-position`, so editing the wrong one
+of the six changes nothing. `readlink -f ~/.config/wayle/config.toml` says which.
+Five probes in one session measured a file that was not live.
+
+**Realise a store path before linking at it.** `nix eval --raw` on a generated
+file returns a path it has not built, so `ln -sfn` leaves a dangling link.
+`wayle-restart.sh` then fails both its guards, never reaches `systemctl restart`,
+and the old process keeps serving the old config. Use `nix build
+--print-out-paths`.
 
 > **Two bars stack.** A combined 54px reading was waybar's 32 plus wayle's 22,
 > which read as wayle being far smaller than it was. Check `pgrep waybar` before

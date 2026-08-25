@@ -1,74 +1,35 @@
 // =====================================================================
-// Wayle — tiling bar. RULES, not settings, and as few of them as possible.
-//
-// The same split style-solid.css has for waybar, and for ADR 0009's reason:
-// colours and sizes are DATA and come from modules/home/wayle.nix's
-// `styling.palette` and `[bar]` knobs. Four rules survive here, and each one
-// says something the config layer cannot:
-//
-//   .mod padding          `module-gap` and `button-group-module-gap` never
-//                         reach their CSS variables (wayle 0.7.0, measured),
-//                         so there is no config-layer horizontal gap at all
-//   group border          `button-group-border-location` would draw one on the
-//                         FIRST group too, against the screen edge
-//   #workspaces > *       `bar.padding` is a MARGIN on the section, so the
-//                         height it makes cannot be reached into by the one
-//                         widget here that draws a background
-//   #focus .mod           no per-module padding key exists
-//   #time first child     `clock` has no `label-size`; only the BAR has one,
-//                         and this is the one module that wants its own
+// Wayle — tiling bar. Seven rules, each doing something no config key can.
+// Reach for a key in modules/home/wayle.nix first.
 //
 // NEVER WRITE A DESCENDANT `*` HERE. GTK4 parents a menubutton's popover
-// INSIDE the menubutton, so `.mod *` matches every widget in every dropdown —
-// the calendar, the notification list, the dashboard — and flattens wayle's own
-// styling of them. A blanket zeroing rule lived here until 2026-08-25 doing
-// exactly that, and it was compensating for empty icon slots that are now gone.
-// `checks/static.sh` asserts the pattern stays absent.
-// docs/adr/0045, docs/gotchas.md -> Wayle.
+// inside the menubutton, so `.mod *` restyles every dropdown. `> *`, `+ *`
+// and `~ *` stop one level short and are safe. checks/static.sh asserts it.
+//
+// `.mod`, wayle's own `.module` and `#<group> > *` are the same widget, and
+// wayle's own selectors out-specify `.mod` — use an id to beat one.
+// docs/gotchas.md -> Wayle. docs/adr/0045.
 // =====================================================================
 
 @import "colors";
 
-// Every group id, once — the whole of this sheet's structure. checks/static.sh
-// asserts this list matches the groups the layouts actually declare, both ways.
+// Every group id, once. checks/static.sh asserts this matches the groups the
+// layouts declare, both ways.
 $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
   "#output, #power, #tray, #session";
 
-// ── The rhythm, and the bar's height ─────────────────────────────────────
+// 10px between modules, style-solid.css's rhythm. `module-gap` and
+// `button-group-module-gap` are inert, so this is the only way to say it.
 //
-// waybar's `.module { padding: 0 5px }`, one pixel under: wayle adds ~1px a
-// side of its own from `button-label-padding` at the 0.25 ScaleFactor floor, so
-// 4px here is the same 10px between two modules — and leaving that 1px alone is
-// one fewer rule fighting wayle for the same pixel.
-//
-// The vertical half is the bar's height, and it CANNOT be `bar.padding`: that
-// key is a margin on the section, and a highlight cannot reach into room made
-// outside it.
-//
-// `min-height` STATES the height rather than inheriting it. Without it the bar
-// is however tall the tallest module happens to be, so dropping
-// `button-icon-size` to 0.7 took 3px off the whole bar — a spacing change
-// nobody asked for, arriving from an icon-size change. 23 + 2x4 = the 31px the
-// bar has always been, now whatever the icons do.
+// `min-height` STATES the bar's height. Without it the bar is however tall the
+// tallest module happens to be, and an icon-size change moves it.
 .mod {
   padding: 4px;
   min-height: 23px;
 }
 
-// ── Group separators ─────────────────────────────────────────────────────
-//
-// A BORDER ON THE GROUP, not a widget between groups. wayle's `separator`
-// module was used first and is gone: it sits as a direct child of the SECTION
-// box rather than inside a group, so its own padding was unreachable and kept
-// the cross-group gaps wide.
-//
-// A border costs no width, being drawn inside the group's box, so the gap is
-// the 6px below plus the neighbouring module's 4px plus wayle's 1px: 11px on
-// each side of the line, against 10px between two modules inside a group.
-// style-solid.css's numbers, which spells the same 11/11 as
-// `.sep { margin-left: 6px; padding-left: 11px }` off its module padding.
-//
-// `:not(:first-child)` so the leading group in a section has no line before it.
+// The divider: a border on the group, never a `separator` module. 11px each
+// side, counting the neighbouring module's own 4px.
 #{$groups} {
   &:not(:first-child) {
     border-left: 1px solid $sep;
@@ -77,57 +38,37 @@ $groups: "#time, #workspaces, #playing, #focus, #notify, #load, #radios," +
   }
 }
 
-// ── Exceptions ───────────────────────────────────────────────────────────
-
-// THE ACTIVE TAG IS THE ONE THING ON THIS BAR THAT DRAWS A BACKGROUND, and it
-// runs the full height of the bar — waybar's does, and a block that stops short
-// reads as a chip rather than as the bar telling you where you are. So this one
-// module opts out of the vertical padding above; an id beats `.mod`. waybar
-// says the same thing as `#workspaces { padding: 0 }`.
-//
-// `> *` is a direct child, which is the module. A popover is a child of THAT,
-// so this cannot reach one — unlike a descendant `*`. The tag's own width is
-// `tag-padding` in wayle.nix, not a rule here.
+// The active tag is the only thing here that draws a background, and it runs
+// the full height of the bar. `bar.padding` cannot make that room — it is a
+// margin outside the section.
 #workspaces > * {
   padding-top: 0;
   padding-bottom: 0;
 }
 
-// The clock reads at a glance or it is decoration, so it is the one label on
-// this bar with its own size — `#clock { font-size: 16px }` against a 14px bar
-// in style-solid.css, and the same proportion here. `clock` has no `label-size`
-// key; `button-label-size` is the whole bar's.
-//
-// `> *:first-child` is the clock, which leads the `time` group in all three
-// layouts. A popover is a child of that first module, not of the group, so this
-// stops one level short of one.
-#time > *:first-child .bar-button-label {
-  font-size: 1.25rem;
-}
-
-// Bluetooth is icon-only and its glyph is the narrowest on the bar, so it
-// floats in a square icon box and the group's divider sat 22px off it against
-// 13-16px everywhere else. Dropping its own padding takes that to 18px; the
-// rest is the box, which no key here can narrow.
-//
-// `nth-child(3)` is bluetooth in both layouts that carry this group — one
-// ordered list in wayle.nix defines the order for all three, so a positional
-// selector is as stable as a name would be. `minimal` has no `radios`.
+// Bluetooth's glyph is the narrowest on the bar and floats in a square icon
+// box, so its divider sat 22px off it against 13-16px elsewhere. `nth-child(3)`
+// is bluetooth in both layouts carrying this group.
 #radios > *:nth-child(3) {
   padding-right: 0;
 }
 
-// Idle inhibitor, power profile and battery share a group since they stopped
-// being two, and the first two are bare glyphs with no number after them — at
-// the bar's 10px they read as one run-on symbol. 5px more, here rather than in
-// the group's own padding, so the group's edges keep the bar's rhythm.
+// Idle inhibitor and power profile are bare glyphs with no number after them,
+// and at the bar's 10px they run together.
 #power > * + * {
   margin-left: 5px;
 }
 
-// The centre title sits on the BAR's centre, not in the space the other two
-// sides leave, so it can collide with a long left side. The caps in wayle.nix
-// are the first defence; this stops the text being the thing that grows.
+// The clock is the one label with its own size — `clock` has no `label-size`,
+// only the bar does. Same proportion as `#clock { font-size: 16px }` on a 14px
+// waybar.
+#time > *:first-child .bar-button-label {
+  font-size: 1.25rem;
+}
+
+// The centre title sits on the BAR's centre, not in the space the sides leave,
+// so it can collide with a long left side. `label-max-length` is the first
+// defence; this stops the text being what grows.
 #focus .mod {
   padding: 4px 8px;
 }

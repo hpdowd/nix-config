@@ -223,9 +223,7 @@ let
     # DROPDOWN (`left-click = "dropdown:calendar"`, its default), not a tooltip.
     clock = {
       format = "%H:%M";
-      # No icon. The time is legible as the time, and waybar's clock never had
-      # one — its `tb-calendar-time-symbolic` was the widest thing on the left
-      # of the bar saying the least.
+      # No icon, as waybar's clock has none.
       icon-show = false;
     };
 
@@ -242,27 +240,13 @@ let
     };
 
     # ── Icons that read as solid ──────────────────────────────────────────
-    #
-    # wayle's own 361 bundled icons are Lucide and Tabler OUTLINE, which sit
-    # thin beside bold text. Three answers, in order of preference, and no new
-    # dependency in any of them:
-    #
-    #   cpu, ram      the icon is TEXT — waybar's own Nerd Font glyph in
-    #                 `format`, so it takes the label's size and weight. Only
-    #                 works where the module has no state beyond its number,
-    #                 which these two do not.
-    #   volume,       Adwaita's `audio-volume-*` and `display-brightness`, which
-    #   brightness    are filled and already in the generation. Kept as ICONS
-    #                 rather than text because `format` sees only `percent` —
-    #                 mute is not a placeholder, and `icon-muted` is the only
-    #                 way to show it.
-    #   battery       Material's Android battery ladder, bundled with wayle and
-    #                 the closest thing here to the phone-style icon: solid,
-    #                 wide, with a bolt for charging and a `!` for the alert.
-    #
-    # `checks/static.sh` resolves every one of these names against the two icon
-    # trees the generation has. A name that does not resolve falls back without
-    # a word — the same failure the font names get a check for.
+    # wayle's 361 bundled icons are outline. Three ways round it, no new
+    # dependency: the glyph in `format` where the module has no state beyond
+    # its number; Adwaita's filled symbolics; the bundled Material battery
+    # ladder. A native `format` sees only `{{ percent }}`, which is why
+    # `volume` and `battery` keep their icon widget — `icon-muted` and
+    # `charging-icon` are the only way those states show.
+    # docs/gotchas.md -> Wayle. checks/static.sh resolves every name.
     cpu = {
       icon-show = false;
       format = " {{ percent }}%";
@@ -295,15 +279,10 @@ let
     mango-workspaces = {
       hide-empty = true;
       display-mode = "label";
-      # 0.8 puts the active tag block at 34px, which is what waybar's
-      # `#workspaces button { padding: 0 8px; min-width: 18px }` measures. The
-      # tag's width is a CONFIG key rather than a rule in index.scss, so it is
-      # one number here and nothing to out-specify.
+      # 0.8 puts the active tag block at 34px, waybar's width.
       tag-padding = 0.8;
       icon-gap = 0.15;
-      # A shade under the bar's text, which is waybar's proportion: the tag
-      # numbers are a position indicator, not a readout, and at 1.0 they were
-      # the largest text on the bar.
+      # A separate scale from `button-label-size`, which does not reach tags.
       label-size = 0.85;
       active-color = "accent";
       occupied-color = "fg-default";
@@ -323,17 +302,11 @@ let
       label-max-length = 25;
     };
 
-    # NOT in `nativeNames`, so this gets no `mono` — the tray draws other
-    # apps' icons and wayle's schema rejects `icon-color`/`label-color` on it.
-    # These two are its own.
+    # NOT in `nativeNames`, so this gets no `mono` — the tray draws other apps'
+    # icons and wayle rejects the colour keys on it. `internal-padding` is
+    # padding at the ENDS of the tray container, on top of the module's own.
     systray = {
-      # A shade under the bar's own icons: a tray icon is another app's
-      # artwork at whatever weight that app chose, and at 1.0 the colourful
-      # ones read louder than anything this bar draws itself.
       icon-scale = 0.85;
-      # Padding at the ENDS of the tray container, on top of `.mod`'s 5px and
-      # the group's 6px. At its 0.5 default the tray sat visibly further from
-      # the divider after it than any other module does.
       internal-padding = 0.1;
     };
 
@@ -557,12 +530,10 @@ let
       # `Inter` was here and is not installed. These two are what waybar's CSS
       # asks for and what fonts.nix ships; checks/static.sh asserts they exist.
       general = {
-        # TWO FAMILIES, Symbols FIRST — style-solid.css's stack, and for its
-        # reason: 3270 patches the Nerd Font icons in at their natural width but
-        # keeps its own narrow 0.54em advance, so a glyph printed in a label
-        # overflows its cell to the right and eats the space after it. `cpu` and
-        # `ram` render their icon as TEXT (below), and both read as `<glyph>8%`
-        # with one family here. Pango falls back per character.
+        # TWO FAMILIES, Symbols FIRST — style-solid.css's stack. 3270's
+        # advance is too narrow for the glyphs it patches in, so a glyph in a
+        # label overflows and eats the space after it. `cpu` and `ram` print
+        # theirs as text. docs/gotchas.md -> Wayle.
         font-sans = "Symbols Nerd Font Mono, 3270 Nerd Font";
         font-mono = "JetBrainsMono Nerd Font";
       };
@@ -581,15 +552,9 @@ let
         shadow = "none";
         border-location = "none";
 
-        # ZERO, so the section fills the bar and the active workspace tag can
-        # reach its top and bottom edge — this key is a MARGIN on the section,
-        # and a highlight cannot escape an inset it sits inside. It was 0.25,
-        # which is 5px a side and is exactly what held the tag block 4px clear
-        # of the bar at each end.
-        #
-        # The 31px comes back as vertical padding on `.mod` in index.scss,
-        # carried by the modules that draw no background — waybar's own shape,
-        # where the bar has no padding and `.module` has all of it.
+        # ZERO. This key is a margin on the SECTION, so any value insets every
+        # module and the active workspace tag cannot reach the bar's edges.
+        # index.scss carries the height instead. checks/static.sh asserts it.
         padding = 0.0;
 
         # `basic`, not the default `block-prefix`: that variant paints a filled
@@ -601,53 +566,32 @@ let
         button-rounding = "none";
 
         # ── Horizontal spacing ────────────────────────────────────────────
-        # READ THE NAMES CAREFULLY; two of them do not mean what they look like.
+        # These names do not mean what they read like, and two of the keys do
+        # nothing. The table is in docs/gotchas.md -> Wayle; index.scss owns the
+        # spacing that actually lands.
         #
-        #   button-gap             icon <-> LABEL, inside one button. NOT the
-        #                          gap between buttons. THE ONE THAT WORKS.
-        #   module-gap             group <-> group. INERT — see below.
-        #   button-group-module-gap  module <-> module within a group. INERT.
-        #   button-label-padding   around the label.
-        #   button-icon-padding    INERT here — it applies only to the
-        #                          `block-prefix` and `icon-square` variants,
-        #                          and this bar is `basic`. Not set, because a
-        #                          value that does nothing reads as one that does.
+        # `module-gap` and `button-group-module-gap` are written as 0 rather
+        # than dropped: that is the value wanted if they start working.
+        # `button-icon-padding` is inert BY DESIGN for this variant, so it is
+        # not written at all.
         #
-        # `button-gap` and `button-label-padding` are ScaleFactor and CANNOT go
-        # below 0.25 — wayle clamps and says nothing.
-        #
-        # NEITHER GAP KEY DOES ANYTHING in 0.7.0. Both selectors match; the CSS
-        # variables behind them stay 0 whatever the TOML says, verified at 3.0
-        # with the sheet's own rule removed. Both are still written as 0 because
-        # that is the value wanted the day they start working — unlike
-        # `button-icon-padding`, which is inert BY DESIGN for this variant and
-        # is therefore not written at all. index.scss owns the real spacing.
-        # 0.6, not the 0.25 floor it sat at while the empty icon slots were
-        # being chased out — at the floor a native module's icon touches its own
-        # text (`icon`Henrys-Router, `icon`64%). It reaches ONLY the native
-        # modules: the seven customs print their glyph in the text, so their
-        # spacing is a space character in the script's own output.
+        # `button-gap` is the one gap key that works, and only for native
+        # modules — the seven customs print their glyph in the text, where the
+        # spacing is a space in the script's output. At the 0.25 ScaleFactor
+        # floor a native icon touches its own text.
         button-gap = 0.6;
         module-gap = 0.0;
         button-group-module-gap = 0.0;
         button-label-padding = 0.25; # ScaleFactor floor — 0.2 is clamped to this silently
         padding-ends = 0.35; # 7px, + `.mod`'s 4px + wayle's 1px = waybar's 12px
 
-        # 0.7, not the 1.0 default. wayle draws a button icon at `1.6rem`
-        # against its label's `1.04rem`, so a default bar's icons are 1.54x the
-        # text — measured, 20px of ink beside 9px digits. waybar's ratio is the
-        # other way round (8px glyphs beside 11px digits) because its icons ARE
-        # text, in the same font at the same size. This lands between the two.
-        #
-        # It is one knob for the whole bar: the seven custom modules print their
-        # glyph in the TEXT, so they follow `button-label-size` and only the
-        # native modules plus the two icon-only customs move with this.
+        # wayle draws a button icon at 1.6rem against its label's 1.04rem, so
+        # the default is 1.54x the bar's own text. One knob for the whole bar;
+        # the seven customs print their glyph in the text and do not move.
         button-icon-size = 0.7;
         button-label-size = 1.0;
-        # `bold`, which is what style-solid.css sets on `*` and what makes a
-        # 13px bar legible at a glance. wayle's default is `semibold`; this was
-        # `normal` while the spacing was being measured, where a lighter weight
-        # made the gaps easier to read and the bar harder to.
+        # `bold`, as style-solid.css sets on `*`. wayle's default is
+        # `semibold`.
         button-label-weight = "bold";
 
         # ── The grouping ──────────────────────────────────────────────────

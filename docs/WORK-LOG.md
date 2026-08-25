@@ -3364,3 +3364,57 @@ failure is silent.
 > `dotfiles/`.** home-manager is a NixOS module here, so store content feeds the
 > system closure too. A baseline taken before two such commits reported MOVED
 > for several rounds against edits that were a no-op.
+
+---
+
+## 2026-08-25 · The Arch residue sweep, and what snapper still holds
+
+`remove-arch.sh` took the subvolumes, the loader entries and the EFI variable on
+2026-07-30. It could not take `@home` or `@log`, which it keeps deliberately —
+so the file-level residue survived in both, and the 2026-08-01 audit entry above
+(*"No `*.hm-bak`, no `~/arch-residue-backup-*`"*) was already wrong when written
+or went stale immediately. **Eight `.hm-bak` files and the backup directory were
+both present.** Treat that entry as superseded.
+
+**26 GB of it was `~/.cache/paru`** — 60 AUR clones, `electron15` alone 5.4 GB.
+`paru` has not existed on this machine since the migration.
+
+| Removed | Where |
+|---|---|
+| paru cache, config, state | `~/.cache/paru`, `~/.config/paru`, `~/.local/state/paru` |
+| migration leftovers | `~/arch-residue-backup-2026-07-30/`, `~/remove-arch.sh`, 8 × `*.hm-bak` |
+| dead KDE/Qt strays | `~/.gtkrc-2.0.mine`, `~/.config/{gtkrc,gtkrc-2.0,Trolltech.conf}` |
+| dead launcher config | `~/.config/autostart/`, `~/.config/elephant/`, `~/.local/share/elephant/`, `~/.local/bin/kde-gtk-reset` |
+| Arch `/etc/skel` bash | `~/.bashrc`, `~/.bash_profile`, `~/.bash_logout` |
+| Arch-era logs in `@log` | `/var/log/`: `archinstall/`, `pacman.log`, `haskell-register.log`, `ly.log`, `lemurs*.log`, `Xorg.0.log`, `lastlog.migrated`, `tmp_cleanup.log`, dangling `README` |
+
+`snapper.log` was kept — the service is live. `ly` and `lemurs` are both Arch-era
+display managers; this machine uses greetd.
+
+Nothing in the repo generates any of them: no `programs.bash`, and `elephant`
+left with walker. `~/.local/bin` is on `PATH` from `shell.nix` already, so the
+pipx line appended to `.bashrc` was the only thing in those three files that did
+anything, and it was redundant.
+
+### The space does not come back at once
+
+`~/.cache` is inside `@home`, and `@home` carries the live snapper timeline —
+hourly 5, daily 7, weekly 4, monthly 2. Every snapshot still references the
+26 GB, so `df` moved about 1 GB on deletion and the rest returns as snapshots
+age out, over roughly two months. **Not a failed delete.** Forcing it means
+deleting snapshots, which is the rollback history for the one subvolume
+generations do not cover.
+
+### Two silent failures found in passing
+
+`~/.config/autostart/` was **inert**: `xdg-desktop-autostart.target` is
+`inactive`, so nothing on this machine had ever read it. Its
+`Proton Mail Bridge.desktop` pointed at `/usr/sbin/protonmail-bridge`, which is
+not installed — a broken entry that had never once run. Nextcloud starts from
+its home-manager unit, not from the `.desktop` sitting beside it.
+
+Two entries in `~/.local/share/applications/` named `/usr/bin` for binaries that
+**are** installed, at Nix paths — `fedora.desktop` (distrobox) and
+`discord-455712169795780630.desktop` (dolphin-emu). A failing `TryExec` hides an
+entry with no error, which is this repo's signature shape. Repointed at bare
+names so `PATH` resolves them, rather than deleted.

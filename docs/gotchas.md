@@ -73,6 +73,22 @@ including `bash` itself.
 root-owned directories and are **not declarative** — a decision, not a TODO.
 Re-restoring reintroduces `autoconnect=yes`; see [Networking](#networking).
 
+**A desktop entry whose `TryExec` names `/usr/bin` is hidden, not broken.** Two
+in `~/.local/share/applications/` pointed there for binaries that *are*
+installed at Nix paths; the launcher simply stopped listing them. Use a bare
+binary name so `PATH` resolves it. `grep -rlE '^(Exec|TryExec)=/usr/' ~/.local/share/applications/`
+finds the rest.
+
+**`~/.config/autostart/` does nothing here** — `xdg-desktop-autostart.target` is
+inactive under mango, which uses `autostart.conf` instead
+([0005](adr/0005-one-owner-per-daemon.md)). An entry added there is not a second
+owner, it is a no-op; the directory was deleted on 2026-08-25 rather than fixed.
+
+**Deleting under `~` does not return the space.** `@home` carries the live
+snapper timeline, so 26 GB of Arch-era `~/.cache/paru` stayed referenced and
+`df` barely moved. It comes back as snapshots age out. See `docs/WORK-LOG.md`,
+2026-08-25.
+
 ---
 
 ## nixpkgs and NixOS

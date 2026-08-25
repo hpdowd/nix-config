@@ -3440,3 +3440,53 @@ comparison strips were the same config three times. There is now a
 `probe.sh` in the scratchpad that reads
 `$XDG_STATE_HOME/mango/bar-{layout,position}` first and edits whichever file
 that names. Assume nothing about which of the six is live.
+
+---
+
+## 2026-08-25 · Bold, no clock icon, smaller tags
+
+Three config values, no stylesheet.
+
+`clock.icon-show = false` — waybar's clock never had an icon, and
+`tb-calendar-time-symbolic` was the widest thing on the left of the bar saying
+the least. `icon-show` is a key on every native module, not just the customs
+where it was first used to close the empty-slot gaps.
+
+`button-label-weight = "bold"`, which is what `style-solid.css` sets on `*`.
+wayle's own default is `semibold`; this was `normal` throughout the spacing
+work, where a lighter weight made the gaps easier to read and the bar harder to.
+
+`mango-workspaces.label-size = 0.85`. Worth knowing that this is a SECOND scale:
+`button-label-size` and `button-label-weight` are `bar-button` keys and a tag is
+not a bar button, so the bar's typography reaches everything except the tags.
+The active tag block went 34px to 33px against waybar's 34px, which
+`tag-padding` could take back and does not need to.
+
+---
+
+## 2026-08-25 · Bigger clock, smaller tray, and the icons that are not solid
+
+`systray.icon-scale = 0.85` and `internal-padding = 0.1`. The tray had no
+`[modules.systray]` table at all — it is deliberately absent from `nativeNames`,
+because wayle rejects `icon-color`/`label-color` on it, and "absent from that
+list" had quietly come to mean "has no settings". It has two now, in the
+`recursiveUpdate` half where `mono` cannot reach them. `internal-padding` is
+padding at the ENDS of the tray container, on top of `.mod`'s 5px and the
+group's 6px, which is why the tray sat further from its divider than any other
+module.
+
+`clock` has **no `label-size`**; only the bar has one. So the clock's size is
+the fifth rule in `index.scss`, at `1.25rem` against the bar's `1.04rem` — the
+same proportion `#clock { font-size: 16px }` has against a 14px bar in
+`style-solid.css`. It is selected as `#time > *:first-child`, the module that
+leads the `time` group in all three layouts.
+
+**The bundled icons have no solid variants.** All 361 in the package are
+outline: 137 Lucide, 164 Simple Icons, 32 Tabler, 10 Material and one Tabler
+*filled*. `wayle icons sources` lists `tabler-filled` (`tbf-`) as a CDN source,
+and `wayle icons install` writes it to a user icon directory — runtime state
+outside the flake, which falls back silently on a machine that has not run the
+command. Not done for that reason; a declarative fetch into `pkgs/` is the
+version worth having, with the caveat that wayle's own SVGs are GTK grappa
+format and raw Tabler ones are stroke-based, so recolouring needs checking
+before it is worth the derivation.

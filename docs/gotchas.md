@@ -1162,6 +1162,12 @@ pulls more from a CDN and `wayle icons import` takes local SVGs.
 > failure class as the fonts — see `checks/static.sh`, which reads the font
 > names out of the generated layouts and asserts they exist.
 
+**The workspace module has its own typography.** `button-label-size` and
+`button-label-weight` are `bar-button` keys, and a tag is not a bar button —
+`.workspace-label` takes its size from `mango-workspaces.label-size` and is
+`--weight-bold` in wayle's own sheet whatever the bar says. Two scales, and
+setting the bar's moves everything except the tags.
+
 **Do not use the `separator` module.** It sits as a direct child of the SECTION
 box rather than inside a group, so nothing in the sheet can reach its wrapper
 and its padding survives everything. Draw the divider as a `border-left` on the

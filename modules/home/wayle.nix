@@ -221,7 +221,13 @@ let
   moduleSettings = lib.recursiveUpdate (lib.genAttrs nativeNames (_: mono)) {
     # No `tooltip-format`: wayle has no such key on clock — the calendar is a
     # DROPDOWN (`left-click = "dropdown:calendar"`, its default), not a tooltip.
-    clock.format = "%H:%M";
+    clock = {
+      format = "%H:%M";
+      # No icon. The time is legible as the time, and waybar's clock never had
+      # one — its `tb-calendar-time-symbolic` was the widest thing on the left
+      # of the bar saying the least.
+      icon-show = false;
+    };
 
     # WAYLE IS THE NOTIFICATION DAEMON IN THIS MODE. It claims
     # org.freedesktop.Notifications, so swaync must be dead before it starts —
@@ -250,6 +256,10 @@ let
       # one number here and nothing to out-specify.
       tag-padding = 0.8;
       icon-gap = 0.15;
+      # A shade under the bar's text, which is waybar's proportion: the tag
+      # numbers are a position indicator, not a readout, and at 1.0 they were
+      # the largest text on the bar.
+      label-size = 0.85;
       active-color = "accent";
       occupied-color = "fg-default";
       empty-color = "fg-subtle";
@@ -266,6 +276,20 @@ let
 
     media = {
       label-max-length = 25;
+    };
+
+    # NOT in `nativeNames`, so this gets no `mono` — the tray draws other
+    # apps' icons and wayle's schema rejects `icon-color`/`label-color` on it.
+    # These two are its own.
+    systray = {
+      # A shade under the bar's own icons: a tray icon is another app's
+      # artwork at whatever weight that app chose, and at 1.0 the colourful
+      # ones read louder than anything this bar draws itself.
+      icon-scale = 0.85;
+      # Padding at the ENDS of the tray container, on top of `.mod`'s 5px and
+      # the group's 6px. At its 0.5 default the tray sat visibly further from
+      # the divider after it than any other module does.
+      internal-padding = 0.1;
     };
 
     # `thresholds`, not waybar's warning-level/critical-level — wayle has no
@@ -556,7 +580,11 @@ let
         # native modules plus the two icon-only customs move with this.
         button-icon-size = 0.7;
         button-label-size = 1.0;
-        button-label-weight = "normal";
+        # `bold`, which is what style-solid.css sets on `*` and what makes a
+        # 13px bar legible at a glance. wayle's default is `semibold`; this was
+        # `normal` while the spacing was being measured, where a lighter weight
+        # made the gaps easier to read and the bar harder to.
+        button-label-weight = "bold";
 
         # ── The grouping ──────────────────────────────────────────────────
         # The groups are wayle's own `BarGroup`s and they draw NOTHING here;

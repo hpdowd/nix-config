@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# WireGuard VPN status/toggle for waybar
+# WireGuard VPN status/toggle. Emits waybar's `{text,class,tooltip}` JSON, which
+# wayle reads unchanged — the format outlived the bar. docs/adr/0045.
 
 VPN_STATE="/run/user/$(id -u)/mango-vpn"
 DEFAULT_VPN="homelab"
@@ -15,7 +16,8 @@ toggle)
 		[ -z "$target" ] && target="$DEFAULT_VPN"
 		nmcli con up "$target" &>/dev/null
 	fi
-	pkill -RTMIN+10 waybar
+	# No `pkill -RTMIN+10 waybar`: wayle takes no signal, and that line matched
+	# nothing and returned 1. custom-vpn re-reads through `on-action`.
 	;;
 *)
 	active=$(nmcli -t -f NAME,TYPE,STATE con show --active 2>/dev/null |

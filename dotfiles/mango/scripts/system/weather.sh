@@ -7,7 +7,8 @@
 #   status   the bar        fetches when the cache has expired
 #   read     the menu row   cache only, never a socket — that render is parallel
 #                           and costs its slowest row (73 ms). Asserted.
-#   refresh  Enter on it    fetches past the ttl, then signals waybar
+#   refresh  Ctrl+Enter,    fetches past the ttl. Nothing to signal: wayle
+#            middle-click   re-reads through `on-action` (docs/adr/0045)
 #   open     right-click    hands the coordinates to a browser. No network of
 #                           its own, and no reader — it renders nothing.
 #
@@ -446,8 +447,9 @@ do_read() {
 	fi
 }
 
-# Forced, past the ttl — the only path that ignores the cache. Reached by Enter
-# on the control-centre row and by a click on the bar module.
+# Forced, past the ttl — the only path that ignores the cache. Reached by
+# Ctrl+Enter on the control-centre row and by a MIDDLE click on the bar module —
+# left-click opens wayle's panel now (docs/adr/0046).
 #
 # Says so when it fails. With no cache behind it the row re-renders identically,
 # which is the "action that appears to do nothing" menus/control-center.sh
@@ -462,9 +464,9 @@ do_refresh() {
 				"No coordinates — weather-location.env is not in the generation"
 		fi
 	fi
-	# The bar is the other reader. Must match `signal` on custom/weather in
-	# modules/home/waybar.nix; checks/static.sh asserts the two agree.
-	pkill -RTMIN+13 waybar 2>/dev/null || true
+	# No bar push. wayle takes no signal (docs/adr/0045); custom-weather's
+	# `on-action` re-reads this cache the moment the middle click returns, and
+	# its 300 s poll covers the control centre's Ctrl+Enter.
 }
 
 # The way out to a page no tooltip can hold. Reached by a right-click on the

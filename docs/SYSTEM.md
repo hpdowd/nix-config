@@ -142,6 +142,7 @@ Two rules follow from this and explain most of the surprises:
 │   ├── swaync/ glow/          apps with no module, or whose module is not adopted
 │   ├── rofi/                  config.rasi — config AND theme (ADR 0021)
 │   ├── wayle/                 index.scss — the bar's spacing rules (ADR 0045)
+│   │                          and its state colour (ADR 0048)
 │   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
 │   ├── scripts/               → ~/.scripts (extensionless bash)
 │   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
@@ -187,7 +188,7 @@ All defined as zsh aliases in `modules/home/shell.nix`:
 | `gc` | `nix-collect-garbage --delete-older-than 30d` | Reclaim store space |
 | `search` | `nix search nixpkgs` | Find a package name |
 | `waybar-reload` | Restart waybar from the current state | Waybar is retired in tiling mode (ADR 0045); the bar is `scripts/wayle/wayle-restart.sh` |
-| `mango-reload` | Re-apply the mode and dispatch `reload_config` | After a `rebuild` that touched keybinds, rules or autostart |
+| `mango-reload` | Re-apply the mode and dispatch `reload_config` — which re-fires the `exec=` lines, so **the bar restarts with it** | After a `rebuild` that touched keybinds, rules, autostart or the bar |
 
 The mango scripts are not on `$PATH` — `~/.scripts` is, `~/.config/mango/scripts`
 is not, and putting it there would drop 28 files with names like `mode.sh` into
@@ -227,7 +228,7 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Changed | Apply with |
 |---|---|
 | Anything under `dotfiles/mango/` | `rebuild`, **then** `mango-reload` |
-| The bar (`modules/home/wayle.nix`, `dotfiles/wayle/index.scss`) | `rebuild`, then `scripts/wayle/wayle-restart.sh` |
+| The bar (`modules/home/wayle.nix`, `dotfiles/wayle/index.scss`) | `rebuild`, then `mango-reload` (which restarts it) or `scripts/wayle/wayle-restart.sh` for the bar alone |
 | kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | `rebuild`, then restart the terminal — no live reload |
 | zed, htop, imv, yazi | `rebuild`, then restart the app |
@@ -374,7 +375,9 @@ Currently: `mango` (with `recursive = true`), `nvim`, `swaync` (body only), `glo
 > rules, not settings, beside a generated `_colors.scss`. It is not optional —
 > wayle's `button-gap` and `button-label-padding` clamp at 0.25, so the config
 > layer cannot make a dense bar and the sheet is where the spacing actually
-> lives. ADR 0045; `docs/gotchas.md` → Wayle.
+> lives. It also carries the **state colour** for the three custom modules
+> wayle gives no `thresholds` key, keyed on the class each script already
+> prints. ADR 0045, 0048; `docs/gotchas.md` → Wayle.
 
 > **`rofi/config.rasi` is declared as a FILE, not a directory.** rofi writes a
 > cache and `rofi.png` next to it, so linking the parent would give one path two
@@ -684,7 +687,7 @@ disagreed with the writers about the path, silently. `lib.sh` also holds
 
 ⚠️ **Nine of these keys change owner with the desktop mode.** They all route
 through `scripts/menus/shell.sh`, which holds the one table pairing each action
-with a noctalia IPC call and its rofi/swaync equivalent — see §6 and
+with a noctalia IPC call and its rofi/wayle equivalent — see §6 and
 `docs/adr/0023`. The keys marked "rofi in every mode" stay put for reasons that differ per key:
 noctalia's launcher has a calculator but no IPC function to open it directly, no
 `rbw` front end at all, and its network panel does not know about the PIA
@@ -742,15 +745,15 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+/` | Configure the bar — waybar's layout picker, or noctalia's settings panel |
 | `SUPER+SHIFT+/` | Waybar top/bottom, or noctalia's bar on/off |
 | `SUPER+CTRL+/` | Desktop mode picker |
-| `SUPER+SHIFT+N` | Do not disturb |
+| `SUPER+SHIFT+N` | Do not disturb — `wayle notify dnd` in `tiling`, noctalia's own in `noctalia`. It said `swaync-client` until 2026-08-26, against a masked unit that exits 0 (`docs/adr/0047`) |
 | `SUPER+SHIFT+S` / `SUPER+Delete` | Lock screen |
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
-| `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` under waybar, quickshell's own in `noctalia` (§9, `docs/adr/0031`) |
+| `SUPER+SHIFT+A` | Keep awake — holds a Wayland idle inhibitor, the only thing that stops swayidle's ladder from inside the session. `wlinhibit.service` in `tiling`, quickshell's own in `noctalia` (§9, `docs/adr/0031`). The bar glyph follows within 2 s; the key raises no notification, so that poll **is** the feedback |
 | `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`). Weather is the one row with two verbs, and they are two keys: **Enter** opens the forecast and closes the panel, **Ctrl+Enter** refetches and stays (`docs/adr/0044`). On any other row Ctrl+Enter just re-renders |
 | bar button, every layout | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
-| `CTRL+ALT+\` / `+Backspace` | Notification panel / clear all |
+| `CTRL+ALT+\` / `+Backspace` | Notification history / clear all. In `tiling` the history is `menus/notifications.sh`, a rofi list over `wayle notify` — wayle's own history is a **dropdown**, and nothing opens one from outside the bar, so the bar's power button keeps the real panel on right-click (`docs/adr/0047`) |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
 | Media & brightness keys | Volume, playback, backlight (via wpctl / playerctl / brightnessctl) |
 | `XF86AudioMicMute` | Mic mute. Its state is on the bar (waybar's `pulseaudio`) and in the control centre; the ThinkPad LED is no longer the only place it shows |
@@ -839,6 +842,14 @@ is missing from the bar, **run its script by hand first**:
 > cache warm there and the control-centre row is normally `stale` until Refresh —
 > `docs/adr/0038`.
 
+> **On the wayle bar the three buttons are: left opens wayle's own weather
+> panel (`dropdown:weather`), middle refetches, right opens the forecast page.**
+> The panel is the only one available — a custom module cannot register a
+> dropdown — so it reads `[modules.weather]`, a second fetch of open-meteo at the
+> same `local.location` coordinates, and *not* this script's cache. Unconfigured
+> it would be San Francisco; `checks/static.sh` asserts the coordinates agree.
+> `docs/adr/0046`.
+
 > **One fetch carries the whole tooltip** — 19 fields, `forecast_days=5`. Now,
 > feels-like, today's range and rain chance, humidity, UV with its WHO band,
 > wind with the compass point it blows from, pressure with a trend over about
@@ -868,14 +879,14 @@ is missing from the bar, **run its script by hand first**:
 |---|---|
 | **rofi** | The launcher (`SUPER+Space`, `-show drun` — `docs/adr/0043`) and every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
 | **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
-| **swaync** | Notifications. Started from `autostart.conf`, **not** systemd — the nixpkgs unit is masked |
+| **swaync** | **Retired, and started by nothing.** wayle is the notification daemon in `tiling` and noctalia is in `noctalia` (`docs/adr/0045`); its unit stays masked and the binary survives only as `noctalia-start.sh`'s failure path — a mode with no bar *and* no daemon is the worst outcome available (`docs/adr/0047`) |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit. `tiling` mode only — `noctalia` mode stops it (`docs/adr/0037`) |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
 | **swaylock** | Screen lock in tiling, and the fallback in noctalia mode (`swaylock-effects`). Needs the hand-declared PAM service in `desktop.nix`; configured by `programs.swaylock` (§9) |
 | **lockscreen** | The wrapper every lock path actually calls — hands the lock to noctalia in noctalia mode, otherwise picks a background from the pool and execs swaylock (§9, `docs/adr/0018`, `docs/adr/0024`) |
 | **swayidle** | Lock handler *and* idle daemon — `lockscreen` on `before-sleep`/`lock-session`, plus the dim → lock+blank → suspend ladder (§9) |
-| **poweralertd** | Low-battery notifications into swaync. `-S` keeps it to power supplies, so headphones don't alert (§9) |
+| **poweralertd** | Low-battery notifications into whichever shell holds `org.freedesktop.Notifications`. `-S` keeps it to power supplies, so headphones don't alert (§9) |
 | **KDE Connect** | Phone integration; `kdeconnectd` from autostart |
 
 ---
@@ -1645,3 +1656,6 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0009 | Generate config from Nix where a module exists; link files only where one does not |
 | 0010 | `nix flake check` is the gate; lints tuned to fire only on real findings |
 | 0045 | wayle is the tiling mode's shell, and each mode owns its wallpaper |
+| 0046 | The weather panel is wayle's; the reading is not |
+| 0047 | A retired daemon is a call that exits 0 |
+| 0048 | State colour rides the class the script prints |

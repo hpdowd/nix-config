@@ -57,6 +57,9 @@ it was the other way. Where the reasoning already lives in `CLAUDE.md` or
 | [0043](0043-the-launcher-is-rofis-drun.md) | The launcher is rofi's drun mode; fsel is removed | Accepted (completes [0021](0021-rofi-replaces-walker-and-elephant.md); follows [0034](0034-colour-follows-the-mode-artefacts-do-not.md)) |
 | [0044](0044-one-request-carries-the-tooltip.md) | One request carries the tooltip, and the way past it is a link | Accepted, **amended 2026-08-24 — the control-centre row is two keys, not a picker** (extends [0038](0038-weather-is-a-bar-module-the-menu-reads.md)) |
 | [0045](0045-wayle-is-the-tiling-shell.md) | wayle is the tiling mode's shell, and each mode owns its wallpaper | Accepted (supersedes the wallpaper clause of [0020](0020-noctalia-is-a-desktop-mode.md); follows [0005](0005-one-owner-per-daemon.md), [0034](0034-colour-follows-the-mode-artefacts-do-not.md)) |
+| [0046](0046-the-weather-panel-is-wayles.md) | The weather panel is wayle's; the reading is not | Accepted (extends [0038](0038-weather-is-a-bar-module-the-menu-reads.md), [0044](0044-one-request-carries-the-tooltip.md); applies [0045](0045-wayle-is-the-tiling-shell.md)) |
+| [0047](0047-a-retired-daemon-is-a-call-that-exits-0.md) | A retired daemon is a call that exits 0 | Accepted (finishes [0045](0045-wayle-is-the-tiling-shell.md); ends the swayosd trade in [0020](0020-noctalia-is-a-desktop-mode.md)) |
+| [0048](0048-state-colour-rides-the-class-the-script-prints.md) | State colour rides the class the script prints | Accepted (amends the "one colour" clause of [0045](0045-wayle-is-the-tiling-shell.md); sources it from [0028](0028-one-palette-reaches-every-config-it-can.md)) |
 
 ## Format
 

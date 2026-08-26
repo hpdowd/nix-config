@@ -67,7 +67,7 @@ including several theories that looked right and were not.
 |---|---|
 | zsh | new shell, or `source ~/.config/zsh/conf.d/<file>.zsh` |
 | Mangowm | `~/.config/mango/scripts/reload.sh` — never under sudo |
-| mode / bar | `mango-reload`; the bar is `~/.config/mango/scripts/wayle/wayle-restart.sh` (docs/adr/0045) |
+| mode / bar | `mango-reload` — it restarts the bar too, via the `exec=` line `reload_config` re-fires. `scripts/wayle/wayle-restart.sh` is the bar alone (docs/adr/0045) |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
 | foot, zed, htop, imv, yazi | restart the app |
@@ -235,7 +235,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — forty-five records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — forty-eight records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |

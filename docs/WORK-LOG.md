@@ -3555,3 +3555,176 @@ this session used twice to test stylesheet changes without rebuilding. Restore
 that link by pointing it at `…-home-manager-files/.config/…`, or delete the file
 and let activation recreate it. A stale store path is not the same thing and
 does not count as home-manager's own.
+
+### The weather click had no surface, and the keep-awake key had no glyph
+
+Two bar clicks reported as "does nothing", with two different causes.
+
+**Weather.** Left-click ran `weather.sh refresh` — a fetch whose only possible
+output is a two-digit label that rarely moves inside a quarter of an hour. wayle
+has a real panel for this, so left-click is `dropdown:weather` now, `refresh`
+moved to middle-click, and `open` kept right-click.
+
+The panel is **wayle's own weather service, not this script's cache**: a custom
+module cannot register a dropdown, so there was no version of this that reads
+what the tooltip reads. `[modules.weather]` is configured and sits in no layout
+— `Service ready service="Weather"` is logged at startup whether or not a layout
+carries the module, so a block that only names coordinates is enough to aim it.
+Two readers of open-meteo, one set of coordinates from `local.location`, one
+extra request per 900 s. `docs/adr/0046`.
+
+> Unconfigured, that panel is **San Francisco** — a complete forecast for
+> somewhere else, and nothing says so. `checks/static.sh` now asserts, across
+> all six layouts, that `[modules.weather].location` matches the generated
+> `WEATHER_LAT`/`WEATHER_LON` to four decimals and that `custom-weather`'s left
+> click still names the dropdown.
+
+**Keep awake.** `SUPER+SHIFT+a` toggled `wlinhibit.service` correctly the whole
+time. Two things hid it:
+
+- `idle-inhibit.sh` still ended every path in `pkill -RTMIN+12 waybar`. waybar
+  is retired, so it matched nothing, returned 1, and made the script exit
+  non-zero — wayle logs `command failed, cmd: …` for a toggle that worked.
+- With the push gone, `custom-idle-inhibitor`'s only update path was its
+  `interval-ms = 30000`. The click path has `on-action`; the **key** had
+  nothing, so the glyph read "idle ladder live" for up to half a minute after
+  the ladder was held off. It polls at 2000 now.
+
+The same dead `pkill -RTMIN+N waybar` is still in `night-mode.sh`,
+`vpn-menu.sh`, `weather.sh` and `scratch-watch.sh` — one of them was caught in
+this session's journal doing exactly that. They wait on waybar's own removal:
+`checks/static.sh` still reads `weather.sh`'s signal number against the
+generated waybar config, so removing that line alone breaks the gate.
+
+### Everything the mode switch was still saying to programs that left
+
+`docs/adr/0045` moved the tiling bar to wayle and retired waybar and swaync. It
+did not move the callers, and a call to a retired daemon is not an error here —
+it is a success. Three shapes, found by grepping for the names rather than by
+anything failing:
+
+**Six `pkill -RTMIN+N waybar`.** `night-mode.sh`, `vpn.sh`, `vpn-menu.sh`,
+`weather.sh`, `power-profile-cycle.sh`, `idle-inhibit.sh`. Each was the last
+statement in its function, and a `pkill` matching nothing returns 1, so a toggle
+that worked exited non-zero. wayle writes `command failed, cmd: …` to its log for
+that, which is how it surfaced — a night-mode toggle at 23:40 that had toggled.
+
+**`swaync-client` in three keys and two control-centre rows.** The unit is
+masked, so it prints `NameHasNoOwner … unit is masked` on stderr and **exits 0**.
+`CTRL+ALT+\`, `CTRL+ALT+BackSpace` and `SUPER+SHIFT+N` had been dead since the
+switch; the panel's two notification rows rendered `?`. They read
+`wayle notify status` now, and act through `wayle notify dnd` / `dismiss-all`.
+
+> The history had no CLI to move to. wayle's is a **dropdown**, and
+> `com.wayle.Shell1` offers `BarShow`/`BarHide`/`BarToggle` and nothing else — a
+> dropdown opens from a bar click and from no other place. So `CTRL+ALT+\` gets
+> `menus/notifications.sh`, a rofi list over `com.wayle.Notifications1.List`
+> where Enter dismisses one and the last row clears all. `busctl`, not
+> `wayle notify list`: the CLI prints each body inline, newlines and all, so a
+> two-line notification is three rows and two of them carry no id.
+
+**Two daemons running for a consumer that had gone.** `scratch-watch.sh` kept
+`/tmp/scratch-<pad>` in step with the focused client for waybar's two scratchpad
+modules — which left with the bar (0042 caught their CSS outliving them), and
+nothing has read those files since. Deleted. `swayosd-server` drew a caps-lock
+overlay on top of wayle's in tiling and noctalia's in noctalia; nothing here has
+ever called `swayosd-client`. Removed outright.
+
+> **swayosd was holding the backlight open, and that was not obvious.**
+> `/etc/udev/rules.d/99-swayosd.rules` was the only rule on this machine
+> chgrp'ing `/sys/class/backlight/*/brightness` to `video`, so the brightness
+> keys — `brightnessctl`, never `swayosd-client` — depended on a package nothing
+> else used. `services.udev.packages = [ pkgs.brightnessctl ]` is the same two
+> lines plus the `leds` grant upstream ships beside them. Checked before the
+> removal, not after.
+
+`checks/static.sh` now fails on any script that signals waybar or names
+`swaync-client`, over code with **comments stripped** — the first version fired
+on the six comments recording the removals, which is the check reading its own
+documentation as a defect. Verified in both directions: reintroducing both calls
+in `vpn.sh` fails the gate, and the comments alone do not.
+
+The signal-number check went with them; it compared `weather.sh`'s `RTMIN+13`
+against the generated waybar config, and neither end exists. The trap check is
+down to one subject — `waybar/window-title.sh` — so its floor moved to 1 with a
+note to re-base rather than delete when waybar itself goes.
+
+**Not done, deliberately.** waybar and swaync are still built; `waybar.nix`,
+`scripts/waybar/` and the `waybar-reload` alias are still there. Only the callers
+went. Four `layerrule`s in `universal/rule.conf` still name swaync's layer
+namespaces and match nothing in either mode — left rather than repointed, because
+wayle's own namespace was not established and guessing one is the failure this
+whole pass is about.
+
+---
+
+## 2026-08-26 · Colour comes back to the bar, on the class the script prints
+
+`docs/adr/0048`. Amends the *"one colour, and state is the exception"* clause of
+0045 — the principle stands, the exception list goes from two to five.
+
+0045 reserved colour for state and then under-spent it. Three modules carried
+state a glance could not resolve: the night light (a moon either way), the idle
+inhibitor (whose **`failed` state renders the ON glyph**, so a broken inhibitor
+looked like a working one), and the power profile. All three are driven by a
+keybind as well as a click, and `SUPER+SHIFT+a` has no OSD and no notification —
+the bar glyph is the only feedback there is.
+
+**The mechanism was already there and documented as unused.** Every custom
+module sets `class-format = "{{ class }}"`, and wayle adds each word of that as
+a CSS class beside the `mod-<name>` one. `night-mode.sh`'s `on`, `idle-inhibit.sh`'s
+`activated`/`failed` and `power-profile.sh`'s `performance`/`fanless`/`unavailable`
+have been live classes since the day the bar started. Config could not have done
+it: `[[modules.custom]]` takes `label-color` as one static value and has no
+`thresholds` key, which exists only on the native numeric modules.
+
+**Roles, not fixed hex — this was the ask, and the role is what answers it.**
+"The same colour in every theme" is what `okColor`/`warnColor`/`errColor`/`infoColor`
+already deliver: green means the same thing in all five schemes. Four literal
+hexes would be four colours sourced outside `palette.nix`, outside every
+contrast floor, and outside the assertion that every generated colour is used.
+`_colors.scss` goes from one generated variable to five.
+
+**Battery was left alone**, and that was the second piece of pushback. It is
+already the exception 0045 named, at 20/5 — upower's own action thresholds, with
+a check asserting the two still agree. A green band above 80 is colour marking
+something nobody acts on, which is the drift that check exists to catch. wayle
+gives a native module no charging state to hook either, only `charging-icon`.
+
+The resting states — `off`, `deactivated`, `balanced` — deliberately carry no
+rule. A permanently-lit group is a group with no signal in it.
+
+> **The gate caught the change's own documentation.** The first draft of the
+> comment in `index.scss` quoted gruvbox's and nord's greens as literal hex to
+> make the roles-not-hexes point, and `checks/static.sh` fails on any palette
+> hex in a hand-written file under `dotfiles/` — correctly, since that is how a
+> copy starts. The hexes moved to the ADR, which the scan does not cover and
+> where the two values *are* the argument.
+
+`palette_pair` gained a `sigil` argument (`@` for CSS and rasi, `$` for scss)
+and a third call site, so wayle's generated colours are paired against
+`index.scss` both ways. That pairing is the only guard on a class that stops
+being emitted: the rule goes out of use, the variable goes unreferenced, and the
+check fails. Nothing can assert a script still prints a given class without
+running it in each state.
+
+**`mango-reload` and the bar — already correct, and now asserted.** Checked on
+the way out: it *does* restart wayle. `reload.sh` ends in
+`mmsg dispatch reload_config`, which re-fires every `exec=` in the active mode's
+`autostart.conf`, and `tiling/autostart.conf` runs `wayle-restart.sh` from one.
+Verified by PID across a reload — 41365 → 46310, one instance after.
+
+Nothing protected it. `apply_mode` does not touch wayle and `mode.sh` only execs
+the mode script, so that single `exec=` is the whole path — and the reload path,
+the mode-switch path and the login path all run through it. `exec-once=` there
+would break three things at once, silently, leaving the bar on its previous
+config with the rest of the mode applied around it. `universal/autostart.conf`
+is `exec-once=` throughout, so the edit reads like tidying. `checks/static.sh`
+now asserts the spelling, verified in both directions.
+
+> The docs were the actual defect. `CLAUDE.md`'s reload table and `SYSTEM.md`
+> both named `wayle-restart.sh` as the bar's reload, which read as "and
+> separately, run this" — two commands where one does it. `wayle-restart.sh`'s
+> own header also listed `desktop-mode.sh` as a caller: inherited verbatim from
+> `waybar-restart.sh` and never true of either. A stale caller list is how the
+> `exec=` line gets removed later by someone who thinks another path covers it.

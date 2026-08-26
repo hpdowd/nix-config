@@ -305,6 +305,25 @@ The tell: `ls -lL ~/.config/mango/scripts/<name>` — the target's mode, not the
 symlink's. Git tracks the bit, so `chmod +x` needs a `git add` to take effect in
 the build.
 
+### `swaync-client` against a masked unit exits 0
+
+swaync is started in neither desktop mode since `docs/adr/0045`, and its unit is
+masked on top of that. `swaync-client -D -sw` then prints
+
+```
+GDBus.Error:org.freedesktop.DBus.Error.NameHasNoOwner: Could not activate remote
+peer 'org.erikreider.swaync.cc': activation request failed: unit is masked
+```
+
+on **stderr** and **exits 0**. Three keys (`CTRL+ALT+\`, `CTRL+ALT+BackSpace`,
+`SUPER+SHIFT+N`) and two control-centre rows were dead that way for a month: the
+rows rendered `?`, which reads as "I could not ask" and is correct, and the keys
+reported success.
+
+The daemon is `wayle notify` in tiling and noctalia's own IPC in noctalia.
+`checks/static.sh` now fails on any script naming `swaync-client`.
+`docs/adr/0047`.
+
 ### noctalia and swaync cannot both run
 
 **The second claimant of `org.freedesktop.Notifications` does not error — it
@@ -1050,9 +1069,9 @@ stylesheet in `dotfiles/wayle/index.scss`.
 
 ### The stylesheet
 
-`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is nine
-rules, and each one does something the config layer cannot. Use a config key
-first; add a rule only when no key exists or the key does not work.
+`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is
+seventeen rules, and each one does something the config layer cannot. Use a
+config key first; add a rule only when no key exists or the key does not work.
 
 **`.module`, `.mod-<name>` and `#<group> > *` are the same widget.** There is no
 wrapper between a group and its modules. Paint them one at a time to see it.
@@ -1103,10 +1122,37 @@ variant, not a class you can match.
 `class-format`'s result is split on whitespace and each word added as a class,
 combining with the JSON output's own `class` field. Every custom module here
 carries `class-format = "{{ class }}"`, so `weather.sh`'s `ok`/`stale`/`error`
-and `power-profile.sh`'s four profiles are live classes on the bar. Nothing in
-`index.scss` uses them — `docs/adr/0045` reserves colour for state that matters.
-Native modules have no equivalent; their state is config (`battery.thresholds`,
+and `power-profile.sh`'s four profiles are live classes on the bar. Native
+modules have no equivalent; their state is config (`battery.thresholds`,
 `icon-muted`, `charging-icon`), not CSS.
+
+**Five of those classes carry colour** — night-mode `on`, idle-inhibit
+`activated`/`failed`, power-profile `performance`/`unavailable`/`fanless`
+(`docs/adr/0048`). Config cannot: `[[modules.custom]]` takes `label-color` as
+one static value and has no `thresholds` key, which exists only on the native
+numeric modules. Each rule needs its **group id** for the specificity reason
+above, and each colour is a `$var` from the generated `_colors.scss`, never a
+hex — `checks/static.sh` pairs the two files both ways.
+
+> The resting states — `off`, `deactivated`, `balanced` — carry no rule on
+> purpose. A permanently-lit group is a group with no signal in it.
+
+**`mango-reload` restarts the bar, and one `exec=` is why.** `reload.sh` and
+`desktop-mode.sh` both end in `mmsg dispatch reload_config`, which re-fires every
+`exec=` line in the active mode's `autostart.conf`; `tiling/autostart.conf` runs
+`wayle-restart.sh` from one. Nothing else starts or restarts wayle — `apply_mode`
+does not touch it and `mode.sh` only execs the mode script.
+
+So `exec=` becoming `exec-once=` there breaks the reload path, the mode-switch
+path and nothing else, all at once and in silence: the bar keeps running its
+previous config while the rest of the mode is applied around it, which reads as
+the change having had no effect. `universal/autostart.conf` is `exec-once=`
+throughout, so making this one match looks like tidying. `checks/static.sh`
+asserts the spelling, and was verified in both directions.
+
+> Verify by PID, never by looking at the bar: `pgrep '^\.?wayle'` before and
+> after. `pgrep -f 'bin/wayle shell'` matches the shell running the pgrep — the
+> trap `CLAUDE.md` records — and reports two instances where there is one.
 
 ### Spacing
 
@@ -1125,6 +1171,32 @@ width so nothing else shifts. 14px and 12px now.
 
 Do not reason about which side a value lands on. Screenshot it and count
 columns.
+
+**`.mod-<name>` IS NOT THE CLICKABLE WIDGET.** It is a container; the button is
+a `menubutton` node inside it. Padding the module makes the *box* bigger and
+leaves the click target exactly where it was — the module grows, the dead space
+moves inward, and a screenshot of the box looks like the fix worked.
+
+> `custom-power` was a 12px glyph with 12px of dead bar each side (the group's
+> `padding-left` on one side, the section's `padding-ends` on the other). The
+> first fix padded `.mod-custom-power` out to the full cell and measured
+> 1884-1919 — while the menubutton stayed 16x23. It looked right in a
+> screenshot and was still unclickable, which is the only way to find this:
+> paint each node a different colour and see which ones exist.
+
+To make a module own its cell: zero the group's `padding-left`, zero the
+module's padding, pull the module past `padding-ends` with a negative
+`margin-right`, and give the **menubutton** the `min-width`/`min-height`.
+Vertical needs no arithmetic — `.module`'s 4 + 23 + 4 already states the bar's
+height, so the menubutton's `min-height` is just 31px.
+
+> The widths do not add up and are not meant to. The widget's right edge is
+> pinned 2px past the screen and clipped, so its left edge is `1922 - W` for
+> `W = min-width + padding` — `W = 38` lands it on the divider. The icon then
+> centres in 38 rather than in the 36 you can see, so it needs
+> `padding-right: 2px` to sit on the cell's real centre. Padding alone grows W
+> and drags the divider and the tray glyph left with it. Re-measure rather than
+> adjusting by arithmetic.
 
 **`#workspaces` is the one exception, and it takes two ids.** The active tag
 draws a background, and 6px of bar between a filled block and a line reads as a
@@ -1331,6 +1403,35 @@ it.
 **There is no signal IPC.** waybar took a push (`pkill -RTMIN+N waybar`); wayle
 has `poll`, `watch` and `on-action` only. Every ported custom module carries
 `on-action` and an interval.
+
+> **A `pkill` that matches nothing returns 1, and it was the last statement.**
+> Six scripts carried the old push and each made it their function's exit
+> status, so a toggle that worked exited non-zero — wayle logs
+> `command failed, cmd: …` for exactly that, which is how it was found. All six
+> are gone and `checks/static.sh` asserts it, scanning code with comments
+> stripped so the comment recording each removal does not trip it.
+> `docs/adr/0047`.
+
+**`on-action` covers the click and nothing else, so a keybind needs the
+interval.** `custom-idle-inhibitor` is the case that showed it: SUPER+SHIFT+a
+toggles `wlinhibit.service` and has no other feedback — no OSD, no notification
+on success — so at `interval-ms = 30000` the glyph still read "idle ladder live"
+half a minute after the ladder was held off, which is indistinguishable from a
+dead key. It polls at 2000 now. Any module a *key* can change wants an interval
+a person will wait through, not one sized for the state changing on its own.
+
+**A click action is a shell command OR a `dropdown:`, never both**, and the
+eight dropdown types are wayle's own — `audio`, `battery`, `bluetooth`,
+`brightness`, `dashboard`, `network`, `notification`, `weather`. A custom module
+may open one, but cannot register a ninth, so a panel built from a script's own
+data is not available at any price. `docs/adr/0046`.
+
+> **A dropdown's service is configured even when no layout carries its module.**
+> `Service ready service="Weather"` is logged at startup regardless, so
+> `[modules.weather]` aims `dropdown:weather` while the native module stays off
+> the bar. The trap is the default: unconfigured, that panel is **San
+> Francisco** — a complete, plausible forecast for somewhere else.
+> `checks/static.sh` asserts its coordinates match `weather.sh`'s.
 
 **`general.font-sans` / `font-mono` fall back in silence.** `Inter` was written
 here — wayle's own example uses it — and this machine does not have it.
@@ -2764,6 +2865,27 @@ Any parameter that arrives from the generation is worth checking for emptiness
 before it reaches a service that will answer regardless. `checks/static.sh`
 asserts the file is in the generation and that the variable names in it are the
 ones the script sources; the runtime refusal is the second line.
+
+### `mapfile < <(cmd)` reports success however `cmd` exits
+
+A process substitution does not propagate its exit status, so
+
+```bash
+if ! mapfile -t rows < <(read_list); then   # never taken
+```
+
+is always false — `mapfile` succeeded, with zero rows. For
+`menus/notifications.sh` that spelling would have rendered "nothing waiting" for
+a notification daemon that was not answering, which are the two readings that
+script exists to keep apart. Command substitution *does* propagate, so capture
+first and split after:
+
+```bash
+rows_tsv=$(read_list) || { ...; exit 1; }
+mapfile -t rows <<<"$rows_tsv"
+```
+
+`docs/adr/0047`.
 
 ### `IFS=$'\t' read` cannot see an empty leading field
 

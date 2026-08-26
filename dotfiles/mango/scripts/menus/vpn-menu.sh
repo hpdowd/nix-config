@@ -73,4 +73,7 @@ else
 		notify-send -u critical "VPN" "Connection failed"
 	fi
 fi
-pkill -RTMIN+10 waybar
+
+# No `pkill -RTMIN+10 waybar` here any more: waybar is retired and wayle takes no
+# signal, so that line matched nothing and returned 1 — the script's own exit
+# status, for a connect that worked. custom-vpn polls at 5 s. docs/adr/0045.

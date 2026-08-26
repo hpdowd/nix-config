@@ -366,6 +366,73 @@ else
 	bad "a mango config names a missing or non-executable script" "$missing"
 fi
 
+# `mango-reload` restarts the BAR, and this one line is the whole reason it
+# does. Verified 2026-08-26 by PID, not by reading: wayle went 41365 -> 46310
+# across a `reload.sh`.
+#
+# reload.sh and desktop-mode.sh both end in `mmsg dispatch reload_config`, which
+# re-fires every `exec=` in the active mode's autostart.conf. NOTHING ELSE
+# starts or restarts wayle — `apply_mode` does not touch it and `mode.sh` only
+# execs the mode script. So this line silently becoming `exec-once=` leaves the
+# bar running its previous config after every reload, with the rest of the mode
+# applied around it. That is indistinguishable from the change having had no
+# effect, which is the symptom CLAUDE.md's "Rebuild before reload" describes.
+#
+# It is a plausible edit, not a far-fetched one: universal/autostart.conf is
+# `exec-once=` throughout, so making this match reads like tidying.
+BAR_AUTOSTART="$MANGO/tiling/autostart.conf"
+if [[ ! -s $BAR_AUTOSTART ]]; then
+	bad "tiling/autostart.conf is missing or empty — the scan is broken, not the repo" "$BAR_AUTOSTART"
+elif grep -qE '^exec=[^=]*wayle/wayle-restart\.sh' "$BAR_AUTOSTART"; then
+	ok "tiling/autostart.conf runs wayle-restart.sh as exec=, so reload_config restarts the bar"
+elif grep -qE '^exec-once=.*wayle/wayle-restart\.sh' "$BAR_AUTOSTART"; then
+	bad "tiling/autostart.conf runs wayle-restart.sh as exec-once=, so mango-reload no longer restarts the bar" \
+		"reload_config re-fires exec= lines only — the bar would keep its previous config, silently"
+else
+	bad "nothing in tiling/autostart.conf runs wayle-restart.sh" \
+		"the bar would not start at login and mango-reload would not restart it"
+fi
+
+# --- Daemons that are not there any more -------------------------------------
+#
+# Two ways of talking to a program that has been retired, both of which look
+# exactly like success. Absence checks, so the floor is on the population: a
+# scan over no scripts finds nothing and passes.
+#
+#   pkill -RTMIN+N waybar   waybar's refresh push. wayle takes no signal, so
+#                           this matched nothing and returned 1 — the calling
+#                           script's own exit status, for a toggle that worked.
+#                           Six scripts carried one. docs/adr/0045, 0047.
+#   swaync-client           swaync is started in neither mode and its unit is
+#                           MASKED, so this prints `NameHasNoOwner … unit is
+#                           masked` on stderr and EXITS 0. Three keys and two
+#                           control-centre rows were dead that way for a month.
+#                           `swaync` itself is not matched: noctalia-start.sh
+#                           runs the binary as its failure path, deliberately.
+#
+# COMMENTS ARE STRIPPED FIRST, and that is the deliberate half. Every one of the
+# six removals left a comment saying which line went and why — this repo's whole
+# convention — so a scan that matched anywhere in the file would fire on its own
+# documentation. A commented-out call is not a call.
+retired=""
+for f in "${SCRIPTS[@]}"; do
+	case "$f" in "$MANGO"/* | "$SRC"/dotfiles/scripts/*) ;; *) continue ;; esac
+	code=$(sed 's/#.*//' "$f")
+	# `if`, not `grep … && retired+=`: a bare `a && b` whose `a` fails fails the
+	# statement, which would exit under a `set -e` this file does not have yet.
+	if grep -q 'pkill -RTMIN+[0-9]* waybar' <<<"$code"; then
+		retired+="  ${f#"$SRC"/} signals waybar, which is retired and would take no signal anyway"$'\n'
+	fi
+	if grep -q 'swaync-client' <<<"$code"; then
+		retired+="  ${f#"$SRC"/} calls swaync-client, whose unit is masked — it exits 0 having done nothing"$'\n'
+	fi
+done
+if [[ -n $retired ]]; then
+	bad "a script still talks to a daemon this machine does not run" "$retired"
+else
+	ok "no script signals waybar or calls swaync-client"
+fi
+
 # Two binds on one key: mango prints `[warning] Key binding conflict` naming
 # both files and lines, then runs whichever was parsed first (src/mango.c,
 # "only match the first keybind"). That warning goes to mango's stderr, where
@@ -612,7 +679,7 @@ if [[ -f $CC ]]; then
 fi
 
 # --- Weather ----------------------------------------------------------------
-# Four things each invisible when wrong. docs/adr/0038.
+# Four things each invisible when wrong. docs/adr/0038, 0046.
 WEATHER_SH="$MANGO/scripts/system/weather.sh"
 if [[ -f $WEATHER_SH ]]; then
 	# 1. THE COORDINATES REACH THE SCRIPT. Drifted variable names leave
@@ -639,18 +706,45 @@ if [[ -f $WEATHER_SH ]]; then
 		fi
 	fi
 
-	# 2. THE SIGNAL NUMBER, from both sides. waybar drops an RT signal nothing
-	#    subscribes to in silence, so a mismatch updates the row and not the bar.
-	wsig_script=$(grep -oE 'pkill -RTMIN\+([0-9]+) waybar' "$WEATHER_SH" | grep -oE '[0-9]+' | head -1)
-	wsig_bar=$(jq -r '.["custom/weather"].signal // empty' "$WAYBAR_DIR/config-full-top.jsonc" 2>/dev/null)
-	if [[ -z $wsig_script || -z $wsig_bar ]]; then
-		bad "could not read the weather refresh signal from both sides — the scan is broken, not the repo" \
-			"script=[$wsig_script] bar=[$wsig_bar]"
-	elif [[ $wsig_script != "$wsig_bar" ]]; then
-		bad "weather.sh signals RTMIN+$wsig_script but custom/weather listens on $wsig_bar" \
-			"waybar drops a real-time signal nothing subscribes to without logging"
+	# NO SIGNAL CHECK. It read `pkill -RTMIN+13 waybar` out of this script and
+	# matched it against custom/weather's `signal` in the generated waybar
+	# config. Both ends are gone: wayle takes no signal, so that line matched
+	# nothing and returned 1 (docs/adr/0047). There is nothing left to agree.
+
+	# 2. THE PANEL POINTS AT THIS MACHINE. custom-weather's left click opens
+	#    wayle's OWN weather dropdown, which reads `[modules.weather]` and never
+	#    this script. Unconfigured it is San Francisco — a complete, plausible
+	#    forecast for somewhere else, which is the failure this repo is named
+	#    for. Both halves, because either alone is silent. docs/adr/0046.
+	wlat=$(sed -n 's/^WEATHER_LAT=//p' "$LOC_ENV" 2>/dev/null | head -1)
+	wlon=$(sed -n 's/^WEATHER_LON=//p' "$LOC_ENV" 2>/dev/null | head -1)
+	panelbad=""
+	panelseen=0
+	for f in "$WAYLE_DIR"/layouts/*.toml; do
+		[[ -s $f ]] || continue
+		panelseen=$((panelseen + 1))
+		ploc=$(sed -n '/^\[modules\.weather\]/,/^\[/p' "$f" |
+			sed -n 's/^location = "\(.*\)"$/\1/p' | head -1)
+		if [[ -z $ploc ]]; then
+			panelbad+="  ${f##*/}: no [modules.weather] location — the panel is San Francisco"$'\n'
+		elif [[ $(awk -v pa="${ploc%%,*}" -v pb="${ploc##*,}" -v wa="$wlat" -v wb="$wlon" \
+			'BEGIN { print (sprintf("%.4f", pa) == sprintf("%.4f", wa) &&
+				sprintf("%.4f", pb) == sprintf("%.4f", wb)) ? 1 : 0 }') != 1 ]]; then
+			panelbad+="  ${f##*/}: the panel is at $ploc, the script at $wlat,$wlon"$'\n'
+		fi
+		# The click that reaches it. A layout without custom-weather (`minimal`)
+		# has none, and that is the layout deliberately dropping the module.
+		if grep -q 'id = "weather"' "$f" &&
+			! grep -A8 'id = "weather"' "$f" | grep -q 'left-click = "dropdown:weather"'; then
+			panelbad+="  ${f##*/}: custom-weather's left click no longer opens the panel"$'\n'
+		fi
+	done
+	if [[ $panelseen -eq 0 ]]; then
+		bad "no wayle layout read — the scan is broken, not the repo" "$WAYLE_DIR/layouts"
+	elif [[ -n $panelbad ]]; then
+		bad "wayle's weather panel and weather.sh disagree about where this machine is" "$panelbad"
 	else
-		ok "weather.sh and custom/weather agree on SIGRTMIN+$wsig_script"
+		ok "all $panelseen wayle layouts point the weather panel at $wlat,$wlon"
 	fi
 
 	# 3. THE CONTROL-CENTRE ROW MUST NOT FETCH. That render is parallel and
@@ -1405,8 +1499,10 @@ printf '\nGenerated palette\n'
 # Solarized role rather than erroring. Neither writes anywhere anyone reads.
 # So: every name used must be defined, and every name defined must be used —
 # an unused entry is a colour someone will later assume is live.
+# `sigil` is the reference character in the consumer's own language — `@` for
+# CSS and rasi, `$` for scss — so the failure names something greppable.
 palette_pair() {
-	local label=$1 defined=$2 used=$3 err=""
+	local label=$1 defined=$2 used=$3 sigil=${4:-@} err=""
 	# `@import`, `@keyframes` and friends are CSS/rasi at-rules, not colours.
 	used=$(printf '%s\n' "$used" | grep -vxE 'import|keyframes|media|theme|define-color')
 	if [[ -z $defined ]]; then
@@ -1419,11 +1515,11 @@ palette_pair() {
 	fi
 	while IFS= read -r n; do
 		[[ -z $n ]] && continue
-		printf '%s\n' "$defined" | grep -qxF "$n" || err+="  @$n is used but not defined"$'\n'
+		printf '%s\n' "$defined" | grep -qxF "$n" || err+="  $sigil$n is used but not defined"$'\n'
 	done <<<"$used"
 	while IFS= read -r n; do
 		[[ -z $n ]] && continue
-		printf '%s\n' "$used" | grep -qxF "$n" || err+="  @$n is defined but nothing uses it"$'\n'
+		printf '%s\n' "$used" | grep -qxF "$n" || err+="  $sigil$n is defined but nothing uses it"$'\n'
 	done <<<"$defined"
 	if [[ -z $err ]]; then
 		ok "$label: all $(printf '%s\n' "$defined" | grep -c .) generated colours are used, and every reference resolves"
@@ -1447,6 +1543,25 @@ for m in "${MODE_KEYS[@]}"; do
 		"$(sed -n 's/^ *\([a-z-]*\): *#[0-9a-f]*;.*/\1/p' "$GEN_CFG/rofi/colors-$m.rasi" 2>/dev/null | sort -u)" \
 		"$rofi_used"
 done
+
+# wayle, the same pairing in scss. `_colors.scss` is generated from the palette
+# and `index.scss` is hand-written, so both halves fail the way the two above
+# do: sass resolves an undefined `$var` to nothing and the rule renders in the
+# inherited colour. Since docs/adr/0048 four of the five are state colour for
+# the three custom modules, which is the half that would rot unnoticed — a
+# module whose class stops being emitted takes its rule out of use and the bar
+# still renders.
+#
+# The USED side subtracts what `index.scss` defines for itself: `$groups` is a
+# local, not a palette name, and would read as a reference to a colour nobody
+# generated.
+wayle_scss=$SRC/dotfiles/wayle/index.scss
+palette_pair "wayle" \
+	"$(sed -n 's/^[$]\([a-z-]*\):.*/\1/p' "$WAYLE_DIR/styles/_colors.scss" 2>/dev/null | sort -u)" \
+	"$(comm -23 \
+		<(grep -ohE '[$][a-z-]+' "$wayle_scss" 2>/dev/null | tr -d '$' | sort -u) \
+		<(sed -n 's/^[$]\([a-z-]*\):.*/\1/p' "$wayle_scss" 2>/dev/null | sort -u))" \
+	'$'
 
 # Every file that is supposed to be derived from the palette, and the colour it
 # must contain. A generated file that goes missing or renders empty is this
@@ -3430,10 +3545,14 @@ for f in "${SCRIPTS[@]}"; do
 done
 
 # The scan finding nothing is the failure mode it exists to catch. The floor
-# guards the regex, not the population — set below today's 3 so that removing a
-# trap is a code change rather than a check failure, but above 0 so a regex that
-# stops matching cannot pass by finding nothing.
-if [[ $traps_seen -lt 2 ]]; then
+# guards the regex, not the population, and above 0 so a regex that stops
+# matching cannot pass by finding nothing.
+#
+# 1, not 2, since scratch-watch.sh went (docs/adr/0047): the population is now
+# waybar/window-title.sh alone, so retiring waybar takes this check's last
+# subject with it. Re-base on the next long-running script rather than deleting
+# the scan — the failure it catches cost 90 s on every shutdown.
+if [[ $traps_seen -lt 1 ]]; then
 	bad "only $traps_seen terminating-signal traps found — the scan is broken, not the repo"
 elif [[ ${#traps_bad[@]} -gt 0 ]]; then
 	bad "${#traps_bad[@]} signal trap(s) never exit, so the signal no longer kills the script" \

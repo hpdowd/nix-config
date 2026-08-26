@@ -67,15 +67,14 @@
     };
   };
 
-  # swayosd draws the volume/brightness/caps OSD; it needs a system service
-  # for the backlight-writing helper.
-  services.udev.packages = [ pkgs.swayosd ];
-  systemd.services.swayosd-libinput-backend = {
-    description = "SwayOSD libinput backend";
-    wantedBy = [ "graphical.target" ];
-    serviceConfig = {
-      ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
-      Restart = "on-failure";
-    };
-  };
+  # The BACKLIGHT grant, and the only reason swayosd was ever a system service
+  # here: its `99-swayosd.rules` was what chgrp'd /sys/class/backlight/*/brightness
+  # to `video`, so the brightness keys — which run `brightnessctl`, not
+  # `swayosd-client` — depended on a package nothing else used. swayosd is gone
+  # (docs/adr/0047) and this is brightnessctl's own rule, a superset: the same
+  # backlight lines plus the `leds` grant upstream ships with it.
+  #
+  # A `libinput` backend went with it. It read /dev/input session-wide to drive
+  # swayosd's caps/num-lock overlay, which both shells now draw themselves.
+  services.udev.packages = [ pkgs.brightnessctl ];
 }

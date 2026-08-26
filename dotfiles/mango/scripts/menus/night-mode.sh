@@ -17,9 +17,10 @@ is_on() {
 	systemctl --user is-active --quiet "$UNIT"
 }
 
-refresh_waybar() {
-	pkill -RTMIN+9 waybar
-}
+# NO BAR PUSH. waybar is retired and wayle has no signal IPC, so
+# `pkill -RTMIN+9 waybar` matched nothing and returned 1 — every toggle exited
+# non-zero and wayle logged `command failed`. custom-night-mode polls at 5 s and
+# carries `on-action` for its own click. docs/adr/0045.
 
 do_toggle() {
 	if is_on; then
@@ -27,7 +28,6 @@ do_toggle() {
 	else
 		systemctl --user start "$UNIT"
 	fi
-	refresh_waybar
 }
 
 do_menu() {
@@ -44,7 +44,6 @@ do_menu() {
 	# service rather than run it as a no-op.
 	if [ "$TEMP" = "6500" ]; then
 		systemctl --user stop "$UNIT"
-		refresh_waybar
 		exit 0
 	fi
 
@@ -53,7 +52,6 @@ do_menu() {
 
 	# restart, not reload: wlsunset only reads its temperature from argv.
 	systemctl --user restart "$UNIT"
-	refresh_waybar
 }
 
 do_status() {

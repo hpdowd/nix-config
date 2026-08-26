@@ -14,6 +14,7 @@
 # rather than a module that renders as nothing. That is the whole reason these
 # are generated — docs/adr/0009.
 {
+  config,
   lib,
   pkgs,
   ...
@@ -52,8 +53,9 @@ let
   #                from a keybind and from the control centre, and a module
   #                that only updated on its own click would sit there lying
   #
-  # The `pkill -RTMIN+N waybar` lines came out of the five scripts in the same
-  # change: a pkill that matches nothing is this repo's signature failure.
+  # The `pkill -RTMIN+N waybar` lines are gone from all six scripts (0045, 0047).
+  # Each matched nothing and returned 1, so a toggle that worked exited non-zero
+  # and wayle logged "command failed" for it.
   #
   # Output parsing: wayle reads stdout, and treats it as JSON when it starts
   # with `{`. These scripts already emit waybar's `{text,tooltip,class}`, so
@@ -61,14 +63,24 @@ let
   customModules = [
     {
       id = "weather";
-      # Not wayle's native `weather`: this script owns a cache the control
-      # centre reads, and one request carries the tooltip. docs/adr/0038, 0044.
+      # The LABEL is not wayle's native `weather`: this script owns a cache the
+      # control centre reads, and one request carries the tooltip. The PANEL is
+      # wayle's — see left-click. docs/adr/0038, 0044, 0046.
       command = "${s}/system/weather.sh status";
       interval-ms = 300000;
       format = "{{ text }}";
       tooltip-format = "{{ tooltip }}";
       class-format = "{{ class }}";
-      left-click = "${s}/system/weather.sh refresh";
+      # THE PANEL IS WAYLE'S. A custom module cannot own a dropdown — the eight
+      # types are wayle's own (audio, battery, bluetooth, brightness, dashboard,
+      # network, notification, weather) — and a click action is a shell command
+      # OR a `dropdown:`, never both. So the click that used to run `refresh`
+      # silently now opens the one panel that exists, which fetches on its own
+      # cadence and carries its own refresh button; `refresh` moved to
+      # middle-click. `[modules.weather]` below points that panel at the same
+      # coordinates this script uses. docs/adr/0046.
+      left-click = "dropdown:weather";
+      middle-click = "${s}/system/weather.sh refresh";
       # The tooltip is a reading, not a forecast site. Right-click is the way
       # out to one, and the verb is the script's so the bar holds no URL.
       right-click = "${s}/system/weather.sh open";
@@ -136,7 +148,13 @@ let
       # holds. That is the whole of docs/adr/0031: waybar's built-in module
       # kept the state in the bar process and released it on every reload.
       command = "${s}/system/idle-inhibit.sh status";
-      interval-ms = 30000;
+      # 2s, NOT the 30s the other polled customs use. This one is driven by a
+      # KEY (SUPER+SHIFT+a) as well as by its own click, and the key has no
+      # other feedback — no OSD, no notification on success. At 30s the bar
+      # glyph still said "idle ladder live" long after the ladder was held off,
+      # which reads as a keybind that does nothing. The click path is covered by
+      # `on-action`; this interval is the keybind's.
+      interval-ms = 2000;
       format = "{{ text }}";
       tooltip-format = "{{ tooltip }}";
       class-format = "{{ class }}";
@@ -153,7 +171,10 @@ let
       # `-b` is a column count: keep it equal to the wlogout entry count in
       # programs.nix, or the overflow wraps into a row the margins leave no
       # room for.
-      icon-name = "ld-power-symbolic";
+      # Adwaita's, not wayle's bundled `ld-power-symbolic`: the icon THEME
+      # answers a freedesktop name, so this one follows the scheme where the
+      # Lucide set is fixed art. Same reason volume and brightness use theirs.
+      icon-name = "system-shutdown-symbolic";
       label-show = false;
       left-click = "wlogout -b 6 -c 12 -r 12 -T 505 -B 505 -L 290 -R 290 --protocol layer-shell";
       right-click = "dropdown:notification";
@@ -177,8 +198,10 @@ let
   # sixteen colours competing and none of them meaning anything.
   #
   # Everything reads in one pair. Colour is then RESERVED for state — the
-  # battery thresholds below, and the active workspace — so a coloured thing on
-  # this bar is a thing worth looking at.
+  # battery thresholds below, the active workspace, and the three custom
+  # modules index.scss colours by their emitted class (docs/adr/0048) — so a
+  # coloured thing on this bar is a thing worth looking at. `mono` is still the
+  # resting value for all three; only the away-from-default states take colour.
   mono = {
     icon-color = "fg-muted";
     label-color = "fg-default";
@@ -308,6 +331,25 @@ let
     systray = {
       icon-scale = 0.85;
       internal-padding = 0.1;
+    };
+
+    # NOT IN `nativeNames`, AND NOT IN A LAYOUT. This block exists to point the
+    # `dropdown:weather` panel — opened by custom-weather's left click — at this
+    # machine rather than at wayle's default San Francisco. The bar label stays
+    # custom-weather's, because that script owns the cache the control centre
+    # reads and the tooltip docs/adr/0038 and 0044 built. Two readers of
+    # open-meteo, one set of coordinates. docs/adr/0046.
+    #
+    # `lat,lon`, not the place name: a name is a GEOCODE lookup, which is the
+    # indirection docs/adr/0038 rejected. From `local.location`, so the panel
+    # and weather-location.env cannot disagree.
+    weather = {
+      location = "${toString config.local.location.latitude},${toString config.local.location.longitude}";
+      # wayle's default is 12h; every clock on this machine is 24h.
+      time-format = "24h";
+      # weather.sh's TTL, so the panel and the label cannot be a quarter-hour
+      # apart on the same reading. open-meteo publishes at this cadence.
+      refresh-interval-seconds = 900;
     };
 
     # `thresholds`, not waybar's warning-level/critical-level — wayle has no
@@ -731,13 +773,20 @@ in
       }
     ) layouts
     // {
-      # The one colour index.scss needs, generated from the palette so the
-      # divider cannot drift from the rest of the bar — the same split waybar has
-      # with its generated colors.css beside a hand-written style-solid.css.
-      # docs/adr/0028.
+      # The colours index.scss needs, generated from the palette so the divider
+      # and the state rules cannot drift from the rest of the bar — the same
+      # split waybar has with its generated colors.css beside a hand-written
+      # style-solid.css. docs/adr/0028, 0048. checks/static.sh pairs the two
+      # sides, so a var defined here and unused is a failure.
       "wayle/styles/_colors.scss".text = ''
         // GENERATED from modules/home/palette.nix — edit that, then rebuild.
+        // $sep is the divider. The four below are STATE colour for the three
+        // custom modules wayle gives no `thresholds` key — docs/adr/0048.
         $sep: #${p.overlay};
+        $ok: #${p.okColor};
+        $warn: #${p.warnColor};
+        $err: #${p.errColor};
+        $info: #${p.infoColor};
       '';
 
       # The stylesheet. HAND-WRITTEN and store-based (tier 2): it is rules, not

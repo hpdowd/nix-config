@@ -36,9 +36,11 @@ is_on() {
 	systemctl --user is-active --quiet "$UNIT"
 }
 
-refresh_waybar() {
-	pkill -RTMIN+12 waybar
-}
+# NO BAR REFRESH. waybar is retired and wayle has no signal IPC, so the push
+# path this script had is gone in both directions: `pkill -RTMIN+12 waybar`
+# matched nothing and returned 1, which made every toggle exit non-zero and
+# wayle log "command failed". custom-idle-inhibitor polls instead —
+# modules/home/wayle.nix. docs/adr/0045.
 
 do_on() {
 	systemctl --user start "$UNIT"
@@ -51,15 +53,12 @@ do_on() {
 	if ! is_on; then
 		notify-send -u critical "Keep awake" \
 			"wlinhibit did not stay up: $(systemctl --user is-active "$UNIT")"
-		refresh_waybar
 		return 1
 	fi
-	refresh_waybar
 }
 
 do_off() {
 	systemctl --user stop "$UNIT"
-	refresh_waybar
 }
 
 do_toggle() {

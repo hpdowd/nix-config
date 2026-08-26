@@ -74,5 +74,8 @@ performance:0 | balanced:1 | power-saver:2) ;;
 *) fail "asked for $next, TLP reports profile code ${now:-none}" ;;
 esac
 
-# Repaint the waybar module immediately rather than waiting for its interval.
-pkill -RTMIN+11 waybar
+# No repaint from here. waybar is retired and wayle takes no signal, so
+# `pkill -RTMIN+11 waybar` matched nothing and returned 1 — this script's own
+# exit status, for a switch that landed and was verified two lines above.
+# custom-power-profile carries `on-action` for its click and a 30 s poll for the
+# key. docs/adr/0045.

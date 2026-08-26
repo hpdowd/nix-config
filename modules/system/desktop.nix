@@ -88,7 +88,11 @@ in
     # `noctalia-shell` (4.x, quickshell) not `noctalia` (5.x beta, which clones
     # plugin repos over git at runtime).
     noctalia-shell
-    swayosd
+    # NO swayosd. Nothing ever called `swayosd-client` — every volume and
+    # brightness bind runs wpctl or brightnessctl directly — so its only output
+    # was a caps-lock overlay drawn on top of the one wayle and noctalia each
+    # draw for themselves, in both modes. docs/adr/0047; its udev rule moved to
+    # brightnessctl in modules/system/audio.nix.
     swaylock-effects
     # wlogout is deliberately absent — programs.wlogout owns it in home. Two
     # profiles carrying one binary makes PATH order decide which you get.

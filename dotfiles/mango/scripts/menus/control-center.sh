@@ -437,17 +437,27 @@ state_weather() {
 	esac
 }
 
+# BOTH ROWS READ WAYLE. This menu runs in tiling mode alone — shell.sh hands
+# `control-center` to noctalia's own panel in the other one — so the daemon here
+# is always wayle, which claims org.freedesktop.Notifications and answers
+# `wayle notify`. They read `swaync-client -D -sw` and `-c -sw` until 2026-08-26,
+# months after swaync stopped being started in either mode: against a masked unit
+# that prints `NameHasNoOwner` on stderr and exits 0, so both rows rendered `?`
+# and both actions did nothing. docs/adr/0047.
+#
+# One `status` call each rather than one shared: the rows render in parallel and
+# a local D-Bus round trip is cheaper than the file they would have to share.
 state_dnd() {
-	case "$(swaync-client -D -sw 2>/dev/null)" in
-	true) printf '%s\t%s' "$ICON_BELL_OFF" "on" ;;
-	false) printf '%s\t%s' "$ICON_BELL" "off" ;;
+	case "$(wayle notify status 2>/dev/null | sed -n 's/^Do Not Disturb: //p')" in
+	enabled) printf '%s\t%s' "$ICON_BELL_OFF" "on" ;;
+	disabled) printf '%s\t%s' "$ICON_BELL" "off" ;;
 	*) printf '%s\t%s' "$ICON_BELL" "$UNKNOWN" ;;
 	esac
 }
 
 state_notify() {
 	local n
-	n=$(swaync-client -c -sw 2>/dev/null)
+	n=$(wayle notify status 2>/dev/null | sed -n 's/^Notifications: //p')
 	case "$n" in
 	'' | *[!0-9]*) printf '%s\t%s' "$ICON_BELL" "$UNKNOWN" ;;
 	0) printf '%s\t%s' "$ICON_BELL" "none waiting" ;;
@@ -506,9 +516,12 @@ act_weather() {
 	"$MANGO_DIR/scripts/system/weather.sh" open
 	close=1
 }
-act_dnd() { swaync-client -d -sw >/dev/null; }
+act_dnd() { wayle notify dnd >/dev/null; }
+# The history is a wayle DROPDOWN, which only a bar click opens, so this row
+# hands the screen to menus/notifications.sh — the same list, reachable by key.
+# docs/adr/0047.
 act_notify() {
-	swaync-client -t -sw
+	"$MANGO_DIR/scripts/menus/notifications.sh"
 	close=1
 }
 act_bar() { "$MANGO_DIR/scripts/wayle/wayle-layout.sh"; }

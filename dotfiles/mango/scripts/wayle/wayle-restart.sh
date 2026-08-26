@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Restarts wayle from the current desktop mode, layout and position state.
 #
-# Called by desktop-mode.sh, wayle-layout.sh, wayle-position.sh, and by the
-# `exec=` line in tiling/autostart.conf — which fires both at login and on every
+# Called by wayle-layout.sh and wayle-position.sh directly, and by the `exec=`
+# line in tiling/autostart.conf — which fires at login and on every
 # `mmsg dispatch reload_config`, so a reload re-reads all three state files.
 # This is the single place that knows how they combine.
+#
+# THAT `exec=` IS ALSO HOW `mango-reload` AND A MODE SWITCH REACH THE BAR: both
+# end in `reload_config` and neither calls this script. (The list above said
+# `desktop-mode.sh` for a while — inherited from waybar-restart.sh, and never
+# true of either.) `exec-once=` there would break all three paths at once, so
+# checks/static.sh asserts the spelling.
 #
 # It only selects a file and re-points a link. Every (layout, position) pair is
 # generated as its own TOML by modules/home/wayle.nix, because `bar.location`

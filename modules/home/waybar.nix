@@ -171,7 +171,21 @@ let
     clock = {
       format = "{:%H:%M}";
       format-alt = "{:%a %d %b}";
-      tooltip-format = "<tt>{calendar}</tt>";
+      # A date, not a calendar. The month grid moved to menus/calendar.sh, which
+      # can be navigated and stays open; a tooltip could do neither and appeared
+      # wherever the pointer was. docs/adr/0058.
+      tooltip-format = "{:%A %d %B %Y}";
+      # Left opens the panel, so the label toggle moves to the right button.
+      # `format-alt-click` is a button number — mkBar defaults it to 1 for every
+      # module carrying a format-alt, and this is the one that wants another.
+      on-click = "${s}/menus/calendar.sh";
+      format-alt-click = 3;
+      # waybar's own action names, not commands — they reach Clock::doAction
+      # rather than a shell. docs/adr/0057.
+      actions = {
+        on-scroll-up = "shift_up";
+        on-scroll-down = "shift_down";
+      };
     };
 
     "ext/workspaces" = {
@@ -242,7 +256,10 @@ let
       # always. wayle's `media` has no such list, which is why that bar showed a
       # track where this one showed empty bar. docs/adr/0051.
       ignored-players = [ ];
-      on-click = "${s}/scratchpad/scratch-toggle.sh Spotify spotify";
+      # The window this module is reporting, whichever player that is. It was
+      # `scratch-toggle.sh Spotify spotify` — one player, hardcoded, so a video
+      # playing in the browser put Spotify over it. docs/adr/0058.
+      on-click = "${s}/media/media-focus.sh";
       on-click-right = "playerctl play-pause";
       on-scroll-up = "playerctl next";
       on-scroll-down = "playerctl previous";
@@ -277,6 +294,9 @@ let
 
     cpu = {
       format = "󰍛 {usage}%";
+      # The load average was in the tooltip and nowhere a click could reach,
+      # while memory beside it had a second reading. docs/adr/0057.
+      format-alt = "󰍛 {load}";
       tooltip-format = "CPU: {usage}%\nLoad: {load}";
       interval = 2;
       states = {
@@ -295,7 +315,11 @@ let
         warning = 70;
         critical = 90;
       };
-      on-click = "alt";
+      # No `on-click = "alt"`. That is not one of waybar's action names, so
+      # AModule::handleUserEvent fell through to forkExec and ran `alt` as a
+      # shell command on every left-click — command not found, once per click,
+      # silently. `format-alt-click` in mkBar is what actually toggles.
+      # docs/adr/0057.
       on-click-right = "${s}/scratchpad/scratch-toggle.sh sysmonitor ${s}/system/sysmonitor.sh";
     };
 
@@ -379,7 +403,10 @@ let
       format-muted = "󰖁{format_source}";
       format-source = "";
       format-source-muted = " 󰍭";
-      tooltip = false;
+      # Which sink is live was on the bar nowhere. The glyph says headphones or
+      # speakers and stops there, so switching between two headsets, or to HDMI,
+      # moved audio to a device the bar could not name. docs/adr/0057.
+      tooltip-format = "{desc}";
       on-click = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
       on-click-right = "${s}/menus/volume-menu.sh";
       # Reads backwards on purpose. `trackpad_natural_scrolling=1` in
@@ -583,13 +610,17 @@ let
       # (§1) — they set the button size, and at -T/-B 320 the buttons were
       # 320x560 boxes holding a 52px icon.
       on-click = "wlogout -b 6 -c 12 -r 12 -T 505 -B 505 -L 290 -R 290 --protocol layer-shell";
-      on-click-right = "sleep 0.1s && swaync-client -t -sw";
+      # The rofi power menu, not swaync. Right-click here opened the
+      # notification panel until 2026-08-28 — byte-identical to
+      # `custom/notification`'s left-click, two modules apart, and nothing on
+      # the power button suggests it. docs/adr/0057.
+      on-click-right = "${s}/menus/power-menu.sh";
     };
   };
 
   # ── Shared bar settings ───────────────────────────────────────────────────
   #
-  # All margins are 0, for every layout, since hud left (docs/adr/0035). They
+  # All margins are 0, for every layout, since hud left. They
   # used to be `margin-top = 6; margin-left/right = 8` — a floating bar — but
   # nothing ever rendered that: `waybar-restart.sh` zeroed all three with sed on
   # every launch, because the only mode with a bar is `tiling` and tiling wants
@@ -603,6 +634,11 @@ let
     margin-left = 0;
     margin-right = 0;
     spacing = 0;
+
+    # The bar re-reads style-solid.css and everything it @imports when the file
+    # changes, so a rebuild alone applies a CSS edit. It does not cover the
+    # .jsonc, which is why `waybar-restart.sh` still exists. Default is false.
+    reload_style_on_change = true;
   };
 
   # ── Separators are structure ──────────────────────────────────────────────
@@ -657,12 +693,19 @@ let
       # the suffixed key (factory.cpp passes `config_[name]`, not `config_[ref]`),
       # so `network#sep` with its settings under `network` renders with waybar's
       # defaults and nothing says so.
+      # `format-alt` DOES NOTHING WITHOUT THIS. ALabel::handleToggle is gated on
+      # `config_["format-alt-click"].isUInt()` (ALabel.cpp:181) and waybar sets
+      # no default, so the four modules here that declare a `format-alt` — clock,
+      # memory, network, battery — have never toggled. Added here rather than on
+      # each module so the pair cannot come apart: declaring the format is what
+      # asks for the click. docs/adr/0057.
       defs = lib.genAttrs emitted (
         n:
         let
           b = unTag n;
+          m = modules.${b} // (tweaks.${b} or { });
         in
-        modules.${b} // (tweaks.${b} or { })
+        lib.optionalAttrs (m ? format-alt) { format-alt-click = 1; } // m
       );
     in
     assert lib.assertMsg (
@@ -822,7 +865,7 @@ let
   #
   # Only `position` differs. Vertical margins were mirrored here too, for hud
   # alone, which cancelled its own exclusive zone with `margin-bottom = -28`.
-  # Hud is gone (docs/adr/0035) and every remaining layout has all four margins
+  # Hud is gone and every remaining layout has all four margins
   # at 0 — restore the mirroring before adding a layout with a non-zero one.
   atBottom = bar: bar // { position = "bottom"; };
 
@@ -855,7 +898,7 @@ in
       # a `@import`ed stylesheet where GTK ignores the unknown colour without a
       # word.
       #
-      # `surface` was here until hud left (docs/adr/0035) — style-hud.css was
+      # `surface` was here until hud left — style-hud.css was
       # its only consumer, and a generated colour nothing imports is exactly
       # what the both-directions assertion in checks/static.sh exists to catch.
       # Re-add it the moment a stylesheet wants it; the check enforces both ways.

@@ -48,29 +48,35 @@ set -u
 # `fc-list ':charset=f0f3' family` before they went in; a family that covers
 # none of them renders boxes rather than erroring.
 #
+# ONE PACK, AND THE BAR'S. Twelve of these were nf-fa until 2026-08-28, mixed
+# with four nf-md in the same vertical list — and the panel reached by the bar's
+# own button gave bluetooth, volume, night mode and the power profile a
+# different glyph from the module it mirrors. Each name below says which module
+# it echoes; that is the constraint, not decoration. docs/adr/0057.
+#
 # ICON_ETH is nf-md-ethernet and not nf-fa-network_wired (U+F6FF), which is what
 # menus/network-menu.sh reaches for: Hack Nerd Font does not cover U+F6FF, so
 # fontconfig falls through to ibm Plex Sans tc and draws a box. Nothing errors.
-ICON_WIFI=$'\uF1EB'      # nf-fa-wifi
-ICON_ETH=$'\U000F0200'   # nf-md-ethernet, waybar's own format-ethernet glyph
-ICON_BT=$'\uF294'        # nf-fa-bluetooth
-ICON_VPN=$'\uF132'       # nf-fa-shield
-ICON_VOL=$'\uF028'       # nf-fa-volume_up
-ICON_MUTE=$'\uF026'      # nf-fa-volume_off
-ICON_MIC=$'\uF130'       # nf-fa-microphone
-ICON_MIC_OFF=$'\uF131'   # nf-fa-microphone_slash
-ICON_NIGHT=$'\uF186'     # nf-fa-moon_o
-ICON_AWAKE=$'\U000F04B2' # nf-md-sleep
-ICON_POWER=$'\uF0E7'     # nf-fa-bolt
-ICON_BELL=$'\uF0F3'      # nf-fa-bell
-ICON_BELL_OFF=$'\uF1F6'  # nf-fa-bell_slash
-ICON_BAR=$'\uF0C9'       # nf-fa-bars
+ICON_WIFI=$'\U000F05A9'     # nf-md-wifi, the bar's own format-wifi glyph
+ICON_ETH=$'\U000F0200'      # nf-md-ethernet, waybar's own format-ethernet glyph
+ICON_BT=$'\U000F00AF'       # nf-md-bluetooth, as custom/bluetooth wears
+ICON_VPN=$'\U000F0498'      # nf-md-shield
+ICON_VOL=$'\U000F057E'      # nf-md-volume_high
+ICON_MUTE=$'\U000F0581'     # nf-md-volume_off
+ICON_MIC=$'\U000F036C'      # nf-md-microphone
+ICON_MIC_OFF=$'\U000F036D'  # nf-md-microphone_off
+ICON_NIGHT=$'\U000F0594'    # nf-md-weather_night, as night-mode.sh prints
+ICON_AWAKE=$'\U000F04B2'    # nf-md-sleep
+ICON_POWER=$'\U000F029A'    # nf-md-gauge, as power-profile.sh prints
+ICON_BELL=$'\U000F009A'     # nf-md-bell
+ICON_BELL_OFF=$'\U000F009B' # nf-md-bell_off
+ICON_BAR=$'\U000F035C'      # nf-md-menu
 # Only a fallback. When the phone is up, the row's icon is the battery glyph
 # custom/phone itself chose — one owner for those ten, as with night/awake/power.
 ICON_PHONE=$'\U000F011C' # nf-md-cellphone
 # Fallback only — custom/weather picks among thirteen by WMO code and daylight;
 # a second copy of that ladder is docs/adr/0028's drift.
-ICON_WEATHER=$'\uE374' # nf-weather-na
+ICON_WEATHER=$'\U000F0F2F' # nf-md-weather_cloudy_alert, as weather.sh prints
 
 SEP=$'────────────────────────'
 
@@ -470,7 +476,7 @@ state_notify() {
 
 state_bar() {
 	# The stored layout is the layout on screen. That was not true until hud left
-	# (docs/adr/0035): hud forced its own, so this row had to special-case it or
+	#: hud forced its own, so this row had to special-case it or
 	# name a bar nobody could see — and `act_bar` still opened a picker whose
 	# choice that mode then discarded.
 	printf '%s\t%s' "$ICON_BAR" "$(bar_layout), $(bar_position)"

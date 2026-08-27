@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-08-26).
 
 Amends the *"One colour, and state is the exception"* clause of
-[0045](0045-wayle-is-the-tiling-shell.md). The principle is unchanged; the list
+[0045](0045-each-mode-owns-its-wallpaper.md). The principle is unchanged; the list
 of exceptions grows from two to five.
 
 ## Context
@@ -83,7 +83,7 @@ written against. wayle offers a native module no charging state to hook either
   `.bar-button-*` node, and that assertion now covers five more rules.
 - **`palette_pair` gained a `sigil` argument** and a third call site. The scss
   pair fails the way the waybar and rofi pairs do — sass resolves an undefined
-  `$var` to nothing and the rule renders in the inherited colour. The USED side
+  `$var` to nothing and the rule renders in the inherited colour. The used side
   subtracts what `index.scss` defines for itself, so `$groups` does not read as
   a reference to a colour nobody generated.
 - **A class that stops being emitted takes its rule out of use, silently.** The

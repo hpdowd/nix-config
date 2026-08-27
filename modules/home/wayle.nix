@@ -1,6 +1,6 @@
 # Wayle — the tiling mode's bar, generated from one shared set of module
 # definitions. It replaced waybar there; noctalia mode still runs its own shell
-# and neither bar. docs/adr/0045.
+# and neither bar. docs/adr/0051.
 #
 # SIX FILES, and `config.toml` is not one of them. `services.wayle.settings`
 # stays `{ }` deliberately: the home-manager module claims
@@ -70,7 +70,7 @@ let
       format = "{{ text }}";
       tooltip-format = "{{ tooltip }}";
       class-format = "{{ class }}";
-      # THE PANEL IS ROFI'S. It was `dropdown:weather` from docs/adr/0046 until
+      # THE PANEL IS ROFI'S. It was wayle's `dropdown:weather` until
       # 2026-08-26: wayle's own, because a custom module cannot own a dropdown
       # and a click action is a shell command OR a `dropdown:`, never both. What
       # changed is that the panel stopped needing to be a dropdown — `weather.sh
@@ -101,7 +101,7 @@ let
       # an empty `.text`, which is not empty. The pair is the only reason the
       # verb exists. Resting state is an unreachable phone, which is most of the
       # time — and was 10px of dead bar between bluetooth and the divider,
-      # reported as bluetooth's padding. docs/gotchas.md -> Wayle.
+      # reported as bluetooth's padding.
       command = "${s}/kdeconnect/phone-status.sh bar";
       interval-ms = 30000;
       hide-if-empty = true;
@@ -209,7 +209,7 @@ let
   # gets its icon widget — 22px of nothing wedged between two modules. Every
   # script above emits its own glyph in the text, so that slot is only ever
   # empty. Derived from the definition so a new module cannot forget it.
-  # docs/gotchas.md -> Wayle.
+  #
   monoCustom = map (m: mono // { icon-show = m ? icon-name; } // m) customModules;
 
   # ── Native module settings ────────────────────────────────────────────────
@@ -279,12 +279,12 @@ let
     # except its two-tone `battery-level-*`. A native `format` sees only
     # `{{ percent }}`, which is why `volume` and `battery` keep their icon
     # widget — `icon-muted` and `charging-icon` are the only way those states show.
-    # docs/gotchas.md -> Wayle. checks/static.sh resolves every name.
+    # checks/static.sh resolves every name.
     # ── Clicks and scrolls, which do NOT come for free ────────────────────
     # A native module takes wayle's defaults for all six actions, and wayle's
     # default for every scroll is the empty string — so the volume, brightness
     # and media affordances waybar had were dropped by the port in silence, the
-    # modules rendering identically either way. docs/gotchas.md -> Wayle.
+    # modules rendering identically either way.
     #
     # THE SCROLL PAIRS BELOW LOOK INVERTED AND ARE NOT: natural scrolling
     # delivers fingers-up as `scroll-down`. Carried from waybar.nix, which
@@ -416,7 +416,7 @@ let
     # `adwaitaShellIcons` in `home.packages` below carries the files.
     #
     # Eleven, because the ladder is 0-100 in tens and wayle divides the range
-    # evenly among however many it is given. docs/gotchas.md -> Wayle.
+    # evenly among however many it is given.
     battery.level-icons = [
       "adw-battery-level-0-symbolic"
       "adw-battery-level-10-symbolic"
@@ -463,7 +463,7 @@ let
   # CSS id. The divider between two is a `border-left` in
   # dotfiles/wayle/index.scss, not a `separator` module — one of those sits
   # outside any group, where nothing in the sheet can reach its padding.
-  # docs/adr/0042, docs/adr/0045.
+  # docs/adr/0042, docs/adr/0051.
   #
   # `wlr/taskbar` has NO wayle equivalent and is dropped rather than faked;
   # `full` carried it and nothing else did.
@@ -616,7 +616,7 @@ let
   # on wayle's own `.module`, which is the same widget — so `.mod-clock`,
   # `.mod-battery`, `.mod-custom-weather` are free for per-module spacing.
   # Prefixed because wayle's dropdowns already use bare `.battery`/`.bluetooth`.
-  # docs/gotchas.md -> Wayle.
+  #
   classed = m: {
     module = m;
     class = "mod-${m}";
@@ -645,10 +645,10 @@ let
       # `Inter` was here and is not installed. These two are what waybar's CSS
       # asks for and what fonts.nix ships; checks/static.sh asserts they exist.
       general = {
-        # TWO FAMILIES, Symbols FIRST — style-solid.css's stack. 3270's
+        # TWO FAMILIES, Symbols FIRST — style-solid.css's stack. A text face's
         # advance is too narrow for the glyphs it patches in, so a glyph in a
         # label overflows and eats the space after it. `cpu` and `ram` print
-        # theirs as text. docs/gotchas.md -> Wayle.
+        # theirs as text.
         font-sans = "Symbols Nerd Font Mono, 3270 Nerd Font";
         font-mono = "JetBrainsMono Nerd Font";
       };
@@ -684,7 +684,7 @@ let
 
         # ── Horizontal spacing ────────────────────────────────────────────
         # These names do not mean what they read like, and two of the keys do
-        # nothing. The table is in docs/gotchas.md -> Wayle; index.scss owns the
+        # nothing; index.scss owns the
         # spacing that actually lands.
         #
         # `module-gap` and `button-group-module-gap` are written as 0 rather

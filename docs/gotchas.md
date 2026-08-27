@@ -86,7 +86,7 @@ owner, it is a no-op; the directory was deleted on 2026-08-25 rather than fixed.
 
 **Deleting under `~` does not return the space.** `@home` carries the live
 snapper timeline, so 26 GB of Arch-era `~/.cache/paru` stayed referenced and
-`df` barely moved. It comes back as snapshots age out. See `docs/WORK-LOG.md`,
+`df` barely moved. It comes back as snapshots age out. See
 2026-08-25.
 
 ---
@@ -307,8 +307,9 @@ the build.
 
 ### `swaync-client` against a masked unit exits 0
 
-swaync is started in neither desktop mode since `docs/adr/0045`, and its unit is
-masked on top of that. `swaync-client -D -sw` then prints
+swaync is the tiling mode's daemon and is not started in noctalia mode; between
+2026-08-24 and 2026-08-27 it was started in neither, and its unit is masked on
+top of that (`docs/adr/0051`). `swaync-client -D -sw` then prints
 
 ```
 GDBus.Error:org.freedesktop.DBus.Error.NameHasNoOwner: Could not activate remote
@@ -677,7 +678,7 @@ it is `dirname` of that path, for nested includes too (`parse_config.h:3276`).
 So moving `config.conf` breaks all 20 `source=./…` lines at once. `~/` paths
 work everywhere and are the fix if it ever moves.
 
-**Settings are last-wins but BINDS ARE FIRST-WINS, and a duplicate warns.**
+**Settings are last-wins but binds are first-wins, and a duplicate warns.**
 Binds append (`parse_config.h`: `realloc(… count + 1 …)`) and the dispatcher
 stops at the first match (`src/mango.c`, `only match the first keybind`), so a
 mode conf sourced *ahead* of `universal/bind.conf` does override it — the exact
@@ -801,7 +802,7 @@ as one flat mass, which defeats the point of a texture. The generator bans a
 block from matching any of its eight neighbours; below about nine tones there
 are too few colours left for that constraint to be satisfiable.
 
-⚠️ **`services.fprintd.enable` switches the sensor on for EVERY pam service, not
+⚠️ **`services.fprintd.enable` switches the sensor on for every pam service, not
 just the ones you name.** `security.pam.services.<x>.fprintAuth` defaults to
 `config.services.fprintd.enable`, so one `enable = true` put `pam_fprintd` into
 all 23 stacks — `swaylock` and `login` included. Setting it explicitly on `sudo`
@@ -932,7 +933,7 @@ and the password prompt in `menus/network-menu.sh` must not — with it, Enter
 returns nothing and `nmcli` runs with an empty password.
 
 **`-kb-custom-N` is the only accept key a `-dmenu` caller can tell apart, and
-its answer is the EXIT STATUS.** `Enter`, `Shift+Enter` and `Ctrl+Enter` all
+its answer is the exit status.** `Enter`, `Shift+Enter` and `Ctrl+Enter` all
 exit **0** on their own default bindings: `modes/dmenu.c` gives `MENU_OK`
 (accept-entry), `MENU_CUSTOM_INPUT` (accept-custom) and `MENU_OK |
 MENU_CUSTOM_ACTION` (accept-alt, without `-multi-select`) the same `retv =
@@ -1118,500 +1119,30 @@ and `-theme-str` is not.
 
 ## Wayle
 
-The tiling mode's shell since 2026-08-24 — bar, notification daemon, OSD and
-wallpaper engine. `docs/adr/0045`. Config in `modules/home/wayle.nix`,
-stylesheet in `dotfiles/wayle/index.scss`.
-
-### The stylesheet
-
-`~/.config/wayle/styles/index.scss` overrides the built-in styling. It is
-seventeen rules, and each one does something the config layer cannot. Use a
-config key first; add a rule only when no key exists or the key does not work.
-
-**`.module`, `.mod-<name>` and `#<group> > *` are the same widget.** There is no
-wrapper between a group and its modules. Paint them one at a time to see it.
-`.module` is wayle's own class; `#<group>` ids come from the group's name in the
-layout; `.mod-<name>` is the per-module class `wayle.nix` puts on every module.
-Shared rules go on `.module`, per-module ones on `.mod-<name>` **below it** —
-equal specificity, so source order decides.
-
-**Never write a descendant `*` here.** GTK4 parents a menubutton's popover
-inside the menubutton, so `.module *` matches every widget in every dropdown — the
-calendar, the notification list, the dashboard — and flattens wayle's styling of
-them. The bar looks correct and everything it opens does not. `> *`, `+ *` and
-`~ *` are safe: a popover is a child of the module, so those stop one level
-short. `checks/static.sh` asserts the pattern stays absent.
-
-> A blanket `.mod, .mod * { padding: 0; margin: 0; min-width: 0; … }` did this
-> for two weeks, back when every module shared one `mod` class. It was
-> compensating for the empty icon slots below, and once those were gone it
-> measured identical to not being there.
-
-**wayle's own selectors out-specify a bare class.** Its sheet styles
-`menubutton.bar-button.basic .bar-button-content` (0,3,1),
-`menubutton.bar-button .bar-button-label` (0,2,2) and
-`.bar.top .bar-group > .module + .module` (0,5,0); a class is (0,1,0) and loses
-to all three. To change a value wayle sets, use an id. The built-in sheet is
-compiled into the binary: `strings bin/.wayle-wrapped | grep -F '.bar-'`.
-
-> **This cost the clock.** `.mod-clock .bar-button-label { font-size }` is
-> (0,2,1) against wayle's (0,2,2), so it was inert from the day it was written
-> and the clock wore the bar default. Nothing said so — a rule that loses is a
-> rule that renders. It reads as `#time .mod-clock .bar-button-label` now, and
-> `checks/static.sh` asserts every rule here that touches a `.bar-button-*`
-> carries an id.
-
-**`class` takes one class, not a list.** `class = "mod mod-clock"` is dropped
-whole — GTK's `add_css_class` rejects a name containing a space. That one slot
-is spent on **identity**, not on a shared class: `class = "mod-${m}"`, so every
-module answers to `.mod-clock`, `.mod-battery`, `.mod-custom-weather`. Prefixed
-because wayle's dropdowns already use bare `.battery` and `.bluetooth`. The
-shared rules ride wayle's own `.module` instead. `icon-only` is a button
-variant, not a class you can match.
-
-> `#<group> > *:nth-child(n)` was the only handle until 2026-08-25, and it was
-> fragile in the way a positional selector always is: `#radios > *:nth-child(3)`
-> meant bluetooth only for as long as nothing was added ahead of it.
-
-**A custom module gets state classes too, and those DO take a list.**
-`class-format`'s result is split on whitespace and each word added as a class,
-combining with the JSON output's own `class` field. Every custom module here
-carries `class-format = "{{ class }}"`, so `weather.sh`'s `ok`/`stale`/`error`
-and `power-profile.sh`'s four profiles are live classes on the bar. Native
-modules have no equivalent; their state is config (`battery.thresholds`,
-`icon-muted`, `charging-icon`), not CSS.
-
-**Five of those classes carry colour** — night-mode `on`, idle-inhibit
-`activated`/`failed`, power-profile `performance`/`unavailable`/`fanless`
-(`docs/adr/0048`). Config cannot: `[[modules.custom]]` takes `label-color` as
-one static value and has no `thresholds` key, which exists only on the native
-numeric modules. Each rule needs its **group id** for the specificity reason
-above, and each colour is a `$var` from the generated `_colors.scss`, never a
-hex — `checks/static.sh` pairs the two files both ways.
-
-> The resting states — `off`, `deactivated`, `balanced` — carry no rule on
-> purpose. A permanently-lit group is a group with no signal in it.
-
-**`mango-reload` restarts the bar, and one `exec=` is why.** `reload.sh` and
-`desktop-mode.sh` both end in `mmsg dispatch reload_config`, which re-fires every
-`exec=` line in the active mode's `autostart.conf`; `tiling/autostart.conf` runs
-`wayle-restart.sh` from one. Nothing else starts or restarts wayle — `apply_mode`
-does not touch it and `mode.sh` only execs the mode script.
-
-So `exec=` becoming `exec-once=` there breaks the reload path, the mode-switch
-path and nothing else, all at once and in silence: the bar keeps running its
-previous config while the rest of the mode is applied around it, which reads as
-the change having had no effect. `universal/autostart.conf` is `exec-once=`
-throughout, so making this one match looks like tidying. `checks/static.sh`
-asserts the spelling, and was verified in both directions.
-
-> Verify by PID, never by looking at the bar: `pgrep '^\.?wayle'` before and
-> after. `pgrep -f 'bin/wayle shell'` matches the shell running the pgrep — the
-> trap `CLAUDE.md` records — and reports two instances where there is one.
-
-### Spacing
-
-Ported from `style-solid.css`: 10px between modules in a group, 11px each side
-of a divider, 12px at the screen edge. `.module { padding: 4px }` gives the first
-two; the group's `margin-left: 6px; padding-left: 6px` around its `border-left`
-gives the second. Change one and change the other.
-
-**Negative margins work, and the right section is packed right-to-left.** So on
-a module in it, `padding-right` and `margin-right` cancel exactly and neither
-moves the glyph — only `padding-left` and `margin-left` do. Bluetooth sat 18px
-off its left neighbour and 6px off its divider, because its glyph is the
-narrowest on the bar and floats in a square icon box. Dropping `padding-left`
-moves it left; `margin-left: -2px; margin-right: -2px` holds the section's total
-width so nothing else shifts. 14px and 12px now.
-
-Do not reason about which side a value lands on. Screenshot it and count
-columns.
-
-**`.mod-<name>` IS NOT THE CLICKABLE WIDGET.** It is a container; the button is
-a `menubutton` node inside it. Padding the module makes the *box* bigger and
-leaves the click target exactly where it was — the module grows, the dead space
-moves inward, and a screenshot of the box looks like the fix worked.
-
-> `custom-power` was a 12px glyph with 12px of dead bar each side (the group's
-> `padding-left` on one side, the section's `padding-ends` on the other). The
-> first fix padded `.mod-custom-power` out to the full cell and measured
-> 1884-1919 — while the menubutton stayed 16x23. It looked right in a
-> screenshot and was still unclickable, which is the only way to find this:
-> paint each node a different colour and see which ones exist.
-
-To make a module own its cell: zero the group's `padding-left`, zero the
-module's padding, pull the module past `padding-ends` with a negative
-`margin-right`, and give the **menubutton** the `min-width`/`min-height`.
-Vertical needs no arithmetic — `.module`'s 4 + 23 + 4 already states the bar's
-height, so the menubutton's `min-height` is just 31px.
-
-> The widths do not add up and are not meant to. The widget's right edge is
-> pinned 2px past the screen and clipped, so its left edge is `1922 - W` for
-> `W = min-width + padding` — `W = 38` lands it on the divider. The icon then
-> centres in 38 rather than in the 36 you can see, so it needs
-> `padding-right: 2px` to sit on the cell's real centre. Padding alone grows W
-> and drags the divider and the tray glyph left with it. Re-measure rather than
-> adjusting by arithmetic.
-
-**`#workspaces` is the one exception, and it takes two ids.** The active tag
-draws a background, and 6px of bar between a filled block and a line reads as a
-mistake where the same 6px beside text reads as rhythm. A divider's two halves
-belong to different groups, so flush means `#workspaces { padding-left: 0 }` and
-`#playing { margin-left: 0 }` — and both need `:not(:first-child)`, because the
-divider rule carries it and a bare id is a specificity short. Written without
-it, the rule parses, applies to nothing, and the gap does not move.
-
-**`module-gap` and `button-group-module-gap` do nothing.** Both compile to a
-`margin-left` on selectors that match, but the CSS variables behind them stay 0
-whatever the TOML says. Verified at `3.0` with the sheet's own gap rule removed.
-Both are still written as `0.0`, which is the value wanted if they start
-working. `padding` and `padding-ends` are the same type and both work.
-
-**`bar.padding` is a margin on the SECTION, not padding inside the bar.** Any
-value insets every module from the bar's top and bottom, so the active workspace
-tag — the one widget here that draws a background — stops short at both ends. It
-is `0`, and `checks/static.sh` asserts that, because a value there looks like a
-spacing preference.
-
-**The bar's height rides on the tallest module unless you state it.** Dropping
-`button-icon-size` once took 3px off the whole bar, because the icon was the
-tallest thing in it. `.module` carries `min-height: 23px` so the height is declared:
-23 + 2×4px = 31px.
-
-**`min-height` is a floor, not a cap.** A label bigger than 23px still grows the
-bar, and the bar's height is its exclusive zone, so every tiled window moves.
-The clock hits this at 1.5rem: 31px → 32px, and 1.8rem gives 37px. After
-changing a font size here, measure the bar, not the text.
-
-**Do not use the `separator` module.** It sits as a direct child of the section
-box rather than inside a group, so nothing in the sheet reaches its wrapper and
-its padding survives everything. Draw the divider as a `border-left` on the group
-— a border costs no width. Two rounds of "the cross-group gaps are still too
-wide" were this.
-
-> Its defaults are also invisible: 1px of `fg-subtle` against a background a few
-> percent away. `border-strong` is no better; the border tokens derive from the
-> background.
-
-### Icons
-
-**`icon-show` defaults to true**, so a custom module with no `icon-name` draws a
-22px image widget with nothing in it, between its neighbours, where it reads as
-spacing. Seven of the nine custom modules here print their glyph in the text, so
-seven slots were empty. `wayle.nix` derives `icon-show` from whether the
-definition names an icon; `checks/static.sh` asserts it.
-
-> This was the whole of "the gaps are too big", after four rounds of tuning
-> spacing keys moved them ~2px.
-
-**An empty custom module keeps its button, and `hide-if-empty` defaults false.**
-waybar rendered nothing for `{"text":""}`; wayle draws the button anyway, so the
-module holds ~10px of bar with nothing in it. `custom-phone` did that whenever
-the phone was unreachable — which is most of the time — and it was reported, and
-diagnosed twice, as bluetooth's right-hand padding.
-
-> Found by painting `.mod-custom-phone` green and screenshotting: a solid block
-> sat between the bluetooth glyph and the divider. `padding-right: 0` had
-> already been spent on the same 10px two rounds earlier, and moved 4px of it.
-
-**`hide-if-empty` tests the command's OUTPUT, not the rendered label** — and
-setting it alone changed nothing, because these scripts emit waybar JSON and
-`{"text":"","tooltip":…}` is not an empty output. It takes both halves:
-`phone-status.sh` grew a `bar` verb that prints *nothing* in the resting state,
-and the module names that verb. The control centre still calls `status`, which
-always answers — it reads `.class` to tell `offline` from `disconnected`, and
-silence there would mean "the script did not answer at all".
-
-The key without the verb is inert; the verb without the key draws an empty
-button. Neither half fails loudly, so `checks/static.sh` asserts the pair. It
-also hides on `"0"` and `"false"`, so it is wrong for a module that can
-legitimately say either — `phone` is the only one of the nine here.
-
-**Every icon a module draws is a name you can change.** `battery.level-icons`,
-`charging-icon`, `alert-icon`; `network.wifi-signal-icons` and its four wired
-and wifi states; `bluetooth`'s four states; `brightness.level-icons`;
-`volume.level-icons` and `icon-muted`; `icon-name` on clock, cpu, ram, media,
-notifications and window-title; and `icon-name`, `icon-names` (indexed by
-percentage) or `icon-map` (keyed by an `alt` field) on a custom module.
-
-361 icons ship in the package: `ld-` Lucide, `si-` Simple Icons, `tb-` Tabler,
-`md-` Material, `cm-` wayle's own. `wayle icons list` enumerates them, `wayle
-icons install` pulls more from a CDN, `wayle icons import` takes local SVGs. The
-last two write outside the flake, so a name added that way falls back silently on
-another machine.
-
-**A name resolves through the THEME CHAIN or not at all, and Adwaita is not in
-it.** `Papirus-Dark` inherits `breeze-dark,hicolor`; Adwaita is on this machine
-only because other packages pull it in, and GTK never consults it. An
-Adwaita-only name therefore resolves to nothing and GTK draws its missing-image
-glyph — a circle with a slash, sitting on the bar where an icon should be.
-
-> `bluetooth-acquiring-symbolic` did exactly that on 2026-08-26, the first time
-> a scan started. It is Adwaita-only; Papirus has the other three bluetooth
-> states and not that one. It is `adw-bluetooth-acquiring-symbolic` now, from
-> the same hicolor package as the battery ladder.
-
-**`hicolor` terminates every chain**, which is the whole mechanism behind
-`pkgs/default.nix`'s `adw-` set: an icon installed there is reachable under any
-theme, and the prefix means no theme can shadow it.
-
-**`checks/static.sh` walks that chain**, reading `gtk-icon-theme-name` off the
-generation and following `Inherits=` to hicolor. The first version searched
-every icon tree instead, found the Adwaita-only name and passed — a check that
-resolves names GTK cannot is worse than no check, because it reports clean on a
-bar with a missing glyph on it. It needs `find -L`: the trees are symlink farms,
-and without it every name under `symbolic/status/` reads as missing.
-
-**Three ways to get an icon that reads as solid.** All 361 bundled icons are
-Lucide and Tabler outline, which sit thin beside bold text.
-
-| | when |
-|---|---|
-| the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar draws all of them |
-| a freedesktop name | the **icon theme** answers it, and Papirus's are filled — `audio-volume-{low,medium,high,muted}`, `display-brightness`, `system-shutdown`, `bluetooth-*`, `network-wireless-*`. Not Adwaita, whatever the name looks like: see below |
-| Adwaita's `battery-level-*`, copied under an `adw-` prefix | the ladder. The bare name resolves through the ICON THEME, not to Adwaita — see below |
-
-**A symbolic icon is rendered as a MASK filled with one colour, so any level
-drawn as opacity is flattened.** Papirus — the icon theme in service — answers
-the freedesktop name `battery-level-NN-symbolic` with a full-height body at 35%
-opacity under a solid level path. All eleven rungs therefore render as the same
-solid battery, and the low ones come out orange besides: Papirus tags them
-`class="warning"`, which GTK repaints with the palette's warning colour over
-whatever `icon-color` says.
-
-Adwaita cuts the level out of ONE path, so the mask keeps it. Getting Adwaita
-takes more than naming it — the icon theme is searched first, and Papirus has
-every `battery-level-*`. `pkgs/default.nix` copies Adwaita's under an `adw-`
-prefix that no theme claims, and `wayle.nix` puts that package in
-`home.packages`. The same trap is waiting for any icon whose *state* is drawn
-with opacity rather than with ink.
-
-> The tell is an icon that never changes. `battery-level-90-symbolic` and
-> `battery-level-20-symbolic` rendered identically on the bar; the label beside
-> it read 25%.
-
-**No CSS reaches a module icon's size.** Every module icon is a wayle-drawn
-`widget`, not a `GtkImage` — `.module image` matches exactly one thing on the
-whole bar, the systray item. So `-gtk-icon-size`, `-gtk-icon-transform` and
-`transform: scale()` are all no-ops on a module, at every depth
-(`.mod-x`, `.mod-x widget`, `.mod-x widget widget`), and wayle's own
-`menubutton.bar-button > button.toggle image` rule is vestigial for this
-variant. `bar.button-icon-size` is the only size knob and it is bar-wide. To
-make ONE icon read larger, pick a heavier name instead.
-
-> `.mod-<name> > *` and `> button.toggle` match nothing either — the direct
-> child is a `widget`. `.mod-<name> widget` is the handle, and it is a
-> descendant selector, so it reaches into that module's dropdown too.
-
-**A native `format` sees only `{{ percent }}`.** Not mute, not charging. So
-`volume` and `battery` keep their icon widget — `icon-muted`, `charging-icon`
-and `alert-icon` are the only way those states show.
-
-**A native `format` is real Jinja2.** `{% if percent > 50 %}…{% endif %}`
-evaluates. Verified on the running bar.
-
-**A glyph in a label needs the two-family font stack.** `font-sans` must be
-`"Symbols Nerd Font Mono, 3270 Nerd Font"` — 3270 patches the Nerd Font icons in
-at their natural width but keeps its own narrow 0.54em advance, so the ink
-overflows to the right and eats the space after it. With one family, `cpu`
-renders as `<glyph>8%`. Same stack and same reason as `style-solid.css`.
-
-### A native module's clicks and scrolls are not inherited
-
-**Every action defaults to the empty string except `left-click`.** A native
-module you do not configure has no right-click, no middle-click and **no
-scroll** — and it renders exactly as it would with all six set. So the port from
-waybar dropped scroll-to-adjust on `volume` and `brightness`, next/previous on
-`media`, and the `sysmonitor` scratchpad on `cpu`/`ram`, and nothing in the bar,
-the log or the gate said so. Restored 2026-08-26; `docs/adr/0045` had specified
-the seven custom modules' actions and none of the eleven native ones.
-
-> `volume`'s `left-click` and `middle-click` are the exception, and they moved
-> the behaviour without moving a line of config: waybar muted on left-click,
-> wayle opens `dropdown:audio` there and mutes on **middle**.
-
-**Scroll pairs here look inverted and are correct.** Natural scrolling delivers
-fingers-up as `scroll-down`, so `scroll-up` carries the `2%-` command. Copied
-from `waybar.nix`, which established it.
-
-### Config keys that do not mean what they read like
-
-| Key | Reads like | Actually |
-|---|---|---|
-| `button-gap` | gap between buttons | gap between a button's **icon and its label** — the one gap key that works, and only for native modules |
-| `button-icon-padding` | padding around icons | **inert** unless the variant is `block-prefix` or `icon-square` |
-| `button-label-padding` | horizontal only | drives **height** too — 0.4 → 0.25 took 4px off the bar |
-| `button-icon-size` | — | `1.6rem`; the label is `1.04rem`, so the default bar's icons are 1.54x its text |
-| `module-gap` | group-to-group gap | **inert** |
-| `button-group-module-gap` | gap inside a group | **inert** |
-| `bar.padding` | padding inside the bar | a **margin on the section** |
-
-**`ScaleFactor` clamps to 0.25–3.0 silently.** `button-label-padding = 0.2`
-became 0.25 with nothing said. `Spacing` keys have no floor and reach 0.
-
-**The workspace module has its own typography.** `button-label-size` and
-`button-label-weight` are bar-button keys and a tag is not a bar button.
-`.workspace-label` takes its size from `mango-workspaces.label-size` and is bold
-in wayle's own sheet whatever the bar says.
-
-### `runtime.toml` beats the config file, quietly
-
-**`wayle config set` writes `~/.config/wayle/runtime.toml`, and it wins.** That
-is a third owner for values this repo generates, and the only sign is a line in
-the journal:
-
-```
-warning: config.toml change ignored
-     Field: osd.margin
-    Reason: runtime override active
-    → wayle config reset osd.margin
-```
-
-Nothing on the bar says so, and `checks/static.sh` reads the generation, so an
-override defeats an assertion without failing it. Two were found on 2026-08-26:
-`osd.margin`, and `modules.weather.location = "Dublin"` — a place NAME, which is
-the geocode indirection `docs/adr/0038` rejected, silently replacing the
-`lat,lon` all six layouts are asserted to carry.
-
-`wayle config reset <path>` drops one; the file is gone once it is empty. **A
-value worth keeping belongs in `wayle.nix`**, which is where the OSD margin went.
-
-### Verify against the schema, always
-
-**`wayle config schema` writes JSON Schema** to `~/.config/wayle/schema.json`.
-Validating the six generated TOMLs against it caught four invented keys that
-would each have fallen back to a default in silence:
-
-| Written | Actual |
-|---|---|
-| `wallpaper.transition-type = "wipe"` | swww's name. wayle's enum is `none\|simple\|fade\|left\|right\|top\|bottom` |
-| `battery.warning-level` / `critical-level` | no such keys — a `thresholds` list of `{below, icon-color, label-color}` |
-| `clock.tooltip-format` | no such key; the calendar is `dropdown:calendar` |
-| `power.dropdown-*-command` | those are `dashboard`'s, and a NATIVE module's click takes an action string, not a shell command |
-
-A CUSTOM module's click takes either, so `dropdown:notification` is valid there.
-
-**`mango-workspaces` and `systray` reject `icon-color`/`label-color`.** The
-first colours by tag state, the second draws other apps' icons. `systray` still
-takes `icon-scale`, `item-gap` and `internal-padding` — the last is padding at
-the *ends* of the tray container, on top of the module's own.
-
-**`wayle config default` writes a file; it does not print one.** It creates
-`~/.config/wayle/config.toml.example`; `wayle config schema` creates
-`schema.json` and `tombi.toml`. Both create the directory.
-
-### The rest
-
-**Every module ships its own colour** — clock `accent`, battery `yellow`,
-notifications `green`, network `red`. With `button-variant = "basic"` there are
-no chips to contain them, so they show through raw. Set both colour keys across
-the board; keep colour for state.
-
-**It is a notification daemon.** Running it beside swaync is two claimants for
-`org.freedesktop.Notifications`, and the second never receives one without
-erroring — `docs/adr/0005`. `tiling/autostart.conf` kills swaync before starting
-it.
-
-**There is no signal IPC.** waybar took a push (`pkill -RTMIN+N waybar`); wayle
-has `poll`, `watch` and `on-action` only. Every ported custom module carries
-`on-action` and an interval.
-
-> **A `pkill` that matches nothing returns 1, and it was the last statement.**
-> Six scripts carried the old push and each made it their function's exit
-> status, so a toggle that worked exited non-zero — wayle logs
-> `command failed, cmd: …` for exactly that, which is how it was found. All six
-> are gone and `checks/static.sh` asserts it, scanning code with comments
-> stripped so the comment recording each removal does not trip it.
-> `docs/adr/0047`.
-
-**`on-action` covers the click and nothing else, so a keybind needs the
-interval.** `custom-idle-inhibitor` is the case that showed it: SUPER+SHIFT+a
-toggles `wlinhibit.service` and has no other feedback — no OSD, no notification
-on success — so at `interval-ms = 30000` the glyph still read "idle ladder live"
-half a minute after the ladder was held off, which is indistinguishable from a
-dead key. It polls at 2000 now. Any module a *key* can change wants an interval
-a person will wait through, not one sized for the state changing on its own.
-
-**A click action is a shell command OR a `dropdown:`, never both**, and the
-dropdown types are wayle's own. There are **ten**, enumerated in the
-`schema.json` that `wayle config schema` writes: `audio`, `battery`,
-`bluetooth`, `brightness`, `calendar`, `dashboard`, `media`, `network`,
-`notification`, `weather`. A custom module may open one and cannot register an
-eleventh — `CustomModuleDefinition` has 28 keys and none of them is a panel — so
-a dropdown built from a script's own data is not available at any price.
-
-**And no dropdown opens from outside the bar.** `com.wayle.Shell1` exposes
-`BarShow`, `BarHide`, `BarToggle` and nothing else; `wayle panel` has
-start/stop/restart/status/settings/inspect/hide/show/toggle. So a dropdown
-answers a mouse click on one bar module and no key, which is why the
-notification history is a rofi list (`docs/adr/0047`) and why the weather panel
-became one (`docs/adr/0050`).
-
-> **A dropdown's service is configured even when no layout carries its module.**
-> `Service ready service="Weather"` is logged at startup regardless, so
-> `[modules.weather]` aimed `dropdown:weather` while the native module stayed
-> off the bar. The trap is the default: unconfigured, that panel is **San
-> Francisco** — a complete, plausible forecast for somewhere else.
->
-> Both are gone as of 2026-08-26 (`docs/adr/0050`), and removing the block was
-> only safe because the *click* went with it. **`clock.right-click` defaults to
-> `dropdown:weather`**, so a layout that writes no value there keeps a second
-> way into that panel — and once `[modules.weather]` is out, that way lands in
-> San Francisco. `checks/static.sh` asserts no layout names `dropdown:weather`
-> or carries `[modules.weather]`.
-
-**`general.font-sans` / `font-mono` fall back in silence.** `Inter` was written
-here — wayle's own example uses it — and this machine does not have it.
-`checks/static.sh` reads both names out of the generated layouts and asserts they
-resolve, splitting a stack on commas at both ends: `fc-scan --format '%{family}'`
-returns a comma-separated alias list, and a configured value may be a stack.
-
-**`services.wayle.settings` must stay `{ }`** — one value claims
-`~/.config/wayle/config.toml`, which `wayle-restart.sh` owns as a link.
-`index.scss` is the opposite case and IS claimed: wayle only seeds it when absent
-and never rewrites one that exists.
-
-**Its units must not start at login.** `services.wayle` and `services.awww` both
-want `graphical-session.target`, which runs in every mode including noctalia —
-two bars and two wallpaper layers in a mode that asked for neither. Both are
-`mkForce [ ]`.
-
-**Nothing kills waybar any more, so a mode script has to.** The retirement took
-`exec=pkill waybar` out of `tiling/autostart.conf`, and a session predating the
-switch kept its bar, holding an exclusive zone beside wayle's. Restored in both
-mode paths until waybar itself goes.
-
-> **Plain `pkill waybar`, not `pkill -f 'bin/waybar$'`.** waybar is invoked as
-> `waybar -c … -s …`, so its cmdline carries no path and the `bin/` anchor
-> matches nothing. The unanchored `comm` match finds `.waybar-wrapped`. This is
-> the exception the CLAUDE.md rule names.
-
-### Measuring the bar
-
-Screenshot it and read pixels; do not adjust a knob and look.
-
-- **Widths and gaps.** `grim`, crop the bar strip, print the runs of
-  background-coloured columns. That gives every gap in pixels.
-- **Which widget owns a gap.** Give each level a different background —
-  `.bar-group`, `.bar-item`, `button.toggle`, `.bar-button-content`,
-  `.bar-button-label` — and read the columns again.
-- **Height.** The bar's height is its exclusive zone, which is a tiled window's
-  `y`: `mmsg get all-clients | jq -r '[.clients[]?|select(.is_floating==false)|select(.x==0)|.y]|unique[]'`
-
-**Check which layout is live first.** `wayle-restart.sh` builds its filename from
-`$XDG_STATE_HOME/mango/bar-layout` and `bar-position`, so editing the wrong one
-of the six changes nothing. `readlink -f ~/.config/wayle/config.toml` says which.
-Five probes in one session measured a file that was not live.
-
-**Realise a store path before linking at it.** `nix eval --raw` on a generated
-file returns a path it has not built, so `ln -sfn` leaves a dangling link.
-`wayle-restart.sh` then fails both its guards, never reaches `systemctl restart`,
-and the old process keeps serving the old config. Use `nix build
---print-out-paths`.
-
-> **Two bars stack.** A combined 54px reading was waybar's 32 plus wayle's 22,
-> which read as wayle being far smaller than it was. Check `pgrep waybar` before
-> trusting a measurement.
+**Installed and generated; nothing starts it.** wayle held the bar, the
+notification daemon, the OSD and the wallpaper engine in tiling mode between
+2026-08-24 and 2026-08-27. `docs/adr/0051` says what came back and why. Its
+config is still built by `modules/home/wayle.nix` and its stylesheet is still
+`dotfiles/wayle/index.scss`, so a rebuild still has to satisfy the two
+constraints below.
+
+The rest of what was learned porting the bar to it — its selector precedence,
+its spacing model, its icon chain, its Jinja2 formats and its silent config-key
+clamps — went with the section on 2026-08-28. It described a surface no mode
+draws, and `git log` has it if wayle is ever started again.
+
+**`services.wayle.settings` must stay `{ }`.** The module claims
+`wayle/config.toml` the moment it holds one value, and that path is owned by
+`scripts/wayle/wayle-restart.sh`, which re-points it per layout and position.
+Two owners for one path is an activation failure, not a merge, and
+`checks/static.sh` asserts the file is absent from the generation. A missing
+link there leaves a plausible bar that is not this one, which is why
+`wayle.nix` seeds it at activation.
+
+**`runtime.toml` beats the config file, quietly.** `wayle config set` writes
+`~/.config/wayle/runtime.toml` and it wins over everything generated. Nothing
+warns. If wayle is ever started again, check that file before believing the
+generated one.
 
 ## Waybar
 
@@ -1619,6 +1150,42 @@ and the old process keeps serving the old config. Use `nix build
 > 2026-08-27, and is again. `docs/adr/0051`. Nothing below was invalidated by
 > the round trip; the four findings at the top of this section came *out* of it,
 > from rendering the two bars side by side rather than from reading configs.
+
+**`format-alt` does nothing on its own.** `ALabel::handleToggle` is gated on
+`config_["format-alt-click"].isUInt()` (`ALabel.cpp:181`) and waybar sets no
+default, so a module declaring `format-alt` and nothing else has a second
+reading no click can reach. Four did here — clock, memory, network and battery
+— for as long as they had existed. `mkBar` now emits `format-alt-click = 1`
+for any module carrying a `format-alt`, so the pair cannot come apart.
+`docs/adr/0057`.
+
+**And `on-click = "alt"` is not how you ask for it.** "alt" is not one of
+waybar's action names; `AModule::handleUserEvent` looks the event name up, finds
+`config_["on-click"]` is a string, and `forkExec`s it. So the setting spawned
+`alt` as a shell command on every left-click of the memory module and failed,
+once per click, with nothing on any stderr anyone reads. The real action names
+are per-module and documented in the module's man page — `mode`, `shift_up`,
+`tz_up`, `activate` — and they go in an `actions` block, not in `on-click`.
+
+**A styled state can be one waybar never renders.** `#tray > .passive` dimmed
+passive tray items for as long as it existed, and `show-passive-items` defaults
+to false (`waybar-tray(5)`), so no passive item was ever drawn for it to match.
+A rule for a widget that does not exist looks exactly like a rule that works.
+Deleted; set the option if they should show. `docs/adr/0057`.
+
+**rofi selects a row whether the surface wants one or not.** A readout built
+from rows — the weather panel, the calendar — gets its first row highlighted,
+which on the calendar was the `Mo Tu We` header and read as a broken list.
+`-selected-row` moves it somewhere that means something; the calendar puts it on
+the week containing today. There is no "select nothing".
+
+**A scan for glyph escapes has to read both widths.** `$'\uXXXX'` and
+`$'\UXXXXXXXX'` are both legal bash and the check read only the second, so 39
+Font Awesome and nf-weather glyphs were invisible to it — including the one it
+was written to catch. It reported "all N are nf-md" for a year. Below U+E000 an
+escape is not a glyph at all (`\u001f` is window-title.sh's field separator);
+above it, a 4-digit escape cannot reach U+F0000 and is therefore always another
+pack. `docs/adr/0057`.
 
 **The generated config keys a module by its TAGGED name, so `.mpris` is not
 where `mpris` lives.** `waybar.nix` appends `#sep` to the first module of each
@@ -1649,7 +1216,7 @@ player per playing tab. On this machine it exposes one (`playerctl -l` → a
 single `firefox.instance_*`) and firefox is the only player, so the module
 rendered nothing, always, and looked like a module with nothing to say.
 
-**`{icon}` in a custom module's `format` renders the WHOLE label empty.** The
+**`{icon}` in a custom module's `format` renders the whole label empty.** The
 documented way to give `custom/window` a per-app glyph is `format = "{icon} {}"`
 with a `format-icons` map keyed by the JSON `alt` field. On waybar 0.15.0 the
 module then draws **nothing at all** — not the text without the icon, the whole
@@ -1953,7 +1520,7 @@ of groups now and the sheet has one `.sep` rule; `docs/adr/0042`.
 > `network#sep` with its settings under `network` renders waybar's defaults and
 > says nothing.
 
-> **The group gap needs a margin AND a padding, and both must live in the `*`
+> **The group gap needs a margin and a padding, and both must live in the `*`
 > rule.** A border is drawn between margin and padding, so `margin-left` puts
 > space *before* the line and `padding-left` puts it *after* — a `.sep` carrying
 > only the margin gives the group its whole gap on one side, which reads as
@@ -2610,7 +2177,7 @@ the scan exists to find, inside the scan. It now extracts the values from the
 palette and **fails below sixteen of them**, so a sed that stops matching is
 loud rather than reassuring.
 
-**The artefacts the palette cannot reach are DECLARED IN THE THEME FILE**, since
+**The artefacts the palette cannot reach are declared in the theme file**, since
 `docs/adr/0032`: the GTK theme, GTK4 (follows it), icons, cursor, Kvantum, yazi's
 flavor, and the names noctalia, nvim and Zed resolve internally. They live in the
 `packages` and `apps` blocks of `modules/home/themes/*.nix`; `pkgs/default.nix`
@@ -2969,7 +2536,7 @@ the default for every colour consumer. `modules/home/modes.nix` names a colour
 scheme **per desktop mode** (`docs/adr/0034`); `noctalia` mode is currently
 `nord`, which reaches mango's chrome and noctalia's own palette and nothing else
 yet. Hack Nerd Font Mono 11 in the terminals, with kitty bold/italic in 0xProto
-Nerd Font Mono. Modes are **tiling** and **noctalia** (`docs/adr/0035`); the active one is
+Nerd Font Mono. Modes are **tiling** and **noctalia**; the active one is
 in `~/.local/state/mango/current-mode`.
 
 ---
@@ -3080,7 +2647,7 @@ exist — at which point sops silently opens its `hello: Welcome to SOPS!` templ
 for a *new* file instead of erroring. **That template is the tell.** `sops` and
 `age` are devShell-only for exactly this reason.
 
-**A secret is DECLARED only where something reads it.** `sops.secrets.<name>`
+**A secret is declared only where something reads it.** `sops.secrets.<name>`
 decrypts to `/run/secrets/<name>` on every boot, so declaring one nothing
 consumes just puts plaintext on a running system. Declared: `pia/username`,
 `pia/password`. Stored-only (recover with `sops -d --extract`): the `homelab`

@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-08-21)
 
-Completes [0021](0021-rofi-replaces-walker-and-elephant.md), which replaced the
+Completes the walker removal, which replaced the
 menu layer with rofi and explicitly left `fsel` on `SUPER+space`. Follows
 [0034](0034-colour-follows-the-mode-artefacts-do-not.md) — the half of the
 system that can follow a mode switch.

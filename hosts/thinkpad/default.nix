@@ -32,7 +32,7 @@
   # No password here on purpose — `mutableUsers` is on, so it lives in
   # /etc/shadow and stays out of git. On a fresh install `nixos-install` prompts
   # only for root, leaving this account locked; set it from the installer with
-  # `nixos-enter --root /mnt -c 'passwd henry'`. docs/archive/migration-guide.md
+  # `nixos-enter --root /mnt -c 'passwd henry'`.
   # step 8.3.
   users.users.henry = {
     isNormalUser = true;

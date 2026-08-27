@@ -3,10 +3,10 @@
 
 . "$HOME/.config/mango/scripts/lib.sh"
 
-BT=$'\uf294 '    # fa-bluetooth
-SCAN=$'\uf021 '  # fa-refresh
-CHECK=$'\uf00c ' # fa-check
-GEAR=$'\uf013 '  # fa-cog
+BT=$'\U000F00AF '    # nf-md-bluetooth
+SCAN=$'\U000F0450 '  # nf-md-refresh
+CHECK=$'\U000F012C ' # nf-md-check
+GEAR=$'\U000F0493 '  # nf-md-cog
 
 SEP_CONNECTED=$'── Connected ──────────────'
 SEP_PAIRED=$'── Paired ─────────────────'

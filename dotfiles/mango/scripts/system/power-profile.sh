@@ -23,17 +23,22 @@ read -r pp ps <"$PWRFILE"
 # Escapes, not literal glyphs. Written literally on 2026-07-31 the characters
 # were lost in transit and every branch assigned the empty string, so the module
 # emitted {"text":""} and waybar drew nothing -- which is how it was reported:
-# "I still don't see a power mode module". $'\uXXXX' keeps the source ASCII.
-# All four are in 3270 Nerd Font; check `fc-list ':charset=f0e7' family` before
-# swapping any of them.
+# "I still don't see a power mode module". $'\UXXXXXXXX' keeps the source ASCII
+# and puts the codepoint where checks/static.sh can read it.
+#
+# NOT A BOLT. `performance` was nf-fa-bolt until 2026-08-28, sitting one module
+# to the left of a battery whose charging art is a bolt inside a battery \u2014 two
+# bolts 30px apart, and the red one meant the CPU governor. A gauge cannot be
+# misread as charge state. docs/adr/0057.
+#
 # `class` must stay a single word: waybar splits it on whitespace, so
 # "unknown (9)" becomes the two classes `unknown` and `(9)` and matches no rule
 # in style-solid.css. The code goes in the tooltip instead.
 case "$pp" in
-0) name=performance class=performance icon=$'\uf0e7' ;;                      # nf-fa-bolt
-1) name=balanced class=balanced icon=$'\uf042' ;;                            # nf-fa-adjust
-2) name=fanless class=fanless icon=$'\uf06c' ;;                              # nf-fa-leaf
-*) name="unknown (profile code ${pp:-none})" class=unknown icon=$'\uf128' ;; # nf-fa-question
+0) name=performance class=performance icon=$'\U000F0874' ;;                      # nf-md-gauge_full
+1) name=balanced class=balanced icon=$'\U000F029A' ;;                            # nf-md-gauge
+2) name=fanless class=fanless icon=$'\U000F032A' ;;                              # nf-md-leaf
+*) name="unknown (profile code ${pp:-none})" class=unknown icon=$'\U000F02D7' ;; # nf-md-help_circle
 esac
 
 case "$ps" in

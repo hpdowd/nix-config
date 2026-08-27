@@ -161,7 +161,7 @@ comment had one. dbus rejects the whole file, and the file is loaded by the
   scroll wheel, and noctalia raises a toast naming the profile it moved to — the
   feedback the bar cycle lacked. `SUPER+SHIFT+P` and the waybar module return to
   balanced.
-- **The battery panel's slider is NOT enabled by default, and is not seeded.**
+- **The battery panel's slider is not enabled by default, and is not seeded.**
   `showPowerProfiles` is a per-instance setting on the `Battery` *bar widget*
   (`BarWidgetRegistry.qml` default `false`), so turning it on means pinning the
   whole `bar.widgets` layout into the seed — owning a structure that upstream

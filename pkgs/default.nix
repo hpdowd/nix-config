@@ -146,7 +146,7 @@ in
   # Copied under `adw-`, wayle's own prefix convention for a source set, so no
   # icon theme can shadow them and they do not follow the scheme. A missing
   # source name fails the build here rather than falling back in silence on the
-  # bar. docs/gotchas.md -> Wayle.
+  # bar.
   adwaitaShellIcons =
     prev.runCommand "adwaita-shell-icons"
       {

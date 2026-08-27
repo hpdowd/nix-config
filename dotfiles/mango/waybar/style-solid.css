@@ -8,22 +8,26 @@
    modules/home/waybar.nix. docs/adr/0052. */
 @import url("icons.css");
 
-/* Symbols FIRST, 3270 second. 3270 patches the Nerd Font icons in at their
-   natural width but keeps its own narrow 0.54em advance, so the ink overflows
-   the cell to the right and no symmetric padding can centre it — ten of this
-   bar's modules emitted a glyph that did, by up to a full em. Pango falls back
-   per character, so Symbols supplies the icons and 3270 the digits and text.
-   Symbols carries 10,519 codepoints of which only 14 are outside the Nerd Font
-   PUA and the bar prints none of them, so nothing else changes hands.
-   Measured, not assumed: docs/gotchas.md -> Waybar. */
-/* 13.5px. 14 read large beside wayle and 13 read small, and GTK takes a
-   fractional value here — checked by rendering all three, not assumed.
+/* 3270, which is the bar's look. docs/adr/0058 moved it to Hack on the
+   argument that the bar was the only surface not reading in the machine's own
+   face; that closed a seam nobody was bothered by and lost the one thing the
+   bar was wanted to look like. Hack and 0xProto were both tried in place and
+   both are wider and rounder than this. docs/adr/0059.
 
-   `font-weight: bold` is not decoration at this size: 3270 is a narrow
-   bitmap-derived face and its regular weight goes thin and uneven under 14px,
-   which is most of what makes a small bar look blurry rather than small. The
-   two settings move together — dropping the size without the weight is what
-   this looked like before. docs/adr/0051. */
+   Symbols first. 3270 patches the Nerd Font icons in at their natural width but
+   keeps its own narrow 0.54em advance, so the ink overflows the cell to the
+   right and no symmetric padding can centre it — ten of this bar's modules
+   emitted a glyph that did, by up to a full em. Pango falls back per character,
+   so Symbols supplies the icons and 3270 the digits and text. Symbols carries
+   10,519 codepoints, only 14 outside the Nerd Font PUA, and the bar prints none
+   of those.
+
+   13.5px and bold, and the two move together. GTK takes a fractional size here;
+   14 read large and 13 read small, checked by rendering all three. `bold` is
+   not decoration at this size: 3270 is a narrow bitmap-derived face whose
+   regular goes thin and uneven under 14px, which is most of what makes a small
+   bar look blurry rather than small. Dropping the size without the weight is
+   what this looked like in between. */
 * {
     font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
     font-size: 13.5px;
@@ -78,18 +82,35 @@ window#waybar.bottom {
     color: @text;
 }
 
-/* The two neutral tiers, and which one a module joins.
+/* The three neutral tiers, and which one a module joins.
  *
- *   @text     the module's value is the information — clock, window title,
- *             mpris, cpu, memory, network, pulseaudio, backlight, battery,
- *             tray. This block is that tier and needs no rule per module.
- *   @subtext  the module's glyph is the information and its resting state is
- *             nothing to report — vpn, notification, night-mode,
- *             idle-inhibitor, power-profile, control-center, weather. Each
- *             opts in with `color: @subtext` below.
+ *   @text          the module's value is the information — clock, window title,
+ *                  mpris, cpu, memory, network, pulseaudio, backlight, battery,
+ *                  tray. This block is that tier and needs no rule per module.
+ *   @subtext       the module's glyph is the information and it is AT REST: on,
+ *                  available, nothing to report — bluetooth idle, notification
+ *                  none, night-mode armed, power-profile balanced,
+ *                  control-center, weather ok.
+ *   @subtext / .5  the feature is OFF or suppressed — bluetooth off, vpn off,
+ *                  night-mode off, idle-inhibitor deactivated, notification
+ *                  dnd/inhibited, weather stale. 3.37:1 on heartbox: quiet, and
+ *                  still legible.
  *
  * Written down because there was no rule: cpu and memory sat in the dim tier
  * while network, backlight and battery sat in the bright one. docs/adr/0053.
+ *
+ * The third tier existed before it had a rule, which is the same failure one
+ * layer down — `opacity: 0.5` was on bluetooth.off, night-mode.off and
+ * weather.stale, while vpn.off, notification.dnd-*, and
+ * idle-inhibitor.deactivated meant exactly the same thing and sat at full
+ * @subtext. Same semantic, 3x the contrast, no rule saying which. Every off
+ * state wears it now. docs/adr/0057.
+ *
+ * ONE EXCEPTION, deliberately: `#pulseaudio.muted` stays at full @subtext. It
+ * is the module that also carries the microphone indicator, and the argument
+ * in waybar.nix is that muted must never approach invisible — "muted" and "the
+ * module is broken" becoming one picture is being recorded when you thought you
+ * were not.
  *
  * The left half adds a third thing, an identity tint. Time, weather, media and
  * minimized windows are four unrelated kinds of information, where the right
@@ -178,11 +199,16 @@ window#waybar.bottom {
     color: @green;
 }
 
-/* Explicit, though it resolves to the same colour as the bare rule above. The
+/* Explicit, though it inherits the same colour as the bare rule above. The
    script emitted `"class":""`, which is an absence rather than a state: nothing
-   for the "every class a script prints has a rule" scan to check. */
+   for the "every class a script prints has a rule" scan to check.
+
+   Dimmed per the tier rule — the VPN is off. vpn.sh also draws a different
+   SHAPE for it now (md-shield_off, not the check-shield both states shared),
+   so the colour confirms the state rather than carrying it. docs/adr/0057. */
 #custom-vpn.off {
     color: @subtext;
+    opacity: 0.5;
 }
 
 /* ── Workspaces ───────────────────────────────────────────────────── */
@@ -406,7 +432,33 @@ window#waybar.bottom #workspaces button.active {
     color: @subtext;
 }
 
+#custom-notification.none { color: @subtext; }
 #custom-notification.notification { color: @yellow; }
+
+/* SIX OF THE EIGHT CLASSES HAD NO RULE. swaync-client -swb emits `dnd-`,
+   `inhibited-` and `dnd-inhibited-` variants of both states, and the module
+   declares a glyph for every one of them in waybar.nix — but the sheet styled
+   only `.notification`, so every suppressed state rendered at the bare
+   @subtext and do-not-disturb was indistinguishable from a quiet inbox. The
+   glyph does change (󰂛 against 󰂚) and that is a 13.5px difference of one
+   diagonal stroke.
+
+   Suppressed is off, so it takes the off tier. The two that also have something
+   waiting keep @yellow under it: there is a notification, you have silenced it.
+   docs/adr/0057. */
+#custom-notification.dnd-none,
+#custom-notification.inhibited-none,
+#custom-notification.dnd-inhibited-none {
+    color: @subtext;
+    opacity: 0.5;
+}
+
+#custom-notification.dnd-notification,
+#custom-notification.inhibited-notification,
+#custom-notification.dnd-inhibited-notification {
+    color: @yellow;
+    opacity: 0.5;
+}
 
 /* ── Control centre ───────────────────────────────────────────────── */
 
@@ -426,9 +478,12 @@ window#waybar.bottom #workspaces button.active {
 
 /* ── Bluetooth ────────────────────────────────────────────────────── */
 
-#bluetooth { 
-  color: @text; 
-}
+/* @subtext, not @text. The radio being on with nothing connected is the
+   textbook at-rest state, and it was the BRIGHTEST icon in its group — brighter
+   than the network name beside it, for a module reporting nothing. It sat in
+   the @text tier because that tier was written as "network, backlight and
+   battery" and bluetooth came along with them. docs/adr/0057. */
+#bluetooth { color: @subtext; }
 #bluetooth.connected { color: @green; }
 #bluetooth.off,
 #bluetooth.disabled { color: @subtext; opacity: 0.5; }
@@ -459,6 +514,14 @@ window#waybar.bottom #workspaces button.active {
 
 #custom-idle-inhibitor {
     color: @subtext;
+}
+
+/* The idle ladder is live, i.e. the inhibitor is off — the tier rule's third
+   weight. idle-inhibit.sh emits this class on every status read and the sheet
+   had no rule for it, so it rendered at the bare id above. docs/adr/0057. */
+#custom-idle-inhibitor.deactivated {
+    color: @subtext;
+    opacity: 0.5;
 }
 
 /* The two glyphs differ only by a slash, so the colour carries the state. @blue
@@ -573,7 +636,11 @@ window#waybar.bottom #workspaces button.active {
 
 /* ── Tray ─────────────────────────────────────────────────────────── */
 
-#tray > .passive        { -gtk-icon-effect: dim; }
+/* No `#tray > .passive` rule. `show-passive-items` defaults to false
+   (waybar-tray(5)) and the module does not set it, so a passive item is never
+   rendered and the rule dimming it could never match — a styled state for a
+   widget that does not exist. Set the option if they should show; do not
+   re-add the rule alone. docs/adr/0057. */
 #tray > .needs-attention { -gtk-icon-effect: highlight; color: @yellow; }
 
 /* ── Tooltip ──────────────────────────────────────────────────────── */

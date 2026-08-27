@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-08-26).
 
-Extends [0045](0045-wayle-is-the-tiling-shell.md), which specified the bar and
+Extends [0045](0045-each-mode-owns-its-wallpaper.md), which specified the bar and
 left the rest of wayle on its defaults.
 
 ## Context

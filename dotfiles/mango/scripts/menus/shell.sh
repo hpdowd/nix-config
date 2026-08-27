@@ -35,7 +35,7 @@ fb_emoji() { rofi -show emoji; }
 fb_network() { "$MANGO_DIR/scripts/menus/network-menu.sh"; }
 fb_bluetooth() { "$MANGO_DIR/scripts/menus/bluetooth-menu.sh"; }
 fb_power() { "$MANGO_DIR/scripts/menus/power-menu.sh"; }
-# SWAYNC AGAIN. It was the daemon here until docs/adr/0045 handed
+# SWAYNC AGAIN. It was the daemon here until wayle briefly took
 # org.freedesktop.Notifications to wayle, and it is the daemon here again —
 # tiling/autostart.conf starts it once wayle is stopped. docs/adr/0051.
 #
@@ -65,6 +65,12 @@ fb_keep_awake() { "$MANGO_DIR/scripts/system/idle-inhibit.sh" toggle; }
 # the state model is not shared, so the honest version is one that rebuilds.
 # docs/adr/0033.
 fb_control_center() { "$MANGO_DIR/scripts/menus/control-center.sh"; }
+# The third `fb=none` row to get a fallback, after keep-awake and the control
+# centre, and for the same reason: the surface existed in noctalia and nowhere
+# else, so the key reported "Only in noctalia mode" in the mode it is used in.
+# The clock's tooltip was the tiling answer and could not be navigated.
+# docs/adr/0058.
+fb_calendar() { "$MANGO_DIR/scripts/menus/calendar.sh"; }
 
 # The table. `ipc` is a noctalia target and function, two words on purpose —
 # checks/static.sh reads this block and asserts both halves exist. `fb=none`
@@ -126,7 +132,7 @@ control-center)
 	;;
 calendar)
 	ipc="calendar toggle"
-	fb=none
+	fb=fb_calendar
 	;;
 dock)
 	ipc="dock toggle"

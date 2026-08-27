@@ -2,7 +2,7 @@
 # Pick the waybar layout (SUPER+/).
 #
 # Every layout here is reachable, which was not true until hud left
-# (docs/adr/0035): hud was a mode that forced its own layout, so in hud mode
+#: hud was a mode that forced its own layout, so in hud mode
 # this picker wrote a choice to state that waybar-restart.sh then overrode —
 # accepted, recorded, and invisible.
 . "$HOME/.config/mango/scripts/lib.sh"

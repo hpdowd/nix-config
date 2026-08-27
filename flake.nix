@@ -122,7 +122,7 @@
             }
             ''
               cd ${self}
-              find . -type f -not -path './docs/archive/*' -print0 \
+              find . -type f -print0 \
                 | while IFS= read -r -d "" f; do
                     # tr strips null bytes binary files would otherwise feed
                     # to the substitution, which bash warns about.
@@ -143,7 +143,7 @@
 
               # `-d`, so the failure names the file and prints the diff. NOT
               # `-s`: simplify rewrites code rather than layout, and it is the
-              # one mode `git diff -w` cannot clear. docs/PLAN-idiomatic-nix.md §5e.
+              # one mode `git diff -w` cannot clear.
               xargs -0 -r shfmt -d < "$TMPDIR/scripts"
               echo "shfmt: $found scripts formatted"
               touch $out
@@ -234,7 +234,7 @@
       # WRAPPED because `formatter = pkgs.nixfmt` cannot work: nixfmt takes
       # files, `nix fmt` passes none, and it then dies on empty stdin with
       # "unexpected end of input". Replace with treefmt-nix rather than growing
-      # this — docs/PLAN-idiomatic-nix.md §5e.
+      # this.
       formatter.${system} = pkgs.writeShellApplication {
         name = "fmt";
         runtimeInputs = [
@@ -250,11 +250,9 @@
 
           # Shell too, so `nix fmt` is a no-op across both languages. Selected
           # by SHEBANG rather than by extension — half these scripts have none
-          # (dotfiles/scripts/*). docs/archive is history, not instructions, and
-          # is excluded here exactly as the shellcheck check excludes it.
+          # (dotfiles/scripts/*).
           find "$root" -type f \
-            -not -path '*/.git/*' -not -path '*/.direnv/*' \
-            -not -path '*/docs/archive/*' -print0 \
+            -not -path '*/.git/*' -not -path '*/.direnv/*' -print0 \
             | while IFS= read -r -d "" f; do
                 case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
                   '#!'*bash*) printf '%s\0' "$f" ;;

@@ -29,5 +29,5 @@ mmsg dispatch reload_config
 
 # Nothing to restart after this. Until 2026-08-14 the reload also had to bounce
 # the elephant daemon, because walker could not draw a window without it — see
-# docs/adr/0021. rofi has no daemon: every menu is a fresh process that reads
+#. rofi has no daemon: every menu is a fresh process that reads
 # ~/.config/rofi/config.rasi on the way up, so a rebuild is the whole reload.

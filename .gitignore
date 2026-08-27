@@ -18,7 +18,7 @@
 # path, so it was a generated symlink AND tracked in git — two owners on one
 # path, and activation failed with "would be clobbered" only after a mode
 # switch had created it, long after the change that caused it. walker is gone
-# (docs/adr/0021) and rofi has one config for every mode, so the whole class
+# and rofi has one config for every mode, so the whole class
 # goes with it. Left as a note because the shape recurs: anything an
 # autostart.conf writes must not also be tracked.
 

@@ -540,8 +540,7 @@ in
       * {
           background-image: none;
           box-shadow: none;
-          font-family: "3270 Nerd Font", monospace;
-          font-weight: bold;
+          font-family: "Hack Nerd Font", monospace;
       }
 
       window {

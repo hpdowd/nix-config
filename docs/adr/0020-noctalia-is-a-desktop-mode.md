@@ -87,7 +87,7 @@ the old key being present, so they no-op rather than corrupting it.
 
 Only the keys that would otherwise fight this machine are set — `wallpaper` off
 (`awww` owns it) — **superseded 2026-08-24 by
-[0045](0045-wayle-is-the-tiling-shell.md): each mode owns its wallpaper, and
+[0045](0045-each-mode-owns-its-wallpaper.md): each mode owns its wallpaper, and
 this one is now `true`** — `nightLight` off (`wlsunset` does), `idle` off and
 `lockOnSuspend` off (swayidle and `lockscreen -f` do), `syncGsettings` off (
 [0004](0004-mode-scripts-own-theming.md) put GTK in Nix's hands). App theming is
@@ -127,7 +127,7 @@ if noctalia is removed.
   too. The uninstall is written out in `docs/SYSTEM.md` §6, which is the count
   to trust — it grew with [0022](0022-noctalia-mode-looks-like-noctalia.md) and
   [0023](0023-noctalia-owns-its-own-actions.md), and the walker config named
-  here left with walker ([0021](0021-rofi-replaces-walker-and-elephant.md)).
+  here left with walker.
 - **swayosd keeps running in noctalia mode, and its OSD overlaps noctalia's.**
   Deliberate: `swayosd-server` is `exec-once`, so a mode that killed it would not
   get it back on the way out — one-way breakage, silently. Cosmetic overlap is

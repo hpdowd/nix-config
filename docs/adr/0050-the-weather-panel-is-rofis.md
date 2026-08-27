@@ -2,11 +2,11 @@
 
 **Status:** Accepted (2026-08-26).
 
-Reverses the click clause of
-[0046](0046-the-weather-panel-is-wayles.md), which put the detailed reading on
-`dropdown:weather`. Everything 0046 kept — the script owns the cache, the
-tooltip and the control-centre row ([0038](0038-weather-is-a-bar-module-the-menu-reads.md),
-[0044](0044-one-request-carries-the-tooltip.md)) — is unchanged.
+Reverses the click clause of the record that put the detailed reading on
+wayle's `dropdown:weather`. The rest of that record is unchanged: the script
+owns the cache, the tooltip and the control-centre row
+([0038](0038-weather-is-a-bar-module-the-menu-reads.md),
+[0044](0044-one-request-carries-the-tooltip.md)).
 
 ## Context
 

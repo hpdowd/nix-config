@@ -44,26 +44,28 @@ do_status() {
 		return
 	fi
 
+	# nf-md-battery_*, as escapes rather than literals so checks/static.sh reads
+	# the codepoint rather than a raw byte sequence. docs/adr/0057.
 	if [ "$CHARGING" = "true" ]; then
-		ICON="󰂄"
+		ICON=$'\U000F0084'
 	elif [ "$CHARGE" -ge 90 ]; then
-		ICON="󰂂"
+		ICON=$'\U000F0082'
 	elif [ "$CHARGE" -ge 80 ]; then
-		ICON="󰂁"
+		ICON=$'\U000F0081'
 	elif [ "$CHARGE" -ge 70 ]; then
-		ICON="󰂀"
+		ICON=$'\U000F0080'
 	elif [ "$CHARGE" -ge 60 ]; then
-		ICON="󰁿"
+		ICON=$'\U000F007F'
 	elif [ "$CHARGE" -ge 50 ]; then
-		ICON="󰁾"
+		ICON=$'\U000F007E'
 	elif [ "$CHARGE" -ge 40 ]; then
-		ICON="󰁽"
+		ICON=$'\U000F007D'
 	elif [ "$CHARGE" -ge 20 ]; then
-		ICON="󰁼"
+		ICON=$'\U000F007C'
 	elif [ "$CHARGE" -ge 10 ]; then
-		ICON="󰁻"
+		ICON=$'\U000F007B'
 	else
-		ICON="󰂎"
+		ICON=$'\U000F008E'
 	fi
 
 	CLASS="connected"
@@ -81,7 +83,7 @@ do_status() {
 # — ~10px of bar with nothing in it, which read as bluetooth's padding for two
 # rounds. The control centre still calls `status`: it needs `.class` to tell
 # `offline` from `disconnected`, and silence there would read as "the script did
-# not answer at all". gotchas.md -> Wayle.
+# not answer at all".
 do_bar() {
 	local j
 	j=$(do_status)

@@ -9,18 +9,17 @@ machine, and the dotfiles it installs.
 ## Layout
 
 ```
-flake.nix          the system, at the ROOT so it can reference everything below
+flake.nix          the system, at the root so it can reference everything below
 flake.lock         pinned inputs — re-lock deliberately with `update`
 hosts/thinkpad/    host config + hardware-configuration.nix
 modules/system/    boot, locale, networking, audio, desktop, fonts, power, …
 modules/home/      home-manager: packages, shell, theme, dotfiles, and —
-                   programs.nix + waybar.nix — the configs GENERATED from Nix
+                   programs.nix + waybar.nix — the configs generated from Nix
 dotfiles/          the hand-written dotfiles that remain (mango, nvim, zsh, …)
 pkgs/              overlay for anything not in nixpkgs
 docs/SYSTEM.md     the operator's manual — start here to use the machine
 docs/adr/          numbered decision records
 docs/agents/       config for the engineering agent skills
-docs/archive/      the Arch→NixOS migration — history, not live instructions
 statix.toml        lint config (see the file for why `repeated_keys` is off)
 verify-claims.sh   re-checks the assertions CLAUDE.md makes about the system
 ```
@@ -28,7 +27,7 @@ verify-claims.sh   re-checks the assertions CLAUDE.md makes about the system
 ## Checking a change
 
 ```
-nix flake check     # builds the system AND the home generation, + statix/deadnix
+nix flake check     # builds the system and the home generation, + statix/deadnix
 nix fmt             # nixfmt (RFC 166)
 ./verify-claims.sh  # assertions about the LIVE system that no build can see
 ```
@@ -72,9 +71,7 @@ is globbed, matches nothing, and fails with `zsh: no matches found:` before
 | Change one area without stepping on a known trap | [`docs/gotchas.md`](docs/gotchas.md) — the failure catalogue, by area |
 | Learn how the system is laid out | [`docs/SYSTEM.md`](docs/SYSTEM.md) — the operator's manual |
 | Understand why something is the way it is | [`docs/adr/`](docs/adr/) — numbered decision records, each with the failure that motivated it |
-| See what changed recently, and what broke | [`docs/WORK-LOG.md`](docs/WORK-LOG.md) — the declarative pass (2026-07-30/31), plus a current-state snapshot |
 | Know how agents should use this repo | [`docs/agents/`](docs/agents/) — domain docs, issue tracker, triage labels |
-| Read the migration history | [`docs/archive/`](docs/archive/) — `MIGRATION.md`, `MIGRATION-GUIDE.md`, `INSTALL.md`, `WORK-LOG.md`. Kept for their post-mortems, **not** as live instructions |
 
 ---
 

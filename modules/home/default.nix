@@ -54,7 +54,7 @@ in
     ./waybar.nix
     # The tiling mode's bar. Its own file for waybar.nix's reason — a bar's
     # layouts are large — and it generates SIX files, none of them config.toml.
-    # docs/adr/0045.
+    # docs/adr/0051.
     ./wayle.nix
     ./dotfiles.nix
     ./theme.nix

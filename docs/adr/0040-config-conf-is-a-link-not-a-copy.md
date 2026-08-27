@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-08-20)
 
-Completes Phase 3 of `docs/PLAN-idiomatic-nix.md` — *push variation to build
+Pushes variation to build
 time; let runtime only select*. Extends the link ownership rule of
 [0034](0034-colour-follows-the-mode-artefacts-do-not.md) to the one path it did
 not cover.

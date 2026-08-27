@@ -42,7 +42,7 @@ the store, which is world-readable.
 makes `secrets/secrets.yaml` unreadable. This is the cost, stated plainly
 rather than discovered.
 
-### A secret is DECLARED only where something reads it
+### A secret is declared only where something reads it
 
 `sops.secrets.<name>` decrypts to `/run/secrets/<name>` on every boot. So
 declaring a secret nothing consumes puts a plaintext file on a running system

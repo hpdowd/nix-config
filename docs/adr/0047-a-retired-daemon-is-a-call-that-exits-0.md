@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-08-26).
 
-Follows [0045](0045-wayle-is-the-tiling-shell.md), which retired waybar and
+Follows [0045](0045-each-mode-owns-its-wallpaper.md), which retired waybar and
 swaync from tiling mode. It moved the bar; it did not move the callers.
 
 ## Context

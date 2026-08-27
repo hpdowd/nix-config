@@ -38,7 +38,8 @@ state_write() {
 
 # The three switches, with their defaults in one place.
 #
-# `bar-*`, not `waybar-*`: the tiling bar is wayle now (docs/adr/0045) and the
+# `bar-*`, not `waybar-*`: the tiling bar has been wayle and is waybar again
+# (docs/adr/0051), and the
 # state outlives whichever program draws it. The rename cost one reset to the
 # defaults below, which is why it happened in the same change as the swap
 # rather than later — a half-renamed state file is the one-way mode switch
@@ -151,7 +152,7 @@ apply_theme() {
 }
 
 # Apply a desktop mode. modes/tiling.sh and the since-removed modes/hud.sh
-# (docs/adr/0035) differed only in two
+# differed only in two
 # names and were otherwise a byte-identical copy of the body below, including
 # the equibop block — so a fix to one silently missed the other.
 apply_mode() {

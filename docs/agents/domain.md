@@ -34,7 +34,7 @@ failure, so weight exploration accordingly.
 
 Some long-lived decisions are written as prose rather than as ADRs — the
 mode-script theming architecture, and the migration rationale in
-`docs/archive/MIGRATION.md`. **Treat those as binding in the same way an ADR
+**Treat these as binding in the same way an ADR
 would be.** If `/domain-modeling` converts one into a numbered ADR, link back to
 the prose rather than duplicating it.
 

@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-08-27).
 
-Reverses [0045](0045-wayle-is-the-tiling-shell.md) for the tiling mode, and with
+Reverses [0045](0045-each-mode-owns-its-wallpaper.md) for the tiling mode, and with
 it the clauses of [0047](0047-a-retired-daemon-is-a-call-that-exits-0.md) that
 retired swaync and swayosd. [0020](0020-noctalia-is-a-desktop-mode.md) is
 untouched: noctalia still runs its own shell and its own wallpaper.

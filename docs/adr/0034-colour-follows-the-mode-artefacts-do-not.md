@@ -1,7 +1,6 @@
 # 0034 — Colour follows the mode; artefacts do not
 
-**Status:** Accepted (2026-08-19). Superseded in part by
-[0035](0035-hud-is-removed.md): `hud` is gone, so where this record pairs
+**Status:** Accepted (2026-08-19). `hud` is gone, so where this record pairs
 `tiling` and `hud`, read `tiling` alone.
 
 Completes [0032](0032-the-theme-file-owns-its-artefacts.md) (the theme file owns
@@ -59,7 +58,7 @@ option typed `str` would accept `"gruvbxo"` and leave the failure to whichever
 consumer read it first — and that consumer would fall back to its own default
 and look merely unstyled.
 
-**The scope line: a consumer may follow the mode only if colour is the WHOLE of
+**The scope line: a consumer may follow the mode only if colour is the whole of
 its theme.** Terminals, menus, bar CSS, window-manager chrome — yes. Widget art,
 icons, cursors, plugins, the built lock-background ramp — no, permanently.
 
@@ -93,7 +92,7 @@ for the first three, landed the same day; ncspot in phase 3a. All four run in
 *filename* out of its own `settings.json`, which the mode switch already
 rewrote. `apply_theme` names `equibop/themes/<mode>.theme.css`.
 
-**The generated halves are keyed by MODE, not by scheme.** The obvious spelling
+**The generated halves are keyed by mode, not by scheme.** The obvious spelling
 is one sidecar per distinct scheme and `apply_theme <scheme>`, and it is wrong:
 it makes a scheme *name* cross the Nix→shell boundary, which is a value both
 sides must spell identically — the drift `lib.sh` was extracted to stop, and

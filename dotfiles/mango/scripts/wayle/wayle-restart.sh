@@ -15,7 +15,7 @@
 # It only selects a file and re-points a link. Every (layout, position) pair is
 # generated as its own TOML by modules/home/wayle.nix, because `bar.location`
 # lives in the file and wayle takes no flag for it — the same reason waybar
-# needed six configs. docs/adr/0045.
+# needed six configs. docs/adr/0051.
 #
 # ~/.config/wayle/config.toml is this script's, and no xdg.configFile may claim
 # it: two owners for one path is an activation failure, not a merge. That is why
@@ -82,5 +82,5 @@ systemctl --user restart wayle 2>/dev/null
 
 # The saved wallpaper, once wayle is answering. Backgrounded so a wallpaper
 # that cannot be restored never holds up the bar — the script polls and reports
-# for itself. docs/adr/0045.
+# for itself. docs/adr/0051.
 "$MANGO_DIR/scripts/system/wallpaper-restore.sh" &

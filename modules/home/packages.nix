@@ -210,6 +210,7 @@
       winetricks
       sidequest
       winboat
+      mcpelauncher-ui-qt
 
       # --- System / disk ------------------------------------------------------
       # nvd is here and not in the devShell: the `rebuild` aliases call it, and

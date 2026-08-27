@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-08-20)
 
 Applies the floor discipline of [0011](0011-shell-is-gated-too.md) to the file
-that enforces it. Closes Phase 6 of `docs/PLAN-idiomatic-nix.md`.
+that enforces it.
 
 ## Context
 
@@ -26,8 +26,8 @@ sourced fragment, a stray `fi` swallowing the block — printed a smaller number
 and exited **green**.
 
 Sections here are long and brace-nested, and `static.sh` is 2,400 lines that we
-deliberately do not split (`docs/PLAN-idiomatic-nix.md` → *Deliberately NOT*),
-because a section in its own file can stop being sourced. Refusing the split
+deliberately do not split, because a section in its own file can stop being
+sourced. Refusing the split
 without adding this floor kept the same hole and removed some of the ways to
 notice it.
 

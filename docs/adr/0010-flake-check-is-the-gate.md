@@ -17,7 +17,7 @@ Which is precisely the problem, because `CLAUDE.md` names `buildEnv` collisions
 as **the failure mode to expect when adding packages** — two packages owning one
 path, aborting the whole generation. The single most likely way to break this
 system was the single thing the checker was structurally incapable of catching.
-`docs/archive/MIGRATION.md` records the same gap being noticed three separate
+The same gap was noticed three separate
 times and worked around by hand each time.
 
 Evaluation-only checking also cannot see a derivation that evaluates fine and

@@ -28,7 +28,7 @@ fi
 POSITION=$(bar_position)
 LAYOUT=$(bar_layout)
 
-# One stylesheet. There were two until hud left (docs/adr/0035): hud was a MODE
+# One stylesheet. There were two until hud left: hud was a MODE
 # that also forced a layout and a stylesheet, which is why the layout was
 # picked here rather than simply read from state. Every mode that has a bar now
 # lets the picker choose.

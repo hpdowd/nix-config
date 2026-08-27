@@ -17,9 +17,9 @@ migration ends up half-done and looking deliberate.
 
 > Worked example: this repo went gruvbox → Catppuccin Mocha on 2026-08-18, which
 > is a **new scheme** — every row in the right-hand column below actually
-> happened. `docs/WORK-LOG.md` has what it cost.
+> happened.
 
-> **Switching between schemes that ALREADY EXIST is one line.** Edit
+> **Switching between schemes that already exist is one line.** Edit
 > `modules/home/scheme.nix`, `nix flake check`, `rebuild`, reload per §5. Five
 > schemes ship: `heartbox`, `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`.
 > Everything below is about bringing a *new* one in — which since
@@ -58,7 +58,7 @@ ramp and is an **overlay**, so it cannot read `config.*`. An option reaches
 eleven consumers and misses the twelfth — the one surface nobody looks at
 closely. `docs/adr/0030`.
 
-### `scheme.nix` is the ARTEFACT scheme; `modes.nix` is the colour one
+### `scheme.nix` is the artefact scheme; `modes.nix` is the colour one
 
 `modules/home/modes.nix` names a scheme per desktop mode (`docs/adr/0034`).
 Same theme files, same four names, one string per mode. It exists because the
@@ -108,7 +108,7 @@ Four things to know before touching any of it:
   2026-08-19 and had to be given up in the same change. For ncspot the same rule
   reads **`programs.ncspot.settings` must stay `{ }`** — the module claims
   `config.toml` the moment it holds one value.
-- **A missing link is silent in kitty, rofi and ncspot and FATAL in foot** —
+- **A missing link is silent in kitty, rofi and ncspot and fatal in foot** —
   foot exits 230 and does not start. `mode-theme.nix` seeds all four at
   activation for that reason; do not remove the seed. `docs/gotchas.md` →
   Theming.
@@ -216,9 +216,9 @@ problem.
 
 | What | How | Where |
 |---|---|---|
-| **GTK theme** | BUILT — Colloid compiled against a `_color-palette-default.scss` written from the palette | `pkgs/colloid-palette.py` |
-| **Kvantum (Qt)** | BUILT — Kvantum's achromatic `KvantumAlt` art tinted onto the `mantle`→`fg0` ramp, `[GeneralColors]` written from the roles | `pkgs/kvantum-recolour.py` |
-| **Cursor** | BUILT — the Volantes art recoloured through its three sentinel hexes | `paletteCursors` in `pkgs/default.nix` |
+| **GTK theme** | Built — Colloid compiled against a `_color-palette-default.scss` written from the palette | `pkgs/colloid-palette.py` |
+| **Kvantum (Qt)** | Built — Kvantum's achromatic `KvantumAlt` art tinted onto the `mantle`→`fg0` ramp, `[GeneralColors]` written from the roles | `pkgs/kvantum-recolour.py` |
+| **Cursor** | Built — the Volantes art recoloured through its three sentinel hexes | `paletteCursors` in `pkgs/default.nix` |
 | **yazi flavour** | WRITTEN — 220 lines of colour, no upstream involved | `pkgs/yazi-flavor.nix` |
 | **Zed theme** | WRITTEN — 135 style keys, 43 syntax keys, at parity with Zed's own | `pkgs/zed-theme.py` |
 | **noctalia scheme** | WRITTEN into `~/.config/noctalia/colorschemes/` | `modules/home/dotfiles.nix` |
@@ -350,7 +350,7 @@ palette **resolved by Nix**, so a role written as an alias is audited like any
 other; it used to read the file with `sed` and four aliased roles went unaudited
 for a release. `docs/adr/0032`.
 
-**The theme packages ARE caught now too**, which §2 above used to say they were
+**The theme packages are caught now too**, which §2 above used to say they were
 not: every name a theme declares must resolve to a real directory in the built
 closure, toolkit built-ins included.
 

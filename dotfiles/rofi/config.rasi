@@ -23,11 +23,16 @@ configuration {
    * list there are held together by checks/static.sh. */
   modes: "drun,run,calc,emoji";
 
-  /* Menu entries carry Font Awesome glyphs ( and friends) in the string
-   * itself, so this must be a Nerd Font or every icon renders as a box.
-   * "Hack Nerd Font" is declared in modules/system/fonts.nix and is the
-   * terminal font; checks/static.sh resolves this name against the built font
-   * closure, because a family that matches nothing falls back silently. */
+  /* Menu entries carry nf-md glyphs in the string itself, so this must be a
+   * Nerd Font or every icon renders as a box.
+   *
+   * Hack, not the bar's 3270: this is body text in a list, and 3270 is a narrow
+   * bitmap-derived display face that needs bold to hold together at all. Two
+   * faces by role, not one everywhere. docs/adr/0059.
+   *
+   * Declared in modules/system/fonts.nix, and checks/static.sh resolves the
+   * name against the built font closure — a family that matches nothing falls
+   * back silently. */
   font: "Hack Nerd Font 11";
 
   /* The glyphs are already in the text; icon lookup would add a per-entry

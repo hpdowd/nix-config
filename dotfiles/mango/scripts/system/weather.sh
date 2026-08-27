@@ -7,8 +7,8 @@
 #   status   the bar        fetches when the cache has expired
 #   read     the menu row   cache only, never a socket — that render is parallel
 #                           and costs its slowest row (73 ms). Asserted.
-#   refresh  Ctrl+Enter,    fetches past the ttl. Nothing to signal: wayle
-#            middle-click   re-reads through `on-action` (docs/adr/0045)
+#   refresh  Ctrl+Enter,    fetches past the ttl, then signals the bar
+#            middle-click   (docs/adr/0056)
 #   open     right-click    hands the coordinates to a browser. No network of
 #                           its own, and no reader — it renders nothing.
 #   panel    SUPER+CTRL+w,  the detailed reading, in rofi. Replaced wayle's
@@ -48,21 +48,26 @@ fi
 # One host, and it is the one answering the question — not noctalia's geocode
 # indirection. docs/adr/0038.
 
-# nf-weather, each checked with `fc-list ':charset=<hex>' family` against all
-# three fonts the bar and the menus use. U+F6FF is why (gotchas.md -> rofi).
-ICON_SUN=$'\uE30D'        # nf-weather-day_sunny
-ICON_MOON=$'\uE32B'       # nf-weather-night_clear
-ICON_SUN_CLOUD=$'\uE302'  # nf-weather-day_cloudy
-ICON_MOON_CLOUD=$'\uE37E' # nf-weather-night_alt_cloudy
-ICON_CLOUD=$'\uE312'      # nf-weather-cloudy
-ICON_FOG=$'\uE313'        # nf-weather-fog
-ICON_DRIZZLE=$'\uE35C'    # nf-weather-sprinkle
-ICON_RAIN=$'\uE318'       # nf-weather-rain
-ICON_SHOWERS=$'\uE319'    # nf-weather-showers
-ICON_SNOW=$'\uE31A'       # nf-weather-snow
-ICON_STORM=$'\uE31D'      # nf-weather-thunderstorm
-ICON_HAIL=$'\uE314'       # nf-weather-hail
-ICON_NA=$'\uE374'         # nf-weather-na
+# nf-md, like every other glyph the bar prints. These were nf-weather (U+E3xx)
+# — a whole second pack, at a different stroke weight, in the module sitting
+# next to the clock. docs/adr/0057.
+#
+# Rendered to check, not trusted by name, and written as `$'\UXXXXXXXX'` so
+# checks/static.sh can read the codepoint. U+F6FF is why coverage is checked at
+# all (gotchas.md -> rofi).
+ICON_SUN=$'\U000F0599'        # nf-md-weather_sunny
+ICON_MOON=$'\U000F0594'       # nf-md-weather_night
+ICON_SUN_CLOUD=$'\U000F0595'  # nf-md-weather_partly_cloudy
+ICON_MOON_CLOUD=$'\U000F0F31' # nf-md-weather_night_partly_cloudy
+ICON_CLOUD=$'\U000F0590'      # nf-md-weather_cloudy
+ICON_FOG=$'\U000F0591'        # nf-md-weather_fog
+ICON_DRIZZLE=$'\U000F0F33'    # nf-md-weather_partly_rainy
+ICON_RAIN=$'\U000F0597'       # nf-md-weather_rainy
+ICON_SHOWERS=$'\U000F0596'    # nf-md-weather_pouring
+ICON_SNOW=$'\U000F0598'       # nf-md-weather_snowy
+ICON_STORM=$'\U000F067E'      # nf-md-weather_lightning_rainy
+ICON_HAIL=$'\U000F0592'       # nf-md-weather_hail
+ICON_NA=$'\U000F0F2F'         # nf-md-weather_cloudy_alert
 
 # WMO 4677, all 28 — enumerated off the table, not off the one value a test
 # fetch returns. An unknown code says so rather than drawing "clear".
@@ -505,7 +510,7 @@ do_read() {
 
 # Forced, past the ttl — the only path that ignores the cache. Reached by
 # Ctrl+Enter on the control-centre row and by a MIDDLE click on the bar module —
-# left-click opens wayle's panel now (docs/adr/0046).
+# left-click opens the rofi panel now (docs/adr/0050).
 #
 # Says so when it fails. With no cache behind it the row re-renders identically,
 # which is the "action that appears to do nothing" menus/control-center.sh
@@ -523,7 +528,7 @@ do_refresh() {
 	# THE BAR PUSH IS BACK. waybar takes RTMIN+n and custom/weather declares
 	# `signal = 13`; wayle took no signal, so this line was removed on
 	# 2026-08-24 and the refresh was invisible until the next 300 s poll.
-	# docs/adr/0051, reversing that half of docs/adr/0045.
+	# docs/adr/0051.
 	#
 	# `|| true` because this also runs in noctalia mode, where there is no
 	# waybar: pkill matching nothing returns 1, and a refresh that worked would

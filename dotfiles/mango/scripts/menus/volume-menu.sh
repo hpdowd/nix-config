@@ -3,10 +3,10 @@
 
 . "$HOME/.config/mango/scripts/lib.sh"
 
-VOL=$'\uf028 '   # fa-volume-up
-MUTE=$'\uf026 '  # fa-volume-off
-CHECK=$'\uf00c ' # fa-check
-GEAR=$'\uf013 '  # fa-cog
+VOL=$'\U000F057E '   # nf-md-volume_high
+MUTE=$'\U000F0581 '  # nf-md-volume_off
+CHECK=$'\U000F012C ' # nf-md-check
+GEAR=$'\U000F0493 '  # nf-md-cog
 SEP=$'────────────────────────'
 
 # ── Current state ──────────────────────────────────────────────────────

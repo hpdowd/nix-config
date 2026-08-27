@@ -12,7 +12,6 @@ different questions:
 | `docs/NIX-PRIMER.md` | How do packages and configs work at all? The mechanism under §6 |
 | `CLAUDE.md` | What has bitten us, and what must not be undone? |
 | `docs/adr/` | Why is it built this way rather than the obvious way? |
-| `docs/WORK-LOG.md` | What changed since 30 July 2026, and what did it cost? |
 
 If something here contradicts `CLAUDE.md`, `CLAUDE.md` is the one kept current
 against failures — trust it and fix this file.
@@ -286,11 +285,11 @@ The routing table. Find the row, edit the file, apply as in §4.
 | `$PATH`, `$EDITOR` | `modules/home/shell.nix` |
 | Default applications | `modules/home/default.nix` (`xdg.mimeApps`) — there is no `mimeapps.list` in this repo |
 | Which scheme the machine wears | `modules/home/scheme.nix` — one string naming a file in `modules/home/themes/`. Change it and rebuild; `docs/adr/0030`. Currently `heartbox`. This is the **artefact** scheme: the built artefacts, the icon set, nvim, and every colour consumer not listed in the row below |
-| Which scheme a desktop MODE wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently both are `heartbox` |
+| Which scheme a desktop mode wears | `modules/home/modes.nix` — one string per mode, same theme files (`docs/adr/0034`). Reaches mango's chrome, noctalia's own palette, and kitty, foot and rofi through a runtime symlink `apply_theme()` re-points. **Not** waybar or swaync, which do not run in noctalia mode and follow `scheme.nix` — so every mode that runs them must wear it. Only `noctalia` may differ; currently both are `heartbox` |
 | The per-mode colours themselves | `modules/home/mode-theme.nix` — generates `kitty/colors-<mode>.conf`, `foot/colors-<mode>` and `rofi/colors-<mode>.rasi`, plus the activation seed for the three links. The colours are **not** in `programs.nix` any more |
 | Any colour | `modules/home/palette.nix` — a dispatcher over `modules/home/themes/*.nix`, evaluating to one flat attrset. Feeds swaylock, imv, nvim, swaync, the lock-background ramp and the bar's `colors.css`. kitty, foot, rofi, ncspot, Equibop and mango take theirs **per mode** instead — `modules/home/mode-theme.nix` and `dotfiles.nix`, from `modes.nix` |
 | Which schemes exist | `modules/home/themes/`. Five ship: `heartbox`, `mocha`, `mocha-high-contrast`, `gruvbox`, `nord`. All native but `heartbox`'s icon set, which is the repo's one stand-in (`native = false`) and is reported on every run. Every scheme **in service** (the artefact one plus every one `modes.nix` names) is contrast-audited by `checks/static.sh`, each against its own declared floors |
-| The GTK / Qt / cursor theme | GENERATED from the selected theme file's colours by `pkgs/default.nix` — `paletteGtk`, `paletteKvantum`, `paletteCursors` (`docs/adr/0041`). yazi's flavour and Zed's theme are written the same way. Only the **icon set** is still a name in the `packages` block |
+| The GTK / Qt / cursor theme | Generated from the selected theme file's colours by `pkgs/default.nix` — `paletteGtk`, `paletteKvantum`, `paletteCursors` (`docs/adr/0041`). yazi's flavour and Zed's theme are written the same way. Only the **icon set** is still a name in the `packages` block |
 | nvim's colourscheme, Zed's theme, noctalia's scheme | the theme file's `apps` block. nvim and Zed take the **artefact** scheme's; noctalia takes the one `modes.nix` gives its mode, since it runs in that mode only (`docs/adr/0034`) |
 | kitty, foot, zed, htop, yazi, ncspot, imv, wlogout | `modules/home/programs.nix` — generated, no file to edit |
 | GTK/Qt theme, icons, cursor | `modules/home/theme.nix` |
@@ -323,7 +322,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 into the first one, so a lot of what used to be a "dotfile" is now a Nix
 expression with no file behind it. The tiers, best first:
 
-### Tier 1 — GENERATED, by a native home-manager module
+### Tier 1 — generated, by a native home-manager module
 
 `modules/home/programs.nix` and `modules/home/waybar.nix`. Nix produces the
 file from typed options; **there is no config file in this repo at all.**
@@ -438,7 +437,7 @@ Catppuccin's through two scheme changes. It is now generated from
 `colors-*.conf` siblings — so mango, GTK and `~/.icons/default` cannot disagree.
 `docs/gotchas.md` → Theming has why it was invisible.
 
-### What is deliberately NOT generated
+### What is deliberately not generated
 
 Do not "finish the job" without reading these:
 
@@ -547,7 +546,7 @@ Then revert, in order of how easy each is to miss:
 | `modules/home/default.nix` | delete `systemd.user.services.noctalia` |
 | `modules/system/desktop.nix` | delete `noctalia-shell` |
 | `modules/home/default.nix` | drop `NOCTALIA_PAM_SERVICE` with the unit |
-| `scripts/menus/shell.sh` | delete the two `fb=none` rows — calendar and dock. Every other row has a fallback and keeps working, `control-center` included; the noctalia branch is only reached when the mode is selected |
+| `scripts/menus/shell.sh` | delete the one `fb=none` row, dock. Every other row has a fallback and keeps working, `calendar` and `control-center` included; the noctalia branch is only reached when the mode is selected |
 | `pkgs/default.nix` | delete `lockscreen`'s noctalia branch and its `noctalia-shell` runtime input (`docs/adr/0024`); what is left is the swaylock wrapper it was |
 | `pkgs/default.nix` | delete the `noctalia-shell` overrideAttrs — the `mmsg` verb patch (`docs/adr/0025`) |
 
@@ -598,7 +597,7 @@ Three independent switches, all on the `/` key:
 
 Mode selects the compositor config and autostart set. Layout selects which
 waybar modules are shown. Position moves the bar between screen edges. There is
-one stylesheet, `style-solid.css` — hud had a second until `docs/adr/0035`, and
+one stylesheet, `style-solid.css` — hud had a second until that change, and
 was also the one mode that overrode the layout pick.
 
 **Mode also selects the look, and noctalia's is not tiling's.** `tiling` is the
@@ -610,7 +609,7 @@ for anything `^noctalia-` because the shell draws and animates its own panels.
 `docs/adr/0022`.
 
 **`SUPER+/` offers `full`, `focus` and `minimal`, and every one of them is
-reachable.** That was not true until `docs/adr/0035`: `hud` was a mode that also
+reachable.** That was not true until that change: `hud` was a mode that also
 forced its own layout, so a pick made in that mode was stored and then silently
 overridden.
 
@@ -645,14 +644,14 @@ every script that touches them. Each one used to re-derive
 is exactly how the mode switch broke one-way on 2026-07-31 — one reader
 disagreed with the writers about the path, silently. `lib.sh` also holds
 `apply_mode()`, the body `modes/tiling.sh` and the since-removed `modes/hud.sh`
-(`docs/adr/0035`) each used to carry as a byte-identical copy.
+(that change) each used to carry as a byte-identical copy.
 
 > **How position actually works:** waybar takes only `-c`, `-s` and `-b` on the
 > command line — `position` is a config key with no flag. So each position is a
 > **separate generated file**, and the script picks between them.
 >
 > `atBottom` in `waybar.nix` only flips `position` now. It also MIRRORED the
-> vertical margins until `docs/adr/0035`, which mattered for exactly one layout:
+> vertical margins until that change, which mattered for exactly one layout:
 > hud used `"margin-bottom": -28` against a 28px bar to cancel its exclusive
 > zone. Restore the mirroring before adding a layout with a vertical margin.
 >
@@ -764,19 +763,18 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 
 **noctalia mode only**
 
-These two have no analogue under waybar and swaync, so they are bound in
-`noctalia/bind.conf` and exist only while that mode is selected — a shared bind
-would be a key that does nothing and exits 0 in tiling. Both are
-panel-shaped rather than list-shaped, which is why they are the two that stayed.
+One key has no analogue under waybar and swaync, so it is bound in
+`noctalia/bind.conf` and exists only while that mode is selected — a shared bind
+would be a key that does nothing and exits 0 in tiling.
 
-The list has shrunk twice. `SUPER+SHIFT+A` left on 2026-08-18, when the idle
-inhibitor got a unit tiling can drive too (`docs/adr/0031`); `SUPER+C`
-left on 2026-08-19, when the control centre turned out to need no new state at
-all — only a list of the owners that already existed (`docs/adr/0033`).
+The list has shrunk three times. `SUPER+SHIFT+A` left on 2026-08-18, when the
+idle inhibitor got a unit tiling can drive too (`docs/adr/0031`); `SUPER+C` on
+2026-08-19, when the control centre turned out to need no new state, only a list
+of the owners that already existed (`docs/adr/0033`); `SUPER+D` on 2026-08-28,
+when `menus/calendar.sh` gave the other modes a calendar (`docs/adr/0058`).
 
 | Key | Action |
 |---|---|
-| `SUPER+D` | Calendar |
 | `SUPER+SHIFT+D` | Dock |
 
 ### Waybar
@@ -800,19 +798,24 @@ module-keyed border comes back. `docs/adr/0042`.
 
 Right-hand groups, in order: notification · cpu memory · network vpn bluetooth
 phone · pulseaudio backlight night-mode · idle-inhibitor power-profile battery ·
-control-center tray · power. On the left: clock weather · workspaces layout ·
-mpris taskbar.
+control-center tray · power. On the left: clock weather · workspaces ·
+mpris minimized. The centre is the focused window's title.
 
-> There is one stylesheet, `style-solid.css`. `style-hud.css` went with hud
-> (`docs/adr/0035`), and a third, `style.css`, was deleted in 2026-08 as
-> unreachable — `current-mode` never held a value that selected it, so its
-> fallback branch could not be taken. Check `waybar-restart.sh` can actually
-> reach a file before adding one.
+> There is one stylesheet, `style-solid.css`. `style-hud.css` went with the hud
+> mode, and a third, `style.css`, was deleted in 2026-08 as unreachable —
+> `current-mode` never held a value that selected it, so its fallback branch
+> could not be taken. Check `waybar-restart.sh` can actually reach a file before
+> adding one.
 
 > The sheet asks for `"Symbols Nerd Font Mono", "3270 Nerd Font", monospace` in
-> its `*` rule, in that order, and `checks/static.sh` asserts it. Symbols first
-> is what puts each icon's ink inside its own cell; 3270 second keeps digits and
-> text in the bar's typeface. `docs/gotchas.md` → Waybar.
+> its `*` rule, in that order, at **13.5px and bold**. `checks/static.sh`
+> asserts the stack and the size/weight pair. Symbols first puts each icon's ink
+> inside its own cell; 3270 second is the bar's typeface, and its regular goes
+> thin under 14px, so the size and the weight are one decision.
+>
+> 3270 is the bar's alone. The rofi menus, wlogout, the terminal, the editor and
+> GTK are Hack — two faces by role, asserted, after a pass that briefly made
+> everything Hack. `docs/adr/0059`, `docs/gotchas.md` → Waybar.
 
 Notable custom modules — each is a script under `dotfiles/mango/scripts/`, so if one
 is missing from the bar, **run its script by hand first**:
@@ -823,7 +826,10 @@ is missing from the bar, **run its script by hand first**:
 | `custom/power-profile` | `system/power-profile.sh` | `RTMIN+11` |
 | `custom/night-mode` | `menus/night-mode.sh` | `RTMIN+9` |
 | `custom/phone` | `kdeconnect/phone-status.sh` | 30 s |
-| `custom/weather` | `system/weather.sh` | `RTMIN+13`, plus a 300 s poll (`full` and `focus`). Left-click refetches, **right-click opens the forecast page** |
+| `custom/weather` | `system/weather.sh` | `RTMIN+13`, plus a 300 s poll (`full` and `focus`). Left opens the panel, middle refetches, right opens the forecast page |
+| `custom/minimized` | `waybar/minimized.sh` | streams `mmsg watch all-clients`. Left opens the picker |
+| `mpris` | native | Left focuses the window that is playing, via `media/media-focus.sh` |
+| `clock` | native | Left opens `menus/calendar.sh`, right toggles the date, scroll pages the tooltip calendar |
 
 > **`phone-status.sh` takes verbs: `status` (the default, so waybar's argument-less
 > `exec` still works) and `ring`.** The KDE Connect device id is written **once**,
@@ -845,6 +851,24 @@ is missing from the bar, **run its script by hand first**:
 > cache warm there and the control-centre row is normally `stale` until Refresh —
 > `docs/adr/0038`.
 
+> **`menus/calendar.sh` is the calendar**, on the clock's left click and on
+> `SUPER+D` in every mode. A month grid with ISO week numbers, today bold and
+> underlined, the current week preselected. `Ctrl+Enter` and `Shift+Enter` page
+> the month; `Enter` returns to today, then closes. It replaced `{calendar}` in
+> the clock's tooltip, which could not be navigated or kept open. The grid is
+> built in the script rather than read out of `cal -w`, so the cell that is
+> today is known rather than found by counting columns. `docs/adr/0058`.
+
+> **`media/media-focus.sh` is the media module's left click.** It resolves the
+> active player's bus name to a pid over D-Bus, matches that against the pid
+> mango reports per client, and focuses the window — or toggles the pad, if the
+> client is a named scratchpad, which is what Spotify is. Matching on pid rather
+> than on name is deliberate: zen-beta publishes
+> `org.mpris.MediaPlayer2.firefox`, so a name table would need a row per browser
+> and would go stale silently. It was `scratch-toggle.sh Spotify spotify` — one
+> player, hardcoded, on a module that shows whichever is active.
+> `docs/adr/0058`.
+
 > **On the bar the three buttons are: left opens the panel, middle refetches,
 > right opens the forecast page.** The panel is `weather.sh panel` —
 > rofi, reading the cache this script already keeps, so there is one fetch of
@@ -852,7 +876,7 @@ is missing from the bar, **run its script by hand first**:
 > well, because wayle's default there is `dropdown:weather`. It was that
 > dropdown from 2026-08-25 until 2026-08-26: wayle's own panel, at its own
 > coordinates, opened by a mouse click and by nothing else, since no wayle
-> dropdown answers a key. `docs/adr/0050` reverses `docs/adr/0046` on that one
+> dropdown answers a key. `docs/adr/0050` has the reversal on that one
 > point. waybar's `on-click` ran `refresh` until the same day — a fetch whose
 > only output is a two-digit label.
 
@@ -1650,8 +1674,6 @@ Things that are true today and worth knowing. *(Reviewed 2026-08-20.)*
 | `CLAUDE.md` | Before changing anything — the rules that apply to every task |
 | `docs/gotchas.md` | Before changing one area — the failure catalogue, by area |
 | `docs/adr/0001` … `0012` | Before undoing something that looks redundant |
-| `docs/WORK-LOG.md` | To see what the 30–31 July declarative pass covered |
-| `docs/archive/MIGRATION.md` | History of the Arch→NixOS install. Not instructions |
 | `dotfiles/nvim/README.md` | The Neovim config map |
 | `docs/agents/` | Issue tracker (Gitea at `git.henrydowd.dev`) and agent conventions |
 

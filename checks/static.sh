@@ -78,7 +78,7 @@ is_tracked() {
 }
 
 mapfile -t SCRIPTS < <(
-	find "$SRC" \( "${prune[@]}" \) -prune -o -type f -not -path '*/docs/archive/*' -print0 |
+	find "$SRC" \( "${prune[@]}" \) -prune -o -type f -print0 |
 		while IFS= read -r -d "" f; do
 			case "$(head -c 64 "$f" 2>/dev/null | tr -d '\0' | head -1)" in
 			'#!'*) printf '%s\n' "$f" ;;
@@ -93,6 +93,42 @@ fi
 
 printf '\nRepo\n'
 
+# EVERY `docs/adr/NNNN` POINTER RESOLVES.
+# The comments here carry a one-line reason and a pointer, so the pointer is
+# half the convention — and a record that is deleted or renamed leaves every
+# citation of it reading exactly as it did while it worked. Nothing caught that
+# until 2026-08-28, when four records were retired and 24 comments named them.
+# BOTH CITATION FORMS. Code comments cite the number (`docs/adr/0052`) and the
+# records cite each other by filename (`[0052](0052-the-bar-draws....md)`), so a
+# scan for one passes over a break in the other — which it did, on the first run
+# of this check, with eight dead filename links in docs/adr/.
+adrmiss=""
+adrseen=0
+while read -r n; do
+	adrseen=$((adrseen + 1))
+	compgen -G "$SRC/docs/adr/$n-*.md" >/dev/null || adrmiss+=" $n"
+done < <(
+	grep -rhoE 'docs/adr/[0-9]{4}' "$SRC" \
+		--exclude-dir=.git --exclude-dir=.direnv 2>/dev/null |
+		sed 's|.*/||' | sort -u
+)
+while read -r f; do
+	[[ -n $f ]] || continue
+	adrseen=$((adrseen + 1))
+	[[ -f "$SRC/docs/adr/$f" ]] || adrmiss+=" $f"
+done < <(
+	grep -rhoE '\]\(0[0-9]{3}-[a-z0-9-]+\.md\)' "$SRC/docs/adr" 2>/dev/null |
+		tr -d ']()' | sort -u
+)
+if [[ $adrseen -lt 30 ]]; then
+	bad "only $adrseen ADR citations found across the repo — the scan is broken, not the repo"
+elif [[ -n $adrmiss ]]; then
+	bad "a comment cites an ADR that does not exist:$adrmiss" \
+		"a dead pointer reads exactly like a live one; retire the citation with the record"
+else
+	ok "all $adrseen ADR citations resolve, by number and by filename"
+fi
+
 # A tracked symlink holds an absolute path that is wrong in every other clone,
 # and home-manager fights whatever rewrites it at runtime.
 syms=$(find "$SRC" \( "${prune[@]}" \) -prune -o -type l -print)
@@ -103,7 +139,7 @@ else
 fi
 
 # Generated at runtime, so tracking them means two owners for one path. A list
-# of one since walker left (docs/adr/0021) — kept as a loop because the shape
+# of one since walker left — kept as a loop because the shape
 # recurs every time an autostart.conf learns to write something.
 GENERATED=(dotfiles/mango/config.conf)
 for f in "${GENERATED[@]}"; do
@@ -287,16 +323,16 @@ fi
 # the runtime swap — its six layouts are generated once, palette and all, from
 # scheme.nix — and noctalia does not run it. So every other mode has to wear
 # the artefact scheme, or it gets a bar from a scheme it is not wearing.
+# waybar and swaync are what tiling runs. wayle held both jobs between
+# 2026-08-24 and 2026-08-27 and is still generated, still wearing this scheme,
+# but no mode starts it. docs/adr/0051.
 #
-# waybar and swaync were the two named here until 2026-08-24. wayle replaced
-# both in tiling (docs/adr/0045); they are still generated, and still wear this
-# scheme, but no mode starts them.
 #
 # noctalia may differ, and does: everything it runs — its own shell, mango's
 # chrome, kitty, foot, rofi, ncspot and Equibop — follows modes.nix.
 #
 # Derived from modes.nix rather than naming `tiling`, so a mode added later is
-# asserted with nothing to remember. Until hud left (docs/adr/0035) this also
+# asserted with nothing to remember. Until hud left this also
 # had to check tiling and hud against each other, because two modes shared one
 # generated bar; with one bar-bearing mode that half is gone.
 #
@@ -482,7 +518,6 @@ if [[ ${#MODES[@]} -gt 0 ]]; then
 	# that spelling and it comes back empty, the inner loop does nothing, and a
 	# per-mode counter still increments — so the scan would drop from 117 binds
 	# to 2 and print `ok`. That is the Phase 4 class inside the gate itself.
-	# docs/PLAN-idiomatic-nix.md §3a.
 	binds_seen=0
 	for m in "${MODES[@]}"; do
 		conf="$MANGO/$m/$m.conf"
@@ -527,7 +562,7 @@ mapfile -t BIND_ACTIONS < <(
 )
 # awk, not sed: shfmt splits `foo) ipc="x" ;;` onto separate lines, so the arm
 # label and its `ipc=` no longer share one. Keyed on the label, which is what
-# a bind actually names. docs/PLAN-idiomatic-nix.md §5e.
+# a bind actually names.
 mapfile -t TABLE_ACTIONS < <(
 	awk '
 		/^[a-z][a-z-]*\)$/ { arm = substr($0, 1, length($0) - 1); next }
@@ -1254,7 +1289,7 @@ if [[ -d "$MANGO/noctalia" ]]; then
 
 	# `layerrule=…,layer_name:X` naming a namespace nothing creates is a rule
 	# that never fires and never says so — the same class as the rofi layer
-	# rules that matched nothing for months (docs/WORK-LOG.md). noctalia's
+	# rules that matched nothing for months. noctalia's
 	# namespaces are `<name>-<screen>`, so the configs carry an anchored prefix
 	# and this asserts the prefix still matches a namespace the shipped QML
 	# declares.
@@ -2670,7 +2705,7 @@ printf '\nGenerated wayle layouts\n'
 # home-manager module claim it, and two owners for one path is an activation
 # failure — the same trap that keeps `programs.ncspot.settings` empty
 # (docs/adr/0034). The failure is loud at switch time and invisible in review,
-# which is why it is asserted rather than commented. docs/adr/0045.
+# which is why it is asserted rather than commented. docs/adr/0051.
 if [[ -e "$WAYLE_DIR/config.toml" ]]; then
 	bad "home-manager claims wayle/config.toml, which wayle-restart.sh owns as a link" \
 		"set services.wayle.settings back to { } — one value in it claims the path"
@@ -2755,7 +2790,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 	done
 	# The floor. The layout section moved from a flat `left = [...]` to
 	# `[[bar.layout.left]]` group tables when grouping became wayle's own
-	# (docs/adr/0045), and an extraction that stops matching passes by finding
+	# (docs/adr/0051), and an extraction that stops matching passes by finding
 	# nothing — which is exactly what this check exists to stop.
 	if [[ $seen_ids -eq 0 ]]; then
 		bad "no custom-* ids read from the wayle layouts — the scan is broken, not the repo"
@@ -2812,7 +2847,7 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 	# `.class` to tell `offline` from `disconnected`.
 	#
 	# So: the key without the verb is inert, and the verb without the key draws
-	# an empty button. Neither half fails loudly. docs/gotchas.md -> Wayle.
+	# an empty button. Neither half fails loudly.
 	hidemiss=""
 	phoneblocks=0
 	for cfg in "${WLAYOUTS[@]}"; do
@@ -3075,7 +3110,7 @@ printf '\nGenerated waybar configs\n'
 # passes when one layout vanishes and another is added twice, and the layout
 # Names are what waybar-restart.sh builds its filename from — a missing one is
 # the fallback-to-full path, which logs but keeps running. Was 4 layouts until
-# hud left (docs/adr/0035).
+# hud left.
 # Configs stays full paths — every scan below this point reads the files.
 mapfile -t CONFIGS < <(find "$WAYBAR_DIR" -name 'config-*.jsonc' | sort)
 cfgmiss=""
@@ -3240,29 +3275,59 @@ else
 	# Two halves, both needed. Scripts declare a glyph as `$'\UXXXXXXXX'`, the
 	# convention network-menu.sh already documented for its ethernet icon, which
 	# puts the codepoint where this can check it. And no script may carry a raw
-	# private-use character, which would bypass the escape scan. That half is a
-	# byte test: U+E000-U+F8FF are the only sequences here leading with 0xEE or
-	# 0xEF, and plane 15 leads with 0xF3. `^[^#]*` excludes a comment about a
-	# codepoint; idle-inhibit.sh has one. docs/adr/0054.
+	# private-use character, which would bypass the escape scan.
+	#
+	# BOTH HALVES MATCHED TOO LITTLE AND PASSED. The escape scan read only
+	# `\U` + eight digits, so all 39 of the Font Awesome and nf-weather glyphs
+	# written the other legal way — `$'\uXXXX'`, four digits — were invisible to
+	# it, including the very nf-fa moon (U+F186) this check was added to catch.
+	# It reported "all N are nf-md" over a bar carrying three packs. The floor
+	# assertion could not save it: idle-inhibit.sh supplied two matches, so the
+	# count was never zero. A scan that stops matching passes by finding nothing;
+	# this one had never matched. docs/adr/0057.
+	#
+	# So: both widths, either case. A 4-digit escape cannot reach U+F0000, which
+	# is the point — every one of them is a glyph from another pack, except the
+	# sub-U+E000 escapes that are not glyphs at all (`\u001f`, window-title.sh's
+	# field separator). U+E000 is where the private use area starts and is the
+	# line between the two.
+	#
+	# The raw-literal half is a byte test, now over all three lead bytes a
+	# private-use character can have: 0xEE and 0xEF carry U+E000-U+F8FF, and
+	# plane 15 leads with 0xF3 — which the bracket omitted, so raw nf-md
+	# literals in vpn.sh and phone-status.sh sat outside the convention the
+	# paragraph above states. `^[^#]*` excludes a comment about a codepoint;
+	# idle-inhibit.sh has one. docs/adr/0054, docs/adr/0057.
 	glyphbad=""
 	glyphseen=0
 	for f in "${SCRIPTS[@]}"; do
+		# This file is in SCRIPTS by its shebang, and it holds the powerline
+		# separators the yazi flavour check above expects. They are not glyphs
+		# anything here prints, and yazi is not the bar.
+		[[ $f == "$SRC/checks/static.sh" ]] && continue
 		while read -r hex; do
 			[[ -n $hex ]] || continue
 			cp=$((16#$hex))
+			# Below the private use area it is an escape, not a glyph.
+			[[ $cp -ge 57344 ]] || continue
 			if [[ $cp -ge 983040 ]]; then
 				glyphseen=$((glyphseen + 1))
 			else
-				glyphbad+="  ${f#"$SRC"/}: U+$(printf '%04X' "$cp") declared as an escape"$'\n'
+				glyphbad+="  ${f#"$SRC"/}: U+$(printf '%04X' "$cp") is not nf-md"$'\n'
 			fi
-		done < <(grep -oE '\\U[0-9A-Fa-f]{8}' "$f" 2>/dev/null | sed 's/^\\U//')
+		done < <(grep -oE '\\[Uu][0-9A-Fa-f]{4}([0-9A-Fa-f]{4})?' "$f" 2>/dev/null | sed 's/^\\[Uu]//')
 
-		if LC_ALL=C grep -q $'^[^#]*[\xee\xef]' "$f" 2>/dev/null; then
+		if LC_ALL=C grep -q $'^[^#]*[\xee\xef\xf3]' "$f" 2>/dev/null; then
 			glyphbad+="  ${f#"$SRC"/}: a raw private-use character — write it as \$'\\UXXXXXXXX'"$'\n'
 		fi
 	done
-	if [[ $glyphseen -eq 0 ]]; then
-		bad "no glyph escapes read from any script — the scan is broken, not the repo"
+	# 40, not 0. A zero floor is what let the old scan pass: it matched 12 of the
+	# 51 escapes here and reported a clean bill, because 12 is not zero. The
+	# floor has to sit above the largest count a broken pattern can still
+	# return, which that one proved is not small. docs/adr/0057.
+	if [[ $glyphseen -lt 40 ]]; then
+		bad "only $glyphseen glyph escapes read from ${#SCRIPTS[@]} scripts — the scan is broken, not the repo" \
+			"the pattern reads both \$'\\uXXXX' and \$'\\UXXXXXXXX'; a count this low means it stopped matching"
 	elif [[ -n $glyphbad ]]; then
 		bad "a glyph a script prints is not nf-md, or is not readable as a codepoint" \
 			"it renders fine, at a different stroke weight from everything beside it:"$'\n'"$glyphbad"
@@ -3674,12 +3739,47 @@ else
 	fi
 
 	# Reverting the font stack is invisible: the icons still render, just with
-	# their ink hanging out of the cell to the right. docs/gotchas.md -> Waybar.
+	# their ink hanging out of the cell to the right.
+	# docs/gotchas.md -> Waybar.
 	if grep -qE '^\s*font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;' "$STYLE_CSS"; then
 		ok "the bar asks for Symbols Nerd Font Mono before 3270, so icon ink sits inside its cell"
 	else
 		bad "style-solid.css no longer names Symbols Nerd Font Mono ahead of 3270 Nerd Font" \
 			"3270 patches the icons in at a 0.54em advance, so their ink overflows to the right and padding cannot centre it"
+	fi
+
+	# The size and the weight move together. 3270's regular goes thin and uneven
+	# under 14px, so dropping `bold` while keeping 13.5 makes the bar look blurry
+	# rather than small — and it is the kind of edit that looks like tidying.
+	# docs/adr/0059.
+	if grep -qE '^\s*font-size: 13\.5px;' "$STYLE_CSS" && grep -qE '^\s*font-weight: bold;' "$STYLE_CSS"; then
+		ok "the bar is 13.5px and bold, the pair 3270 needs at this size"
+	else
+		bad "style-solid.css changed the bar's size or weight without the other" \
+			"3270 is bitmap-derived; at 13.5px its regular is thin and uneven, and the two settings are one decision"
+	fi
+
+	# TWO FACES, BY ROLE, and the roles are asserted rather than remembered.
+	# 3270 is the bar's display face; Hack is body text — the rofi menus, GTK,
+	# the terminal and the editor. docs/adr/0058 collapsed them into one face and
+	# docs/adr/0059 split them again, so this is the assertion that keeps a
+	# well-meant "unify the fonts" from landing a third time.
+	#
+	# Declarations, not prose: the comment above each stack says why the face is
+	# what it is, and a check that cannot tell a reason from a setting makes the
+	# reason unwritable.
+	facebad=""
+	grep -qE '^\s*font: "Hack Nerd Font 11";' "$SRC/dotfiles/rofi/config.rasi" ||
+		facebad+="  dotfiles/rofi/config.rasi is not Hack"$'\n'
+	grep -qE 'font-family: "Hack Nerd Font", monospace;' "$SRC/modules/home/programs.nix" ||
+		facebad+="  wlogout in modules/home/programs.nix is not Hack"$'\n'
+	grep -qE 'font-sans = "Symbols Nerd Font Mono, 3270 Nerd Font";' "$SRC/modules/home/wayle.nix" ||
+		facebad+="  modules/home/wayle.nix does not mirror the bar's stack"$'\n'
+	if [[ -n $facebad ]]; then
+		bad "a surface is on the wrong face" \
+			"3270 is the bar's, Hack is body text; an undeclared family is a silent fallback:"$'\n'"$facebad"
+	else
+		ok "3270 for the bar and wayle, Hack for the menus and wlogout"
 	fi
 fi
 
@@ -3952,7 +4052,7 @@ else
 			# wayle: `font-sans`/`font-mono` under [general], one per layout.
 			# It falls back to its own default without a word, so a name this
 			# machine lacks looks merely unstyled — `Inter` was written here and
-			# is not installed. docs/adr/0045.
+			# is not installed. docs/adr/0051.
 			sed -nE 's/^font-(sans|mono) = "(.*)"$/\2/p' \
 				"$WAYLE_DIR"/layouts/*.toml 2>/dev/null
 		)

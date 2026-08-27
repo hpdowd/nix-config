@@ -16,20 +16,20 @@
       nerd-fonts.hack # ttf-hack-nerd — your kitty/foot font
       nerd-fonts.fira-code # ttf-firacode-nerd
       nerd-fonts.jetbrains-mono # ttf-jetbrains-mono-nerd
+      # The bar's icons — style-solid.css names this ahead of its text face so
+      # the patched-in glyphs keep their own metrics.
       nerd-fonts.symbols-only
-      # mango/waybar/style-solid.css asks for "3270 Nerd Font"
-      # by name (and style-solid also asks for "Symbols Nerd Font Mono", which
-      # `nerd-fonts.symbols-only` above provides). It was not
-      # declared here, so the bar would have fallen back to a generic
-      # monospace — visible, but the kind of thing you notice a week later and
-      # cannot place. Found 2026-07-29 by grepping the configs for font names
-      # rather than trusting the package list.
+
+      # The bar's text, and wayle's. It left with docs/adr/0058 and came back
+      # with docs/adr/0059: it is the look the bar is wanted to have, and no
+      # other surface asks for it.
       nerd-fonts._3270
 
-      # kitty's bold_font/italic_font ask for "0xProto Nerd Font Mono", which
-      # only the Nerd-patched build provides — plain `_0xproto` is family
-      # "0xProto", so both lines silently fell back to Hack. Same class as the
-      # 3270 miss above; found 2026-08-11 via `kitty --debug-font-fallback`.
+      # kitty's bold_font and italic_font. Only the Nerd-patched build provides
+      # family "0xProto Nerd Font Mono" — plain `_0xproto` is family "0xProto",
+      # so both lines silently fell back to Hack. A font named in a config and
+      # missing from this list renders as a silent fallback; found 2026-08-11
+      # via `kitty --debug-font-fallback`.
       nerd-fonts._0xproto
 
       noto-fonts

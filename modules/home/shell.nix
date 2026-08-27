@@ -33,7 +33,7 @@
     '';
   };
 
-  # fish was dropped 2026-07-28 — see docs/WORK-LOG.md. If it comes back, use
+  # fish was dropped 2026-07-28. If it comes back, use
   # EITHER programs.fish.enable OR a dotfiles link, never both.
 
   # --- Tools that hook the shell -------------------------------------------

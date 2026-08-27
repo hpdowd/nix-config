@@ -23,7 +23,6 @@ answers to "why is this behaving oddly?".
 ## Decision
 
 Remove Arch: subvolumes, boot entry and EFI residue. No dual boot, no fallback.
-Keep `docs/archive/` as the written record.
 
 ## Consequences
 
@@ -34,9 +33,6 @@ Keep `docs/archive/` as the written record.
 - Rollback is now **NixOS generations**, not another distro. That is why
   `rebuild-test` matters for structural changes: it applies without touching the
   boot default, so a mistake is one reboot from gone.
-- `docs/archive/` describes a machine that no longer exists. Every file carries
-  an ARCHIVED banner, because the commands in them are copy-pasteable and every
-  path in them is stale.
 - The residue lesson generalises: **`~/.config/systemd/user/` overrides
   `/etc/systemd/user/`**. When a declared unit misbehaves, check for a shadowing
   copy before debugging the declaration.

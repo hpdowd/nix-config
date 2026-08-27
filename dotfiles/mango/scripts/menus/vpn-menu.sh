@@ -8,7 +8,7 @@
 . "$HOME/.config/mango/scripts/lib.sh"
 VPN_STATE="/run/user/$(id -u)/mango-vpn"
 
-SHIELD=$'\uf132 '
+SHIELD=$'\U000F0498 ' # nf-md-shield
 
 # ── Collect state ──────────────────────────────────────────────────────
 tmpdir=$(mktemp -d)
@@ -76,4 +76,4 @@ fi
 
 # No `pkill -RTMIN+10 waybar` here any more: waybar is retired and wayle takes no
 # signal, so that line matched nothing and returned 1 — the script's own exit
-# status, for a connect that worked. custom-vpn polls at 5 s. docs/adr/0045.
+# status, for a connect that worked. custom-vpn polls at 5 s. docs/adr/0056.

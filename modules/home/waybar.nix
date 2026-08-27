@@ -47,8 +47,11 @@ let
   # `background: transparent` shorthand out-ranks a bare rule here and the icon
   # vanishes silently. Every rule this file emits carries a class for that
   # reason. docs/gotchas.md -> Waybar.
+  # `-symbolic` matters: a symbolic name follows the module's CSS `color`, a
+  # plain one renders as its own asset. Plain `view-restore` drew a white icon
+  # beside a tinted count. docs/adr/0053.
   moduleIcons = {
-    "custom-minimized.some" = "view-restore";
+    "custom-minimized.some" = "view-restore-symbolic";
   };
 
   # Papirus's battery ladder — the icons wayle wore, which were Adwaita's.
@@ -245,10 +248,6 @@ let
       on-scroll-down = "playerctl previous";
     };
 
-    # Min-width must stay <= icon-size. waybar packs the icon at the start of
-    # the button box, so any width beyond the icon becomes empty space on the
-    # right only, and no symmetric padding can correct it. The two numbers are
-    # coupled — change icon-size, change min-width in both stylesheets.
     # The windows the workspace tags cannot account for. A count and one icon,
     # because CSS gives a module one background image; the per-window art is the
     # picker's. Click restores a specific window, which `restore_minimized`
@@ -304,14 +303,14 @@ let
       tooltip = false;
       format = "{icon}";
       format-icons = {
-        notification = "󰂚 ";
-        none = "󰂚 ";
-        dnd-notification = "󰂛 ";
-        dnd-none = "󰂛 ";
-        inhibited-notification = "󰂚 ";
-        inhibited-none = "󰂚 ";
-        dnd-inhibited-notification = "󰂛 ";
-        dnd-inhibited-none = "󰂛 ";
+        notification = "󰂚";
+        none = "󰂚";
+        dnd-notification = "󰂛";
+        dnd-none = "󰂛";
+        inhibited-notification = "󰂚";
+        inhibited-none = "󰂚";
+        dnd-inhibited-notification = "󰂛";
+        dnd-inhibited-none = "󰂛";
       };
       return-type = "json";
       exec-if = "which swaync-client";
@@ -377,7 +376,7 @@ let
       # `{format_source}` that resolves to nothing still leaves the space before
       # it, which is a module that changes width for no visible reason.
       format = "{icon} {volume}%{format_source}";
-      format-muted = "󰖁 muted{format_source}";
+      format-muted = "󰖁{format_source}";
       format-source = "";
       format-source-muted = " 󰍭";
       tooltip = false;
@@ -563,17 +562,20 @@ let
       tooltip-format = "{time}\n{health} · {cycles}";
     };
 
+    # 16 to match every other icon on the bar; the symbolic backgrounds in
+    # icons.css are 16px and the tray sat at 14. docs/adr/0053.
     tray = {
-      icon-size = 14;
+      icon-size = 16;
       spacing = 6;
     };
 
-    # Glyph is nf-linux-nixos (U+F313), which not every Nerd Font carries — the
-    # bar renders in 3270 Nerd Font, which does. `fc-list ':charset=f313'
-    # family` lists fonts that have it; a missing glyph is an empty box with
-    # nothing in any log.
+    # Glyph is nf-md-power (U+F0425). It was nf-linux-nixos (U+F313), and this
+    # comment outlived it by one glyph-pack pass (docs/adr/0051), as did the
+    # stylesheet calling it the NixOS logo and colouring it blue. The trailing
+    # space went too: the right screen edge is `#custom-power`'s padding now.
+    # docs/adr/0053.
     "custom/power" = {
-      format = "󰐥 ";
+      format = "󰐥";
       tooltip = false;
       # `-b` is a column count: keep it equal to the wlogout entry count in
       # programs.nix, or the overflow wraps into a row the margins leave no

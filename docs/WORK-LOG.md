@@ -4225,3 +4225,151 @@ press that does nothing is what `docs/adr/0033` refuses.
 Clock is 18px and weather 14px, set by hand. The weather comment still argued
 for a size between the bar and the clock, which 14px still is; the claim that it
 sat at 16px went with it.
+
+## 2026-08-27 · the bar's colour scheme, reviewed and rewritten
+
+`docs/adr/0053`. A review of waybar's colours, then the changes it produced.
+
+**`@accent` was doing two jobs.** The stylesheet used it for selection and for
+benign status, and the alarm roles for trouble. Whether those read as different
+depends on the scheme, and no check covered it — both colours resolve and both
+are used. Heartbox sets `accent = red`, ΔE2000 10.9 and a 5° hue gap from
+`errColor`, where the other four schemes separate them by 21–45. So the active
+workspace tag and an urgent one were two near-identical filled blocks meaning
+opposite things.
+
+The active tag is an underline now and urgent stays a fill, so they differ by
+shape under any scheme. That also removed the lowest-contrast text on the bar:
+`@base` on `@accent` is 3.87:1 here against 5.94–9.23 elsewhere.
+
+**Hairlines are mixed rather than named.** `@overlay` is a background role, so
+its strength as a line was whatever gap a scheme left between `bg0` and `bg2` —
+1.28:1 here against 2.06 on mocha-high-contrast, on the line `docs/adr/0042` made
+the only expression of grouping. `mix(@base, @subtext, 0.3)` gives 1.68–2.20
+across the five.
+
+**The left half took identity tints** — weather, media and minimized, each mixed
+toward the neutral it would otherwise be. The clock takes none; at 18px it is
+already distinct. **The right half got a stated vocabulary** with `@accent`
+excluded: `balanced` was drawing a saturated red disc for the state the machine
+reports almost always, and `bluetooth.connected` was drawing the alarm hue for a
+benign one.
+
+Also: cpu and memory moved to `@text` under a stated rule (value bright, glyph
+dim); five font sizes became three; trailing spaces came out of glyph strings
+into CSS padding; the icon-to-text gap went 2px to 6px; tray icons 14 to 16.
+
+Findings worth keeping:
+
+- **`#workspaces { padding: 0 }` beats `.sep`'s `padding-left`** at (1,0,0)
+  against (0,1,0), so the tag strip is flush to the line before it. That is
+  deliberate, and I mistook it for a bug and "fixed" it for one commit. Both
+  sides are flush now and a check holds it.
+- **An undefined colour inside `mix()` is silent.** waybar logged an invalid
+  property on the next line and nothing about `mix(@base, @nosuchcolour, 0.3)`.
+- **A plain icon name ignores `color`; `-symbolic` follows it.** The minimized
+  module drew a white icon beside a tinted count until `view-restore` became
+  `view-restore-symbolic`.
+- **Two comments outlived their glyph.** `custom/power` was documented as
+  nf-linux-nixos (U+F313) and coloured blue for it. It has been U+F0425, nf-md
+  power, since `docs/adr/0051`.
+- **`style-solid.css` claimed a check that did not exist**, saying
+  `checks/static.sh` asserted `mpris#sep` follows `ext/workspaces#sep`. It does
+  now.
+
+A reboot mid-session landed back on the pre-session generation. The cause was
+`rebuild-test`, which writes no boot entry and creates no profile generation, so
+there was nothing newer to boot into. `/run/current-system` and
+`/nix/var/nix/profiles/system` agreed, so `CLAUDE.md`'s tell did not apply; the
+generation timestamp did. Note that `ls` sorts `system-100-link` before
+`system-95-link`, so `ls | tail` reports the wrong newest generation.
+
+`pkill -f`/`pgrep -f` killed this session's shell twice: once on `'bin/waybar'`
+matching nothing, once on a pattern contained in the calling command line.
+`pgrep '^\.?waybar'` matches `comm` and is the form that works.
+
+## 2026-08-27 · night light, in three passes
+
+`docs/adr/0054` and `docs/adr/0055`. Reported as "night light isn't working".
+It was working, and nothing about wlsunset, its unit or its arguments changed.
+
+**First pass — the bar was reporting the unit, not the screen.** wlsunset held
+gamma control, had computed `sunset 20:09`, and was at 6500 K because the time
+was 18:53. `custom/night-mode` emitted `class:"on"` whenever the service was
+active, so the moon was lit through every daylight hour. It now has three states:
+`off`, `armed` (running, still at day temperature) and `on` (warming), read from
+the temperature wlsunset last logged.
+
+The module also never updated: `interval` is `once`, refresh is `signal = 9`, and
+nothing sent that signal — the push was removed when waybar was retired and 0051
+did not restore it. So a toggle changed the screen and left the bar unchanged
+until the next bar restart. Its comment claimed it polled at 5 s.
+
+**Second pass — the fix was invisible.** Making `armed` take the bar's neutral
+left `off` and `armed` as the same dim moon, so enabling night light in daylight
+changed nothing on screen (correct) and nothing on the bar (not correct). That
+reads as a dead button. Reported as "the menu appears but does not enable when
+chosen"; it had enabled, and the state file proved it.
+
+**Third pass — the premise was wrong.** Every temperature in the menu was the
+night value of a schedule, so there was no way to warm the screen now. `manual`
+mode holds one colour all day; `auto` is the schedule. The click became an
+override that asks whether the screen is warm rather than whether the unit is
+running, and `Auto` became a toggle row reporting its own state.
+
+Findings worth keeping:
+
+- **wlsunset rejects an equal temperature pair**, so `manual` is a one-kelvin
+  spread: `-T $((t + 1)) -t t`. Found by running it.
+- **The unit's `ExecStart` is the generation's copy of the script**, so
+  restarting the service tests the installed version and not the edit. My first
+  manual-mode test showed 6500 K and looked like a failure.
+- **The one-glyph-pack check cannot see glyphs that scripts print.** It reads the
+  generated configs. `night-mode.sh` wrote Font Awesome's moon as
+  `printf '\xef\x86\x86'` and `network-menu.sh` held seven more as raw literals,
+  each labelled `# fa-wifi` and so on — in a file that already documented the
+  escape convention for its own ethernet icon. Scripts use `$'\UXXXXXXXX'` now
+  and two assertions cover it.
+- **`docs/adr/0053`'s "resting states take no colour" does not extend to
+  toggles.** It is right for `power-profile.balanced`, which nobody sets on
+  purpose, and wrong for a state a person just asked for, where the resting state
+  is the confirmation.
+- **shfmt caught an edit that shellcheck passed.** The gate runs both, and
+  rewriting four assignments broke trailing-comment alignment.
+
+Each mode was checked against the live daemon at 19:26 and 19:34, before the
+20:09 sunset: `manual` applied 3001 K immediately, `auto` applied 6500 K at the
+same moment, and a click from `armed` applied 2701 K and lit the moon. The state
+found at the start was restored after each test.
+
+Two non-findings, so they are not chased again. Six wlsunset restarts in nine
+seconds were the rebuilds — activation restarts the unit. And
+`grim -g "0,0 1920x32"` returned foliage three times because Minecraft was
+fullscreen over the bar.
+
+## 2026-08-27 · four modules declared a refresh signal nothing sent
+
+`docs/adr/0056`. Reported as `SUPER+SHIFT+A` not toggling the idle inhibitor. It
+did toggle: the script ran, the unit changed state, and it exited 0. The bar did
+not move, because `custom/idle-inhibitor` declares `signal = 12` and nothing sent
+`RTMIN+12`. Its poll is 30 s, so the glyph was right within half a minute and
+wrong for the press itself.
+
+Auditing the rest found three more. Four of the five modules declaring a signal
+had no sender — `night-mode` (9, restored in 0054), `vpn` (10),
+`power-profile` (11), `idle-inhibitor` (12); only `weather` (13) worked. Each
+script carried a comment explaining the removal: waybar was retired for wayle,
+wayle takes no signal, the pkill matched nothing and returned 1. `docs/adr/0051`
+brought waybar back and restored none of them.
+
+All four send again, and `checks/static.sh` now pairs every declared signal with
+a sender. The scan uses `^[^#]*`, because all four scripts contained the text
+`pkill -RTMIN+N waybar` inside the comment saying it had been removed.
+
+> **`idle-inhibit.sh` has to keep its exit status across the push.** `do_on`
+> returns 1 when wlinhibit does not stay up, and `push_bar` ends in `|| true`, so
+> pushing last would report success for a key that inhibited nothing. The
+> dispatch saves `$?` and exits with it.
+
+This is the same failure as the night-mode entry above, and the audit should have
+happened there rather than one report later.

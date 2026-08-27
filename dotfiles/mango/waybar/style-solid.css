@@ -37,7 +37,7 @@
 window#waybar {
     background: @base;
     color: @text;
-    border-bottom: 1px solid @overlay;
+    border-bottom: 1px solid mix(@base, @subtext, 0.3);
 }
 
 /* The separator has to follow the bar to the bottom edge, or it draws a line
@@ -47,7 +47,7 @@ window#waybar {
    our side. Toggle with SUPER+SHIFT+/ . */
 window#waybar.bottom {
     border-bottom: none;
-    border-top: 1px solid @overlay;
+    border-top: 1px solid mix(@base, @subtext, 0.3);
 }
 
 /* ── All modules — flat, no backgrounds, consistent padding ───────── */
@@ -77,6 +77,29 @@ window#waybar.bottom {
     background: transparent;
     color: @text;
 }
+
+/* The two neutral tiers, and which one a module joins.
+ *
+ *   @text     the module's value is the information — clock, window title,
+ *             mpris, cpu, memory, network, pulseaudio, backlight, battery,
+ *             tray. This block is that tier and needs no rule per module.
+ *   @subtext  the module's glyph is the information and its resting state is
+ *             nothing to report — vpn, notification, night-mode,
+ *             idle-inhibitor, power-profile, control-center, weather. Each
+ *             opts in with `color: @subtext` below.
+ *
+ * Written down because there was no rule: cpu and memory sat in the dim tier
+ * while network, backlight and battery sat in the bright one. docs/adr/0053.
+ *
+ * The left half adds a third thing, an identity tint. Time, weather, media and
+ * minimized windows are four unrelated kinds of information, where the right
+ * half is machine state that the alarm colours already sort. Each takes a hue
+ * mixed toward the neutral it would otherwise be, so nothing reaches full
+ * chroma — heartbox.nix records the same reasoning for ncspot. The tints land
+ * 7.25-11.5:1 on @base and 22-48 dE2000 apart.
+ *
+ * The clock takes no hue. At 18px against the bar's 13.5 it is already
+ * distinct, and colouring the largest element would make the bar loud. */
 
 /* The bar's base rhythm. `.module` is waybar's own class (AModule.hpp:15), added
    to the SAME widget that carries the `#id` and the `.sep` tag — the label for
@@ -114,28 +137,33 @@ window#waybar.bottom {
 
    This wins because the base padding above is a class of the same specificity
    sitting earlier in the sheet. An #id rule that sets padding beats both and
-   takes the gap off one side; there are none, deliberately. */
+   takes the gap off one side — `#workspaces` is the one that does, on purpose,
+   and `#mpris.sep` closes the matching side. See both below.
+
+   MIXED, not @overlay. @overlay is a background role, so how visible it is as a
+   hairline is whatever gap a scheme happened to leave between bg0 and bg2 —
+   1.28:1 on heartbox against 2.06 on mocha-high-contrast, and 0042 made this
+   line the only thing expressing the grouping. Mixing the line out of @subtext
+   pins it instead: 1.68-2.20:1 across the five schemes. Measured, per scheme,
+   in docs/adr/0053. */
 .sep {
-    border-left: 1px solid @overlay;
+    border-left: 1px solid mix(@base, @subtext, 0.3);
     margin-left: 6px;
     padding-left: 11px;
 }
 
-/* THE ONE EXCEPTION, and it is about a filled block rather than about mpris.
-   Workspaces ends in a button whose active state is a solid @accent rectangle,
-   and 6px of bar between a filled block and a line reads as a mistake where the
-   same 6px beside text reads as rhythm. wayle made the same exception for the
-   same reason and this is the port of it.
+/* The other half of the flush treatment above. The tags sit against the line
+   before them, so 6px after them would look like the group is nudged left.
 
-   `margin-left`, NOT padding: the note above is about padding on an #id, which
+   `margin-left`, not padding: the note above is about padding on an #id, which
    would beat `.sep` on both sides and take the gap off the wrong one. The
    margin is the half that sits BEFORE the line, which is the half being closed.
 
    Keyed by module because GTK has no way to say "the .sep after workspaces" —
    `+` does not reach, since waybar wraps each module in its own EventBox and
    the two are not siblings. `mpris#sep` follows `ext/workspaces#sep` in all six
-   generated layouts and checks/static.sh asserts it still does, so this cannot
-   quietly start closing some other boundary. */
+   generated layouts; checks/static.sh asserts that now, having been credited
+   with it since 0042 without ever doing it. */
 #mpris.sep {
     margin-left: 0;
 }
@@ -150,6 +178,13 @@ window#waybar.bottom {
     color: @green;
 }
 
+/* Explicit, though it resolves to the same colour as the bare rule above. The
+   script emitted `"class":""`, which is an absence rather than a state: nothing
+   for the "every class a script prints has a rule" scan to check. */
+#custom-vpn.off {
+    color: @subtext;
+}
+
 /* ── Workspaces ───────────────────────────────────────────────────── */
 
 /* The buttons carry the padding; the module carries none, so a button
@@ -158,13 +193,34 @@ window#waybar.bottom {
     padding: 0;
 }
 
+/* The tags are flush to both lines, deliberately. `#workspaces` is (1,0,0) and
+   beats `.sep`'s (0,1,0) `padding-left`, and `#mpris.sep` below drops the margin
+   on the other side. The buttons keep their own 8px, so a glyph never touches a
+   line but the box does, which lets a hover or an urgent fill run to the group
+   edge. It looks like a bug next to the 11px after every other separator.
+   docs/adr/0053. */
+
+/* The 2px border is reserved on every button and coloured on one. A border that
+   appeared only on activation would make that button 2px taller and shift its
+   label on every tag switch. */
 #workspaces button {
     background: transparent;
     color: @subtext;
     padding: 0 8px;
     margin: 0;
     min-width: 18px;
+    border-bottom: 2px solid transparent;
     transition: background 0.1s, color 0.1s;
+}
+
+/* The underline follows the bar to the bottom edge for the reason
+   window#waybar.bottom's border does: against the screen edge it is a line
+   nobody sees. This out-specifies `.active` below — (2,1,2) against (1,1,1) —
+   so on a bottom bar the bottom border is off before `.active` can colour it,
+   and the `.bottom .active` rule below carries the top one. */
+window#waybar.bottom #workspaces button {
+    border-bottom: none;
+    border-top: 2px solid transparent;
 }
 
 #workspaces button:hover {
@@ -172,11 +228,22 @@ window#waybar.bottom {
     color: @text;
 }
 
+/* An underline, not a fill: @accent and the alarm colours are not reliably
+   different. On heartbox they are dE2000 10.9 apart at a 5 degree hue gap, where
+   the other schemes separate them by 21-45, so two filled blocks meaning
+   opposite things read as one. Shape holds where hue does not. It also removes
+   the bar's lowest-contrast text, @base on @accent at 3.87:1. docs/adr/0053. */
 #workspaces button.active {
-    background: @accent;
-    color: @base;
+    color: @text;
+    border-bottom-color: @accent;
 }
 
+window#waybar.bottom #workspaces button.active {
+    border-top-color: @accent;
+}
+
+/* Still a fill: it is the half of the pair that has to stand out, and it is now
+   the only filled tag. @base on @red is 5.59:1 here. */
 #workspaces button.urgent {
     background: @red;
     color: @base;
@@ -187,22 +254,27 @@ window#waybar.bottom {
 /* ── Minimized windows ────────────────────────────────────────────── */
 
 /* A COUNT behind a themed icon. The icon is `-gtk-icontheme("view-restore")`
-   from icons.css, which is why `padding-left` is 22px: 16px of art plus the
-   4px it is inset by, plus the module's own gap. Change one, change the other —
-   the image is a background and does not push the text.
+   from icons.css, which is why `padding-left` is 26px: 16px of art, the 4px it
+   is inset by, and 6px of gap before the text. Change one, change the other —
+   the image is a background and does not push the text, so the gap is entirely
+   this number. It was 22px, which left 2px and read as the icon being stuck to
+   the label. All three background modules move together. docs/adr/0053.
 
    Papirus reaches this module and #custom-window through CSS, which is how the
    themed app icons `#taskbar` used to draw came back without re-listing every
    open window. docs/adr/0052.
 
-   @subtext, not @text: these are windows that are not on screen, and the bar's
-   live readings should not have to compete with them. */
+   Mixed from @subtext rather than @text, unlike the other two tints: these
+   windows are not on screen, so this stays the quietest of the three. The mix
+   reaches the icon as well as the count, but only because waybar.nix names
+   `view-restore-symbolic` — a symbolic CSS background follows the module's
+   `color` and a plain one does not (docs/adr/0052). */
 #custom-minimized {
-    color: @subtext;
+    color: mix(@subtext, @yellow, 0.4);
     background-repeat: no-repeat;
     background-position: 4px center;
     background-size: 16px 16px;
-    padding-left: 22px;
+    padding-left: 26px;
 }
 
 /* An empty module still draws `.module`'s padding — 10px of dead bar in the
@@ -224,6 +296,26 @@ window#waybar.bottom {
    with nothing to show — and here the resting state IS nothing to show. */
 #custom-minimized.error {
     color: @red;
+}
+
+/* ── Media ────────────────────────────────────────────────────────── */
+
+/* The left half's warm tint, which also reports playback: waybar adds
+   `#mpris.${status}` (waybar-mpris(5)), so `paused` drops to @subtext and only a
+   playing track carries the hue. The two status glyphs differ by a play/pause
+   triangle, 6px at this size; the colour is easier to catch.
+
+   Mixed from @accent because media is content rather than machine state, and the
+   accent is free now the active tag wears it as an underline. At 0.5 toward
+   @text it is 29.5 dE2000 off @text and 47.9 off the weather tint.
+   docs/adr/0053. */
+#mpris {
+    color: mix(@text, @accent, 0.5);
+}
+
+#mpris.paused,
+#mpris.stopped {
+    color: @subtext;
 }
 
 /* ── Window ───────────────────────────────────────────────────────── */
@@ -254,7 +346,7 @@ window#waybar.bottom {
     background-repeat: no-repeat;
     background-position: 4px center;
     background-size: 16px 16px;
-    padding-left: 22px;
+    padding-left: 26px;
 }
 
 /* Nothing focused. Without this the bar draws a default app icon over
@@ -277,16 +369,10 @@ window#waybar.bottom {
     padding: 0 5px 0 12px;
 }
 
-#cpu {
-    color: @subtext;
-}
-
+/* @text from the shared block, per the tier rule beside it — these are
+   percentages, and they were the two readings in the dim tier. */
 #cpu.warning  { color: @yellow; }
 #cpu.critical { color: @red; }
-
-#memory {
-    color: @subtext;
-}
 
 #memory.warning  { color: @yellow; }
 #memory.critical { color: @red; }
@@ -297,10 +383,16 @@ window#waybar.bottom {
     padding: 0 8px;
 }
 
+/* A button, so @subtext at rest like the control centre: colour on this bar
+   means state and a button has none. It was @blue on the grounds that the glyph
+   was the NixOS logo; it has been nf-md-power (U+F0425) since docs/adr/0051.
+
+   `padding-right` is the screen-edge inset, mirroring the clock. It was a
+   trailing space in the module's format string. docs/adr/0053. */
 #custom-power {
-    /* NixOS logo, coloured at rest rather than only on hover. */
-    color: @blue;
+    color: @subtext;
     font-size: 16px;
+    padding-right: 12px;
 }
 
 #custom-power:hover {
@@ -312,7 +404,6 @@ window#waybar.bottom {
 
 #custom-notification {
     color: @subtext;
-    font-size: 13px;
 }
 
 #custom-notification.notification { color: @yellow; }
@@ -327,8 +418,10 @@ window#waybar.bottom {
     color: @subtext;
 }
 
+/* @text, not @accent: @accent means selection, and on some schemes it is the
+   alarm hue. The power button hovers to @red as the one destructive control. */
 #custom-control-center:hover {
-    color: @accent;
+    color: @text;
 }
 
 /* ── Bluetooth ────────────────────────────────────────────────────── */
@@ -336,7 +429,7 @@ window#waybar.bottom {
 #bluetooth { 
   color: @text; 
 }
-#bluetooth.connected { color: @accent; }
+#bluetooth.connected { color: @green; }
 #bluetooth.off,
 #bluetooth.disabled { color: @subtext; opacity: 0.5; }
 
@@ -347,21 +440,32 @@ window#waybar.bottom {
 /* ── Night mode ───────────────────────────────────────────────────── */
 
 #custom-night-mode {
-    font-size: 13px;
     color: @subtext;
 }
 
+/* @yellow rather than the @blue "a hold you set" row: here the colour shows the
+   effect, since the screen goes warm. docs/adr/0053. */
 #custom-night-mode.on { color: @yellow; }
+
+/* Scheduled but not warming: the unit is running and wlsunset is still at the
+   day temperature, which is the case for most of the day. It takes the bar's
+   neutral because nothing is happening yet. docs/adr/0054. */
+#custom-night-mode.armed { color: @subtext; }
+
+/* Dimmer again, as #bluetooth.off is: three states, three weights. */
+#custom-night-mode.off { color: @subtext; opacity: 0.5; }
 
 /* ── Idle inhibitor ───────────────────────────────────────────────── */
 
 #custom-idle-inhibitor {
-    font-size: 13px;
     color: @subtext;
 }
 
-/* The two glyphs differ only by a slash, so the colour carries the state. */
-#custom-idle-inhibitor.activated { color: @yellow; }
+/* The two glyphs differ only by a slash, so the colour carries the state. @blue
+   rather than @yellow because a held inhibitor is a mode you set, not a warning,
+   and @yellow already covers four warnings, an unread notification and night
+   mode. docs/adr/0053. */
+#custom-idle-inhibitor.activated { color: @blue; }
 
 /* A unit that hit its restart limit has released the inhibitor while the bar
    still shows the "held" glyph. Red, so it does not read as merely on. */
@@ -370,7 +474,6 @@ window#waybar.bottom {
 /* ── Power profile ────────────────────────────────────────────────── */
 
 #custom-power-profile {
-    font-size: 13px;
     color: @subtext;
 }
 
@@ -379,8 +482,12 @@ window#waybar.bottom {
    writing the ACPI attribute (docs/adr/0017). A class the script emits and the
    sheet does not style renders in @subtext and reads as "the mode did nothing",
    so the last two are deliberate rather than decorative. */
+/* Balanced is the resting profile and takes no colour. It drew @accent for the
+   state the machine reports almost always, marking the ordinary case as an
+   alarm. Styled rather than omitted, because an unstyled class also renders in
+   @subtext and cannot be told from an oversight. docs/adr/0053. */
+#custom-power-profile.balanced    { color: @subtext; }
 #custom-power-profile.performance { color: @red; }
-#custom-power-profile.balanced    { color: @accent; }
 #custom-power-profile.fanless     { color: @green; }
 #custom-power-profile.unknown     { color: @yellow; }
 #custom-power-profile.unavailable { color: @yellow; }
@@ -390,7 +497,6 @@ window#waybar.bottom {
 /* Had no rule at all until 2026-08-16, so it rendered flush against its
    neighbour and read as a second icon inside it; docs/gotchas.md -> Waybar. */
 #custom-phone {
-    font-size: 13px;
     color: @subtext;
 }
 
@@ -404,17 +510,17 @@ window#waybar.bottom {
 
 /* ── Weather ──────────────────────────────────────────────────────── */
 
-/* Just above the bar's 13.5px, well under the clock's 18px. The clock is what
-   you look at; the temperature is glanced at beside it, and matching the clock
-   made the pair read as two clocks.
+/* No size. It was 14px against a 13.5px bar, under a comment claiming it sat
+   "just above" — half a pixel is neither visible nor a fourth size worth having.
+   The clock is 4.5px bigger, which is visible, and the tint is what separates
+   the temperature from the time. docs/adr/0053.
 
    A second `#custom-weather { font-size }` was added beside the clock's rule on
    2026-08-27 and lost to this one, which is later in the sheet at equal
    specificity — so the size did not change and nothing said why. One bare rule
    per id; checks/static.sh asserts it. docs/adr/0051. */
 #custom-weather {
-    font-size: 14px;
-    color: @subtext;
+    color: mix(@text, @blue, 0.6);
 }
 
 /* THE POINT OF THE MODULE. `ok` is a current reading; `stale` is the last one
@@ -423,7 +529,7 @@ window#waybar.bottom {
    though it were now. `error` is no reading at all, which weather.sh renders as
    `?` rather than as a number. Three classes, three appearances, deliberately.
    The script emits no fourth. */
-#custom-weather.ok      { color: @text; }
+#custom-weather.ok      { color: mix(@text, @blue, 0.6); }
 #custom-weather.stale   { color: @subtext; opacity: 0.5; }
 #custom-weather.error   { color: @red; }
 
@@ -437,7 +543,7 @@ window#waybar.bottom {
     background-repeat: no-repeat;
     background-position: 4px center;
     background-size: 16px 16px;
-    padding-left: 22px;
+    padding-left: 26px;
 }
 
 #battery.charging,
@@ -472,9 +578,12 @@ window#waybar.bottom {
 
 /* ── Tooltip ──────────────────────────────────────────────────────── */
 
+/* The same mixed hairline the bar and the separators use — a tooltip is a @base
+   panel on a @base bar, so its outline is the only thing separating the two and
+   @overlay left it at 1.28:1 here. docs/adr/0053. */
 tooltip {
     background: @base;
-    border: 1px solid @overlay;
+    border: 1px solid mix(@base, @subtext, 0.3);
     color: @text;
 }
 

@@ -74,8 +74,7 @@ performance:0 | balanced:1 | power-saver:2) ;;
 *) fail "asked for $next, TLP reports profile code ${now:-none}" ;;
 esac
 
-# No repaint from here. waybar is retired and wayle takes no signal, so
-# `pkill -RTMIN+11 waybar` matched nothing and returned 1 — this script's own
-# exit status, for a switch that landed and was verified two lines above.
-# custom-power-profile carries `on-action` for its click and a 30 s poll for the
-# key. docs/adr/0045.
+# custom/power-profile declares `signal = 11` and polls every 30 s. `|| true`
+# keeps this off the script's exit status: the switch landed and was verified two
+# lines above, and in noctalia mode the pkill matches nothing. docs/adr/0056.
+pkill -RTMIN+11 waybar 2>/dev/null || true

@@ -3200,6 +3200,76 @@ else
 		ok "all $packseen bar glyphs are nf-md, one pack across every layout"
 	fi
 
+	# A module that declares `signal = N` and has nothing sending RTMIN+N updates
+	# only on its poll interval. The key or click changes the state immediately and
+	# the bar shows the old value for up to 30 s, which reads as the binding not
+	# working. Four modules were in that state: the pushes were removed when waybar
+	# was retired for wayle, and docs/adr/0051 restored waybar without them.
+	#
+	# `^[^#]*` so the comment explaining a removed push does not count as one.
+	# docs/adr/0056.
+	sigbad=""
+	sigseen=0
+	while read -r mod num; do
+		[[ -n $num ]] || continue
+		sigseen=$((sigseen + 1))
+		grep -rqE "^[^#]*pkill -RTMIN\+$num waybar" "$SRC/dotfiles/mango/scripts" 2>/dev/null ||
+			sigbad+="  $mod declares signal $num and nothing sends RTMIN+$num"$'\n'
+	done < <(
+		jq -r 'to_entries[] | select(.value | type == "object")
+		       | select(.value.signal != null)
+		       | "\(.key | sub("#.*$"; ""))\t\(.value.signal)"' \
+			"${CONFIGS[0]}" 2>/dev/null | sort -u
+	)
+	if [[ $sigseen -eq 0 ]]; then
+		bad "no waybar module declares a signal — the scan is broken, not the repo"
+	elif [[ -n $sigbad ]]; then
+		bad "a waybar module declares a refresh signal nothing sends" \
+			"it updates only on its poll interval, so a key press looks inert:"$'\n'"$sigbad"
+	else
+		ok "all $sigseen waybar refresh signals have a sender in the scripts"
+	fi
+
+	# --- ...and the glyphs scripts print --------------------------------------
+	#
+	# The pack scan above reads the generated configs, so it cannot see a glyph a
+	# script emits. One hid there through docs/adr/0051's one-pack pass:
+	# night-mode.sh wrote Font Awesome's moon as `printf '\xef\x86\x86'`
+	# (U+F186), and raw UTF-8 bytes are not a codepoint anyone reads.
+	#
+	# Two halves, both needed. Scripts declare a glyph as `$'\UXXXXXXXX'`, the
+	# convention network-menu.sh already documented for its ethernet icon, which
+	# puts the codepoint where this can check it. And no script may carry a raw
+	# private-use character, which would bypass the escape scan. That half is a
+	# byte test: U+E000-U+F8FF are the only sequences here leading with 0xEE or
+	# 0xEF, and plane 15 leads with 0xF3. `^[^#]*` excludes a comment about a
+	# codepoint; idle-inhibit.sh has one. docs/adr/0054.
+	glyphbad=""
+	glyphseen=0
+	for f in "${SCRIPTS[@]}"; do
+		while read -r hex; do
+			[[ -n $hex ]] || continue
+			cp=$((16#$hex))
+			if [[ $cp -ge 983040 ]]; then
+				glyphseen=$((glyphseen + 1))
+			else
+				glyphbad+="  ${f#"$SRC"/}: U+$(printf '%04X' "$cp") declared as an escape"$'\n'
+			fi
+		done < <(grep -oE '\\U[0-9A-Fa-f]{8}' "$f" 2>/dev/null | sed 's/^\\U//')
+
+		if LC_ALL=C grep -q $'^[^#]*[\xee\xef]' "$f" 2>/dev/null; then
+			glyphbad+="  ${f#"$SRC"/}: a raw private-use character — write it as \$'\\UXXXXXXXX'"$'\n'
+		fi
+	done
+	if [[ $glyphseen -eq 0 ]]; then
+		bad "no glyph escapes read from any script — the scan is broken, not the repo"
+	elif [[ -n $glyphbad ]]; then
+		bad "a glyph a script prints is not nf-md, or is not readable as a codepoint" \
+			"it renders fine, at a different stroke weight from everything beside it:"$'\n'"$glyphbad"
+	else
+		ok "all $glyphseen glyph escapes in ${#SCRIPTS[@]} scripts are nf-md, and none is a raw literal"
+	fi
+
 	# --- EVERY THEMED ICON NAME RESOLVES --------------------------------------
 	#
 	# The bar draws real icon-theme art through `-gtk-icontheme("name")` in its
@@ -3462,6 +3532,98 @@ else
 			"grouping belongs to the layout — a module-keyed border moves when a layout drops a neighbour (docs/adr/0042)"
 	else
 		ok "$tagged group separators, all drawn by the one .sep rule"
+	fi
+
+	# `#mpris.sep { margin-left: 0 }` closes one boundary, the one after the
+	# workspace buttons. It is keyed by module because GTK cannot say "the .sep
+	# after workspaces", so if mpris stops following workspaces the closed gap
+	# moves to whatever module took its place. style-solid.css claimed this was
+	# asserted since docs/adr/0042; nothing asserted it. docs/adr/0053.
+	sepafter_bad=""
+	sepafter_seen=0
+	for cfg in "${CONFIGS[@]}"; do
+		after=$(jq -r '
+			(.["modules-left"] // []) as $l
+			| ($l | index("ext/workspaces#sep")) as $i
+			| if $i == null then empty else ($l[$i + 1] // "<nothing>") end
+		' "$cfg" 2>/dev/null)
+		[[ -z $after ]] && continue
+		sepafter_seen=$((sepafter_seen + 1))
+		[[ $after == "mpris#sep" ]] ||
+			sepafter_bad+="  ${cfg##*/}: ext/workspaces is followed by $after"$'\n'
+	done
+	if [[ $sepafter_seen -eq 0 ]]; then
+		bad "no waybar layout carries a tagged ext/workspaces — the scan is broken, not the layouts"
+	elif [[ -n $sepafter_bad ]]; then
+		bad "mpris no longer follows the workspace buttons, and #mpris.sep still trims their boundary" \
+			"the 3px comes off some other group's gap instead, which reads as that group being written wrong:"$'\n'"$sepafter_bad"
+	else
+		ok "mpris follows ext/workspaces in all $sepafter_seen layouts, so #mpris.sep closes the boundary it was written for"
+	fi
+
+	# @accent means selection. On the bar it draws the active tag's underline and,
+	# mixed toward @text, the media tint — nothing else, because on some schemes
+	# it is also the alarm hue (heartbox: dE2000 10.9 from errColor). It drew the
+	# balanced power profile and a connected bluetooth until docs/adr/0053, two
+	# benign states in the alarm colour.
+	#
+	# `mix(...)` is exempt: a tint is not the accent. Comments are already gone
+	# from css_flat, so prose mentioning @accent cannot trip this.
+	accent_bad=$(printf '%s' "$css_flat" | grep -oE '[^{}]*\{[^{}]*\}' |
+		sed 's/mix([^)]*)//g' |
+		grep '@accent' |
+		grep -vE '#workspaces button\.active' || true)
+	if [[ -n $accent_bad ]]; then
+		bad "@accent is used outside the active workspace tag" \
+			"it is the selection colour, and on heartbox it is one step from errColor — a benign state wearing it reads as an alarm:"$'\n'"$accent_bad"
+	else
+		ok "@accent draws the active tag and the media tint, and nothing else"
+	fi
+
+	# The resting power profile takes no colour. `balanced` is what the machine
+	# reports almost always, so a hue there marks the ordinary state as an alarm.
+	# Read as a value, because the regression is a rule that exists and is wrong.
+	bal=$(printf '%s' "$css_flat" |
+		grep -oE '#custom-power-profile\.balanced[^{}]*\{[^{}]*\}' |
+		sed -n 's/.*color:[[:space:]]*\([^;}]*\).*/\1/p' | tr -d ' ')
+	if [[ $bal != "@subtext" ]]; then
+		bad "the balanced power profile draws '${bal:-nothing}', not @subtext" \
+			"it is the resting state and it is on almost always; a colour there is a permanent indicator for nothing happening"
+	else
+		ok "the resting power profile takes the bar's neutral, so only performance and fanless speak"
+	fi
+
+	# Three rules the tag strip depends on, each silent when it goes.
+	#
+	# The tag is an underline since docs/adr/0053, because @accent and the alarm
+	# colours are one hue apart under some schemes. The border is reserved on
+	# every button and only its colour changes, or the active button is 2px taller
+	# and its label shifts on every tag switch.
+	#
+	# The strip is flush to the line on both sides: `#workspaces { padding: 0 }`
+	# is (1,0,0) and beats `.sep`'s (0,1,0) padding-left, and
+	# `#mpris.sep { margin-left: 0 }` closes the other side. Both are deliberate
+	# and both look like mistakes next to the 11px after every other separator, so
+	# a later pass that "restores" either has to fail here.
+	ws_bad=""
+	grep -qE '^\s*border-bottom: 2px solid transparent;' "$STYLE_CSS" ||
+		ws_bad+="  #workspaces button reserves no transparent border, so activating a tag changes its height"$'\n'
+	grep -qE '^#workspaces button\.active \{' "$STYLE_CSS" ||
+		ws_bad+="  #workspaces button.active has no rule, so the focused tag looks like every other"$'\n'
+	grep -qE '^#workspaces \{' "$STYLE_CSS" ||
+		ws_bad+="  #workspaces sets no padding of its own, so .sep's 11px reopens the gap before the tags"$'\n'
+	grep -qE '^#workspaces\.sep \{' "$STYLE_CSS" &&
+		ws_bad+="  #workspaces.sep is back, which reopens the gap between the line and the first tag"$'\n'
+	# The rule's BODY, not just its presence: it existed with `margin-left: 3px`
+	# for one commit, which is the value this is here to keep out.
+	mpris_margin=$(awk '/^#mpris\.sep \{/ { inr = 1; next } inr && /^\}/ { inr = 0 } inr' "$STYLE_CSS" |
+		sed -n 's/^[[:space:]]*margin-left:[[:space:]]*\(.*\);/\1/p')
+	[[ $mpris_margin == "0" ]] ||
+		ws_bad+="  #mpris.sep sets margin-left to '${mpris_margin:-nothing}', not 0, so the tag strip is flush on one side only"$'\n'
+	if [[ -n $ws_bad ]]; then
+		bad "the workspace tag strip lost a rule its shape depends on" "$ws_bad"
+	else
+		ok "the active tag underlines a reserved border, and the tag strip is flush to the line on both sides"
 	fi
 
 	# One canonical group order, and a layout may only drop a module from it

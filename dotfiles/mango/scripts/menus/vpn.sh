@@ -16,19 +16,21 @@ toggle)
 		[ -z "$target" ] && target="$DEFAULT_VPN"
 		nmcli con up "$target" &>/dev/null
 	fi
-	# No `pkill -RTMIN+10 waybar`: wayle takes no signal, and that line matched
-	# nothing and returned 1. custom-vpn re-reads through `on-action`.
+	# custom/vpn declares `signal = 10` and polls every 5 s. `|| true` because
+	# the same script runs in noctalia mode, where the pkill matches nothing.
+	# docs/adr/0056.
+	pkill -RTMIN+10 waybar 2>/dev/null || true
 	;;
 *)
 	active=$(nmcli -t -f NAME,TYPE,STATE con show --active 2>/dev/null |
 		awk -F: '($2=="wireguard"||$2=="vpn") && $3=="activated"{print $1; exit}')
 	if [ -n "$active" ]; then
-		printf '{"text":"󰕥  %s","class":"connected","tooltip":"VPN: %s — click to disconnect"}\n' \
+		printf '{"text":"󰕥 %s","class":"connected","tooltip":"VPN: %s — click to disconnect"}\n' \
 			"$active" "$active"
 	else
 		target=$(cat "$VPN_STATE" 2>/dev/null)
 		[ -z "$target" ] && target="$DEFAULT_VPN"
-		printf '{"text":"󰕥 ","class":"","tooltip":"VPN: off — click to connect %s"}\n' "$target"
+		printf '{"text":"󰕥","class":"off","tooltip":"VPN: off — click to connect %s"}\n' "$target"
 	fi
 	;;
 esac

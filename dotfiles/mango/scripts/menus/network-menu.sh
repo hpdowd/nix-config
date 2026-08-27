@@ -6,18 +6,18 @@
 CACHE=/tmp/network-menu-cache.txt
 
 SEP=$'────────────────────────'
-WIFI=$' '         # fa-wifi
-LOCK=$' '         # fa-lock
-SHIELD=$' '       # fa-shield (FA4)
-NET=$'\U000F0200 ' # nf-md-ethernet. NOT nf-fa-network_wired (U+F6FF):
+WIFI=$'\U000F05A9 '   # nf-md-wifi
+LOCK=$'\U000F033E '   # nf-md-lock
+SHIELD=$'\U000F0498 ' # nf-md-shield
+NET=$'\U000F0200 '    # nf-md-ethernet. NOT nf-fa-network_wired (U+F6FF):
 # Hack Nerd Font does not cover it and fontconfig falls
 # through to Unifont Sample, drawing a box with nothing
 # logged. Escape, not a literal, like the other menus.
 # gotchas.md -> rofi; waybar's format-ethernet is the same glyph.
-SCAN=$' '  # fa-refresh
-DISC=$' '  # fa-unlink
-GEAR=$' '  # fa-cog
-CHECK=$' ' # fa-check
+SCAN=$'\U000F0450 '  # nf-md-refresh
+DISC=$'\U000F0338 '  # nf-md-link-off
+GEAR=$'\U000F0493 '  # nf-md-cog
+CHECK=$'\U000F012C ' # nf-md-check
 
 # ── Build menu (data collection + formatting) ──────────────────────────
 build_menu() {

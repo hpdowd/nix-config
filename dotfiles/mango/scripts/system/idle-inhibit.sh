@@ -36,11 +36,16 @@ is_on() {
 	systemctl --user is-active --quiet "$UNIT"
 }
 
-# NO BAR REFRESH. waybar is retired and wayle has no signal IPC, so the push
-# path this script had is gone in both directions: `pkill -RTMIN+12 waybar`
-# matched nothing and returned 1, which made every toggle exit non-zero and
-# wayle log "command failed". custom-idle-inhibitor polls instead —
-# modules/home/wayle.nix. docs/adr/0045.
+# custom/idle-inhibitor declares `signal = 12` and polls every 30 s, so without
+# this a key press changed the inhibitor and left the bar showing the old glyph
+# for up to half a minute, which reads as the key not working. The push was
+# removed when waybar was retired for wayle and docs/adr/0051 did not restore it.
+#
+# `|| true` because the same script runs in noctalia mode, where the pkill
+# matches nothing. docs/adr/0056.
+push_bar() {
+	pkill -RTMIN+12 waybar 2>/dev/null || true
+}
 
 do_on() {
 	systemctl --user start "$UNIT"
@@ -83,10 +88,28 @@ do_status() {
 	esac
 }
 
+# `rc` is kept across the push: do_on returns 1 when wlinhibit does not stay up,
+# and push_bar ends in `|| true`, so calling it last would report success for a
+# key that inhibited nothing.
 case "${1:-}" in
-toggle) do_toggle ;;
-on) do_on ;;
-off) do_off ;;
+toggle)
+	do_toggle
+	rc=$?
+	push_bar
+	exit $rc
+	;;
+on)
+	do_on
+	rc=$?
+	push_bar
+	exit $rc
+	;;
+off)
+	do_off
+	rc=$?
+	push_bar
+	exit $rc
+	;;
 status) do_status ;;
 # For lib.sh's mode handover. A verb rather than letting the caller run
 # `systemctl --user is-active wlinhibit.service` itself: the unit name is

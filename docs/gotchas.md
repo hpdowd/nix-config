@@ -2147,6 +2147,54 @@ icon theme **and the themes it inherits** — not against the whole of
 `share/icons`, where a name that exists only in some other installed theme would
 pass and still draw nothing in the session.
 
+### An `#id` rule that sets padding beats `.sep`, and the tag strip uses that
+
+`.sep` draws the group line and pays for it on both sides: 6px of margin before,
+11px of padding after (`docs/adr/0042`). `#workspaces { padding: 0 }` is (1,0,0)
+against `.sep`'s (0,1,0), so it wins and the line before the tags gets no gap
+after it. `#mpris.sep { margin-left: 0 }` takes the gap off the other side.
+
+Both are deliberate (`docs/adr/0053`). The buttons keep their own 8px, so a glyph
+never touches a line but the box reaches it, which lets a hover or an urgent fill
+run to the group edge.
+
+It looks like a bug, because 11px sits after every other separator, and an 11px
+"restore" shipped for one commit on that reasoning. `checks/static.sh` fails if
+`#workspaces.sep` reappears or `#mpris.sep`'s margin stops being 0. It reads the
+rule's body rather than its presence, because the regression was a rule that
+existed with the wrong value.
+
+### A plain icon name ignores `color`; only `-symbolic` follows it
+
+`docs/adr/0052` recorded that a `-symbolic` CSS background follows the module's
+`color` while an app icon comes through in full colour. The case that bites is a
+plain name that looks symbolic: `-gtk-icontheme("view-restore")` renders
+Papirus's own white asset and ignores `color`, so a tinted module drew a tinted
+number beside a white icon.
+
+`view-restore-symbolic` is the same art as a recolourable mask. Papirus ships the
+symbolic set under `Papirus`, not `Papirus-Dark`, so inheritance is what makes
+the name resolve. That is why the icon check resolves against the scheme's theme
+and the themes it inherits.
+
+### An undefined colour inside `mix()` is silent
+
+GTK reports an invalid property on waybar's stderr and says nothing about an
+undefined `@colour`. Both fed at once:
+
+```css
+#clock { border-left: 1px solid mix(@base, @nosuchcolour, 0.3); }
+#cpu   { flooble: 3px; }
+```
+
+waybar logged `'flooble' is not a valid property name` and nothing for the
+colour; the border drew in an inherited value. So a clean CSS log is not evidence
+that the colours resolved, which matters now that the bar's hairlines are built
+with `mix()` (`docs/adr/0053`).
+
+The both-directions `palette_pair` check covers this: every colour `colors.css`
+defines must be used, and every colour the sheet names must be defined.
+
 ---
 
 ## Power

@@ -4373,3 +4373,27 @@ a sender. The scan uses `^[^#]*`, because all four scripts contained the text
 
 This is the same failure as the night-mode entry above, and the audit should have
 happened there rather than one report later.
+
+## 2026-08-27 · confirmed in use
+
+Generation 151. Night light and `SUPER+SHIFT+A` both work as intended, reported
+by use rather than by test. The rest of the pass confirmed from a screenshot with
+everything landed, which earlier passes could not get because a fullscreen game
+covered the bar:
+
+- cpu and memory in `@text`, the rest of the right half neutral, and no `@accent`
+  anywhere on it.
+- Idle inhibitor grey when deactivated, the power button and the VPN shield dim,
+  the charging battery and its icon green.
+- `performance` red on mains, which is the vocabulary reporting a true state
+  rather than the permanent alarm `balanced` used to draw.
+- The media tint visible for the first time, because the track was playing.
+  Every previous capture had it paused, where the rule correctly drops it to
+  `@subtext`.
+- All five refresh signals have a sender in the installed generation.
+
+> **`grep -r` skips symlinks; `-R` follows them.** Checking the senders under
+> `~/.config/mango/scripts/` returned nothing for all five and looked like the
+> rebuild had not landed. Every file there is a symlink into the store, so `-r`
+> skipped the lot. The repo copies had matched the same pattern minutes earlier,
+> which is what made the empty result look like a real finding.

@@ -2177,6 +2177,17 @@ symbolic set under `Papirus`, not `Papirus-Dark`, so inheritance is what makes
 the name resolve. That is why the icon check resolves against the scheme's theme
 and the themes it inherits.
 
+### `grep -r` skips symlinks under `~/.config`; use `-R`
+
+Everything home-manager installs is a symlink into the store, and `grep -r` does
+not follow symlinks it meets while recursing. So a scan of
+`~/.config/mango/scripts/` matches nothing, whatever is in the files.
+
+That is indistinguishable from the thing you are looking for being absent, and it
+is most convincing right after a rebuild, when "not there yet" is the expected
+answer. `grep -R` follows them. The same applies to any scan of the live config
+rather than the repo.
+
 ### An undefined colour inside `mix()` is silent
 
 GTK reports an invalid property on waybar's stderr and says nothing about an

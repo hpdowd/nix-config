@@ -3,6 +3,11 @@
 `~/src/nix-config` — the NixOS flake that builds this ThinkPad, plus the dotfiles
 it installs. Arch is gone: there is no dual boot and no fallback.
 
+**The tiling mode's bar is waybar**, with swaync for notifications, swayosd for
+the OSD and awww for the wallpaper; `noctalia` mode runs its own shell instead.
+wayle held all four jobs between 2026-08-24 and 2026-08-27 and is still
+installed and generated — `docs/adr/0051` says what came back and why.
+
 ```
 flake.nix          at the ROOT — load-bearing (docs/adr/0001)
 hosts/thinkpad/    host config + hardware-configuration.nix
@@ -67,7 +72,7 @@ including several theories that looked right and were not.
 |---|---|
 | zsh | new shell, or `source ~/.config/zsh/conf.d/<file>.zsh` |
 | Mangowm | `~/.config/mango/scripts/reload.sh` — never under sudo |
-| mode / bar | `mango-reload` — it restarts the bar too, via the `exec=` line `reload_config` re-fires. `scripts/wayle/wayle-restart.sh` is the bar alone (docs/adr/0045) |
+| mode / bar | `mango-reload` — it restarts the bar too, via the `exec=` line `reload_config` re-fires. `scripts/waybar/waybar-restart.sh` is the bar alone (docs/adr/0051) |
 | GTK theme | `~/.config/mango/scripts/system/gtk-apply.sh` |
 | kitty | `kill -SIGUSR1 $KITTY_PID` |
 | foot, zed, htop, imv, yazi | restart the app |
@@ -141,7 +146,8 @@ that is already one line.
 `apply_theme`'s — `kitty/current-theme.conf`, `foot/themes/noctalia`,
 `rofi/colors.rasi`, `ncspot/config.toml` — and the fifth is
 `wayle/config.toml`, re-pointed per layout and position by
-`scripts/wayle/wayle-restart.sh` (`docs/adr/0045`). None may become an
+`scripts/wayle/wayle-restart.sh` — **wayle is installed but no longer started**
+(`docs/adr/0051`), and the constraint outlives that. None may become an
 `xdg.configFile`; that is the two-owners activation failure, and
 `checks/static.sh` asserts all five are absent from the generation. For ncspot
 and wayle that means **`programs.ncspot.settings` and `services.wayle.settings`
@@ -235,7 +241,7 @@ silently dropping everything below it. Don't remove the `unalias`.
 | about to change waybar, mango, the shell, editors, theming, secrets, or anything carried over from Arch | `docs/gotchas.md` — the failure catalogue, by area |
 | chasing an app that lost its config, its login or its profile | `docs/gotchas.md` → Session environment, then Credentials and keyrings |
 | asking how the system is laid out, which keybind does what, or where a change belongs | `docs/SYSTEM.md` (§13 = known rough edges — check before reporting one as new) |
-| about to undo something that looks redundant | `docs/adr/` — forty-eight records, each carrying the failure that motivated it |
+| about to undo something that looks redundant | `docs/adr/` — fifty-one records, each carrying the failure that motivated it |
 | changing the colour scheme, or any part of how the machine looks | `docs/THEME-MIGRATION.md` — the runbook; `docs/adr/0028` for why it splits in two, `docs/adr/0032` for what a theme file owns, `docs/adr/0034` for what follows the mode |
 | hitting the GPU freeze, suspend drain or hibernation | `docs/gotchas.md` → Power, then `docs/SYSTEM.md` §9 |
 | assuming something is unfinished rather than decided | `docs/WORK-LOG.md` |

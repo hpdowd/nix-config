@@ -14,7 +14,6 @@
 # rather than a module that renders as nothing. That is the whole reason these
 # are generated — docs/adr/0009.
 {
-  config,
   lib,
   pkgs,
   ...
@@ -71,15 +70,13 @@ let
       format = "{{ text }}";
       tooltip-format = "{{ tooltip }}";
       class-format = "{{ class }}";
-      # THE PANEL IS WAYLE'S. A custom module cannot own a dropdown — the eight
-      # types are wayle's own (audio, battery, bluetooth, brightness, dashboard,
-      # network, notification, weather) — and a click action is a shell command
-      # OR a `dropdown:`, never both. So the click that used to run `refresh`
-      # silently now opens the one panel that exists, which fetches on its own
-      # cadence and carries its own refresh button; `refresh` moved to
-      # middle-click. `[modules.weather]` below points that panel at the same
-      # coordinates this script uses. docs/adr/0046.
-      left-click = "dropdown:weather";
+      # THE PANEL IS ROFI'S. It was `dropdown:weather` from docs/adr/0046 until
+      # 2026-08-26: wayle's own, because a custom module cannot own a dropdown
+      # and a click action is a shell command OR a `dropdown:`, never both. What
+      # changed is that the panel stopped needing to be a dropdown — `weather.sh
+      # panel` draws the same reading in rofi, so it answers a KEY as well as
+      # this click, which no wayle dropdown does. docs/adr/0050.
+      left-click = "${s}/system/weather.sh panel";
       middle-click = "${s}/system/weather.sh refresh";
       # The tooltip is a reading, not a forecast site. Right-click is the way
       # out to one, and the verb is the script's so the bar holds no URL.
@@ -171,9 +168,10 @@ let
       # `-b` is a column count: keep it equal to the wlogout entry count in
       # programs.nix, or the overflow wraps into a row the margins leave no
       # room for.
-      # Adwaita's, not wayle's bundled `ld-power-symbolic`: the icon THEME
-      # answers a freedesktop name, so this one follows the scheme where the
-      # Lucide set is fixed art. Same reason volume and brightness use theirs.
+      # A freedesktop name rather than wayle's bundled `ld-power-symbolic`, so
+      # the icon THEME answers it and the glyph follows the scheme. Papirus
+      # today — NOT Adwaita, which this said until 2026-08-26 and which the
+      # `adw-` battery ladder below exists precisely because it does not.
       icon-name = "system-shutdown-symbolic";
       label-show = false;
       left-click = "wlogout -b 6 -c 12 -r 12 -T 505 -B 505 -L 290 -R 290 --protocol layer-shell";
@@ -247,6 +245,11 @@ let
       format = "%H:%M";
       # No icon, as waybar's clock has none.
       icon-show = false;
+      # WRITTEN BECAUSE THE DEFAULT IS `dropdown:weather`, which is the surface
+      # docs/adr/0050 replaced. Left unwritten it was a second, undocumented way
+      # into a panel nothing else opens any more — reachable, at San Francisco,
+      # once `[modules.weather]` came out. Same verb as custom-weather's.
+      right-click = "${s}/system/weather.sh panel";
     };
 
     # WAYLE IS THE NOTIFICATION DAEMON IN THIS MODE. It claims
@@ -259,24 +262,42 @@ let
       popup-duration = 5000;
       popup-monitor = "primary";
       popup-layer = "overlay";
+
+      # `critical`, not the `low` default — which is the MINIMUM, so the bar was
+      # drawn at every urgency and marked nothing. Colour on a resting state is
+      # the failure docs/adr/0048 argues against, one surface over.
+      popup-urgency-bar = "critical";
+      # `bar.shadow` is "none"; the popup had one. Flat is the whole language.
+      popup-shadow = false;
     };
 
     # ── Icons that read as solid ──────────────────────────────────────────
     # wayle's 361 bundled icons are outline, including its Material battery
     # ladder. Two ways round it, no new dependency: the glyph in `format` where
     # the module has no state beyond its number, and a freedesktop name the
-    # icon theme already answers — Adwaita's filled symbolics, Papirus's
-    # two-tone `battery-level-*`. A native `format` sees only `{{ percent }}`,
-    # which is why `volume` and `battery` keep their icon widget — `icon-muted`
-    # and `charging-icon` are the only way those states show.
+    # icon theme already answers — Papirus's, in service here, filled everywhere
+    # except its two-tone `battery-level-*`. A native `format` sees only
+    # `{{ percent }}`, which is why `volume` and `battery` keep their icon
+    # widget — `icon-muted` and `charging-icon` are the only way those states show.
     # docs/gotchas.md -> Wayle. checks/static.sh resolves every name.
+    # ── Clicks and scrolls, which do NOT come for free ────────────────────
+    # A native module takes wayle's defaults for all six actions, and wayle's
+    # default for every scroll is the empty string — so the volume, brightness
+    # and media affordances waybar had were dropped by the port in silence, the
+    # modules rendering identically either way. docs/gotchas.md -> Wayle.
+    #
+    # THE SCROLL PAIRS BELOW LOOK INVERTED AND ARE NOT: natural scrolling
+    # delivers fingers-up as `scroll-down`. Carried from waybar.nix, which
+    # found that out first.
     cpu = {
       icon-show = false;
+      right-click = "${s}/scratchpad/scratch-toggle.sh sysmonitor ${s}/system/sysmonitor.sh";
       format = " {{ percent }}%";
     };
 
     ram = {
       icon-show = false;
+      right-click = "${s}/scratchpad/scratch-toggle.sh sysmonitor ${s}/system/sysmonitor.sh";
       format = " {{ percent }}%";
     };
 
@@ -287,16 +308,60 @@ let
         "audio-volume-high-symbolic"
       ];
       icon-muted = "audio-volume-muted-symbolic";
+      scroll-up = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-";
+      # `-l 1.5` is a ceiling wpctl enforces, not a target.
+      scroll-down = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.5";
     };
 
-    # One icon, not a ladder: Adwaita ships a single brightness symbolic, and a
-    # one-element array is how `level-icons` says "the same at every level".
-    brightness.level-icons = [ "display-brightness-symbolic" ];
+    # One icon, not a ladder: there is a single brightness symbolic to name, and
+    # a one-element array is how `level-icons` says "the same at every level".
+    brightness = {
+      level-icons = [ "display-brightness-symbolic" ];
+      scroll-up = "brightnessctl --class=backlight set 2%-";
+      scroll-down = "brightnessctl --class=backlight set 2%+";
+    };
 
     # Icon only. `disconnected-icon` and `connected-icon` already carry the
     # state, so the label was the word "Disconnected" sitting on the bar
     # whenever nothing was paired — which is most of the time.
-    bluetooth.label-show = false;
+    #
+    # NOT wayle's bundled `ld-bluetooth-*`, which is Lucide OUTLINE art sitting
+    # beside solid icons the same size. Three of these are freedesktop names the
+    # ICON THEME answers — Papirus today, which is already what volume and
+    # brightness wear.
+    #
+    # `searching` IS THE FOURTH AND IT IS PREFIXED, because Papirus does not
+    # ship it and `Papirus-Dark` inherits `breeze-dark,hicolor` — no Adwaita in
+    # the chain, so the bare name resolved to nothing and the bar drew GTK's
+    # missing-image glyph the first time a scan started. pkgs/default.nix puts
+    # it in hicolor, which every chain ends with.
+    bluetooth = {
+      label-show = false;
+      disabled-icon = "bluetooth-disabled-symbolic";
+      disconnected-icon = "bluetooth-symbolic";
+      connected-icon = "bluetooth-active-symbolic";
+      searching-icon = "adw-bluetooth-acquiring-symbolic";
+    };
+
+    # The same swap, and all eight states rather than the four that show most
+    # often: a half-done set changes icon vocabulary when the link goes down,
+    # which is worse than leaving it. wayle's defaults are ConnMan's
+    # `cm-wireless-*`.
+    network = {
+      wifi-signal-icons = [
+        "network-wireless-signal-weak-symbolic"
+        "network-wireless-signal-ok-symbolic"
+        "network-wireless-signal-good-symbolic"
+        "network-wireless-signal-excellent-symbolic"
+      ];
+      wifi-connected-icon = "network-wireless-connected-symbolic";
+      wifi-acquiring-icon = "network-wireless-acquiring-symbolic";
+      wifi-offline-icon = "network-wireless-offline-symbolic";
+      wifi-disabled-icon = "network-wireless-disabled-symbolic";
+      wired-connected-icon = "network-wired-symbolic";
+      wired-acquiring-icon = "network-wired-acquiring-symbolic";
+      wired-disconnected-icon = "network-wired-disconnected-symbolic";
+    };
 
     # The one place accent survives: the active tag is state.
     mango-workspaces = {
@@ -323,6 +388,8 @@ let
 
     media = {
       label-max-length = 25;
+      scroll-up = "playerctl next";
+      scroll-down = "playerctl previous";
     };
 
     # NOT in `nativeNames`, so this gets no `mono` — the tray draws other apps'
@@ -331,25 +398,6 @@ let
     systray = {
       icon-scale = 0.85;
       internal-padding = 0.1;
-    };
-
-    # NOT IN `nativeNames`, AND NOT IN A LAYOUT. This block exists to point the
-    # `dropdown:weather` panel — opened by custom-weather's left click — at this
-    # machine rather than at wayle's default San Francisco. The bar label stays
-    # custom-weather's, because that script owns the cache the control centre
-    # reads and the tooltip docs/adr/0038 and 0044 built. Two readers of
-    # open-meteo, one set of coordinates. docs/adr/0046.
-    #
-    # `lat,lon`, not the place name: a name is a GEOCODE lookup, which is the
-    # indirection docs/adr/0038 rejected. From `local.location`, so the panel
-    # and weather-location.env cannot disagree.
-    weather = {
-      location = "${toString config.local.location.latitude},${toString config.local.location.longitude}";
-      # wayle's default is 12h; every clock on this machine is 24h.
-      time-format = "24h";
-      # weather.sh's TTL, so the panel and the label cannot be a quarter-hour
-      # apart on the same reading. open-meteo publishes at this cadence.
-      refresh-interval-seconds = 900;
     };
 
     # `thresholds`, not waybar's warning-level/critical-level — wayle has no
@@ -365,7 +413,7 @@ let
     # `adw-`, not the bare `battery-level-*` name: that one belongs to
     # freedesktop, so the ICON THEME answers it and Papirus's eleven rungs all
     # render as the same solid battery. pkgs/default.nix carries the mechanism;
-    # `adwaitaBatteryIcons` in `home.packages` below carries the files.
+    # `adwaitaShellIcons` in `home.packages` below carries the files.
     #
     # Eleven, because the ladder is 0-100 in tens and wayle divides the range
     # evenly among however many it is given. docs/gotchas.md -> Wayle.
@@ -694,10 +742,35 @@ let
         # palette is written at runtime. Same objection as docs/adr/0036.
         theme-provider = "wayle";
         inherit palette;
+
+        # THESE TWO REACH EVERY DROPDOWN, POPOVER AND DIALOG, and the bar's own
+        # `rounding` does not. Left out, they default to `sm` and 1.01, so the
+        # eight panels came up rounded while the bar they hang off is square.
+        # docs/adr/0049.
+        rounding = "none";
+        scale = 1.0;
       };
 
       modules = moduleSettings // {
         custom = monoCustom;
+      };
+
+      # THE ONLY OSD ON THIS MACHINE. swayosd was removed on 2026-08-26 for
+      # drawing a second caps-lock overlay over this one (docs/adr/0047), so
+      # volume, brightness and the lock keys all land here. Undeclared until
+      # docs/adr/0049; these are wayle's defaults except two.
+      #
+      # `margin` came out of runtime.toml, where `wayle config set` had put it
+      # and where it beat this file in silence — 10, not the default 150.
+      # `border` is false because nothing else in this shell draws one.
+      osd = {
+        enabled = true;
+        position = "bottom";
+        monitor = "primary";
+        duration = 2500;
+        margin = 10.0;
+        border = false;
+        layer = "overlay";
       };
 
       # tiling mode's wallpaper engine. noctalia manages its own in its mode —
@@ -735,11 +808,12 @@ in
     autoInstallDependencies = true;
   };
 
-  # The battery ladder, and it has to be a PACKAGE rather than a name: the icon
-  # theme answers `battery-level-*` first and Papirus's rungs are all the same
-  # icon once GTK masks them. pkgs/default.nix says why. Here rather than in
-  # packages.nix because the bar is its only consumer.
-  home.packages = [ pkgs.adwaitaBatteryIcons ];
+  # The battery ladder and one bluetooth state, as a PACKAGE rather than as
+  # names: the icon theme answers `battery-level-*` first and its rungs are all
+  # the same icon once GTK masks them, and it does not answer
+  # `bluetooth-acquiring-symbolic` at all. pkgs/default.nix says why. Here rather
+  # than in packages.nix because the bar is its only consumer.
+  home.packages = [ pkgs.adwaitaShellIcons ];
 
   # NEITHER UNIT MAY START AT LOGIN. The module wants both on
   # graphical-session.target, which runs in every mode — including noctalia,

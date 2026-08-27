@@ -6,7 +6,7 @@
 # every `mmsg dispatch reload_config`, so a reload also re-reads all three
 # state files. This is the single place that knows how the three combine.
 #
-# It only selects a file. Every (layout, position) pair is generated as its own
+# It only SELECTS a file. Every (layout, position) pair is generated as its own
 # config by modules/home/waybar.nix; this script used to rewrite the JSON with
 # `sed -E` into a temp copy instead, which is why it was four times this long
 # and needed a `margin-swap` placeholder to stop the swap undoing itself.
@@ -14,8 +14,12 @@
 
 # noctalia mode has its own bar. Every caller below would otherwise start waybar
 # on top of it — including the two pickers, whose own guards fire before this
-# one. Kill rather than merely return: this is also the path that a switch into
+# one. Kill rather than merely return: this is also the path that a switch INTO
 # noctalia takes, so leaving a stale bar up would be the visible failure.
+#
+# `mode_has_bar`, `bar_position` and `bar_layout` are lib.sh's names since the
+# bar was wayle's — the state outlives whichever program draws it, which is why
+# coming back costs no state reset. docs/adr/0051.
 if ! mode_has_bar; then
 	pkill waybar
 	exit 0
@@ -24,7 +28,7 @@ fi
 POSITION=$(bar_position)
 LAYOUT=$(bar_layout)
 
-# One stylesheet. There were two until hud left (docs/adr/0035): hud was a mode
+# One stylesheet. There were two until hud left (docs/adr/0035): hud was a MODE
 # that also forced a layout and a stylesheet, which is why the layout was
 # picked here rather than simply read from state. Every mode that has a bar now
 # lets the picker choose.
@@ -40,7 +44,7 @@ if [ ! -f "$CONFIG" ]; then
 	CONFIG="$WAYBAR_DIR/config-full-top.jsonc"
 fi
 
-# stderr is kept. waybar catches any exception thrown by a module's update()
+# stderr is KEPT. waybar catches any exception thrown by a module's update()
 # and logs it with spdlog::error, then leaves that module's label at its last
 # value — so a module freezes while its CSS classes keep tracking reality, and
 # the one line naming the cause went to /dev/null. That is what made the

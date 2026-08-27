@@ -126,24 +126,31 @@ in
     '';
 
   # ==========================================================================
-  # adwaitaBatteryIcons — Adwaita's battery ladder, out from under the theme
+  # adwaitaShellIcons — Adwaita names the bar needs and the theme cannot give
   # ==========================================================================
-  # `battery-level-*` is a freedesktop name, so the ICON THEME answers it first
-  # — Papirus here — and Papirus draws the level as a second path at 35%
-  # opacity over a full-height body. GTK renders a symbolic icon as a MASK
-  # filled with one colour, which flattens that opacity: all eleven rungs come
-  # out as the same solid battery. Its `warning` class also repaints the low
+  # TWO DIFFERENT FAILURES, one mechanism.
+  #
+  # The ladder: `battery-level-*` is a freedesktop name, so the ICON THEME
+  # answers it first — Papirus here — and Papirus draws the level as a second
+  # path at 35% opacity over a full-height body. GTK renders a symbolic icon as
+  # a MASK filled with one colour, which flattens that opacity: all eleven rungs
+  # come out as the same solid battery. Its `warning` class also repaints the low
   # ones orange, over whatever `icon-color` says. Adwaita cuts the level out of
   # ONE path, so the mask keeps it.
   #
+  # The bluetooth one: `Papirus-Dark` inherits `breeze-dark,hicolor` and NOT
+  # Adwaita, so an Adwaita-only name does not resolve at all — GTK draws its
+  # missing-image glyph, a circle with a slash, on the bar. `hicolor` is in every
+  # chain, which is what makes this derivation work.
+  #
   # Copied under `adw-`, wayle's own prefix convention for a source set, so no
-  # icon theme can shadow them again and the ladder does not follow the scheme.
-  # A missing source name fails the build here rather than falling back in
-  # silence on the bar. docs/gotchas.md -> Wayle.
-  adwaitaBatteryIcons =
-    prev.runCommand "adwaita-battery-icons"
+  # icon theme can shadow them and they do not follow the scheme. A missing
+  # source name fails the build here rather than falling back in silence on the
+  # bar. docs/gotchas.md -> Wayle.
+  adwaitaShellIcons =
+    prev.runCommand "adwaita-shell-icons"
       {
-        meta.description = "Adwaita's battery symbolics under a name no icon theme claims";
+        meta.description = "Adwaita symbolics under a name no icon theme claims";
       }
       ''
         src=${prev.adwaita-icon-theme}/share/icons/Adwaita/symbolic
@@ -157,6 +164,8 @@ in
           "$dst/adw-battery-charging-symbolic.svg"
         cp "$src/status/battery-missing-symbolic.svg" \
           "$dst/adw-battery-missing-symbolic.svg"
+        cp "$src/status/bluetooth-acquiring-symbolic.svg" \
+          "$dst/adw-bluetooth-acquiring-symbolic.svg"
       '';
 
   # ==========================================================================

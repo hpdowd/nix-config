@@ -25,7 +25,42 @@ let
   # refer to the names, so a colour is written once here and nowhere else.
   p = import ./palette.nix;
 
-  # ── Module definitions — one copy each ────────────────────────────────────
+  # The window title's per-app glyph, by mango appid. `default` is what makes an
+  # unmapped app draw a window rather than nothing — the difference between
+  # "no icon yet" and "the module is broken". Passed to window-title.sh; see the
+  # note on custom/window.
+  windowIcons = {
+    foot = "󰞷";
+    kitty = "󰞷";
+    zen-beta = "󰖟";
+    Equibop = "󰙯";
+    imv = "󰋩";
+    Spotify = "󰎇";
+    default = "󰘔";
+  };
+
+  # ── One glyph pack ────────────────────────────────────────────────────────
+  #
+  # EVERY glyph below is nf-md (Material Design, U+F0000+). The bar carried 18
+  # Font Awesome, 16 Material, one Octicon, one Linux and three bare Unicode
+  # arrows before 2026-08-27 — four vocabularies at four different stroke
+  # weights, which is most of what made it read as assembled rather than
+  # designed.
+  #
+  # THESE ARE FONT GLYPHS. A module's LABEL is text, so an icon name cannot go
+  # in it — but the icon theme is still reachable from the STYLESHEET, where
+  # `background-image: -gtk-icontheme("name")` draws real Papirus art. See
+  # docs/gotchas.md -> Waybar. Nothing on this bar uses that yet; the glyphs
+  # below are the font's.
+  # wayle's modules took `icon-name`s the theme resolved, which is why ITS
+  # network and bluetooth art was Papirus and cannot be copied here. nf-md is
+  # the closest available: Material is the same design language Papirus's
+  # symbolic set follows.
+  #
+  # Every codepoint was checked by RENDERING it, not by trusting its name — two
+  # were the other way round from what they are called (`md-memory` U+F035B is
+  # the CPU chip, `md-chip` U+F061A is the RAM stick). checks/static.sh asserts
+  # the pack holds.
   modules = {
     clock = {
       format = "{:%H:%M}";
@@ -51,37 +86,56 @@ let
         "7" = "7";
         "8" = "8";
         "9" = "9";
-        default = " ";
-        urgent = " ";
+        default = "󰄰 ";
+        urgent = "󰀨 ";
       };
     };
 
     # Was `mmsg -g -l | awk '{print $3}'` — dwl-era flags mango no longer takes.
-    # mmsg answers an unknown command with {"error":"unknown command"} AND EXITS
-    # 0, so this module has been rendering nothing and clicking it has done
-    # nothing, silently. There is no `get layout` either; the layout symbol
-    # lives on the monitor object. `switch_layout` is real — universal/bind.conf
-    # binds it to SUPER+n.
-    "custom/layout" = {
-      exec = "mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'";
-      interval = 1;
-      on-click = "mmsg dispatch switch_layout";
-      tooltip = false;
-    };
-
     mpris = {
       format = "{status_icon} {dynamic}";
-      dynamic-len = 30;
+      # THREE KEYS, AND ONLY ONE OF THEM WAS SET. All three were found by
+      # rendering this module beside wayle's; none of it is guesswork.
+      #
+      # `dynamic-order` is WHICH fields render. Unwritten it defaults to title,
+      # artist, album AND POSITION, so the bar showed `The Yogscast
+      # [06:03/13:48]` — a running clock nothing asked for, in the space the
+      # title should have had. "Absence in this list means force exclusion"
+      # (waybar-mpris(5)), so naming two excludes the rest.
+      #
+      # `dynamic-len` is a DROP threshold, not a truncation one: waybar removes
+      # a field that does not fit rather than shortening it. At 25 a 35-char
+      # title vanished entirely and the 12-char artist was what remained —
+      # which is why this is 100 and `max-length` does the cutting.
+      # Reordering `dynamic-importance-order` does not change it; tried both
+      # ways, same output.
+      #
+      # `max-length` is the one that behaves like wayle's `label-max-length`:
+      # it truncates the composed string with an ellipsis. 27 = the status icon,
+      # its space, and wayle's 25.
+      dynamic-len = 100;
+      max-length = 27;
+      dynamic-order = [
+        "title"
+        "artist"
+      ];
       dynamic-importance-order = [
         "title"
         "artist"
-        "album"
       ];
       status-icons = {
-        playing = " ";
-        paused = " ";
+        playing = "󰐊 ";
+        paused = "󰏤 ";
       };
-      ignored-players = [ "firefox" ];
+      # EMPTY, and that is the whole reason this module was blank. `[ "firefox" ]`
+      # came through the generation refactor from the hand-written configs with
+      # no reason attached — waybar's own docs suggest it, because firefox can
+      # expose one MPRIS player per playing tab. On this machine it exposes one
+      # (`playerctl -l` → a single `firefox.instance_*`), and firefox is the only
+      # player running, so the ignore meant the media module rendered NOTHING,
+      # always. wayle's `media` has no such list, which is why that bar showed a
+      # track where this one showed empty bar. docs/adr/0051.
+      ignored-players = [ ];
       on-click = "${s}/scratchpad/scratch-toggle.sh Spotify spotify";
       on-click-right = "playerctl play-pause";
       on-scroll-up = "playerctl next";
@@ -92,29 +146,56 @@ let
     # the button box, so any width beyond the icon becomes empty space on the
     # RIGHT only, and no symmetric padding can correct it. The two numbers are
     # coupled — change icon-size, change min-width in both stylesheets.
-    "wlr/taskbar" = {
-      format = "{icon}";
-      icon-size = 14;
-      all-outputs = false;
-      tooltip-format = "{title}";
-      on-click = "activate";
-      on-click-right = "close";
-      ignore-list = [ "Rofi" ];
+    # THE WINDOWS YOU CANNOT SEE, not all of them. `wlr/taskbar` listed every
+    # open window — which the workspace tags already tell you — and the only
+    # windows the bar could not otherwise account for were the ones SUPER+I had
+    # put away. It went on 2026-08-27 with its themed app icons, the one thing
+    # on this bar that came from Papirus rather than a font. docs/adr/0051.
+    #
+    # `restore_minimized` is mango's only restore verb, takes no client, and
+    # pops the last minimized window ON THE CURRENT TAG. It answers
+    # `{"success":true}` when it restores nothing — see the script's header for
+    # what that means and how it was verified.
+    "custom/minimized" = {
+      exec = "${s}/waybar/minimized.sh '${builtins.toJSON windowIcons}'";
+      return-type = "json";
+      format = "{}";
+      on-click = "mmsg dispatch restore_minimized";
+      escape = true;
     };
 
     # Not waybar's built-in dwl/window: mango 0.15.5 dropped the dwl IPC
     # protocol that module binds, and its absence makes waybar SIGSEGV on
     # startup. CSS selector is #custom-window, not #window.
+    # 45, WAYLE'S NUMBER, and it is coupled to the stylesheet. This was 60 while
+    # `#custom-window` drew at 11px against the bar's 14px; style-solid.css now
+    # draws it at the bar's own size, so the same 60 characters occupy a third
+    # more width and the centre reaches the modules either side of it. Raising
+    # the size without lowering the cap is the half-change. docs/adr/0051.
+    # THE APP GLYPH IS THE SCRIPT'S, and the table is still Nix's.
+    #
+    # `format = "{icon} {}"` with a `format-icons` map keyed by the JSON `alt`
+    # is the obvious way and IT RENDERS THE WHOLE LABEL EMPTY — not just the
+    # icon, and waybar logs nothing either way (verified with stderr kept, both
+    # ways, on 0.15.0). A module that silently renders as nothing is the failure
+    # this repo is named for, so the lookup moved into the script and the map is
+    # passed to it as an argument: one owner, still declared here, and a glyph
+    # that actually draws. docs/adr/0051.
+    #
+    # A font glyph, because the label is text. It is NOT the only option: CSS
+    # can put a themed icon behind this module with
+    # `background-image: -gtk-icontheme(…)`, keyed on a class this script would
+    # emit — proven on 2026-08-27, not adopted. docs/gotchas.md -> Waybar.
     "custom/window" = {
-      exec = "${s}/waybar/window-title.sh";
+      exec = "${s}/waybar/window-title.sh '${builtins.toJSON windowIcons}'";
       return-type = "json";
       format = "{}";
-      max-length = 60;
+      max-length = 45;
       escape = true;
     };
 
     cpu = {
-      format = " {usage}%";
+      format = "󰍛 {usage}%";
       tooltip-format = "CPU: {usage}%\nLoad: {load}";
       interval = 2;
       states = {
@@ -125,8 +206,8 @@ let
     };
 
     memory = {
-      format = " {percentage}%";
-      format-alt = " {used:0.1f}·{total:0.1f}G";
+      format = "󰘚 {percentage}%";
+      format-alt = "󰘚 {used:0.1f}·{total:0.1f}G";
       tooltip-format = "{used:0.1f} / {total:0.1f} GiB";
       interval = 5;
       states = {
@@ -141,14 +222,14 @@ let
       tooltip = false;
       format = "{icon}";
       format-icons = {
-        notification = " ";
-        none = " ";
-        dnd-notification = " ";
-        dnd-none = " ";
-        inhibited-notification = " ";
-        inhibited-none = " ";
-        dnd-inhibited-notification = " ";
-        dnd-inhibited-none = " ";
+        notification = "󰂚 ";
+        none = "󰂚 ";
+        dnd-notification = "󰂛 ";
+        dnd-none = "󰂛 ";
+        inhibited-notification = "󰂚 ";
+        inhibited-none = "󰂚 ";
+        dnd-inhibited-notification = "󰂛 ";
+        dnd-inhibited-none = "󰂛 ";
       };
       return-type = "json";
       exec-if = "which swaync-client";
@@ -160,13 +241,13 @@ let
 
     network = {
       interval = 3;
-      format-wifi = " {essid}";
+      format-wifi = "󰖩 {essid}";
       format-ethernet = "󰈀 {ifname}";
-      format-linked = " No IP";
-      format-disconnected = " ✗";
-      format-disabled = "";
+      format-linked = "󰋗 No IP";
+      format-disconnected = "󰖪 󰅖";
+      format-disabled = "󰖪";
       tooltip-format = "{ifname}  {ipaddr}/{cidr}\nGateway: {gwaddr}\nStrength: {signalStrength}%";
-      format-alt = "↓{bandwidthDownBytes} ↑{bandwidthUpBytes}";
+      format-alt = "󰁅{bandwidthDownBytes} 󰁝{bandwidthUpBytes}";
       on-click-right = "${s}/menus/network-menu.sh";
     };
 
@@ -181,10 +262,10 @@ let
     };
 
     bluetooth = {
-      format = "";
+      format = "󰂯";
       format-disabled = "󰂳";
-      format-connected = "";
-      format-connected-battery = " {device_battery_percentage}%";
+      format-connected = "󰂱";
+      format-connected-battery = "󰂱 {device_battery_percentage}%";
       tooltip-format = "{controller_alias}\n{num_connections} connected";
       tooltip-format-connected = "{controller_alias}\n\n{device_enumerate}";
       tooltip-format-enumerate-connected = "{device_alias}";
@@ -195,14 +276,28 @@ let
 
     pulseaudio = {
       # `{format_source}` is the microphone, and it repeats into `format-muted`
-      # because that REPLACES `format` rather than adding to it. Both source
-      # glyphs are non-empty deliberately. docs/gotchas.md -> Waybar for why
-      # each of those is load-bearing; docs/adr/0033 for why there is no
-      # `custom/microphone`.
-      format = "{icon} {volume}% {format_source}";
-      format-muted = " muted {format_source}";
-      format-source = ""; # nf-fa-microphone, U+F130
-      format-source-muted = ""; # nf-fa-microphone_slash, U+F131
+      # because that REPLACES `format` rather than adding to it — a placeholder
+      # left out of a replacement disappears under that condition, so muting the
+      # SPEAKERS would take the microphone indicator off the bar with them.
+      # docs/adr/0033 for why there is no `custom/microphone`.
+      #
+      # THE LIVE STATE IS EMPTY, and only the live one. docs/gotchas.md said
+      # "neither state may render as nothing" and that over-generalised from the
+      # muted case: what must never be invisible is MUTED, because "muted" and
+      # "the module is broken" becoming one picture is being recorded when you
+      # thought you were not. An empty LIVE state fails the other way — no glyph
+      # reads as "live", and a broken module also shows no glyph, so the wrong
+      # reading is "I am being recorded", which is the safe one. A mic icon on
+      # the bar at all times is a permanent indicator for a state that is
+      # normal.
+      #
+      # The SPACE lives in the muted glyph, not in `format`. A trailing
+      # `{format_source}` that resolves to nothing still leaves the space before
+      # it, which is a module that changes width for no visible reason.
+      format = "{icon} {volume}%{format_source}";
+      format-muted = "󰖁 muted{format_source}";
+      format-source = "";
+      format-source-muted = " 󰍭";
       tooltip = false;
       on-click = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
       on-click-right = "${s}/menus/volume-menu.sh";
@@ -213,22 +308,25 @@ let
       on-scroll-up = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-";
       on-scroll-down = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.5";
       format-icons = {
-        headphone = "";
-        headset = "";
-        default = [
-          ""
-          ""
-          ""
-        ];
+        headphone = "󰋋";
+        headset = "󰋋";
+        # ONE ICON, not a three-step ladder — `network` and `bluetooth` name a
+        # state and let the text carry the number, and the volume percentage is
+        # already right beside this. A one-element array is how waybar says "the
+        # same at every level"; wayle's `level-icons` took a single-element list
+        # for the same reason. docs/adr/0051.
+        default = [ "󰕾" ];
       };
     };
 
     backlight = {
       format = "{icon} {percent}%";
-      format-icons = [
-        "󰖔"
-        "󰖨"
-      ];
+      # A MOON AND A SUN until 2026-08-27, so low brightness drew `md-weather-
+      # night` — a night-time glyph for a display setting, next to a night-mode
+      # module that is a different thing entirely. One icon now, at every level,
+      # for the reason the volume ladder lost its: the percentage is in the text
+      # and the icon says which module this is. docs/adr/0051.
+      format-icons = [ "󰃠" ];
       # Inverted for the same reason as pulseaudio above — natural scrolling
       # delivers fingers-up as on-scroll-down.
       on-scroll-up = "brightnessctl --class=backlight set 2%-";
@@ -303,7 +401,7 @@ let
     # Deliberately not the `bars` glyph: the control centre's own waybar row
     # already wears that, and two meanings for one glyph is worse than either.
     "custom/control-center" = {
-      format = "";
+      format = "󰘮";
       tooltip = false;
       on-click = "${s}/menus/shell.sh control-center";
     };
@@ -321,7 +419,13 @@ let
       return-type = "json";
       interval = 300;
       signal = 13;
-      on-click = "${s}/system/weather.sh refresh";
+      # LEFT OPENS THE PANEL. It ran `refresh` until 2026-08-26 — a fetch whose
+      # only possible output is a two-digit label that rarely moves inside a
+      # quarter of an hour, i.e. a click that appears to do nothing. `refresh`
+      # moved to the middle button, where it has the signal below to show for
+      # itself. docs/adr/0050.
+      on-click = "${s}/system/weather.sh panel";
+      on-click-middle = "${s}/system/weather.sh refresh";
       # The tooltip is a reading, not a forecast site. Right-click is the way
       # out to one, and the verb is the script's so the bar holds no URL.
       on-click-right = "${s}/system/weather.sh open";
@@ -409,7 +513,7 @@ let
     # family` lists fonts that have it; a missing glyph is an empty box with
     # nothing in any log.
     "custom/power" = {
-      format = " ";
+      format = "󰐥 ";
       tooltip = false;
       # `-b` is a column count: keep it equal to the wlogout entry count in
       # programs.nix, or the overflow wraps into a row the margins leave no
@@ -537,11 +641,10 @@ let
         ]
         [
           "ext/workspaces"
-          "custom/layout"
         ]
         [
           "mpris"
-          "wlr/taskbar"
+          "custom/minimized"
         ]
       ];
       right = [
@@ -589,7 +692,6 @@ let
         ]
         [
           "ext/workspaces"
-          "custom/layout"
         ]
         [ "mpris" ]
       ];
@@ -630,7 +732,6 @@ let
         [ "clock" ]
         [
           "ext/workspaces"
-          "custom/layout"
         ]
         [ "mpris" ]
       ];
@@ -642,8 +743,10 @@ let
         ]
         [ "custom/power" ]
       ];
-      # More room on the right, so the title gets more characters.
-      tweaks."custom/window".max-length = 80;
+      # NO `custom/window` TWEAK. It was 80 here — "more room on the right, so
+      # the title gets more characters" — which was true at 11px and is not at
+      # 14px. wayle carried one cap for all three layouts and this is that.
+      # docs/adr/0051.
     };
 
   };

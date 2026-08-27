@@ -88,11 +88,16 @@ in
     # `noctalia-shell` (4.x, quickshell) not `noctalia` (5.x beta, which clones
     # plugin repos over git at runtime).
     noctalia-shell
-    # NO swayosd. Nothing ever called `swayosd-client` — every volume and
-    # brightness bind runs wpctl or brightnessctl directly — so its only output
-    # was a caps-lock overlay drawn on top of the one wayle and noctalia each
-    # draw for themselves, in both modes. docs/adr/0047; its udev rule moved to
-    # brightnessctl in modules/system/audio.nix.
+    # THE OSD IN TILING MODE. Removed on 2026-08-26 because wayle and noctalia
+    # each drew their own caps-lock overlay and this made a second one
+    # (docs/adr/0047); back the same day because waybar has no OSD at all, so
+    # without it the volume, brightness and lock keys have no feedback
+    # whatever. docs/adr/0051.
+    #
+    # Its udev rule did NOT come back with it and does not need to: the
+    # backlight grant is brightnessctl's own now, a superset of what
+    # `99-swayosd.rules` gave. modules/system/audio.nix.
+    swayosd
     swaylock-effects
     # wlogout is deliberately absent — programs.wlogout owns it in home. Two
     # profiles carrying one binary makes PATH order decide which you get.

@@ -3728,3 +3728,387 @@ now asserts the spelling, verified in both directions.
 > own header also listed `desktop-mode.sh` as a caller: inherited verbatim from
 > `waybar-restart.sh` and never true of either. A stale caller list is how the
 > `exec=` line gets removed later by someone who thinks another path covers it.
+
+---
+
+## 2026-08-26 · The clicks the port dropped, and the surfaces it never declared
+
+`docs/adr/0049`. Four items off a review of the bar; the review's other findings
+are listed at the end and not done.
+
+**A native module inherits no actions, and renders identically either way.**
+`wayle.nix` specified `left-click`, `right-click` and `on-action` for all seven
+custom modules and for **none** of the eleven native ones — so scroll-to-adjust
+on `volume` and `brightness`, next/previous on `media`, and the `sysmonitor`
+scratchpad on `cpu`/`ram` all left with waybar. Nothing said so: wayle's default
+for every scroll action is the empty string, the modules draw the same, and the
+gate reads names and paths rather than behaviour. Restored, with waybar's
+natural-scroll inversion carried across — `scroll-up` takes the `2%-` command.
+
+> **`sysmonitor.sh` was worse than orphaned.** It runs `foot -e dgop`, and dgop
+> left the flake with DMS (`docs/archive/MIGRATION.md`), so the window opened and
+> died. Repointed at `btm`, which `packages.nix` already ships. The three
+> `appid:sysmonitor` window rules in `universal/rule.conf` have been matching
+> nothing this whole time and are live again without being touched.
+
+**The bar was the only surface anyone had configured.** wayle draws four —
+bar, dropdowns, notification popups, OSD — and `[styling]` held
+`theme-provider` and ten hex values, with no `[osd]` block at all. So the eight
+panels came up at `rounding = "sm"` against a square bar, the popup carried a
+drop shadow the bar refuses, and `popup-urgency-bar` sat at its `low` default,
+which is the **minimum** and therefore marked every notification. That last one
+is `docs/adr/0048`'s own argument one surface over. Three assertions now, one
+per surface.
+
+> The rounding assertion reads **inside `[styling]`**. `[bar]` carries its own
+> `rounding = "none"`, so a bare grep would have gone on passing off the bar's
+> line after the styling key was deleted — a check outliving its subject.
+
+**Bluetooth and network came off wayle's bundled outline sets**, which is the
+swap `0045` already made for volume, brightness and the battery ladder. All
+eight network states together, not the four that show most often: a half-done
+set changes icon vocabulary when the link drops.
+
+> **And the comment beside the earlier swap was wrong.** `wayle.nix` and
+> `gotchas.md` both said Adwaita answers `audio-volume-*` and
+> `display-brightness`. The icon THEME answers a freedesktop name — Papirus, in
+> service here — and Papirus ships every one of them. That is the same mechanism
+> the `adw-` battery package exists to defeat, and it was documented correctly
+> two paragraphs further down the same file. The prose is fixed; the packaging
+> is not, so three bar icons still follow whatever icon set the scheme names,
+> and heartbox's is a `native = false` stand-in.
+
+**Not done, from the same review.** `volume.right-click` still does not reach
+`volume-menu.sh` (the control centre is its only caller); `set-wallpaper.sh` has
+no caller at all and still speaks noctalia IPC; the session menu is wlogout from
+the bar and rofi from `SUPER+Escape`, with wayle's own `dashboard` unused; four
+`layerrule`s still name swaync, whose replacement namespace is now knowable
+(`wayle-notification-popup`); `waybar-layout`, `waybar-position`,
+`waybar-config.jsonc` and two logs survive in `$XDG_STATE_HOME/mango`; and
+`general.font-sans` is shell-wide, so every dropdown and notification body reads
+in 3270 while rofi reads in Hack.
+
+> **The bluetooth swap shipped a broken icon, and the gate said it was fine.**
+> Reported from the bar within minutes of the rebuild: a circle with a slash
+> where the glyph should be. `bluetooth-acquiring-symbolic` is Adwaita-only, and
+> **`Papirus-Dark` inherits `breeze-dark,hicolor`** — Adwaita is on this machine
+> only because other packages pull it in, and GTK never looks there. So the name
+> resolved to nothing and GTK drew its missing-image glyph.
+>
+> `checks/static.sh` passed it because it searched every icon tree on the
+> machine with one `find`, Adwaita included. That check now reads
+> `gtk-icon-theme-name` off the generation and walks `Inherits=` to hicolor —
+> eight directories here — and skips wayle's five bundled prefixes, which wayle
+> resolves itself. Verified both ways: `adw-bluetooth-acquiring-symbolic`
+> resolves through the chain, the bare name does not.
+>
+> The fix reuses the mechanism that already existed for the same reason.
+> `adwaitaBatteryIcons` is `adwaitaShellIcons` now and carries one more file:
+> **hicolor terminates every chain**, so an icon installed there is reachable
+> under any theme, and the `adw-` prefix means none can shadow it. That was
+> written down for the battery ladder and read as being about opacity masks; it
+> is also about the chain.
+
+**`runtime.toml` is a third owner, and it was holding two values.** `wayle
+config set` writes it and it beats the generated file — the only sign is
+`config.toml change ignored … runtime override active` in the journal. It held
+`osd.margin`, which is why the new `[osd]` block appeared to do nothing, and
+`modules.weather.location = "Dublin"` — a place NAME, the geocode indirection
+`docs/adr/0038` rejected, silently displacing the `lat,lon` that
+`checks/static.sh` asserts all six layouts carry. Both reset. The margin was a
+deliberate 10 against wayle's 150, so it moved into `wayle.nix` rather than
+being dropped.
+
+---
+
+## 2026-08-26 · The weather panel comes back to rofi
+
+The detailed reading was the one surface on this machine drawn by something
+other than the menus, and the only way into it was a mouse click on one bar
+module. `weather.sh panel` replaces it. `docs/adr/0050`.
+
+**Two facts settled it, both checked against wayle 0.7.0 rather than assumed.**
+The dropdown set is closed at **ten** — `schema.json` enumerates them, and
+`CustomModuleDefinition` has 28 keys with no panel among them, so there is no
+eleventh to write. And **no dropdown opens from outside the bar**:
+`com.wayle.Shell1` is `BarShow`/`BarHide`/`BarToggle` and nothing more, `wayle
+panel` is start/stop/restart/status/settings/inspect/hide/show/toggle. The same
+finding `docs/adr/0047` recorded for the notification history.
+
+`docs/adr/0046` was right that a custom module cannot own a dropdown. What it
+did not weigh is that the panel did not have to be one.
+
+**The script grew a refactor before it grew a verb.** The jq, the detail block
+and the row formatter are shared now — the tooltip, the control-centre row and
+the panel are three renderings of one read, and `hour_rows 2` is the whole
+difference between the first and the last. Eight hourly picks are computed at
+two-hour steps; the tooltip takes every other, which moved its steps from
++1/+4/+7/+10 hours to +1/+5/+9/+13.
+
+**The panel is a `-mesg` header over a twelve-row list.** Temperature at
+`xx-large`, place and condition, then today's range, humidity, UV, wind,
+pressure trend and sun times; then eight hourly rows and four daily ones in one
+column layout. Enter opens the forecast page, `Ctrl+Enter` refetches and
+redraws — both act on the panel rather than the selected row, so no row in it is
+inert. `SUPER+CTRL+W` opens it, beside the network, VPN and bluetooth menus.
+
+> **rofi sizes its window from the configured font's metrics, not the rendered
+> layout.** The header's `xx-large` temperature overflowed the space rofi gave
+> the widget and the eighth line came up clipped in half by the listview drawn
+> over it. Nothing logged. Verified it was the span rather than the line count
+> by rendering the same eight lines without it — whole. Fixed with 12px of
+> bottom padding on `message`, which until today was styled against the day
+> something passed a `-mesg` and now has a caller.
+
+**Removing `[modules.weather]` was only safe because the click went with it.**
+`clock.right-click` **defaults to `dropdown:weather`**, so the clock kept a
+second way into that panel — and with the coordinates block gone it would have
+landed at wayle's default San Francisco. That key is written now, at the same
+verb.
+
+> **The check that reads weather verbs was reading waybar's config alone**, so
+> every click on the bar actually in service went unchecked. It reads wayle's
+> layouts too now. The panel's own assertions replaced the pair `docs/adr/0046`
+> installed: the verb exists, no layout names `dropdown:weather` or carries
+> `[modules.weather]`, and a key names the verb.
+
+---
+
+## 2026-08-27 · waybar is the tiling bar again
+
+`docs/adr/0051`. The **restore** half only: wayle is installed, generated and
+unreferenced by any autostart line, so this is one `exec=` line from being
+undone. Nothing was deleted.
+
+**It was a re-activation, not a rebuild.** All six waybar configs were still
+generated, `style-solid.css` was intact, and `waybar-layout.sh`,
+`waybar-position.sh` and `window-title.sh` were still in the tree — the two
+pickers already calling a `waybar-restart.sh` that had been deleted under them,
+i.e. two keys one press from exit 127. That script came back out of git
+unchanged but for three renamed lib.sh helpers. The state names never moved:
+`bar_layout`, `bar_position` and `mode_has_bar` were deliberately generic since
+`docs/adr/0045`, so there was no migration and no reset.
+
+**Three jobs went back to their own owners** — swaync for notifications,
+swayosd for the OSD, awww for the wallpaper. Each is one autostart line and each
+fails silently without it, so `checks/static.sh` now asserts from the other end
+that something starts them.
+
+> **A running swaync is not evidence that `swaync-client` works.** Verified by
+> handing the notification name over live: with wayle up, swaync starts and
+> claims `org.erikreider.swaync` but **not** `org.erikreider.swaync.cc`, which
+> is a separate activatable name whose unit is deliberately masked — so every
+> client call dies with `NameHasNoOwner … unit is masked` and exits 0. Stop
+> wayle and all three names appear, `-D` answers `true`, `-c` answers `0` and
+> then `1` after a `notify-send`. That is what the two control-centre rows and
+> three keys were rewritten against.
+
+**Four bar settings were wrong and none of them looked it.** All four came out
+of rendering waybar beside wayle rather than out of reading the config, which is
+the only reason they were found at all:
+
+- `mpris.ignored-players = [ "firefox" ]`, carried through the generation
+  refactor with no reason attached. firefox is the only player here, so the
+  media module rendered **nothing, always**.
+- `dynamic-order` unwritten includes **position**, so the label was
+  `The Yogscast [06:03/13:48]` — a running clock where the title should have been.
+- `dynamic-len` is a **drop** threshold, not a truncation one. At 25 a
+  35-character title vanished and left the 12-character artist. `max-length` is
+  the key that truncates. Reordering `dynamic-importance-order` does nothing;
+  tried both ways.
+- `#custom-window` drew at `@subtext` and 11px against a bar of `@text` at 14px.
+  Its rule is gone and its cap went 60 → 45, because the same characters are a
+  third wider now.
+
+> **Three test renders were lost to `.mpris` not being where `mpris` lives.**
+> The generated config keys a module by its *tagged* name — `"mpris#sep"` — so
+> `jq '.mpris[…] = …'` creates a second object waybar ignores and reports
+> success. `jq 'keys[]' | grep mpris` first.
+
+**The retired-daemon check inverted rather than went away.** It caught
+`swaync-client` and `pkill -RTMIN+N waybar`; it now catches calls to the wayle
+CLI, excluding `scripts/wayle/` the way it always excluded `noctalia-start.sh`
+running `swaync`. The weather bar-push came back with it — waybar takes
+`RTMIN+13` — with `|| true`, because the same script runs in noctalia where the
+pkill matches nothing and a refresh that worked would exit 1.
+
+### The bar gets one glyph pack, and two settings that could not be read
+
+Same day, after the switch. `docs/adr/0051`.
+
+**One pack.** The bar carried 18 Font Awesome glyphs, 16 Material, one Octicon,
+one nf-linux and three bare Unicode arrows — four vocabularies at four stroke
+weights, which is most of what made it read as assembled rather than designed.
+Everything is nf-md now, and `checks/static.sh` asserts it: nf-md is plane 15
+(U+F0000+) and every other pack is in the BMP private-use area, so the test is
+"no codepoint below U+F0000", via jq's `explode`. It caught one entry my rewrite
+had missed on its first run.
+
+> **Two glyphs are named the opposite of what they are.** `md-memory` (U+F035B)
+> is the CPU chip; `md-chip` (U+F061A) is the RAM stick. Found by rendering the
+> whole candidate list to a PNG and looking at it before committing — which is
+> the only method that works, since `fc-list ':charset=…'` confirms a codepoint
+> exists and says nothing about what it draws.
+
+**These are font glyphs, not Papirus.** The icon theme reaches `tray` and
+`wlr/taskbar`, which ask for real icons; a glyph in a `format` string comes from
+a font. nf-md is the closest match to Papirus's symbolic set, Material being the
+language it follows.
+
+> Corrected 2026-08-27: this said the theme *cannot* be reached from any other
+> module, which is wrong — CSS can, via `-gtk-icontheme()`. See the entry at the
+> end of this log.
+
+**The app icon needed the long way round.** `format = "{icon} {}"` with a
+`format-icons` map keyed by `alt` is the documented way and it renders the
+**whole label empty** on 0.15.0 — not the text without the icon, the entire
+module — with nothing logged in either direction, stderr kept. Verified by
+rendering both ways. The glyph is prepended by `window-title.sh` now, with the
+appid→glyph table passed in as a JSON argument so it stays declared in
+`waybar.nix`.
+
+Also: the layout symbol (`T`) is gone, and the check caught its orphaned
+`#custom-layout` CSS selector on the first run — `docs/adr/0042`'s mechanism
+doing its job. Clock is 18px and weather 16px, which is what sets the bar's
+height, nothing here pinning one.
+
+> **The weather size did not change the first time, and nothing said so.**
+> `#custom-weather { font-size }` ended up written twice — beside the clock and
+> in the weather section — at equal specificity, so the later rule won and the
+> earlier one did nothing. Both are valid CSS, so the sheet reported nothing and
+> a rebuild was spent on it. One rule now, at the clock's own 18px, in the
+> section that already owned the module; `checks/static.sh` asserts one bare
+> rule per id, and found a second duplicate on its first run that turned out to
+> be the last selector of a multi-selector block rather than a real one — the
+> scan carries the previous line now.
+
+**Workspaces sits flush against the divider that follows it.** `.sep` puts 6px
+before the line and 11px after, which is right between text and wrong between a
+filled `@accent` block and a line — wayle made the same exception for the same
+reason. `margin-left: 0` on `#mpris.sep`, keyed by module because GTK cannot say
+"the `.sep` after workspaces": waybar wraps each module in its own EventBox, so
+`+` does not reach. `mpris#sep` follows `ext/workspaces#sep` in all six layouts
+and the check asserts it still does, so the rule cannot quietly start closing
+some other boundary.
+
+### Sizes, and three icons that were saying the wrong thing
+
+Read off the two bars side by side, which is the only way any of this surfaced.
+
+**13px, bold, and the two are one setting.** waybar sat at 14px against wayle's
+smaller text. 3270 is a narrow bitmap-derived face whose regular weight goes thin
+and uneven under 14px, so the weight is not decoration at this size — dropping
+the size without keeping bold is what makes a small bar look blurry rather than
+small. Clock stays 18px; weather is **16px, between the two**. Matching the clock
+exactly made the pair read as two clocks.
+
+**The microphone is visible only when muted.** `docs/gotchas.md` said "neither
+state may render as nothing", which over-generalised from the muted case. What
+must never be invisible is MUTED — "muted" and "the module is broken" becoming
+one picture is being recorded when you thought you were not. An empty LIVE state
+fails the other way: no glyph reads as live, and a broken module also shows no
+glyph, so the wrong reading is "I am being recorded", which is the safe one. A
+permanent indicator for the normal state is also what makes the dangerous state
+hard to spot, because it turns "is there an icon" into "which of these two
+similar icons is this". The space moved into the muted glyph, so the module does
+not change width when the icon is absent.
+
+**Brightness drew a MOON at low levels** — `md-weather-night`, a night-time
+glyph for a display setting, two modules away from the night-mode toggle that is
+actually about night. Both it and the volume ladder are single icons now, for
+the reason `network` and `bluetooth` are: the icon names the module, the number
+beside it carries the level. wayle's `level-icons` took a one-element list for
+the same reason.
+
+### The taskbar goes, and the bar gains the windows you cannot see
+
+`wlr/taskbar` listed every open window — which the workspace tags already tell
+you — while the only windows the bar could not account for were the ones
+`SUPER+I` had put away. `custom/minimized` replaced it in the same slot: one
+glyph per minimized window, from the same appid table `custom/window` uses, so a
+minimized Spotify reads as a music note and a minimized zen as the browser glyph.
+Left-click restores. `docs/adr/0051`.
+
+Text is **13.5px** — 14 read large beside wayle and 13 read small. GTK takes the
+fractional value; checked by rendering all three rather than assumed.
+
+> **`restore_minimized` says `{"success":true}` when it restores nothing.** It
+> takes no client and pops the last minimized window ON THE CURRENT TAG, and
+> minimizing clears a client's `tags` to `[]` — so there is no way to tell from
+> the IPC which tag a hidden window would return to, and no way to target one.
+> Verified both directions on a throwaway window rather than on live ones: a
+> minimize/restore round trip on one tag works exactly; a window minimized on
+> another tag does not come back, and the dispatch reports success either way.
+> `SUPER+SHIFT+I` has the same behaviour — it is the same verb.
+>
+> Hence the module reports and does not offer a picker. A rofi list of hidden
+> windows that cannot restore the one you pick is the "action that appears to do
+> nothing" `docs/adr/0033` refuses to have.
+
+> **`mmsg`'s usage text lists only `get` and `watch`, and `dispatch` works
+> anyway.** The tell is the error: `mmsg dispatch <bogus>` says *unknown
+> function* while `mmsg <bogus>` says *unknown command*. Both exit 0.
+
+Losing the taskbar also loses the last module here that ASKS the icon theme for
+its icons — `tray` is the only one left that does. Everything else is a font
+glyph, though that turned out not to be a hard limit; see below.
+
+### Themed icons ARE reachable from a waybar module, through CSS
+
+Written down because this log and `docs/gotchas.md` both claimed the opposite,
+in three places, on the strength of reasoning rather than a test.
+
+The reasoning was: a module's label is text, an icon name is not text, therefore
+only `tray` and `wlr/taskbar` — which ask the icon theme themselves — can draw
+real icons. The first half is true and the conclusion does not follow. waybar's
+stylesheet is ordinary GTK CSS, and GTK CSS has `-gtk-icontheme()`:
+
+```css
+#custom-window {
+    background-image: -gtk-icontheme("firefox");
+    background-position: 2px center;
+    background-size: 18px 18px;
+    padding-left: 26px;
+}
+```
+
+That renders the real Papirus icon behind the module. Verified by rendering it
+on the bar, not by reading documentation.
+
+Two limits, both measured:
+
+- **One icon per module, not per item.** GTK takes multiple background layers
+  but their positions are static, so a variable-length list like
+  `custom/minimized` cannot get an icon each. `wlr/taskbar` and `tray` remain
+  the only widgets that draw a dynamic list of themed icons.
+- **App icons come through in full colour.** Symbolic names render as their own
+  asset rather than following the palette — GTK's symbolic recolouring applies
+  to image widgets, not to CSS backgrounds. On a monochrome bar that is a design
+  decision, not a detail.
+
+waybar's `image` module is the other route: a real GtkImage from a path a script
+prints. It needs its own module slot and carries no text, so a window title
+would become two modules.
+
+Nothing was adopted. `custom/window` and `custom/minimized` still use font
+glyphs.
+
+### Next
+
+1. **Decide the window-title icon.** Font glyph as now, `-gtk-icontheme()` for
+   real Papirus art, or an `image` module. The real question is full-colour app
+   icons on a monochrome bar.
+2. **Per-window restore.** `restore_minimized` cannot target a window;
+   `wlr/taskbar`'s `minimize-raise` click action can. Bringing the taskbar back
+   with minimized entries dimmed would give both that and themed icons, at the
+   cost of listing every window again.
+3. **Confirm the muted-microphone indicator on the real bar.** Never captured
+   cleanly — a fullscreen video covered the right side on every attempt. The
+   muted branch was not changed in kind, so it is expected to work, but it is
+   unverified.
+4. **Confirm swaync pops notifications.** DND read `true` during the handover
+   test. The control-centre row shows it, so this is visible rather than silent.
+5. **Pass 2 of the wayle removal, if wanted.** `modules/home/wayle.nix`,
+   `dotfiles/wayle/`, `scripts/wayle/`, ~85 references in `checks/static.sh`,
+   and `pkgs.adwaitaShellIcons` once nothing needs it. Everything still builds
+   and nothing starts it.

@@ -28,6 +28,11 @@ noctalia)
 		echo "set-wallpaper: noctalia did not accept the wallpaper" >&2
 	;;
 *)
-	wayle wallpaper set "$WALLPAPER_PATH"
+	# awww directly, as before wayle. wayle spawned awww-daemon as its own child
+	# and held the transition/cycling state with it, so driving awww underneath a
+	# running wayle was the two-owners failure docs/adr/0005 records. With wayle
+	# unstarted there is one owner again. docs/adr/0051.
+	pgrep '^\.?awww-daemon' >/dev/null || awww-daemon &
+	awww img "$WALLPAPER_PATH" --transition-type wipe --transition-duration 1
 	;;
 esac

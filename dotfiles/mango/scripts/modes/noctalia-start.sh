@@ -22,17 +22,23 @@
 #   not come up, and says why.
 set -u
 
-# `systemctl --user stop`, not pkill: the unit owns wayle (docs/adr/0005), and
-# stop is idempotent. Both go — wayle is this machine's other shell, not just
-# its other bar: it draws the tiling bar, owns notifications there and drives
-# the wallpaper engine through awww. noctalia does all three itself.
-# docs/adr/0045.
-systemctl --user stop wayle 2>/dev/null
-systemctl --user stop awww 2>/dev/null
-
-# Retired, but a session predating docs/adr/0045 still has one. See the note in
-# tiling/autostart.conf for why this is not `-f`.
+# WAYBAR IS THE TILING BAR AGAIN (docs/adr/0051), so this is the live handover
+# rather than the residue sweep it was between 2026-08-24 and 2026-08-26. See
+# the note in tiling/autostart.conf for why it is not `-f`: waybar's cmdline
+# carries no path, so an anchored pattern misses while an unanchored comm match
+# finds the wrapper `.waybar-wrapped`.
 pkill waybar 2>/dev/null
+
+# awww is a BARE PROCESS again, not a unit. wayle spawned awww-daemon as its own
+# child and `stop wayle` took it down with it; wallpaper-restore.sh starts it
+# directly now, so it needs killing directly. Match comm with the wrapper's
+# leading dot — `-x` misses `.awww-daemon-wr`, and `-f` would match this line.
+pkill '^\.?awww-daemon' 2>/dev/null
+
+# Still stopped, and still by unit: wayle is installed but no longer started by
+# tiling/autostart.conf, so this only matters for a session that predates the
+# switch or a wayle-restart.sh run by hand. `stop` is idempotent.
+systemctl --user stop wayle 2>/dev/null
 
 pkill -x dsearch 2>/dev/null
 pkill -f '^swaync( |$)' 2>/dev/null

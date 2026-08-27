@@ -383,14 +383,42 @@ fi
 BAR_AUTOSTART="$MANGO/tiling/autostart.conf"
 if [[ ! -s $BAR_AUTOSTART ]]; then
 	bad "tiling/autostart.conf is missing or empty — the scan is broken, not the repo" "$BAR_AUTOSTART"
-elif grep -qE '^exec=[^=]*wayle/wayle-restart\.sh' "$BAR_AUTOSTART"; then
-	ok "tiling/autostart.conf runs wayle-restart.sh as exec=, so reload_config restarts the bar"
-elif grep -qE '^exec-once=.*wayle/wayle-restart\.sh' "$BAR_AUTOSTART"; then
-	bad "tiling/autostart.conf runs wayle-restart.sh as exec-once=, so mango-reload no longer restarts the bar" \
+elif grep -qE '^exec=[^=]*waybar/waybar-restart\.sh' "$BAR_AUTOSTART"; then
+	ok "tiling/autostart.conf runs waybar-restart.sh as exec=, so reload_config restarts the bar"
+elif grep -qE '^exec-once=.*waybar/waybar-restart\.sh' "$BAR_AUTOSTART"; then
+	bad "tiling/autostart.conf runs waybar-restart.sh as exec-once=, so mango-reload no longer restarts the bar" \
 		"reload_config re-fires exec= lines only — the bar would keep its previous config, silently"
 else
-	bad "nothing in tiling/autostart.conf runs wayle-restart.sh" \
+	bad "nothing in tiling/autostart.conf runs waybar-restart.sh" \
 		"the bar would not start at login and mango-reload would not restart it"
+fi
+
+# --- The daemons the scripts assume ------------------------------------------
+#
+# THREE PROGRAMS, NONE OF THEM A UNIT WantedBy ANYTHING. Each is started by one
+# autostart line and each has callers that fail silently without it, which is
+# what makes a deleted line invisible rather than fatal. docs/adr/0051.
+#
+#   swaync      owns org.freedesktop.Notifications AND org.erikreider.swaync.cc.
+#               Without it every `swaync-client` in shell.sh and
+#               control-center.sh hits a MASKED activation unit, prints
+#               `NameHasNoOwner … unit is masked` on stderr and EXITS 0 — two
+#               control-centre rows rendering `?` and three dead keys, which is
+#               how it sat for a month. The mask is deliberate
+#               (modules/home/default.nix) so autostart owns the lifecycle.
+#   waybar      the bar, checked above.
+#   swayosd     the only OSD in this mode. waybar has none, so volume,
+#               brightness and the lock keys have no feedback without it — and
+#               no error either, since nothing calls swayosd-client.
+daemonbad=""
+grep -qE '^exec=.*swaync' "$BAR_AUTOSTART" ||
+	daemonbad+="  tiling/autostart.conf does not start swaync — every swaync-client call exits 0 having done nothing"$'\n'
+grep -qE '^exec-once=.*swayosd-server' "$MANGO/universal/autostart.conf" ||
+	daemonbad+="  universal/autostart.conf does not start swayosd-server — no volume, brightness or caps-lock feedback anywhere"$'\n'
+if [[ -n $daemonbad ]]; then
+	bad "a daemon the scripts depend on is not started by any autostart line" "$daemonbad"
+else
+	ok "swaync and swayosd are both started by an autostart line"
 fi
 
 # --- Daemons that are not there any more -------------------------------------
@@ -399,16 +427,25 @@ fi
 # exactly like success. Absence checks, so the floor is on the population: a
 # scan over no scripts finds nothing and passes.
 #
-#   pkill -RTMIN+N waybar   waybar's refresh push. wayle takes no signal, so
-#                           this matched nothing and returned 1 — the calling
-#                           script's own exit status, for a toggle that worked.
-#                           Six scripts carried one. docs/adr/0045, 0047.
-#   swaync-client           swaync is started in neither mode and its unit is
-#                           MASKED, so this prints `NameHasNoOwner … unit is
-#                           masked` on stderr and EXITS 0. Three keys and two
-#                           control-centre rows were dead that way for a month.
-#                           `swaync` itself is not matched: noctalia-start.sh
-#                           runs the binary as its failure path, deliberately.
+# WAYLE IS THE RETIRED ONE NOW (docs/adr/0051). It is still installed and its
+# CLI still exists, so every call below builds, runs, and fails at a socket that
+# nothing is listening on:
+#
+#   wayle <verb>            `wayle notify`, `wayle wallpaper`. Nothing starts
+#                           wayle since tiling/autostart.conf stopped doing so,
+#                           and the CLI's failure is a message on a stderr no
+#                           keybind reads. Four call sites moved to
+#                           swaync-client and awww; this is what keeps a fifth
+#                           from arriving.
+#
+# scripts/wayle/* IS EXCLUDED, deliberately: those three are the by-hand path
+# back to wayle and calling it is their entire job — the same exception
+# noctalia-start.sh has always had for running `swaync`.
+#
+# The two patterns this replaced were `pkill -RTMIN+N waybar` and
+# `swaync-client`, retired between 2026-08-24 and 2026-08-26. BOTH ARE LIVE
+# AGAIN and are asserted above instead, from the other end: that something
+# starts the daemon they talk to.
 #
 # COMMENTS ARE STRIPPED FIRST, and that is the deliberate half. Every one of the
 # six removals left a comment saying which line went and why — this repo's whole
@@ -420,17 +457,15 @@ for f in "${SCRIPTS[@]}"; do
 	code=$(sed 's/#.*//' "$f")
 	# `if`, not `grep … && retired+=`: a bare `a && b` whose `a` fails fails the
 	# statement, which would exit under a `set -e` this file does not have yet.
-	if grep -q 'pkill -RTMIN+[0-9]* waybar' <<<"$code"; then
-		retired+="  ${f#"$SRC"/} signals waybar, which is retired and would take no signal anyway"$'\n'
-	fi
-	if grep -q 'swaync-client' <<<"$code"; then
-		retired+="  ${f#"$SRC"/} calls swaync-client, whose unit is masked — it exits 0 having done nothing"$'\n'
+	case "$f" in "$MANGO"/scripts/wayle/*) continue ;; esac
+	if grep -qE '(^|[^-[:alnum:]_])wayle [a-z]' <<<"$code"; then
+		retired+="  ${f#"$SRC"/} calls the wayle CLI, and nothing starts wayle — it fails at a socket, on a stderr no keybind reads"$'\n'
 	fi
 done
 if [[ -n $retired ]]; then
 	bad "a script still talks to a daemon this machine does not run" "$retired"
 else
-	ok "no script signals waybar or calls swaync-client"
+	ok "no script outside scripts/wayle/ calls the wayle CLI"
 fi
 
 # Two binds on one key: mango prints `[warning] Key binding conflict` naming
@@ -711,40 +746,66 @@ if [[ -f $WEATHER_SH ]]; then
 	# config. Both ends are gone: wayle takes no signal, so that line matched
 	# nothing and returned 1 (docs/adr/0047). There is nothing left to agree.
 
-	# 2. THE PANEL POINTS AT THIS MACHINE. custom-weather's left click opens
-	#    wayle's OWN weather dropdown, which reads `[modules.weather]` and never
-	#    this script. Unconfigured it is San Francisco — a complete, plausible
-	#    forecast for somewhere else, which is the failure this repo is named
-	#    for. Both halves, because either alone is silent. docs/adr/0046.
-	wlat=$(sed -n 's/^WEATHER_LAT=//p' "$LOC_ENV" 2>/dev/null | head -1)
-	wlon=$(sed -n 's/^WEATHER_LON=//p' "$LOC_ENV" 2>/dev/null | head -1)
+	# 2. THE PANEL IS REACHABLE, AND IT IS THIS ONE. `weather.sh panel` replaced
+	#    wayle's `dropdown:weather` on 2026-08-26 (docs/adr/0050). Three ways
+	#    that goes wrong in silence, so three assertions:
+	#
+	#      - the verb disappears from weather.sh and every caller opens nothing
+	#      - a layout still names `dropdown:weather`, which is a SECOND panel,
+	#        complete and plausible and at wayle's default San Francisco once
+	#        `[modules.weather]` came out with the click that read it
+	#      - the key stops naming the verb, and the only way in is the bar again
+	#
+	#    wayle's own default for `clock.right-click` IS `dropdown:weather`, so
+	#    the second one is what happens by leaving a key unwritten, not by
+	#    writing a wrong one.
 	panelbad=""
 	panelseen=0
+	sed -n '/^case "${1:-status}" in$/,/^esac$/p' "$WEATHER_SH" | grep -q '^panel)' ||
+		panelbad+="  weather.sh has no 'panel' verb — every caller below opens nothing"$'\n'
 	for f in "$WAYLE_DIR"/layouts/*.toml; do
 		[[ -s $f ]] || continue
 		panelseen=$((panelseen + 1))
-		ploc=$(sed -n '/^\[modules\.weather\]/,/^\[/p' "$f" |
-			sed -n 's/^location = "\(.*\)"$/\1/p' | head -1)
-		if [[ -z $ploc ]]; then
-			panelbad+="  ${f##*/}: no [modules.weather] location — the panel is San Francisco"$'\n'
-		elif [[ $(awk -v pa="${ploc%%,*}" -v pb="${ploc##*,}" -v wa="$wlat" -v wb="$wlon" \
-			'BEGIN { print (sprintf("%.4f", pa) == sprintf("%.4f", wa) &&
-				sprintf("%.4f", pb) == sprintf("%.4f", wb)) ? 1 : 0 }') != 1 ]]; then
-			panelbad+="  ${f##*/}: the panel is at $ploc, the script at $wlat,$wlon"$'\n'
+		if grep -q 'dropdown:weather' "$f"; then
+			panelbad+="  ${f##*/}: still opens wayle's weather dropdown, which is now unconfigured"$'\n'
 		fi
-		# The click that reaches it. A layout without custom-weather (`minimal`)
-		# has none, and that is the layout deliberately dropping the module.
+		if grep -q '^\[modules\.weather\]' "$f"; then
+			panelbad+="  ${f##*/}: carries [modules.weather] for a dropdown nothing opens"$'\n'
+		fi
+		# A layout without custom-weather (`minimal`) has no click to check, and
+		# that is the layout deliberately dropping the module.
 		if grep -q 'id = "weather"' "$f" &&
-			! grep -A8 'id = "weather"' "$f" | grep -q 'left-click = "dropdown:weather"'; then
+			! grep -A8 'id = "weather"' "$f" | grep -q 'left-click = ".*weather\.sh panel"'; then
 			panelbad+="  ${f##*/}: custom-weather's left click no longer opens the panel"$'\n'
 		fi
 	done
+	grep -q 'weather\.sh panel' "$MANGO/universal/bind-shared.conf" ||
+		panelbad+="  no key opens the panel — bind-shared.conf does not name the verb"$'\n'
+	# WAYBAR IS THE BAR IN SERVICE (docs/adr/0051), so its click is the one that
+	# matters. `on-click` ran `refresh` until 2026-08-26 — a fetch whose only
+	# output is a two-digit label, i.e. a click that appears to do nothing.
+	#
+	# jq, not sed: `"format": "{}"` puts a closing brace inside a STRING, so a
+	# `/}/` range ends on the format line and never reaches on-click. It read as
+	# "no layout opens the panel" for every file that had one.
+	wbseen=0
+	for f in "$WAYBAR_DIR"/config-*.jsonc; do
+		[[ -s $f ]] || continue
+		wbclick=$(jq -r '.["custom/weather"]["on-click"] // empty' "$f" 2>/dev/null) || wbclick=""
+		# `minimal` carries no weather module, deliberately (docs/adr/0038).
+		[[ -n $wbclick ]] || continue
+		wbseen=$((wbseen + 1))
+		[[ $wbclick == *"weather.sh panel" ]] ||
+			panelbad+="  ${f##*/}: custom/weather's left click is '$wbclick', not the panel"$'\n'
+	done
+	[[ $wbseen -gt 0 ]] ||
+		panelbad+="  no waybar config carries custom/weather — the scan is broken, not the repo"$'\n'
 	if [[ $panelseen -eq 0 ]]; then
 		bad "no wayle layout read — the scan is broken, not the repo" "$WAYLE_DIR/layouts"
 	elif [[ -n $panelbad ]]; then
-		bad "wayle's weather panel and weather.sh disagree about where this machine is" "$panelbad"
+		bad "the weather panel is not the one this repo draws" "$panelbad"
 	else
-		ok "all $panelseen wayle layouts point the weather panel at $wlat,$wlon"
+		ok "$wbseen waybar configs, $panelseen wayle layouts and one key open weather.sh's rofi panel"
 	fi
 
 	# 3. THE CONTROL-CENTRE ROW MUST NOT FETCH. That render is parallel and
@@ -838,6 +899,11 @@ if [[ -f $WEATHER_SH ]]; then
 			jq -r '.["custom/weather"] | to_entries[] | .value | strings' \
 				"$WAYBAR_DIR/config-full-top.jsonc" 2>/dev/null |
 				grep -oE 'weather\.sh [a-z]+'
+			# WAYLE'S LAYOUTS TOO, and they are the bar in service — the waybar
+			# config above is the one this scan read alone until 2026-08-26,
+			# which left every click on the running bar unchecked. Four of the
+			# five verbs are reached from here.
+			grep -hoE 'weather\.sh [a-z]+' "$WAYLE_DIR"/layouts/*.toml 2>/dev/null
 			# The closing quote is load-bearing here: "a class weather.sh does
 			# not emit" is a sentence in that file, and `does` is not a verb.
 			grep -oE 'weather\.sh" [a-z]+' "$CC" 2>/dev/null
@@ -2786,14 +2852,49 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 		ok "all ${#WLAYOUTS[@]} wayle layouts leave bar.padding at 0, so the active tag is full height"
 	fi
 
-	# 6b. Every icon name a layout references resolves to a file.
+	# 6a. The three surfaces that are NOT the bar are declared.
 	#
-	# A name that does not is not an error: wayle falls back to its own default
-	# and the module renders, wearing an icon nobody chose. The same failure the
-	# Font names get a check for, and now a live dependency — `audio-volume-*`
-	# and `display-brightness` come from Adwaita in the SYSTEM profile, not from
-	# wayle's own 361, so dropping adwaita-icon-theme would silently restyle two
-	# modules.
+	# wayle is a shell: it draws the bar, eight dropdowns, notification popups
+	# and the OSD. Leave a key out and that surface silently takes wayle's own
+	# default — `styling.rounding` comes up `sm` against a square bar, and with
+	# no `[osd]` block at all the machine's ONLY on-screen display (swayosd went
+	# in docs/adr/0047) is whatever wayle picked. Nothing renders wrong; it
+	# renders like a different machine's shell. docs/adr/0049.
+	surf=""
+	for cfg in "${WLAYOUTS[@]}"; do
+		b=$(basename "$cfg")
+		# WITHIN `[styling]`. A bare grep for the key matches `[bar]`'s own
+		# `rounding`, which is also "none" — so dropping the styling one would
+		# pass on the bar's line. That is the shape of silent pass this file exists to
+		# refuse.
+		awk '/^\[styling\]$/{f=1;next} /^\[/{f=0} f' "$cfg" |
+			grep -qE '^rounding = "none"$' || surf+="  $b: styling.rounding is not \"none\""$'\n'
+		grep -qE '^\[osd\]$' "$cfg" || surf+="  $b: no [osd] block"$'\n'
+		grep -qE '^popup-urgency-bar = "critical"$' "$cfg" ||
+			surf+="  $b: popup-urgency-bar is not \"critical\" — the bar marks every notification"$'\n'
+	done
+	if [[ -n $surf ]]; then
+		bad "a wayle layout leaves a non-bar surface on wayle's defaults" "$surf"
+	else
+		ok "all ${#WLAYOUTS[@]} wayle layouts declare styling.rounding, [osd] and the urgency threshold"
+	fi
+
+	# 6b. Every icon name a layout references resolves THROUGH THE THEME CHAIN.
+	#
+	# A name that does not resolve is not an error anywhere: GTK draws its
+	# missing-image glyph and the module renders, so the bar carries a circle
+	# with a slash where an icon should be.
+	#
+	# THE CHAIN IS THE WHOLE POINT, and the first version of this check did not
+	# have it — it searched every icon tree on the machine, found
+	# `bluetooth-acquiring-symbolic` in Adwaita and passed, while GTK never
+	# looked there. `Papirus-Dark` inherits `breeze-dark,hicolor`; Adwaita is in
+	# neither, and is only present at all because other packages pull it in. A
+	# check that resolves names GTK cannot is worse than no check: it reports a
+	# clean bill on a bar with a missing glyph on it.
+	#
+	# `hicolor` terminates every chain, which is why pkgs/default.nix installs
+	# the `adw-` prefixed set there.
 	#
 	# `find -L`: both trees are symlink farms, and without it Adwaita's
 	# `symbolic/status/` is never entered and every name in it reads as missing.
@@ -2802,22 +2903,52 @@ if [[ ${#WLAYOUTS[@]} -gt 0 ]]; then
 			tr -d '"' | sort -u
 	)
 	icon_count=$(printf '%s\n' "$iconnames" | grep -c .)
-	if [[ $icon_count -lt 5 ]]; then
+
+	# The theme in service, read off the generation rather than off palette.nix:
+	# this is the name GTK is actually given.
+	icon_theme=$(sed -n 's/^gtk-icon-theme-name=//p' "$GEN_CFG/gtk-3.0/settings.ini" 2>/dev/null)
+
+	# Walk `Inherits=` breadth-first, ending at hicolor.
+	icon_dirs=()
+	if [[ -n $icon_theme ]]; then
+		queue=("$icon_theme" hicolor)
+		seen=""
+		while [[ ${#queue[@]} -gt 0 ]]; do
+			th=${queue[0]}
+			queue=("${queue[@]:1}")
+			[[ $seen == *"|$th|"* ]] && continue
+			seen+="|$th|"
+			for root in "$GEN/home-path/share/icons" "$SYS/sw/share/icons"; do
+				[[ -d "$root/$th" ]] || continue
+				icon_dirs+=("$root/$th")
+				while IFS= read -r parent; do
+					[[ -n $parent ]] && queue+=("$parent")
+				done < <(sed -n 's/^Inherits=//p' "$root/$th/index.theme" 2>/dev/null | tr ',' '\n')
+			done
+		done
+	fi
+
+	if [[ -z $icon_theme ]]; then
+		bad "no gtk-icon-theme-name in the generation — the icon check cannot know what GTK resolves against"
+	elif [[ ${#icon_dirs[@]} -lt 2 ]]; then
+		bad "icon theme '$icon_theme' resolved to ${#icon_dirs[@]} directories — the chain walk is broken, not the config"
+	elif [[ $icon_count -lt 5 ]]; then
 		bad "only $icon_count icon names extracted from the wayle layouts — the scan is broken, not the config"
 	else
 		imissing=()
 		while IFS= read -r n; do
 			[[ -z $n ]] && continue
-			find -L "$GEN/home-path/share/icons" "$SYS/sw/share/icons" \
-				-name "$n.svg" -print -quit 2>/dev/null | grep -q . || imissing+=("$n")
+			# wayle's own 361 ship inside the package under five prefixes and are
+			# resolved by wayle, not by GTK. `wayle icons list` enumerates them.
+			[[ $n == ld-* || $n == si-* || $n == tb-* || $n == md-* || $n == cm-* ]] && continue
+			find -L "${icon_dirs[@]}" -name "$n.svg" -print -quit 2>/dev/null | grep -q . || imissing+=("$n")
 		done <<<"$iconnames"
 		if [[ ${#imissing[@]} -gt 0 ]]; then
-			bad "wayle icon names that resolve to nothing (silent fallback)" "${imissing[*]}"
+			bad "wayle icon names GTK cannot resolve through '$icon_theme' and its inherits" "${imissing[*]}"
 		else
-			ok "all $icon_count icon names in the wayle layouts resolve to a file"
+			ok "all $icon_count icon names in the wayle layouts resolve through $icon_theme (${#icon_dirs[@]} themes in the chain)"
 		fi
 	fi
-
 	# 7. The sheet's `$groups` list is exactly the set of groups the layouts
 	# declare. Every rule in index.scss is built from that one variable — the
 	# within-group gap and the separator both need an ID to out-specify wayle's
@@ -3013,6 +3144,54 @@ else
 		ok "no waybar module renders an empty format"
 	fi
 
+	# --- ONE GLYPH PACK -------------------------------------------------------
+	#
+	# Every glyph the bar prints is nf-md (Material Design), which lives in plane
+	# 15 at U+F0000 and above. Font Awesome, Octicons, nf-linux and nf-weather
+	# all sit in the BMP private-use area at U+E000-U+F8FF, and bare arrows and
+	# crosses at U+2190-U+2BFF — so a glyph from another pack is a codepoint
+	# BELOW U+F0000, and that is the whole test.
+	#
+	# It is worth a check rather than a convention because the failure is not an
+	# error: a Font Awesome bell renders perfectly well, at a different stroke
+	# weight from everything beside it, and reads as the bar being untidy rather
+	# than as a mistake. The bar carried four packs until 2026-08-27.
+	# docs/adr/0051.
+	#
+	# jq -r piped to a codepoint dump, never by eye — CLAUDE.md's rule for
+	# glyphs in Nix, and the same reason applies to reading them back out.
+	# Values only: a KEY may legitimately be an appid or a state name.
+	packbad=""
+	packseen=0
+	for cfg in "$WAYBAR_DIR"/config-*.jsonc; do
+		[[ -s $cfg ]] || continue
+		# `explode` is jq's own codepoint dump, and jq is already a build input
+		# here — the check sandbox has no python. Values only: a KEY may
+		# legitimately be an appid or a state name.
+		while read -r cp; do
+			[[ -n $cp ]] || continue
+			if [[ $cp -ge 983040 ]]; then
+				packseen=$((packseen + 1))
+			else
+				packbad+="  ${cfg##*/}: U+$(printf '%04X' "$cp")"$'\n'
+			fi
+		done < <(
+			jq -r '[.. | strings] | join("") | explode | unique | .[]
+			       | select((. >= 8592 and . <= 11263)
+			             or (. >= 57344 and . <= 63743)
+			             or (. >= 983040))' "$cfg" 2>/dev/null
+		)
+	done
+	if [[ $packseen -eq 0 ]]; then
+		bad "no bar glyphs read at all — the scan is broken, not the repo" "$WAYBAR_DIR"
+	elif [[ -n $packbad ]]; then
+		packbad=$(printf '%s' "$packbad" | sort -u)
+		bad "a bar glyph comes from a pack other than nf-md" \
+			"it renders fine, at a different stroke weight from everything beside it:"$'\n'"$packbad"
+	else
+		ok "all $packseen bar glyphs are nf-md, one pack across every layout"
+	fi
+
 	# ...and the inverse direction, which was missing. A rule outlives the module
 	# it styles in silence: `#custom-scratch-spotify` and `#custom-scratch-equibop`
 	# sat here with no definition in waybar.nix, no layout carrying them and no
@@ -3058,6 +3237,35 @@ else
 			"the module is gone and its rule is not, which nothing else reports:"$'\n'"$orphan"
 	else
 		ok "all $rules styled ids in style-solid.css belong to a module some layout carries"
+	fi
+
+	# --- ONE BARE RULE PER ID -------------------------------------------------
+	#
+	# `#custom-weather { font-size }` was written twice on 2026-08-27, once
+	# beside the clock and once in the weather section. Same specificity, so the
+	# LATER one won and the earlier one did nothing — the size did not change, a
+	# rebuild was spent on it, and the sheet reported nothing because both rules
+	# are perfectly valid.
+	#
+	# Bare `#id {` only, and only where it OPENS the rule. A state rule
+	# (`#custom-weather.ok`) is a different selector on purpose and there are a
+	# dozen of them; and the shared blocks at the top of the sheet are ONE rule
+	# over many selectors, so their last line is `#custom-power-profile {` with
+	# `#custom-phone,` above it. Counting that as a bare rule reported a
+	# duplicate that is not one, which is what the first version of this check
+	# did. The awk carries the previous line for exactly that. docs/adr/0051.
+	dupids=$(
+		awk '
+			/^[[:space:]]*($|\/\*|\*)/ { next }
+			/^#[a-z0-9-]+ \{$/ && prev !~ /,$/ { sub(/ \{$/, ""); print }
+			{ prev = $0 }
+		' "$STYLE_CSS" 2>/dev/null | sort | uniq -d
+	)
+	if [[ -n $dupids ]]; then
+		bad "an id is styled by two bare rules in style-solid.css" \
+			"same specificity, so the later one wins and the earlier does nothing, silently:"$'\n'"$(printf '  %s\n' "$dupids")"
+	else
+		ok "no id in style-solid.css carries two bare rules"
 	fi
 
 	# Separators are declared by the layout now (docs/adr/0042): a group's first

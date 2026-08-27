@@ -244,13 +244,29 @@ button selected {
   border-color: @accent;
 }
 
-/* `-mesg` is unused today, but an unstyled widget inherits rofi's built-in
- * theme rather than nothing — so it would appear in a colour scheme this file
- * has otherwise replaced, the first time some script passes one. */
+/* The weather panel's header block — `scripts/system/weather.sh panel`, the
+ * only `-mesg` caller here (docs/adr/0050). An unstyled widget inherits rofi's
+ * built-in theme rather than nothing, which is why this had a rule while
+ * nothing passed one.
+ *
+ * 12px at the BOTTOM, not the 6px the other three sides carry. rofi sizes the
+ * window from the CONFIGURED font's metrics, not from the rendered layout, so a
+ * markup span larger than `font:` overflows the space it was given and the last
+ * line is clipped — by about one line for the panel's `size="xx-large"`
+ * headline. Measured both ways on 2026-08-26; docs/gotchas.md -> rofi. */
 message {
-  padding:      6px 10px;
+  padding:      6px 10px 12px 10px;
   border:       0 0 1px 0;
   border-color: @overlay;
+}
+
+/* @text, not the @subtext every other textbox wears: this widget is the
+ * panel's headline and its reading, not a hint about one. Hierarchy inside it
+ * is size and weight — colour stays reserved for state, as on the bar
+ * (docs/adr/0048), and a hex code in a script would be a sixth copy of the
+ * palette anyway. */
+message textbox {
+  text-color: @text;
 }
 
 textbox {

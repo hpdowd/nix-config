@@ -35,21 +35,25 @@ fb_emoji() { rofi -show emoji; }
 fb_network() { "$MANGO_DIR/scripts/menus/network-menu.sh"; }
 fb_bluetooth() { "$MANGO_DIR/scripts/menus/bluetooth-menu.sh"; }
 fb_power() { "$MANGO_DIR/scripts/menus/power-menu.sh"; }
-# WAYLE, NOT SWAYNC. swaync is the notification daemon in neither mode now
-# (docs/adr/0045): tiling/autostart.conf kills it before wayle claims
-# org.freedesktop.Notifications, and its unit is masked. `swaync-client` against
-# a masked unit prints `NameHasNoOwner … unit is masked` on stderr and EXITS 0,
-# so all three of these keys were dead and reported success. docs/adr/0047.
+# SWAYNC AGAIN. It was the daemon here until docs/adr/0045 handed
+# org.freedesktop.Notifications to wayle, and it is the daemon here again —
+# tiling/autostart.conf starts it once wayle is stopped. docs/adr/0051.
 #
-# `notify` has no CLI: the history is a dropdown, and nothing opens one from
-# outside the bar. menus/notifications.sh is that half.
-fb_notify() { "$MANGO_DIR/scripts/menus/notifications.sh"; }
-fb_notify_clear() { wayle notify dismiss-all; }
-fb_dnd() { wayle notify dnd; }
+# `-sw` on the two that act: swaync-client waits for the daemon by default, so a
+# key pressed before it is up would hang rather than fail. `-t` is deliberately
+# without it — opening the panel is worth a short wait.
+#
+# THE ROFI HISTORY LIST IS GONE WITH WAYLE. menus/notifications.sh read
+# com.wayle.Notifications1, and swaync-client offers no equivalent: count, dnd
+# and toggle, but no list. swaync's own panel is the history now, which is what
+# `-t` opens and what this key did before wayle.
+fb_notify() { swaync-client -t; }
+fb_notify_clear() { swaync-client -C -sw; }
+fb_dnd() { swaync-client -d -sw; }
 # The two keys that used to refuse in noctalia mode. They are the "configure the
 # bar" keys, and each mode's bar is configured by its own thing.
-fb_bar_settings() { "$MANGO_DIR/scripts/wayle/wayle-layout.sh"; }
-fb_bar_toggle() { "$MANGO_DIR/scripts/wayle/wayle-position.sh"; }
+fb_bar_settings() { "$MANGO_DIR/scripts/waybar/waybar-layout.sh"; }
+fb_bar_toggle() { "$MANGO_DIR/scripts/waybar/waybar-position.sh"; }
 # Keep-awake used to be noctalia-only, because the only inhibitor outside it was
 # a bool inside the waybar process with no way in from a key. There is a unit
 # now, so this key works in both modes. docs/adr/0031.

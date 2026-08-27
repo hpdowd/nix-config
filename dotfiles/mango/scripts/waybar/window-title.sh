@@ -25,25 +25,57 @@ cleanup() { pkill -P $$ 2>/dev/null; }
 trap cleanup EXIT
 trap 'exit 0' PIPE HUP INT TERM
 
-emit() {
-	jq -cn --arg t "$1" '{text: $t, tooltip: $t, class: "window"}'
+# THE APP GLYPH GOES IN THE TEXT, and the table comes from waybar.nix as $1.
+#
+# waybar's own way — `format = "{icon} {}"` with a `format-icons` map keyed by
+# the JSON `alt` — renders the WHOLE label empty on 0.15.0 and logs nothing.
+# So the table stays declared in Nix, where a name and its glyph sit together,
+# and the lookup happens here where it actually draws. `alt` is still emitted:
+# it costs nothing and it is what a `#custom-window.<app>` CSS rule would key
+# on. docs/adr/0051.
+#
+# Bar label only. The tooltip is the plain title — a glyph in a tooltip is
+# decoration on text nobody is glancing at.
+ICONS=${1:-}
+
+icon_for_app() {
+	local appid=$1 out=""
+	[ -n "$ICONS" ] || return 0
+	out=$(jq -r --arg a "$appid" '.[$a] // .default // ""' <<<"$ICONS" 2>/dev/null) || out=""
+	printf '%s' "$out"
 }
 
-title_of() {
-	jq -r 'if type == "object" then (.title // "") else "" end' 2>/dev/null
+emit() {
+	local text=$1 appid=$2 icon
+	icon=$(icon_for_app "$appid")
+	[ -n "$text" ] && [ -n "$icon" ] && text="$icon $text"
+	jq -cn --arg t "$text" --arg p "$1" --arg a "$appid" \
+		'{text: $t, alt: $a, tooltip: $p, class: "window"}'
+}
+
+# Both fields in ONE jq, joined on U+001F: two invocations per focus change is
+# two processes on a path that fires on every window switch, and `read` with a
+# tab cannot see an empty leading field — the appid is empty for a client that
+# has not set one. gotchas.md -> Scripts.
+fields_of() {
+	jq -r 'if type == "object" then ((.title // "") + "\u001f" + (.appid // "")) else "\u001f" end' 2>/dev/null
+}
+
+emit_fields() {
+	local blob=$1
+	emit "${blob%%$'\037'*}" "${blob#*$'\037'}"
 }
 
 # Seed with the current focus so the bar is populated immediately.
-emit "$(mmsg get focusing-client 2>/dev/null | title_of)"
+emit_fields "$(mmsg get focusing-client 2>/dev/null | fields_of)"
 
 while true; do
 	while IFS= read -r line; do
 		[ -n "$line" ] || continue
-		title=$(printf '%s' "$line" | title_of)
-		emit "$title"
+		emit_fields "$(printf '%s' "$line" | fields_of)"
 	done < <(mmsg watch focusing-client 2>/dev/null)
 
 	# Stream ended (compositor reload/restart) — clear, back off, reconnect.
-	emit ""
+	emit "" ""
 	sleep 1
 done

@@ -963,8 +963,26 @@ always done nothing, and had never said so.
 There is no `-mesg` hint on the panel saying the key exists: one was tried on
 2026-08-24 and removed the same day. A standing line of instructions above a
 list whose point is to *show state* is the menu explaining itself instead of
-reporting. `config.rasi` still styles `message` against the day something
-passes one.
+reporting. `weather.sh panel` passes a `-mesg` and it is a **reading**, not a
+hint — which is the distinction, not "no menu may pass one".
+
+**rofi sizes the window from the configured font's metrics, not from the
+rendered layout, so a markup span larger than `font:` gets clipped.** The
+weather panel's header is eight lines with an `xx-large` temperature on the
+first; the eighth line came up cut in half by the listview drawn over it.
+Nothing logged, and the reading it clipped (sun times) is the one a reader is
+least likely to miss. Measured both ways on 2026-08-26 — the same eight lines
+with no span render whole — so it is the span, not the line count.
+
+The fix is bottom padding on `message`, in `config.rasi` rather than at the call
+site: `padding: 6px 10px 12px 10px`. One caller today; a future `-mesg` with no
+oversized span gets 6px of extra room, which is not wrong.
+
+`message textbox { text-color: @text; }` is a **valid rofi 2.0 selector** and
+overrides the global `textbox` rule — worth knowing, because the message widget
+is a box whose child is the textbox, and `message { text-color: … }` does not
+reach it past a rule that names `textbox` directly. `rofi -dump-theme` prints
+the resolved tree and is the cheap way to check a selector parses at all.
 
 **Pinning `mainbox { children: [ ... ] }` silently deletes every widget you
 left out.** rofi's default is `[ inputbar, message, listview, mode-switcher ]`.
@@ -1285,10 +1303,27 @@ icons install` pulls more from a CDN, `wayle icons import` takes local SVGs. The
 last two write outside the flake, so a name added that way falls back silently on
 another machine.
 
-**A name that does not resolve falls back without a word.** `checks/static.sh`
-resolves every name in the layouts against the home and system icon trees. It
-needs `find -L`: both are symlink farms, and without it every name under
-Adwaita's `symbolic/status/` reads as missing.
+**A name resolves through the THEME CHAIN or not at all, and Adwaita is not in
+it.** `Papirus-Dark` inherits `breeze-dark,hicolor`; Adwaita is on this machine
+only because other packages pull it in, and GTK never consults it. An
+Adwaita-only name therefore resolves to nothing and GTK draws its missing-image
+glyph — a circle with a slash, sitting on the bar where an icon should be.
+
+> `bluetooth-acquiring-symbolic` did exactly that on 2026-08-26, the first time
+> a scan started. It is Adwaita-only; Papirus has the other three bluetooth
+> states and not that one. It is `adw-bluetooth-acquiring-symbolic` now, from
+> the same hicolor package as the battery ladder.
+
+**`hicolor` terminates every chain**, which is the whole mechanism behind
+`pkgs/default.nix`'s `adw-` set: an icon installed there is reachable under any
+theme, and the prefix means no theme can shadow it.
+
+**`checks/static.sh` walks that chain**, reading `gtk-icon-theme-name` off the
+generation and following `Inherits=` to hicolor. The first version searched
+every icon tree instead, found the Adwaita-only name and passed — a check that
+resolves names GTK cannot is worse than no check, because it reports clean on a
+bar with a missing glyph on it. It needs `find -L`: the trees are symlink farms,
+and without it every name under `symbolic/status/` reads as missing.
 
 **Three ways to get an icon that reads as solid.** All 361 bundled icons are
 Lucide and Tabler outline, which sit thin beside bold text.
@@ -1296,7 +1331,7 @@ Lucide and Tabler outline, which sit thin beside bold text.
 | | when |
 |---|---|
 | the glyph in `format`, `icon-show = false` | the module has no state beyond its number — `cpu`, `ram`. It then takes the label's size and weight, which is how waybar draws all of them |
-| Adwaita's symbolics | filled and already in the system profile — `audio-volume-{low,medium,high,muted}`, `display-brightness` |
+| a freedesktop name | the **icon theme** answers it, and Papirus's are filled — `audio-volume-{low,medium,high,muted}`, `display-brightness`, `system-shutdown`, `bluetooth-*`, `network-wireless-*`. Not Adwaita, whatever the name looks like: see below |
 | Adwaita's `battery-level-*`, copied under an `adw-` prefix | the ladder. The bare name resolves through the ICON THEME, not to Adwaita — see below |
 
 **A symbolic icon is rendered as a MASK filled with one colour, so any level
@@ -1344,6 +1379,24 @@ at their natural width but keeps its own narrow 0.54em advance, so the ink
 overflows to the right and eats the space after it. With one family, `cpu`
 renders as `<glyph>8%`. Same stack and same reason as `style-solid.css`.
 
+### A native module's clicks and scrolls are not inherited
+
+**Every action defaults to the empty string except `left-click`.** A native
+module you do not configure has no right-click, no middle-click and **no
+scroll** — and it renders exactly as it would with all six set. So the port from
+waybar dropped scroll-to-adjust on `volume` and `brightness`, next/previous on
+`media`, and the `sysmonitor` scratchpad on `cpu`/`ram`, and nothing in the bar,
+the log or the gate said so. Restored 2026-08-26; `docs/adr/0045` had specified
+the seven custom modules' actions and none of the eleven native ones.
+
+> `volume`'s `left-click` and `middle-click` are the exception, and they moved
+> the behaviour without moving a line of config: waybar muted on left-click,
+> wayle opens `dropdown:audio` there and mutes on **middle**.
+
+**Scroll pairs here look inverted and are correct.** Natural scrolling delivers
+fingers-up as `scroll-down`, so `scroll-up` carries the `2%-` command. Copied
+from `waybar.nix`, which established it.
+
 ### Config keys that do not mean what they read like
 
 | Key | Reads like | Actually |
@@ -1363,6 +1416,28 @@ became 0.25 with nothing said. `Spacing` keys have no floor and reach 0.
 `button-label-weight` are bar-button keys and a tag is not a bar button.
 `.workspace-label` takes its size from `mango-workspaces.label-size` and is bold
 in wayle's own sheet whatever the bar says.
+
+### `runtime.toml` beats the config file, quietly
+
+**`wayle config set` writes `~/.config/wayle/runtime.toml`, and it wins.** That
+is a third owner for values this repo generates, and the only sign is a line in
+the journal:
+
+```
+warning: config.toml change ignored
+     Field: osd.margin
+    Reason: runtime override active
+    → wayle config reset osd.margin
+```
+
+Nothing on the bar says so, and `checks/static.sh` reads the generation, so an
+override defeats an assertion without failing it. Two were found on 2026-08-26:
+`osd.margin`, and `modules.weather.location = "Dublin"` — a place NAME, which is
+the geocode indirection `docs/adr/0038` rejected, silently replacing the
+`lat,lon` all six layouts are asserted to carry.
+
+`wayle config reset <path>` drops one; the file is gone once it is empty. **A
+value worth keeping belongs in `wayle.nix`**, which is where the OSD margin went.
 
 ### Verify against the schema, always
 
@@ -1421,17 +1496,32 @@ dead key. It polls at 2000 now. Any module a *key* can change wants an interval
 a person will wait through, not one sized for the state changing on its own.
 
 **A click action is a shell command OR a `dropdown:`, never both**, and the
-eight dropdown types are wayle's own — `audio`, `battery`, `bluetooth`,
-`brightness`, `dashboard`, `network`, `notification`, `weather`. A custom module
-may open one, but cannot register a ninth, so a panel built from a script's own
-data is not available at any price. `docs/adr/0046`.
+dropdown types are wayle's own. There are **ten**, enumerated in the
+`schema.json` that `wayle config schema` writes: `audio`, `battery`,
+`bluetooth`, `brightness`, `calendar`, `dashboard`, `media`, `network`,
+`notification`, `weather`. A custom module may open one and cannot register an
+eleventh — `CustomModuleDefinition` has 28 keys and none of them is a panel — so
+a dropdown built from a script's own data is not available at any price.
+
+**And no dropdown opens from outside the bar.** `com.wayle.Shell1` exposes
+`BarShow`, `BarHide`, `BarToggle` and nothing else; `wayle panel` has
+start/stop/restart/status/settings/inspect/hide/show/toggle. So a dropdown
+answers a mouse click on one bar module and no key, which is why the
+notification history is a rofi list (`docs/adr/0047`) and why the weather panel
+became one (`docs/adr/0050`).
 
 > **A dropdown's service is configured even when no layout carries its module.**
 > `Service ready service="Weather"` is logged at startup regardless, so
-> `[modules.weather]` aims `dropdown:weather` while the native module stays off
-> the bar. The trap is the default: unconfigured, that panel is **San
+> `[modules.weather]` aimed `dropdown:weather` while the native module stayed
+> off the bar. The trap is the default: unconfigured, that panel is **San
 > Francisco** — a complete, plausible forecast for somewhere else.
-> `checks/static.sh` asserts its coordinates match `weather.sh`'s.
+>
+> Both are gone as of 2026-08-26 (`docs/adr/0050`), and removing the block was
+> only safe because the *click* went with it. **`clock.right-click` defaults to
+> `dropdown:weather`**, so a layout that writes no value there keeps a second
+> way into that panel — and once `[modules.weather]` is out, that way lands in
+> San Francisco. `checks/static.sh` asserts no layout names `dropdown:weather`
+> or carries `[modules.weather]`.
 
 **`general.font-sans` / `font-mono` fall back in silence.** `Inter` was written
 here — wayle's own example uses it — and this machine does not have it.
@@ -1487,6 +1577,130 @@ and the old process keeps serving the old config. Use `nix build
 > trusting a measurement.
 
 ## Waybar
+
+> waybar was the tiling bar until 2026-08-24, wayle's between then and
+> 2026-08-27, and is again. `docs/adr/0051`. Nothing below was invalidated by
+> the round trip; the four findings at the top of this section came *out* of it,
+> from rendering the two bars side by side rather than from reading configs.
+
+**The generated config keys a module by its TAGGED name, so `.mpris` is not
+where `mpris` lives.** `waybar.nix` appends `#sep` to the first module of each
+group and `defs` is keyed by the emitted name — waybar looks a tagged module's
+config up under the suffixed key (`factory.cpp` passes `config_[name]`, not
+`config_[ref]`). So the real key is `"mpris#sep"`, and
+`jq '.mpris["dynamic-len"] = 25'` against the built file **creates a second,
+empty `mpris` object that waybar ignores** and reports success. Three test
+renders were spent on that. `jq 'keys[]' config-full-top.jsonc | grep mpris`
+first.
+
+**`mpris` has three length keys and only one of them truncates.**
+
+| key | what it actually does |
+|---|---|
+| `dynamic-order` | WHICH fields render. Unwritten it defaults to title, artist, album **and position** — so the label was `The Yogscast [06:03/13:48]`, a running clock in the space the title should have had. "Absence in this list means force exclusion" (`waybar-mpris(5)`) |
+| `dynamic-len` | a **DROP** threshold, not a truncation one. waybar removes a field that does not fit rather than shortening it, so at 25 a 35-character title vanished entirely and the 12-character artist was what remained. Reordering `dynamic-importance-order` does not change it — tried both ways, same output |
+| `max-length` | the one that behaves like wayle's `label-max-length`: truncates the composed string with an ellipsis |
+
+So "cap the media label at 25 characters" is `dynamic-len` high enough that
+nothing is dropped plus `max-length = 27` (the status icon, its space, and 25),
+which is the opposite of how it reads.
+
+**`ignored-players = [ "firefox" ]` blanked the module completely.** It came
+through the generation refactor from the hand-written configs with no reason
+attached — waybar's own docs suggest it, because firefox can expose one MPRIS
+player per playing tab. On this machine it exposes one (`playerctl -l` → a
+single `firefox.instance_*`) and firefox is the only player, so the module
+rendered nothing, always, and looked like a module with nothing to say.
+
+**`{icon}` in a custom module's `format` renders the WHOLE label empty.** The
+documented way to give `custom/window` a per-app glyph is `format = "{icon} {}"`
+with a `format-icons` map keyed by the JSON `alt` field. On waybar 0.15.0 the
+module then draws **nothing at all** — not the text without the icon, the whole
+label — and **waybar logs not one line**, with stderr kept, either way. Verified
+both directions by rendering: `format = "{}"` draws the title, adding `{icon}`
+blanks it.
+
+So the app glyph is prepended by `window-title.sh` and the appid→glyph table is
+passed to it as a JSON argument from `waybar.nix`. The table stays declared in
+one place and the glyph actually draws. `alt` is still emitted — it costs
+nothing and it is what a `#custom-window.<app>` rule would key on.
+
+> **A module's LABEL cannot hold an icon name, but its STYLESHEET can.**
+> `wlr/taskbar` and `tray` ask the icon theme directly and draw real Papirus
+> art. Every glyph in a `format` string comes from a font instead — but
+> `background-image: -gtk-icontheme("firefox")` in `style-solid.css` renders the
+> real themed icon behind any module, keyed on whatever class the module emits.
+> Verified by rendering on 2026-08-27, after this file claimed the opposite.
+>
+> Two limits. It is **one icon per module**, not per item: GTK takes multiple
+> background layers but their positions are static, so a variable-length list
+> like `custom/minimized` cannot get one icon each. And app icons arrive in
+> **full colour** — symbolic names render as their own asset rather than
+> following the palette, because GTK's symbolic recolouring applies to image
+> widgets, not to CSS backgrounds. waybar's `image` module is the other route:
+> a real GtkImage from a path a script prints, so it needs its own module slot
+> and shows no text.
+
+**The bar is one glyph pack — nf-md — and a check enforces it.** It carried 18
+Font Awesome, 16 Material, one Octicon, one nf-linux and three bare Unicode
+arrows until 2026-08-27: four vocabularies at four stroke weights. nf-md lives
+in plane 15 at U+F0000 and above, and every other pack sits in the BMP
+private-use area, so "not nf-md" is just "codepoint below U+F0000" — which is
+the whole assertion, via jq's `explode`.
+
+> **Verify a glyph by RENDERING it, never by its name.** `md-memory` (U+F035B)
+> is the CPU chip and `md-chip` (U+F061A) is the RAM stick — exactly the other
+> way round from what they are called. `magick -font SymbolsNerdFontMono label:`
+> over the candidate list catches that in one pass; `fc-list ':charset=…'` only
+> tells you the codepoint exists.
+
+**`mmsg dispatch restore_minimized` answers `{"success":true}` when it restores
+nothing.** It is mango's only restore verb, takes no client, and pops the last
+minimized window **on the current tag**. Verified on 2026-08-27 both ways: a
+window minimized and restored on one tag round-trips exactly (`is_minimized`
+false again, `tags` back to the active tag); a window minimized on tag 1 stays
+minimized while tag 2 is active — and the dispatch reports success in both
+cases. `SUPER+SHIFT+I` has the same behaviour, because it is the same verb.
+
+> **Minimizing clears the client's tag list to `[]`.** So `is_minimized` is the
+> only way to find these windows, and there is no way to tell from the IPC which
+> tag one would come back to. That is why `custom/minimized` lists what is hidden
+> and does not offer to restore a chosen one: a menu that accepts a choice it
+> cannot honour is worse than no menu (`docs/adr/0033`).
+
+**`mmsg` tells you whether a COMMAND or a FUNCTION was wrong, and exits 0 for
+both.** `mmsg dispatch <nonexistent>` → `{"error":"unknown function"}`;
+`mmsg <nonexistent>` and `mmsg dispatch` with no argument →
+`{"error":"unknown command"}`. That difference is the cheap way to confirm a
+subcommand exists at all — `mmsg`'s own usage text lists only `get` and `watch`,
+so `dispatch` looks absent until you probe it with a bogus function name.
+
+**Two bare `#id` rules for one module: the later one wins and the earlier does
+nothing.** `#custom-weather { font-size }` was written twice — once beside the
+clock, once in the weather section — at equal specificity, so the size did not
+change and the sheet reported nothing, because both rules are perfectly valid
+CSS. A rebuild was spent on it. `checks/static.sh` now asserts one bare rule per
+id; state rules (`#custom-weather.ok`) are a different selector and are not
+counted, and neither is the last line of a multi-selector block, which opens one
+rule over many selectors and looks identical to a bare rule if you only grep.
+
+**`#custom-window` drew at `@subtext` and 11px** against a bar of `@text` at
+14px — dimmer and three points smaller than every other module, on the one label
+that is a sentence rather than a number. Its rule is gone; the shared rules give
+it the bar's own colour and size. **Its cap moved with it**, 60 → 45, because the
+same characters are a third wider at 14px: raising the size without lowering the
+cap is the half-change, and the centre then reaches the modules either side.
+
+**swaync claims `org.erikreider.swaync.cc` only when it also gets
+`org.freedesktop.Notifications`.** That second name is a *separate*,
+D-Bus-activatable one and its activation unit is deliberately masked
+(`modules/home/default.nix`, so `autostart.conf` owns the lifecycle). With
+something else already holding the notification name, swaync starts, claims
+`org.erikreider.swaync`, and **does not claim `.cc`** — so every `swaync-client`
+call falls through to activation and dies with `NameHasNoOwner … unit is
+masked`, on a stderr no keybind reads, **exiting 0**. A running swaync is
+therefore not evidence that `swaync-client` works. Check
+`busctl --user list | grep swaync` for all three names, not the process.
 
 The eight `config-<layout>-<position>.jsonc` files are **generated** by
 `modules/home/waybar.nix` — there are no `config*.jsonc` in this repo. Each
@@ -1796,10 +2010,22 @@ Two traps in filling them in, and both produce a bar that looks fine:
   **microphone** indicator off the bar with them, and nothing anywhere says so.
   Any placeholder worth putting in `format` has to be repeated into every
   `format-*` variant that can replace it.
-- **Neither state may render as nothing.** `format-source-muted` defaults to
-  the empty string, which reads as a tidy bar and is the one arrangement that
-  cannot be debugged: "muted" and "the module is broken" become the same
-  picture. Both states carry a glyph — U+F130 live, U+F131 muted.
+- **The MUTED state may never render as nothing.** `format-source-muted`
+  defaults to the empty string, which reads as a tidy bar and is the one
+  arrangement that cannot be debugged: "muted" and "the module is broken"
+  become the same picture.
+
+  This said *"neither state"* until 2026-08-27 and that over-generalised from
+  the muted case. **The live state is empty now**, deliberately: with no glyph
+  meaning live, a broken module also shows no glyph, so the wrong reading is
+  "I am being recorded" — the safe one. A permanent indicator for the normal
+  state is also the thing that makes the dangerous state hard to spot, because
+  it turns "is there an icon" into "which of these two similar icons is it".
+  The asymmetry is the point, and it only works in one direction.
+
+  The **space** lives in the muted glyph, not in `format`: a trailing
+  `{format_source}` that resolves to nothing still leaves the space before it,
+  so the module would change width for no visible reason.
 
 The `custom/phone` rule directly above is not the counter-example it looks like.
 An absent phone module means *there is no phone*, which nobody can be misled by;

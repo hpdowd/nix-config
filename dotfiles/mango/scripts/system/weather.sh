@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: weather.sh <status|read|refresh|open>
+# Usage: weather.sh <status|read|refresh|open|panel>
 #
 # The one owner of "what the weather is" here; custom/weather and the
 # control-centre row are both readers. docs/adr/0038.
@@ -11,6 +11,8 @@
 #            middle-click   re-reads through `on-action` (docs/adr/0045)
 #   open     right-click    hands the coordinates to a browser. No network of
 #                           its own, and no reader — it renders nothing.
+#   panel    SUPER+CTRL+w,  the detailed reading, in rofi. Replaced wayle's
+#            bar left-click  `dropdown:weather` on 2026-08-26 — docs/adr/0050.
 #
 # Three classes, because a served cache that does not say it is one is
 # yesterday's temperature in today's font: `ok`, `stale` (greyed, with its age)
@@ -262,15 +264,27 @@ emit() {
 		'{text: $text, alt: $alt, class: $cls, tooltip: $tip}'
 }
 
-render() {
-	local cls=$1 age=$2 blob rest fields hourly daily
-	local code day temp feels hum wind wdir press hi lo pop uv sunrise sunset ptenths page
-	local icon desc tip t hcode hday htemp hpop dname dcode dhi dlo dpop rng dir abs
-
-	# One jq for every field the tooltip shows: joined on U+001F inside a block
-	# and U+001E between the three, because `read` with IFS=$'\t' cannot see an
-	# empty leading field and any of these can be null. gotchas.md -> Scripts.
-	# The separators arrive as arguments so this file carries no control bytes.
+# ── The reading, once ─────────────────────────────────────────────────────
+#
+# The bar's tooltip, the control-centre row and the rofi panel are three
+# renderings of ONE read, so the jq lives here rather than in each of them.
+#
+# One jq for every field any surface shows: joined on U+001F inside a block and
+# U+001E between the three, because `read` with IFS=$'\t' cannot see an empty
+# leading field and any of these can be null. gotchas.md -> Scripts. The
+# separators arrive as arguments so this file carries no control bytes.
+#
+# EIGHT hourly picks, at two-hour steps: the panel shows all of them and the
+# tooltip every other one, which is the only difference between the two. Four
+# was the tooltip's whole forecast until 2026-08-26 and is a thin panel.
+#
+# Returns 1 on an unreadable cache and 2 on one with no temperature in it —
+# two numbers because they need two sentences, and only one caller answers in
+# JSON.
+W_HOURLY=""
+W_DAILY=""
+load_reading() {
+	local blob rest fields
 	blob=$(jq -r --arg us $'\037' --arg rs $'\036' --argjson now "$(date +%s)" '
 		def s: . // "" | tostring;
 		def j: join($us);
@@ -278,7 +292,9 @@ render() {
 		| ($w.current.time // "") as $t0
 		| ([range(0; ($w.hourly.time // [] | length))
 		    | select($w.hourly.time[.] > $t0)]) as $fut
-		| ([$fut[0], $fut[3], $fut[6], $fut[9]] | map(select(. != null))) as $pick
+		| ([$fut[0], $fut[2], $fut[4], $fut[6],
+		    $fut[8], $fut[10], $fut[12], $fut[14]]
+		   | map(select(. != null))) as $pick
 		| (($w.history // [])
 		   | map(select(.t != null and .p != null
 		         and ($now - .t) >= 7200 and ($now - .t) <= 21600))
@@ -305,92 +321,132 @@ render() {
 		       ($w.daily.temperature_2m_min[$i] | s),
 		       ($w.daily.precipitation_probability_max[$i] | s)] | j) | join("\n"))]
 		| join($rs)
-	' "$CACHE" 2>/dev/null) || {
-		emit "$ICON_NA $UNKNOWN" "the cache is unreadable" error "Weather: the cache is unreadable"
-		return
-	}
+	' "$CACHE" 2>/dev/null) || return 1
 
 	# Split by hand, not with `read`: both forecast blocks contain newlines and
 	# `read` stops at the first one.
 	rest=$blob
 	fields=${rest%%$'\036'*}
 	rest=${rest#*$'\036'}
-	hourly=${rest%%$'\036'*}
-	daily=${rest#*$'\036'}
+	W_HOURLY=${rest%%$'\036'*}
+	W_DAILY=${rest#*$'\036'}
 
 	IFS=$'\037' read -r code day temp feels hum wind wdir press hi lo pop uv \
 		sunrise sunset ptenths page <<<"$fields"
 
-	[ -n "$code" ] && [ -n "$temp" ] || {
-		emit "$ICON_NA $UNKNOWN" "the cached reading has no temperature in it" error \
-			"Weather: the cached reading has no temperature in it"
-		return
-	}
+	[ -n "$code" ] && [ -n "$temp" ] || return 2
+}
 
-	icon=$(icon_for "$code" "${day:-1}")
-	desc=$(describe "$code")
-
-	# The bar rounds; the tooltip keeps the decimal. The two forecast blocks
-	# round as well — a column of one-decimal temperatures is four characters of
-	# noise per line.
-	tip="$(esc "$WEATHER_NAME") — $desc"
-	tip+=$'\n'"Now ${temp}°C"
-	[ -n "$feels" ] && [ "$feels" != "$temp" ] && tip+=" (feels ${feels}°C)"
+# The block under the headline. Shared, because the tooltip and the panel differ
+# only in the line ABOVE it: one leads with "Now 18.2°C", the other with the
+# same number at three times the size.
+detail_lines() {
+	local out="" abs dir
 	if [ -n "$hi" ] && [ -n "$lo" ]; then
-		tip+=$'\n'"Today ${lo}–${hi}°C"
-		[ -n "$pop" ] && tip+=" · rain ${pop}%"
+		out+="Today ${lo}–${hi}°C"
+		[ -n "$pop" ] && out+=" · rain ${pop}%"
+		out+=$'\n'
 	fi
-	[ -n "$hum" ] && tip+=$'\n'"Humidity ${hum}%"
+	[ -n "$hum" ] && out+="Humidity ${hum}%"$'\n'
 	# One decimal, and the band read off that figure rather than the raw one, so
 	# the word and the number cannot disagree at a boundary.
 	if [ -n "$uv" ]; then
 		uv=$(printf '%.1f' "$uv")
-		tip+=$'\n'"UV $uv ($(uv_band "$uv"))"
+		out+="UV $uv ($(uv_band "$uv"))"$'\n'
 	fi
 	if [ -n "$wind" ]; then
-		tip+=$'\n'"Wind ${wind} km/h"
-		[ -n "$wdir" ] && tip+=" from $(compass "$wdir")"
+		out+="Wind ${wind} km/h"
+		[ -n "$wdir" ] && out+=" from $(compass "$wdir")"
+		out+=$'\n'
 	fi
 	if [ -n "$press" ]; then
-		tip+=$'\n'"Pressure ${press} hPa"
-		# Tenths, as an integer, so nothing here has to do arithmetic on a
-		# float. Under 1 hPa over three hours is `steady` — the word the number
-		# would otherwise invite you to over-read.
+		out+="Pressure ${press} hPa"
+		# Tenths, as an integer, so nothing here has to do arithmetic on a float.
+		# Under 1 hPa over three hours is `steady` — the word the number would
+		# otherwise invite you to over-read.
 		if [ -n "$ptenths" ] && [ -n "$page" ]; then
 			abs=${ptenths#-}
 			if [ "$abs" -lt 10 ]; then
-				tip+=" · steady"
+				out+=" · steady"
 			else
 				if [ "$ptenths" = "$abs" ]; then dir=rising; else dir=falling; fi
-				tip+=" · $dir $((abs / 10)).$((abs % 10)) in $(human_age "$page")"
+				out+=" · $dir $((abs / 10)).$((abs % 10)) in $(human_age "$page")"
 			fi
 		fi
+		out+=$'\n'
 	fi
 	[ -n "$sunrise" ] && [ -n "$sunset" ] &&
-		tip+=$'\n'"Sun ${sunrise:11:5} – ${sunset:11:5} · $(day_length "$sunrise" "$sunset")"
+		out+="Sun ${sunrise:11:5} – ${sunset:11:5} · $(day_length "$sunrise" "$sunset")"$'\n'
+	printf '%s' "$out"
+}
 
-	# Both blocks are byte-padded, which aligns them exactly: every value in a
-	# column carries the same number of multi-byte characters, so a constant
-	# byte width is a constant printed width.
-	if [ -n "$hourly" ]; then
-		tip+=$'\n'
-		while IFS=$'\037' read -r t hcode hday htemp hpop; do
-			[ -n "$t" ] || continue
+# ONE column layout for the hourly rows and the daily ones, so the panel can
+# print them as a single list and they still line up. bash's printf pads by
+# CHARACTERS under a UTF-8 locale, not bytes, so the en-dash in a daily range
+# costs the column nothing — checked, because the reverse was written here until
+# 2026-08-26 and the two blocks only ever appeared separately.
+fc_row() {
+	printf '%-5s %s %9s %5s\n' "$1" "$2" "$3" "$4"
+}
+
+# `hour_rows 2` is every other pick — the tooltip's four. No argument is all
+# eight, which is the panel's.
+hour_rows() {
+	local step=${1:-1} i=0 t hcode hday htemp hpop
+	[ -n "$W_HOURLY" ] || return 0
+	while IFS=$'\037' read -r t hcode hday htemp hpop; do
+		[ -n "$t" ] || continue
+		if [ $((i % step)) -eq 0 ]; then
 			[ -n "$htemp" ] && htemp=$(printf '%.0f°C' "$htemp")
 			[ -n "$hpop" ] && hpop="$hpop%"
-			tip+=$'\n'"$(printf '%s  %s %6s %5s' "$t" "$(icon_for "$hcode" "${hday:-1}")" "$htemp" "$hpop")"
-		done <<<"$hourly"
+			fc_row "$t" "$(icon_for "$hcode" "${hday:-1}")" "$htemp" "$hpop"
+		fi
+		i=$((i + 1))
+	done <<<"$W_HOURLY"
+}
+
+day_rows() {
+	local dname dcode dhi dlo dpop rng
+	[ -n "$W_DAILY" ] || return 0
+	while IFS=$'\037' read -r dname dcode dhi dlo dpop; do
+		[ -n "$dname" ] || continue
+		rng=""
+		[ -n "$dlo" ] && [ -n "$dhi" ] && rng=$(printf '%.0f–%.0f°C' "$dlo" "$dhi")
+		[ -n "$dpop" ] && dpop="$dpop%"
+		fc_row "$dname" "$(icon_for "$dcode" 1)" "$rng" "$dpop"
+	done <<<"$W_DAILY"
+}
+
+render() {
+	local cls=$1 age=$2 icon desc tip block rc
+
+	load_reading
+	rc=$?
+	if [ "$rc" -eq 1 ]; then
+		emit "$ICON_NA $UNKNOWN" "the cache is unreadable" error "Weather: the cache is unreadable"
+		return
 	fi
-	if [ -n "$daily" ]; then
-		tip+=$'\n'
-		while IFS=$'\037' read -r dname dcode dhi dlo dpop; do
-			[ -n "$dname" ] || continue
-			rng=""
-			[ -n "$dlo" ] && [ -n "$dhi" ] && rng=$(printf '%.0f–%.0f°C' "$dlo" "$dhi")
-			[ -n "$dpop" ] && dpop="$dpop%"
-			tip+=$'\n'"$(printf '%-5s %s %10s %5s' "$dname" "$(icon_for "$dcode" 1)" "$rng" "$dpop")"
-		done <<<"$daily"
+	if [ "$rc" -eq 2 ]; then
+		emit "$ICON_NA $UNKNOWN" "the cached reading has no temperature in it" error \
+			"Weather: the cached reading has no temperature in it"
+		return
 	fi
+
+	icon=$(icon_for "$code" "${day:-1}")
+	desc=$(describe "$code")
+
+	# The bar rounds; the tooltip keeps the decimal. The forecast rows round as
+	# well — a column of one-decimal temperatures is four characters of noise
+	# per line.
+	tip="$(esc "$WEATHER_NAME") — $desc"
+	tip+=$'\n'"Now ${temp}°C"
+	[ -n "$feels" ] && [ "$feels" != "$temp" ] && tip+=" (feels ${feels}°C)"
+	block=$(detail_lines)
+	[ -n "$block" ] && tip+=$'\n'"$block"
+	block=$(hour_rows 2)
+	[ -n "$block" ] && tip+=$'\n\n'"$block"
+	block=$(day_rows)
+	[ -n "$block" ] && tip+=$'\n\n'"$block"
 
 	# The age is the whole point of the class, so it goes in both the tooltip
 	# and `alt` — the control-centre row sees only `alt`.
@@ -464,9 +520,15 @@ do_refresh() {
 				"No coordinates — weather-location.env is not in the generation"
 		fi
 	fi
-	# No bar push. wayle takes no signal (docs/adr/0045); custom-weather's
-	# `on-action` re-reads this cache the moment the middle click returns, and
-	# its 300 s poll covers the control centre's Ctrl+Enter.
+	# THE BAR PUSH IS BACK. waybar takes RTMIN+n and custom/weather declares
+	# `signal = 13`; wayle took no signal, so this line was removed on
+	# 2026-08-24 and the refresh was invisible until the next 300 s poll.
+	# docs/adr/0051, reversing that half of docs/adr/0045.
+	#
+	# `|| true` because this also runs in noctalia mode, where there is no
+	# waybar: pkill matching nothing returns 1, and a refresh that worked would
+	# exit non-zero. That is docs/adr/0047's finding, one script over.
+	pkill -RTMIN+13 waybar 2>/dev/null || true
 }
 
 # The way out to a page no tooltip can hold. Reached by a right-click on the
@@ -495,13 +557,118 @@ do_open() {
 	setsid -f xdg-open "$WEATHER_URL" >/dev/null 2>&1
 }
 
+# ── The panel ─────────────────────────────────────────────────────────────
+#
+# rofi, not a wayle dropdown. `dropdown:weather` is one of ten types wayle
+# defines internally and a script cannot add an eleventh, so the detailed
+# reading was the one surface on this machine drawn by something other than the
+# menus — and the bar click was the only way in, since com.wayle.Shell1 exposes
+# BarShow/BarHide/BarToggle and nothing that opens a dropdown. docs/adr/0050.
+#
+# `status`'s freshness ladder rather than `read`'s: this is a foreground surface
+# somebody just asked for, so it can afford the socket the control-centre row
+# cannot (docs/adr/0038).
+#
+# THE TWO KEYS ARE NOT IN A `-mesg` HINT. A standing line of instructions above
+# a surface whose point is to report is the panel explaining itself; the same
+# hint went into menus/control-center.sh on 2026-08-24 and came out the same
+# day. They are in docs/SYSTEM.md §8.
+do_panel() {
+	local force=0 age cls icon desc mesg block
+	local -a rows
+
+	while :; do
+		age=$(cache_age) || age=""
+		# At most one fetch per pass: when the cache has expired, and when
+		# Ctrl+Enter asked past it.
+		if [ "$force" -eq 1 ] || [ -z "$age" ] || [ "$age" -ge "$TTL" ]; then
+			if fetch; then
+				age=0
+			elif [ "$force" -eq 1 ]; then
+				notify-send "Weather" "open-meteo unreachable — the reading is unchanged"
+			fi
+			force=0
+		fi
+
+		# Nothing cached and nothing fetched. A rebuild fixes one of these and a
+		# network the other, so they are two sentences — do_status's pair, said
+		# through notify-send because this surface has no error row to draw them in.
+		if [ -z "$age" ]; then
+			if [ -r "$LOCATION_ENV" ]; then
+				notify-send -u critical "Weather" \
+					"No reading yet and open-meteo is unreachable"
+			else
+				notify-send -u critical "Weather" \
+					"No coordinates — weather-location.env is not in the generation"
+			fi
+			return 1
+		fi
+
+		if [ "$age" -lt "$TTL" ]; then cls=ok; else cls=stale; fi
+
+		load_reading || {
+			notify-send -u critical "Weather" "The cached reading is unusable"
+			return 1
+		}
+
+		icon=$(icon_for "$code" "${day:-1}")
+		desc=$(describe "$code")
+
+		# `-mesg` is Pango markup ALWAYS, so the place name goes through esc() —
+		# the same reason the tooltip has one, and it is still the only value here
+		# that comes from outside this script.
+		#
+		# NO COLOUR IN THE MARKUP. rofi's colours come from the generated
+		# colors.rasi, and a hex code here would be a sixth copy of the palette
+		# with nothing holding it in step (docs/adr/0009). Size and weight only.
+		mesg="<span size=\"xx-large\">$icon  $(printf '%.0f' "$temp")°C</span>"
+		mesg+=$'\n'"<b>$(esc "$WEATHER_NAME")</b> — $desc"
+		[ -n "$feels" ] && [ "$feels" != "$temp" ] &&
+			mesg+=" · feels $(printf '%.0f' "$feels")°C"
+		block=$(detail_lines)
+		[ -n "$block" ] && mesg+=$'\n'"$block"
+		[ "$cls" = stale ] && mesg+=$'\n'"Stale — last fetched $(human_age "$age") ago"
+
+		mapfile -t rows < <(
+			hour_rows
+			day_rows
+		)
+
+		# rofi's exit status IS the keybinding, and it is the only thing that tells
+		# two accept keys apart: Enter, Shift+Enter and Ctrl+Enter all exit 0 on
+		# their own bindings, and only a `-kb-custom-N` becomes 10 + n. The default
+		# `Control+Return` has to be unset first or rofi draws "already bound" as an
+		# error dialog where the panel should be. docs/gotchas.md -> rofi.
+		#
+		# The row count is passed exactly: `lines` is a fixed height the theme takes
+		# from the command line, so the shared ceiling would page a fixed set.
+		# Discarded, not captured: every row does the same thing, so the STATUS is
+		# the whole answer and there is nothing to dispatch on.
+		printf '%s\n' "${rows[@]}" |
+			rofi_menu "${#rows[@]}" -no-custom -p "Weather" -mesg "$mesg" \
+				-kb-accept-custom "" -kb-custom-1 "Control+Return" >/dev/null
+		case $? in
+		0)
+			# No inert row anywhere in the list, because Enter does the same thing
+			# on all of them: this is a readout, and both verbs act on the panel
+			# rather than on whichever row happened to be selected.
+			do_open
+			return 0
+			;;
+		10) force=1 ;;
+		*) return 0 ;;
+		esac
+	done
+}
+
 case "${1:-status}" in
 status) do_status ;;
 read) do_read ;;
 refresh) do_refresh ;;
 open) do_open ;;
+panel) do_panel ;;
 *)
-	echo "Usage: $0 <status|read|refresh|open>"
+	echo "Usage: $0 <status|read|refresh|open|panel>"
 	exit 1
 	;;
 esac

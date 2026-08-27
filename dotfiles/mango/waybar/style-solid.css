@@ -13,9 +13,17 @@
    Symbols carries 10,519 codepoints of which only 14 are outside the Nerd Font
    PUA and the bar prints none of them, so nothing else changes hands.
    Measured, not assumed: docs/gotchas.md -> Waybar. */
+/* 13.5px. 14 read large beside wayle and 13 read small, and GTK takes a
+   fractional value here — checked by rendering all three, not assumed.
+
+   `font-weight: bold` is not decoration at this size: 3270 is a narrow
+   bitmap-derived face and its regular weight goes thin and uneven under 14px,
+   which is most of what makes a small bar look blurry rather than small. The
+   two settings move together — dropping the size without the weight is what
+   this looked like before. docs/adr/0051. */
 * {
     font-family: "Symbols Nerd Font Mono", "3270 Nerd Font", monospace;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: bold;
     border: none;
     border-radius: 0;
@@ -42,10 +50,9 @@ window#waybar.bottom {
 /* ── All modules — flat, no backgrounds, consistent padding ───────── */
 
 #workspaces,
-#taskbar,
+#custom-minimized,
 #custom-window,
 #clock,
-#custom-layout,
 #mpris,
 #custom-notification,
 #cpu,
@@ -111,6 +118,25 @@ window#waybar.bottom {
     padding-left: 11px;
 }
 
+/* THE ONE EXCEPTION, and it is about a filled block rather than about mpris.
+   Workspaces ends in a button whose active state is a solid @accent rectangle,
+   and 6px of bar between a filled block and a line reads as a mistake where the
+   same 6px beside text reads as rhythm. wayle made the same exception for the
+   same reason and this is the port of it.
+
+   `margin-left`, NOT padding: the note above is about padding on an #id, which
+   would beat `.sep` on both sides and take the gap off the wrong one. The
+   margin is the half that sits BEFORE the line, which is the half being closed.
+
+   Keyed by module because GTK has no way to say "the .sep after workspaces" —
+   `+` does not reach, since waybar wraps each module in its own EventBox and
+   the two are not siblings. `mpris#sep` follows `ext/workspaces#sep` in all six
+   generated layouts and checks/static.sh asserts it still does, so this cannot
+   quietly start closing some other boundary. */
+#mpris.sep {
+    margin-left: 0;
+}
+
 /* ── VPN ──────────────────────────────────────────────────────────── */
 
 #custom-vpn {
@@ -125,8 +151,7 @@ window#waybar.bottom {
 
 /* The buttons carry the padding; the module carries none, so a button
    background reaches the module edge and the two do not stack. */
-#workspaces,
-#taskbar {
+#workspaces {
     padding: 0;
 }
 
@@ -156,54 +181,52 @@ window#waybar.bottom {
 
 /* ── Taskbar ──────────────────────────────────────────────────────── */
 
-/* min-width must not exceed the icon, or the icon is not centred. waybar packs
-   the GtkImage into the button's box with pack_start (taskbar.cpp: content_.add),
-   so it sits at the START of the content box — any width min-width adds beyond
-   the icon becomes empty space on the RIGHT only. At min-width 20 against
-   `"icon-size": 14` that was 6px of one-sided slack. Keeping min-width equal to
-   icon-size makes the box hug the icon, so the padding centres it; the padding
-   is widened to hold the button's overall width where it was. Change both
-   together if `icon-size` in the layout JSON changes. */
-#taskbar button {
-    background: transparent;
+/* ── Minimized windows ────────────────────────────────────────────── */
+
+/* One glyph per window SUPER+I has put away, from the same table the window
+   title uses. It replaced `#taskbar`, which listed every open window and drew
+   its icons from the icon THEME — the only module here that did, and the one
+   thing on this bar Papirus reached besides the tray. docs/adr/0051.
+
+   @subtext, not @text: these are windows that are not on screen, and the bar's
+   live readings should not have to compete with them. */
+#custom-minimized {
     color: @subtext;
-    padding: 2px 9px;
-    margin: 0;
-    min-width: 14px;
-    transition: background 0.1s;
 }
 
-#taskbar button:hover,
-#taskbar button.active {
-    background: @overlay;
-    color: @text;
-}
-
-#taskbar button.minimized {
-    opacity: 0.5;
-}
-
-#taskbar button.urgent {
-    background: @red;
-    color: @base;
-}
-
-#taskbar.empty {
+/* An empty module still draws `.module`'s padding — 10px of dead bar in the
+   resting state, which on the wayle bar was reported as the neighbouring
+   module's spacing. minimized.sh emits the class so this can collapse it; the
+   same rule `#taskbar.empty` carried, for the same reason. */
+#custom-minimized.empty {
     padding: 0;
     min-width: 0;
 }
 
+/* The script could not read the client list. It says `?` rather than going
+   quiet, because a module that renders nothing is indistinguishable from one
+   with nothing to show — and here the resting state IS nothing to show. */
+#custom-minimized.error {
+    color: @red;
+}
+
 /* ── Window ───────────────────────────────────────────────────────── */
 
-#custom-window {
-    color: @subtext;
-    font-size: 11px;
-}
+/* NO RULE, deliberately. It carried `color: @subtext; font-size: 11px` until
+   2026-08-26 — dimmer AND three points smaller than every other module, on the
+   one label that is a sentence rather than a number. It now takes @text at 14px
+   from the shared rules above, which is what wayle's `window-title` wore
+   (`label-color = fg-default`, no size of its own) and the reason that bar read
+   better here.
+
+   The cap moved with it: `custom/window`'s max-length is 45 rather than 60 in
+   modules/home/waybar.nix, because the same characters are a third wider now.
+   docs/adr/0051. */
 
 /* ── Clock ────────────────────────────────────────────────────────── */
 
 #clock {
-    font-size: 16px;
+    font-size: 18px;
     color: @text;
     /* Left only: the 14px this used to carry on both sides was for the screen
        edge, and on the right it made time-to-weather the widest gap on the bar
@@ -338,8 +361,18 @@ window#waybar.bottom {
 
 /* ── Weather ──────────────────────────────────────────────────────── */
 
+/* BETWEEN the bar's 13px and the clock's 18px, and closer to the bar. The clock
+   is the thing you look at; the temperature is glanced at beside it, so matching
+   the clock exactly — which this did briefly — made the pair read as two clocks.
+   It was 13px before that, a point UNDER the bar's own size, which was the
+   original complaint.
+
+   A second `#custom-weather { font-size }` was added beside the clock's rule on
+   2026-08-27 and lost to this one, which is later in the sheet at equal
+   specificity — so the size did not change and nothing said why. One bare rule
+   per id; checks/static.sh asserts it. docs/adr/0051. */
 #custom-weather {
-    font-size: 13px;
+    font-size: 16px;
     color: @subtext;
 }
 

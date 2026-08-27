@@ -131,9 +131,9 @@ Two rules follow from this and explain most of the surprises:
 │   │                          yazi, ncspot, imv, wlogout. No files in dotfiles/ for these
 │   ├── waybar.nix             GENERATED: the three waybar layouts. Still built,
 │   │                          started by nothing since ADR 0045
-│   ├── wayle.nix              GENERATED: the tiling bar's six layouts and its
-│   │                          _colors.scss; the only owner of services.wayle.
-│   │                          Its STYLESHEET is dotfiles/wayle/ (ADR 0045)
+│   ├── wayle.nix              GENERATED: six layouts and _colors.scss; the only
+│   │                          owner of services.wayle. Built, and started by
+│   │                          nothing since ADR 0051 — waybar.nix is the bar
 │   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
 │   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
 ├── dotfiles/                  the hand-written dotfiles that remain
@@ -187,7 +187,7 @@ All defined as zsh aliases in `modules/home/shell.nix`:
 | `generations` | `nixos-rebuild list-generations` | See what you can roll back to |
 | `gc` | `nix-collect-garbage --delete-older-than 30d` | Reclaim store space |
 | `search` | `nix search nixpkgs` | Find a package name |
-| `waybar-reload` | Restart waybar from the current state | Waybar is retired in tiling mode (ADR 0045); the bar is `scripts/wayle/wayle-restart.sh` |
+| `waybar-reload` | Restart waybar from the current state | Wraps `scripts/waybar/waybar-restart.sh`, which is the tiling bar again (ADR 0051). wayle is installed and started by nothing |
 | `mango-reload` | Re-apply the mode and dispatch `reload_config` — which re-fires the `exec=` lines, so **the bar restarts with it** | After a `rebuild` that touched keybinds, rules, autostart or the bar |
 
 The mango scripts are not on `$PATH` — `~/.scripts` is, `~/.config/mango/scripts`
@@ -228,7 +228,7 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Changed | Apply with |
 |---|---|
 | Anything under `dotfiles/mango/` | `rebuild`, **then** `mango-reload` |
-| The bar (`modules/home/wayle.nix`, `dotfiles/wayle/index.scss`) | `rebuild`, then `mango-reload` (which restarts it) or `scripts/wayle/wayle-restart.sh` for the bar alone |
+| The bar (`modules/home/waybar.nix`, `dotfiles/mango/waybar/style-solid.css`) | `rebuild`, then `mango-reload` (which restarts it) or `scripts/waybar/waybar-restart.sh` for the bar alone |
 | kitty | `rebuild`, then `kill -SIGUSR1 $KITTY_PID` or Ctrl+Shift+F5 |
 | foot | `rebuild`, then restart the terminal — no live reload |
 | zed, htop, imv, yazi | `rebuild`, then restart the app |
@@ -305,10 +305,10 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Window rules | `dotfiles/mango/universal/rule.conf` |
 | Per-workspace layout | `dotfiles/mango/universal/tag.conf` |
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
-| Bar modules | `modules/home/wayle.nix` — **generated**, six layouts. `waybar.nix` is the same shape and still built, started by nothing (ADR 0045) |
+| Bar modules | `modules/home/waybar.nix` — **generated**, six configs. `wayle.nix` is the same shape and still built, started by nothing (ADR 0051) |
 | Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
 | rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode. Its `lines: 12` is a **fixed height** and only the cap for `rofi -show drun\|run\|window\|calc\|emoji`; hand-built menus size themselves through `lib.sh`'s `rofi_menu <max>` (`-theme-str`, since `-l` loses to the theme — `docs/gotchas.md` → rofi). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
-| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in `custom-power`'s click in `wayle.nix` too** (and `waybar.nix`, while it is still built) |
+| Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in `custom/power`'s click in `waybar.nix` too** (and `wayle.nix`, while it is still built) |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
 | Launcher entries | The launcher is `rofi -show drun` (`docs/adr/0043`) and its entries are the `.desktop` files in the profiles — nothing to declare; menu contents are in the `scripts/menus/*.sh` that build them |
 | rofi's look or modes | `dotfiles/rofi/config.rasi` — one file for both desktop modes |
@@ -684,6 +684,7 @@ disagreed with the writers about the path, silently. `lib.sh` also holds
 | `SUPER+P` | Bitwarden — rofi in every mode |
 | `SUPER+CTRL+N` / `+B` | Network / Bluetooth |
 | `SUPER+CTRL+V` | VPN menu — rofi in every mode |
+| `SUPER+CTRL+W` | Weather panel — rofi in every mode. **Enter** opens the forecast page, **Ctrl+Enter** refetches and redraws. Replaced wayle's `dropdown:weather`, which no key could open (`docs/adr/0050`) |
 
 ⚠️ **Nine of these keys change owner with the desktop mode.** They all route
 through `scripts/menus/shell.sh`, which holds the one table pairing each action
@@ -745,7 +746,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+/` | Configure the bar — waybar's layout picker, or noctalia's settings panel |
 | `SUPER+SHIFT+/` | Waybar top/bottom, or noctalia's bar on/off |
 | `SUPER+CTRL+/` | Desktop mode picker |
-| `SUPER+SHIFT+N` | Do not disturb — `wayle notify dnd` in `tiling`, noctalia's own in `noctalia`. It said `swaync-client` until 2026-08-26, against a masked unit that exits 0 (`docs/adr/0047`) |
+| `SUPER+SHIFT+N` | Do not disturb — `swaync-client -d -sw` in `tiling`, noctalia's own in `noctalia`. It was `wayle notify dnd` for three days, and `swaync-client` against an unstarted daemon for a month before that — which exits 0 (`docs/adr/0047`, `0051`) |
 | `SUPER+SHIFT+S` / `SUPER+Delete` | Lock screen |
 | `SUPER+Escape` | Power menu — noctalia's session menu in `noctalia` mode |
 | `SUPER+SHIFT+P` | Cycle TLP power profile — every mode. Not ACPI: `platform_profile` is a placebo here (§9, `docs/adr/0017`) |
@@ -753,7 +754,7 @@ Tags 7 and 9 default to `monocle`; the rest are `tile` (`universal/tag.conf`).
 | `SUPER+C` | Control centre — thirteen rows in one list (network, bluetooth, VPN, volume, microphone, night light, keep awake, power profile, phone, weather, do-not-disturb, notifications, bar), each showing the state it is actually in, or noctalia's own panel in `noctalia` mode. It is a **reader**: nothing in it changes anything itself, and five rows take their icon and their state from the waybar module that owns the fact (`docs/adr/0033`, `docs/adr/0038`). Weather is the one row with two verbs, and they are two keys: **Enter** opens the forecast and closes the panel, **Ctrl+Enter** refetches and stays (`docs/adr/0044`). On any other row Ctrl+Enter just re-renders |
 | bar button, every layout | The same control centre, through the same router — `custom/control-center` in `waybar.nix`, `on-click` running `shell.sh control-center`, so the button and the key both reach noctalia's panel in `noctalia` mode |
 | `Print` / `CTRL+Print` | Region screenshot / full screen to clipboard |
-| `CTRL+ALT+\` / `+Backspace` | Notification history / clear all. In `tiling` the history is `menus/notifications.sh`, a rofi list over `wayle notify` — wayle's own history is a **dropdown**, and nothing opens one from outside the bar, so the bar's power button keeps the real panel on right-click (`docs/adr/0047`) |
+| `CTRL+ALT+\` / `+Backspace` | Notification history / clear all. In `tiling` that is `swaync-client -t` and `-C -sw` — swaync's own panel. The rofi list that replaced it for three days read `com.wayle.Notifications1`; `swaync-client` has count, dnd and toggle and no list to rebuild one from (`docs/adr/0051`) |
 | `SUPER+SHIFT+CTRL+M` | Quit the compositor |
 | Media & brightness keys | Volume, playback, backlight (via wpctl / playerctl / brightnessctl) |
 | `XF86AudioMicMute` | Mic mute. Its state is on the bar (waybar's `pulseaudio`) and in the control centre; the ThinkPad LED is no longer the only place it shows |
@@ -842,19 +843,30 @@ is missing from the bar, **run its script by hand first**:
 > cache warm there and the control-centre row is normally `stale` until Refresh —
 > `docs/adr/0038`.
 
-> **On the wayle bar the three buttons are: left opens wayle's own weather
-> panel (`dropdown:weather`), middle refetches, right opens the forecast page.**
-> The panel is the only one available — a custom module cannot register a
-> dropdown — so it reads `[modules.weather]`, a second fetch of open-meteo at the
-> same `local.location` coordinates, and *not* this script's cache. Unconfigured
-> it would be San Francisco; `checks/static.sh` asserts the coordinates agree.
-> `docs/adr/0046`.
+> **On the bar the three buttons are: left opens the panel, middle refetches,
+> right opens the forecast page.** The panel is `weather.sh panel` —
+> rofi, reading the cache this script already keeps, so there is one fetch of
+> open-meteo rather than two. On wayle's copy `clock`'s right click opens it as
+> well, because wayle's default there is `dropdown:weather`. It was that
+> dropdown from 2026-08-25 until 2026-08-26: wayle's own panel, at its own
+> coordinates, opened by a mouse click and by nothing else, since no wayle
+> dropdown answers a key. `docs/adr/0050` reverses `docs/adr/0046` on that one
+> point. waybar's `on-click` ran `refresh` until the same day — a fetch whose
+> only output is a two-digit label.
+
+> **The panel is a `-mesg` header over a forecast list.** The header is the
+> current reading — temperature at `xx-large`, place and condition, then today's
+> range, humidity, UV, wind, pressure trend and sun times. The list is eight
+> hourly rows at two-hour steps and then four daily ones, in one column layout so
+> they read as a single table. Every row does the same thing on Enter, so nothing
+> in it is inert.
 
 > **One fetch carries the whole tooltip** — 19 fields, `forecast_days=5`. Now,
 > feels-like, today's range and rain chance, humidity, UV with its WHO band,
 > wind with the compass point it blows from, pressure with a trend over about
-> three hours, sunrise/sunset with the day's length, then the next four
-> three-hourly steps and the next four days. The trend is the one fact a single
+> three hours, sunrise/sunset with the day's length, then four hourly steps and
+> the next four days. Eight hourly picks are computed at two-hour steps for the
+> panel; the tooltip takes every other one. The trend is the one fact a single
 > response cannot carry, so the cache also keeps six hours of pressure samples
 > and claims nothing when they are too close together. `checks/static.sh`
 > asserts the query and the tooltip name the same fields, in both directions —
@@ -879,7 +891,7 @@ is missing from the bar, **run its script by hand first**:
 |---|---|
 | **rofi** | The launcher (`SUPER+Space`, `-show drun` — `docs/adr/0043`) and every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
 | **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
-| **swaync** | **Retired, and started by nothing.** wayle is the notification daemon in `tiling` and noctalia is in `noctalia` (`docs/adr/0045`); its unit stays masked and the binary survives only as `noctalia-start.sh`'s failure path — a mode with no bar *and* no daemon is the worst outcome available (`docs/adr/0047`) |
+| **swaync** | **The notification daemon in `tiling` again** (`docs/adr/0051`), started by `tiling/autostart.conf` after wayle is stopped; noctalia's shell is the daemon in `noctalia`. Its unit stays masked so that autostart owns the lifecycle — which also means `swaync-client` only works while swaync itself holds `org.erikreider.swaync.cc`. See `docs/gotchas.md` → Waybar |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
 | **wlsunset** | Night light, owned by a systemd user unit. `tiling` mode only — `noctalia` mode stops it (`docs/adr/0037`) |
 | **wlogout** | Session menu behind the waybar power icon — lock, logout, suspend, hibernate, reboot, shutdown |
@@ -1659,3 +1671,6 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0046 | The weather panel is wayle's; the reading is not |
 | 0047 | A retired daemon is a call that exits 0 |
 | 0048 | State colour rides the class the script prints |
+| 0049 | A shell is four surfaces, and the bar was the only declared one |
+| 0050 | The weather panel is rofi's, because a dropdown answers no key |
+| 0051 | waybar is the tiling bar again, and wayle is installed but unstarted |

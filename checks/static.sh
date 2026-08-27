@@ -3344,19 +3344,9 @@ else
 		bad "window-title.sh or the generated icons.css is missing — the scan is broken" \
 			"$WT_SH  $ICONS_CSS"
 	else
-		# The appid table as the bar actually carries it: the JSON argument the
-		# minimized picker is invoked with, single-quoted inside on-click. Over
-		# every config until one answers — `custom/minimized` is on the full
-		# layout only, so reading the first config alone found nothing and
-		# reported the scan broken.
-		appid_json=""
-		for cfg in "${CONFIGS[@]}"; do
-			appid_json=$(
-				jq -r '.["custom/minimized"]["on-click"] // empty' "$cfg" 2>/dev/null |
-					sed -n "s/[^']*'\(.*\)'[[:space:]]*$/\1/p"
-			)
-			[[ -n $appid_json ]] && break
-		done
+		# The appid table as the generated file carries it — the same file the
+		# picker reads, so this checks what both callers actually get.
+		appid_json=$(jq -c . "$WAYBAR_DIR/app-icons.json" 2>/dev/null)
 		# Source only the function, not the script: window-title.sh runs an
 		# `mmsg watch` loop that would never return.
 		eval "$(sed -n '/^css_class() {/,/^}/p' "$WT_SH")"
@@ -3368,8 +3358,8 @@ else
 		done < <(printf '%s' "$appid_json" | jq -r 'keys[]?' 2>/dev/null)
 
 		if [[ $classseen -eq 0 ]]; then
-			bad "no appids read out of the bar's minimized picker — the scan is broken" \
-				"${CONFIGS[0]}"
+			bad "no appids read out of the generated app-icons.json — the scan is broken" \
+				"$WAYBAR_DIR/app-icons.json"
 		elif [[ -n $classbad ]]; then
 			bad "window-title.sh and waybar.nix disagree on an appid's CSS class" \
 				"the module keeps its label and silently wears the default icon:"$'\n'"$classbad"

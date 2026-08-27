@@ -269,7 +269,7 @@ window#waybar.bottom {
 /* ── Clock ────────────────────────────────────────────────────────── */
 
 #clock {
-    font-size: 14px;
+    font-size: 18px;
     color: @text;
     /* Left only: the 14px this used to carry on both sides was for the screen
        edge, and on the right it made time-to-weather the widest gap on the bar
@@ -404,18 +404,16 @@ window#waybar.bottom {
 
 /* ── Weather ──────────────────────────────────────────────────────── */
 
-/* BETWEEN the bar's 13px and the clock's 18px, and closer to the bar. The clock
-   is the thing you look at; the temperature is glanced at beside it, so matching
-   the clock exactly — which this did briefly — made the pair read as two clocks.
-   It was 13px before that, a point UNDER the bar's own size, which was the
-   original complaint.
+/* Just above the bar's 13.5px, well under the clock's 18px. The clock is what
+   you look at; the temperature is glanced at beside it, and matching the clock
+   made the pair read as two clocks.
 
    A second `#custom-weather { font-size }` was added beside the clock's rule on
    2026-08-27 and lost to this one, which is later in the sheet at equal
    specificity — so the size did not change and nothing said why. One bare rule
    per id; checks/static.sh asserts it. docs/adr/0051. */
 #custom-weather {
-    font-size: 16px;
+    font-size: 14px;
     color: @subtext;
 }
 

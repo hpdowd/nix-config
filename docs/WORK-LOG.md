@@ -4208,3 +4208,20 @@ argument: **849 lines, 37%**, no shouted emphasis.
 Two stale `SYSTEM.md` claims fell out of the battery work: both said waybar's
 `full-at` is read from the TLP threshold, and there is deliberately **no**
 `full-at` — `waybar.nix:507` says so and `checks/static.sh` asserts it.
+
+### `SUPER+CTRL+I` opens the picker
+
+Same day. The menu had one caller, the bar's click, which passed the appid table
+as an argument. A second caller would have got the same menu with no icons, so
+the table moved to a generated file both read —
+`mango/waybar/app-icons.json`, from the same `appIcons` the stylesheet is
+generated from. `checks/static.sh` reads appids from that file now rather than
+out of the click string.
+
+With nothing minimised the picker notifies instead of exiting quietly. From the
+bar that state is unreachable — the module collapses to zero width — but a key
+press that does nothing is what `docs/adr/0033` refuses.
+
+Clock is 18px and weather 14px, set by hand. The weather comment still argued
+for a size between the bar and the clock, which 14px still is; the claim that it
+sat at 16px went with it.

@@ -257,7 +257,7 @@ let
       exec = "${s}/waybar/minimized.sh";
       return-type = "json";
       format = "{}";
-      on-click = "${s}/menus/minimized-menu.sh '${builtins.toJSON appIcons}'";
+      on-click = "${s}/menus/minimized-menu.sh";
       escape = true;
     };
 
@@ -857,6 +857,12 @@ in
       # its only consumer, and a generated colour nothing imports is exactly
       # what the both-directions assertion in checks/static.sh exists to catch.
       # Re-add it the moment a stylesheet wants it; the check enforces both ways.
+      # The same table the stylesheet is generated from, for the picker to read.
+      # A file rather than an argument on the bar's click: SUPER+CTRL+I opens the
+      # same menu, and a table that reached only one of the two callers would
+      # give the key a menu with no icons. docs/adr/0052.
+      "mango/waybar/app-icons.json".text = builtins.toJSON appIcons;
+
       # Generated for the reason colors.css is — one owner for the name and the
       # selector that uses it. docs/adr/0052.
       "mango/waybar/icons.css".text = iconCss;

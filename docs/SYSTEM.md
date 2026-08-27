@@ -708,7 +708,8 @@ profiles this repo declares. `SUPER+W` is a third case — noctalia *has*
 | `SUPER+F` / `SUPER+SHIFT+F` | Fullscreen / fake fullscreen |
 | `SUPER+A` | Maximise to screen |
 | `SUPER+SHIFT+O` | Toggle floating |
-| `SUPER+I` / `SUPER+SHIFT+I` | Minimise / restore |
+| `SUPER+I` / `SUPER+SHIFT+I` | Minimise / restore the last one on this tag |
+| `SUPER+CTRL+I` | Pick which minimised window comes back (ADR 0052). Same menu as clicking the bar's minimised count |
 | `SUPER+G` | Toggle global (sticky) |
 | `ALT+Z` | Scratchpad |
 | `SUPER+[` / `SUPER+]` | Spotify / Equibop scratchpad |

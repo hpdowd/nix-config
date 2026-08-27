@@ -42,6 +42,14 @@ Three modules changed:
 A rofi row carries its own icon, which is the surface a waybar module cannot be:
 GTK gives a module one background image, not one per item.
 
+**It is on `SUPER+CTRL+I` as well as the bar**, beside `SUPER+I` and
+`SUPER+SHIFT+I`. The appid table is therefore a generated file
+(`mango/waybar/app-icons.json`) rather than an argument on the bar's click: a
+table reaching only one of the two callers would give the key an iconless menu.
+With nothing minimised the picker notifies rather than exiting quietly — from
+the bar that state is unreachable, and from a key it would be [0033](0033-the-control-centre-is-a-reader.md)'s
+action that appears to do nothing.
+
 **Every rule the generator emits carries a class.** Not style — necessity; see
 Consequences.
 

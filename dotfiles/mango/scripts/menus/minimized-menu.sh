@@ -1,39 +1,31 @@
 #!/usr/bin/env bash
-# Usage: minimized-menu.sh '<appid-to-icon JSON>'
-#
 # Picks among the windows SUPER+I has put away and restores the one chosen.
-# Opened by clicking custom/minimized on the bar, which shows only the count —
-# a waybar module's label is text and GTK gives it one background image, so this
-# is the surface where a window can carry its own icon. docs/adr/0052.
 #
-# `mmsg dispatch focusid client,<id>` RESTORES A SPECIFIC WINDOW, onto the tag
-# you are viewing, focused. That is what makes this menu allowed to exist:
-# docs/adr/0033 refuses an action that appears to do nothing, and while
-# `restore_minimized` was the only verb the choice could not be honoured — it
-# takes no client and pops the last minimized window on the current tag,
-# answering `{"success":true}` either way. Verified 2026-08-28 on throwaway
-# windows, both directions and across tags. docs/gotchas.md -> Waybar.
+# Two callers: the bar's custom/minimized click, and SUPER+CTRL+I.
 #
-# The icon names come from waybar.nix as $1, so the appid table has one owner
-# and the picker's art matches the title bar's.
+# The bar shows only a count: a waybar module's label is text and GTK gives it
+# one background image, so this is the surface where a window carries its own
+# icon. docs/adr/0052.
+#
+# `mmsg dispatch focusid client,<id>` restores a specific window, onto the tag
+# being viewed. `restore_minimized` cannot, which is why docs/adr/0033 refused
+# this menu until 0052.
+#
+# The icon names are read from the file waybar.nix generates, not passed in, so
+# both callers get the same menu.
 
-# NOT `lib.sh`'s `rofi_menu`, and not because of the sizing. rofi's dmenu icon
-# syntax puts a NUL between the row text and its metadata, and BASH STRINGS
-# CANNOT CARRY NUL: `rofi_menu` reads its entries with `entries=$(cat)`, and a
-# command substitution drops the byte silently. So does building the menu up in
-# a variable. The first version of this did both and rendered rows reading
-# `Spotify Premiumicon<U+241F>spotify` — every row's metadata as visible text,
-# with nothing erroring. The bytes have to go straight down the pipe.
-# docs/gotchas.md -> rofi.
+# Not lib.sh's `rofi_menu`: it reads entries with `entries=$(cat)`, and rofi's
+# icon syntax needs a NUL, which no bash string carries. The rows go straight
+# down the pipe. docs/gotchas.md -> rofi.
 
-ICONS=${1:-}
-# An absent argument must not be fatal: the menu then lists titles without
-# icons rather than not opening at all.
+ICON_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/mango/waybar/app-icons.json"
+# A missing or unparseable table must not be fatal: the menu then lists titles
+# without icons rather than not opening at all.
+ICONS=$(jq -c . "$ICON_FILE" 2>/dev/null) || ICONS=""
 [ -n "$ICONS" ] || ICONS='{}'
 
-# id, title and icon name per minimized window, one jq, tab-separated. `@tsv`
-# keeps an empty title from collapsing the field count, which a plain
-# interpolation would do.
+# id, title and icon name per minimized window. `@tsv` keeps an empty title from
+# collapsing the field count.
 mapfile -t rows < <(
 	mmsg get all-clients 2>/dev/null |
 		jq -r --argjson icons "$ICONS" '
@@ -44,30 +36,27 @@ mapfile -t rows < <(
 		' 2>/dev/null
 )
 
-# Nothing hidden: the module collapses to nothing in that state, so there is
-# nothing to have clicked. Exit quietly rather than draw an empty menu.
-[ "${#rows[@]}" -gt 0 ] || exit 0
+# Nothing hidden. The bar module collapses to nothing in that state so it cannot
+# be the caller, but the key can — and a key that does nothing is what
+# docs/adr/0033 refuses. Say so instead of drawing an empty menu.
+if [ "${#rows[@]}" -eq 0 ]; then
+	notify-send -a mango "Minimized" "Nothing is minimized" 2>/dev/null
+	exit 0
+fi
 
 ids=()
 for row in "${rows[@]}"; do
 	ids+=("${row%%$'\t'*}")
 done
 
-# `-theme-str`, not `-l`: on rofi 2.0 the theme overrides the command line, so
-# `-l` is accepted and ignored and every menu renders at config.rasi's height.
-# Same reasoning as lib.sh's, which this cannot call. 12 is the ceiling other
-# machine-generated lists here use.
+# `-theme-str`, not `-l`: on rofi 2.0 the theme beats the command line. Same
+# reasoning as lib.sh's, which this cannot call. docs/gotchas.md -> rofi.
 lines=${#rows[@]}
 [ "$lines" -gt 12 ] && lines=12
 
-# `-show-icons` DOES beat config.rasi, unlike `-l` — config.rasi turns icons off
-# for every other menu, where the glyphs are already in the text. Verified with
-# `rofi -dump-config`, which reports `show-icons: true` with the flag and
-# `false` without. docs/gotchas.md -> rofi.
-#
-# `-format i` returns the row INDEX. Titles are not unique — two foot windows
-# are two rows reading `foot` — so matching the returned string back to an id
-# would restore whichever collided first.
+# `-show-icons` does beat config.rasi, unlike `-l`. `-format i` returns the row
+# index, because titles are not unique: two foot windows are two rows reading
+# `foot`, and matching the text back to an id would restore the wrong one.
 idx=$(
 	for row in "${rows[@]}"; do
 		IFS=$'\t' read -r _ title icon <<<"$row"

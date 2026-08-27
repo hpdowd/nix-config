@@ -4095,20 +4095,116 @@ glyphs.
 
 ### Next
 
-1. **Decide the window-title icon.** Font glyph as now, `-gtk-icontheme()` for
-   real Papirus art, or an `image` module. The real question is full-colour app
-   icons on a monochrome bar.
-2. **Per-window restore.** `restore_minimized` cannot target a window;
-   `wlr/taskbar`'s `minimize-raise` click action can. Bringing the taskbar back
-   with minimized entries dimmed would give both that and themed icons, at the
-   cost of listing every window again.
-3. **Confirm the muted-microphone indicator on the real bar.** Never captured
-   cleanly — a fullscreen video covered the right side on every attempt. The
-   muted branch was not changed in kind, so it is expected to work, but it is
-   unverified.
-4. **Confirm swaync pops notifications.** DND read `true` during the handover
-   test. The control-centre row shows it, so this is visible rather than silent.
+1. ~~**Decide the window-title icon.**~~ **Closed 2026-08-28** — Papirus, via
+   `-gtk-icontheme()`. `docs/adr/0052`.
+2. ~~**Per-window restore.**~~ **Closed 2026-08-28**, and the premise was wrong:
+   `restore_minimized` cannot target a window but `focusid client,<id>` can, so
+   this cost no taskbar. `docs/adr/0052`.
+3. ~~**Confirm the muted-microphone indicator.**~~ **Closed 2026-08-28.**
+4. ~~**Confirm swaync pops notifications.**~~ **Closed 2026-08-28.**
 5. **Pass 2 of the wayle removal, if wanted.** `modules/home/wayle.nix`,
    `dotfiles/wayle/`, `scripts/wayle/`, ~85 references in `checks/static.sh`,
-   and `pkgs.adwaitaShellIcons` once nothing needs it. Everything still builds
-   and nothing starts it.
+   and `pkgs.adwaitaShellIcons` — which **only wayle needs now**: the battery
+   ladder that was the other reason for it comes from Papirus since 0052.
+   Everything still builds and nothing starts it.
+
+## 2026-08-28 · the bar draws the icon theme
+
+`docs/adr/0052`. Papirus on the window title, the minimized picker and the
+battery; the four items above closed; and the stale wayle killed.
+
+**Items 3 and 4 were closable by measurement, not work.** swaync owns all three
+names — `org.erikreider.swaync`, `.cc` and `org.freedesktop.Notifications` —
+with `-D` false, `-c` 2 and the bar's bell lit to match. The muted microphone
+renders `󰕾 80% 󰍭` against a live `󰕾 80%`, captured both ways.
+
+> **The autostart line that clears a leftover wayle has never matched.** It is
+> `pkill -f 'bin/wayle shell$'`, and wayle was started by the pre-0051
+> `exec=wayle shell` — a **bare** invocation whose cmdline carries no path. The
+> comment above it reasoned carefully about the `$` and not at all about the
+> `bin/`. One wayle had been drawing a second bar under waybar since the switch,
+> holding all eight `com.wayle.*` names. `^wayle shell$` matches it and not the
+> guard's own shell; verified before running it.
+
+### `focusid client,<id>` restores a specific window
+
+The finding the whole design turned on, and it contradicts what 0051 recorded.
+`restore_minimized` takes no client — true — but mango's dispatch table also
+holds `focusid`, and the argument syntax is the difference:
+
+```
+mmsg dispatch focusid 41           →  {"error":"unknown function"}
+mmsg dispatch focusid client,41    →  {"success":true}
+```
+
+Verified on throwaway windows rather than live ones: with A and B both
+minimized and **B hidden more recently**, `focusid client,<A>` brought back A
+and left B hidden — so it targets rather than popping a stack. It restores onto
+the tag being viewed, focused.
+
+> **One run of that test read `tags:[2]` on a tag-1 session and looked like a
+> bug.** It was not: the session had moved to tag 2 between probes. Re-run with
+> the active tag printed at every step, it is `[1]` throughout. The instrument
+> was wrong, not the compositor — which is worth as much as the finding.
+
+So `docs/adr/0033`'s refusal — a menu must not accept a choice it cannot honour
+— no longer applies, and the minimized module gets the rofi picker it was denied
+in 0051. The bar keeps a count behind one icon, because **GTK gives a module one
+background image and a rofi row carries its own**.
+
+### Three failures, each silent, each found by rendering
+
+- **`Equibop` was never an appid.** mango reports `equibop`. The table had been
+  keyed on the capitalised form since the glyphs were written, so every Equibop
+  window silently wore the default. `Spotify` beside it *is* capitalised, which
+  is most of why it read as plausible.
+- **A bare `#custom-minimized` rule draws no icon at all.** style-solid.css
+  gives every module `background: transparent` — the **shorthand**, which resets
+  `background-image` — at one-id specificity, after the generated sheet's
+  `@import`. Both files are valid CSS and GTK logs nothing. The battery rungs
+  and the appid rules were fine because they carry a class; every generated rule
+  does now, and a check asserts it.
+- **rofi's icon rows cannot go through a shell variable.** The syntax puts a NUL
+  between the row and its metadata, and no bash string holds one — nor does
+  `entries=$(cat)`, which is how `lib.sh`'s `rofi_menu` reads its input. The
+  first picker rendered `Spotify Premiumicon␟spotify`, metadata as visible text,
+  erroring nowhere. Screenshotting the menu is what caught it.
+
+> **My first diagnosis of the second one was wrong and the render said so.** I
+> read it as the duplicate-declaration trap — the same property set in both
+> sheets — fixed the duplicate, and the icon then vanished *entirely* rather
+> than coming back. That is what pointed at the shared block's shorthand. The
+> duplicate was real and worth its own check; it was not the cause.
+
+**Verified by rendering, not by rebuild** — `sudo` needs a password here, so the
+bar was run out of the built home-manager generation with the script paths
+rewritten into it. That exercised the real generated config, the real stylesheet
+and the real scripts: app icon, fallback icon, charging battery and the picker
+were each captured. `rebuild` is still owed.
+
+- **The charging battery is green, icon included.** 0051's log said symbolic
+  names "render as their own asset rather than following the palette" for CSS
+  backgrounds. That is right for app icons, which come through in full colour,
+  and **wrong for `-symbolic` names**, which follow the module's `color`.
+- **`warning` and `critical` are gone as state names.** A battery module gets
+  one state class and the ladder needs all of them, so the colour rides the
+  rungs — `l0` is ≤ 5 and `l20` is ≤ 20, still upower's thresholds.
+- **`format-alt` works on AC for the first time.** Dropping `format-charging`
+  and `format-plugged` removed the per-status override that had made the click
+  inert whenever the machine was plugged in (`battery.cpp:730`).
+
+### The comment pass, and what it measured
+
+`waybar.nix` was **41% comment** after the icon work landed, against a ~30%
+signal, with 60 shouting lines that commit `fec5d96` had already removed once.
+Trimmed to the one-line-reason-plus-pointer form now the ADR carries the
+argument: **849 lines, 37%**, no shouted emphasis.
+
+> **The de-shouting regex damaged a doc path**, lowercasing `docs/SYSTEM.md` to
+> `docs/system.md` — a reference that resolves to nothing on a case-sensitive
+> filesystem. Caught by grepping the diff for `docs/*.md` afterwards, which is
+> the step that should follow any mechanical rewrite of prose.
+
+Two stale `SYSTEM.md` claims fell out of the battery work: both said waybar's
+`full-at` is read from the TLP threshold, and there is deliberately **no**
+`full-at` — `waybar.nix:507` says so and `checks/static.sh` asserts it.

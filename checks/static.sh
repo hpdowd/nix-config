@@ -673,9 +673,17 @@ mapfile -t ROFI_RAW < <(
 )
 # lib.sh's own definition, and network-menu.sh's password prompt, which must not
 # take -no-custom and sizes itself to zero rows by hand.
+#
+# ...and any call that sizes itself the same way rofi_menu does. What this check
+# is really about is `-theme-str listview { lines: … }`, not the helper's name:
+# minimized-menu.sh cannot use rofi_menu because that reads its entries through
+# `entries=$(cat)` and rofi's dmenu ICON syntax needs a NUL byte, which no bash
+# string can carry (docs/adr/0052). It passes the same -theme-str by hand, so it
+# is not the failure this scan exists to catch.
 mapfile -t ROFI_BARE < <(
 	printf '%s\n' "${ROFI_RAW[@]}" |
-		grep -v '/lib\.sh:' | grep -v -- '-password' | grep -v '^$'
+		grep -v '/lib\.sh:' | grep -v -- '-password' |
+		grep -v -- '-theme-str' | grep -v '^$'
 )
 if [[ ${#ROFI_RAW[@]} -eq 0 ]]; then
 	bad "no 'rofi -dmenu' call sites found at all — the scan is broken, not the repo"
@@ -3192,6 +3200,184 @@ else
 		ok "all $packseen bar glyphs are nf-md, one pack across every layout"
 	fi
 
+	# --- EVERY THEMED ICON NAME RESOLVES --------------------------------------
+	#
+	# The bar draws real icon-theme art through `-gtk-icontheme("name")` in its
+	# stylesheet: the window title's per-app icon, the minimized indicator and
+	# the whole battery ladder (docs/adr/0052). An icon NAME is the half of a
+	# theme that fails silently — GTK draws nothing and logs nothing, so the
+	# module reads as empty rather than as wrong. Same failure adr/0041 gave the
+	# GTK, Kvantum and cursor names their own check for, and the same answer.
+	#
+	# Resolved against the scheme's own icon theme and the themes it inherits,
+	# not against the whole of share/icons: a name that exists only in some
+	# other installed theme resolves here and draws nothing in the session.
+	icon_theme_dirs() {
+		local iroot="$GEN/home-path/share/icons" iseen="" iqueue="$1" inext icur iidx
+		while [[ -n $iqueue ]]; do
+			icur=${iqueue%%:*}
+			if [[ $iqueue == *:* ]]; then iqueue=${iqueue#*:}; else iqueue=""; fi
+			[[ -n $icur && ":$iseen:" != *":$icur:"* ]] || continue
+			iseen="$iseen:$icur"
+			[[ -d "$iroot/$icur" ]] || continue
+			printf '%s\n' "$iroot/$icur"
+			# `find -L`: buildEnv leaves a single-contributor share/ subdirectory
+			# as a symlink, and a plain find returns nothing through it.
+			inext=$(find -L "$iroot/$icur" -maxdepth 1 -name index.theme -print -quit 2>/dev/null)
+			[[ -n $inext ]] || continue
+			iidx=$(sed -n 's/^Inherits=//p' "$inext" | head -1 | tr ',' ':')
+			[[ -n $iidx ]] && iqueue="$iqueue:$iidx"
+		done
+	}
+
+	ICONS_CSS_FOR_OWNER="$WAYBAR_DIR/icons.css"
+	ICON_THEME=$(pal ".packages.icons.name")
+	mapfile -t ICON_DIRS < <(icon_theme_dirs "$ICON_THEME:hicolor")
+
+	# Values only, and from the GENERATION rather than the source tree: what the
+	# session reads is what is linked, and icons.css exists only there.
+	mapfile -t ICON_NAMES < <(
+		grep -ho -- '-gtk-icontheme("[^"]*")' "$WAYBAR_DIR"/*.css 2>/dev/null |
+			sed 's/.*("//; s/")$//' | sort -u
+	)
+
+	iconmiss=""
+	if [[ ${#ICON_DIRS[@]} -eq 0 ]]; then
+		bad "no icon theme directory for '$ICON_THEME' — the scan is broken, not the repo" \
+			"$GEN/home-path/share/icons"
+	elif [[ ${#ICON_NAMES[@]} -eq 0 ]]; then
+		bad "no -gtk-icontheme() names read from the bar's stylesheets — the scan is broken" \
+			"$WAYBAR_DIR"
+	else
+		for n in "${ICON_NAMES[@]}"; do
+			found=""
+			for d in "${ICON_DIRS[@]}"; do
+				found=$(find -L "$d" \( -name "$n.svg" -o -name "$n.png" \) -print -quit 2>/dev/null)
+				[[ -n $found ]] && break
+			done
+			[[ -n $found ]] || iconmiss+="  $n"$'\n'
+		done
+		if [[ -n $iconmiss ]]; then
+			bad "the bar names an icon '$ICON_THEME' does not have" \
+				"GTK draws nothing and logs nothing, so the module reads as empty:"$'\n'"$iconmiss"
+		else
+			ok "all ${#ICON_NAMES[@]} themed icon names the bar draws resolve in $ICON_THEME"
+		fi
+	fi
+
+	# --- ONE OWNER PER ICONED SELECTOR ----------------------------------------
+	#
+	# icons.css is @imported at the top of style-solid.css, so when both declare
+	# `background-image` for the SAME selector the hand-written sheet wins and
+	# the generated one does nothing. Both files are valid CSS and GTK reports
+	# neither, which is how `#custom-minimized`'s generated icon spent a render
+	# being ignored — the same shape as the duplicate `#custom-weather`
+	# font-size, one file further out. docs/adr/0052.
+	#
+	# Selectors, not properties: the two sheets are MEANT to style the same ids,
+	# and the split is that icons.css owns the icon and style-solid.css owns the
+	# geometry around it.
+	bg_selectors() {
+		# A rule's selector is what precedes `{`, and every generated rule is one
+		# line. Multi-selector blocks (`#battery.l0.charging,` on its own line)
+		# carry the previous line, exactly as the bare-rule scan does.
+		awk '
+			/^[^{]*,[[:space:]]*$/ { pend = pend $0; next }
+			/background-image/ {
+				line = pend $0
+				sub(/\{.*/, "", line)
+				n = split(line, parts, ",")
+				for (i = 1; i <= n; i++) {
+					gsub(/^[[:space:]]+|[[:space:]]+$/, "", parts[i])
+					if (parts[i] != "") print parts[i]
+				}
+			}
+			{ pend = "" }
+		' "$1" | sort -u
+	}
+
+	SOLID_CSS="$WAYBAR_DIR/style-solid.css"
+	if [[ ! -f $ICONS_CSS_FOR_OWNER || ! -f $SOLID_CSS ]]; then
+		bad "icons.css or style-solid.css is missing from the generation — the scan is broken" \
+			"$WAYBAR_DIR"
+	else
+		dupsel=$(comm -12 <(bg_selectors "$ICONS_CSS_FOR_OWNER") <(bg_selectors "$SOLID_CSS"))
+		gen_n=$(bg_selectors "$ICONS_CSS_FOR_OWNER" | grep -c '')
+		if [[ $gen_n -eq 0 ]]; then
+			bad "no background-image rules read from the generated icons.css — the scan is broken" \
+				"$ICONS_CSS_FOR_OWNER"
+		elif [[ -n $dupsel ]]; then
+			bad "icons.css and style-solid.css both set background-image for a selector" \
+				"style-solid.css is imported later and wins, so the generated icon does nothing:"$'\n'"$dupsel"
+		else
+			ok "all $gen_n generated icon selectors are the generated sheet's alone"
+		fi
+
+		# ...and none of them may be a BARE id. style-solid.css gives every
+		# module `background: transparent` — the shorthand, which resets
+		# `background-image` — at one-id specificity, after this file's @import.
+		# So a generated `#custom-minimized { background-image: … }` loses and the
+		# module draws no icon, with both sheets valid and nothing logged. Every
+		# rule here must out-specify that block, which means carrying a class.
+		# docs/adr/0052.
+		bare=$(bg_selectors "$ICONS_CSS_FOR_OWNER" | grep -v '\.' || true)
+		if [[ -n $bare ]]; then
+			bad "a generated icon rule is a bare id, so the shared block's 'background: transparent' wins" \
+				"the module draws no icon at all, and no sheet is invalid:"$'\n'"$bare"
+		else
+			ok "every generated icon rule carries a class, so none is reset by the shared block"
+		fi
+	fi
+
+	# --- THE TWO HALVES OF THE APPID CLASS AGREE ------------------------------
+	#
+	# waybar.nix writes the selector `#custom-window.<class>` and
+	# window-title.sh emits the class at runtime. Neither can see the other, and
+	# a class that stops matching its rule is not an error: the module keeps its
+	# label and quietly wears the default icon. So the shell half is RUN here,
+	# over the appids Nix declared, and its answer must have a rule.
+	WT_SH="$SRC/dotfiles/mango/scripts/waybar/window-title.sh"
+	ICONS_CSS="$WAYBAR_DIR/icons.css"
+	classbad=""
+	classseen=0
+	if [[ ! -f $WT_SH || ! -f $ICONS_CSS ]]; then
+		bad "window-title.sh or the generated icons.css is missing — the scan is broken" \
+			"$WT_SH  $ICONS_CSS"
+	else
+		# The appid table as the bar actually carries it: the JSON argument the
+		# minimized picker is invoked with, single-quoted inside on-click. Over
+		# every config until one answers — `custom/minimized` is on the full
+		# layout only, so reading the first config alone found nothing and
+		# reported the scan broken.
+		appid_json=""
+		for cfg in "${CONFIGS[@]}"; do
+			appid_json=$(
+				jq -r '.["custom/minimized"]["on-click"] // empty' "$cfg" 2>/dev/null |
+					sed -n "s/[^']*'\(.*\)'[[:space:]]*$/\1/p"
+			)
+			[[ -n $appid_json ]] && break
+		done
+		# Source only the function, not the script: window-title.sh runs an
+		# `mmsg watch` loop that would never return.
+		eval "$(sed -n '/^css_class() {/,/^}/p' "$WT_SH")"
+		while IFS= read -r appid; do
+			[[ -n $appid && $appid != default ]] || continue
+			classseen=$((classseen + 1))
+			grep -q "^#custom-window\.$(css_class "$appid") " "$ICONS_CSS" ||
+				classbad+="  $appid -> .$(css_class "$appid") has no rule"$'\n'
+		done < <(printf '%s' "$appid_json" | jq -r 'keys[]?' 2>/dev/null)
+
+		if [[ $classseen -eq 0 ]]; then
+			bad "no appids read out of the bar's minimized picker — the scan is broken" \
+				"${CONFIGS[0]}"
+		elif [[ -n $classbad ]]; then
+			bad "window-title.sh and waybar.nix disagree on an appid's CSS class" \
+				"the module keeps its label and silently wears the default icon:"$'\n'"$classbad"
+		else
+			ok "all $classseen appid classes window-title.sh emits have a rule in icons.css"
+		fi
+	fi
+
 	# ...and the inverse direction, which was missing. A rule outlives the module
 	# it styles in silence: `#custom-scratch-spotify` and `#custom-scratch-equibop`
 	# sat here with no definition in waybar.nix, no layout carrying them and no
@@ -3392,6 +3578,12 @@ fi
 # upower is what acts on a low battery; waybar only recolours. The two drifted —
 # waybar warned at 30/15 while upower acted at 20/5 — so the colour change marked
 # nothing in particular. Read from the built /etc, not from the Nix.
+#
+# `l20` and `l0` are the rungs of the icon ladder that also carry the warning
+# and critical colours — the names `warning` and `critical` are gone, because a
+# battery module gets ONE state class and the ladder needs all of them
+# (docs/adr/0052). The pairing is the point: an icon rung and a colour threshold
+# that could move independently are two facts to keep in step, and this is one.
 UPOWER_CONF="$SYS/etc/UPower/UPower.conf"
 low="" crit=""
 if [[ -f $UPOWER_CONF ]]; then
@@ -3407,8 +3599,8 @@ checked=0
 drifted=""
 for cfg in "${CONFIGS[@]}"; do
 	jq -e 'has("battery")' "$cfg" >/dev/null || continue
-	warn=$(jq -r '.battery.states.warning // empty' "$cfg")
-	critical=$(jq -r '.battery.states.critical // empty' "$cfg")
+	warn=$(jq -r '.battery.states.l20 // empty' "$cfg")
+	critical=$(jq -r '.battery.states.l0 // empty' "$cfg")
 	if [[ -z $warn || -z $critical ]]; then
 		drifted+="  $(basename "$cfg"): battery module has no states"$'\n'
 		continue

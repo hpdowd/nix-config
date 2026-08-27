@@ -267,7 +267,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Install/remove a package | `modules/home/packages.nix` (user) or `modules/system/*.nix` (`environment.systemPackages`). **Not** for the nine in `programs.nix` — their module installs the package too |
 | A systemd service | `modules/system/<concern>.nix` — **never** `/etc/systemd/` |
 | Kernel or boot params | `modules/system/boot.nix` |
-| Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — the waybar `full-at` follows automatically, see §9 |
+| Battery charge thresholds | `modules/system/power.nix` (`services.tlp`) — see §9. The bar shows the raw percentage and does **not** rescale to the stop threshold; `checks/static.sh` asserts no `full-at` |
 | Hibernation, lid and power key | `modules/system/power.nix` (`services.logind`) — no `systemd.sleep`, there is no suspend phase to configure |
 | When the machine dims, locks or idle-sleeps | `modules/home/default.nix` (`services.swayidle.timeouts`) |
 | What a dying battery does | `modules/system/power.nix` (`services.upower`) — not logind |
@@ -306,7 +306,7 @@ The routing table. Find the row, edit the file, apply as in §4.
 | Per-workspace layout | `dotfiles/mango/universal/tag.conf` |
 | Startup programs | `dotfiles/mango/universal/autostart.conf`, or the per-mode one |
 | Bar modules | `modules/home/waybar.nix` — **generated**, six configs. `wayle.nix` is the same shape and still built, started by nothing (ADR 0051) |
-| Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` is **generated** from `palette.nix`; do not add one to `dotfiles/` |
+| Waybar appearance | `dotfiles/mango/waybar/style-*.css` — hand-written rules. Its `colors.css` (from `palette.nix`) and `icons.css` (icon-theme names, ADR 0052) are **generated**; do not add either to `dotfiles/` |
 | rofi appearance | `dotfiles/rofi/config.rasi` — hand-written layout, shared by **every** menu in every mode. Its `lines: 12` is a **fixed height** and only the cap for `rofi -show drun\|run\|window\|calc\|emoji`; hand-built menus size themselves through `lib.sh`'s `rofi_menu <max>` (`-theme-str`, since `-l` loses to the theme — `docs/gotchas.md` → rofi). Its `colors.rasi` is a runtime symlink to `colors-<mode>.rasi` from `modules/home/mode-theme.nix`; do not declare it as an `xdg.configFile` |
 | Session menu | `modules/home/programs.nix` (`programs.wlogout`); `dotfiles/wlogout/` holds only the six PNGs. **Adding an entry means bumping `-b` in `custom/power`'s click in `waybar.nix` too** (and `wayle.nix`, while it is still built) |
 | When the screen locks | `modules/home/default.nix` (`services.swayidle`) |
@@ -336,7 +336,7 @@ file from typed options; **there is no config file in this repo at all.**
 | ncspot | `programs.ncspot` — **`settings = { }` deliberately**: that leaves `config.toml` unclaimed for the per-mode symlink (`docs/adr/0034`). One value here re-claims it and breaks activation |
 | wlogout | `programs.wlogout` |
 | swaylock | `programs.swaylock` — **`package = null`**, see §9 |
-| The three waybar layouts (x2 positions = 6 files) | `modules/home/waybar.nix` — still generated, started by nothing (ADR 0045) |
+| The three waybar layouts (x2 positions = 6 files) | `modules/home/waybar.nix` — generated; `tiling/autostart.conf` starts the bar (ADR 0051) |
 | wayle — the tiling bar's three layouts (x2 positions = 6 files), plus `_colors.scss` | `modules/home/wayle.nix`. **`services.wayle.settings` stays `{ }`**, leaving `config.toml` for the runtime link, exactly as ncspot does (ADR 0045). The *stylesheet* is tier 2 — see below |
 
 This is where a config should end up unless there is a reason it cannot. The
@@ -357,8 +357,9 @@ argument is not tidiness:
   four with nothing keeping them in step — the terminals, the bar's
   `colors.css` and rofi's `colors-<mode>.rasi` all derive from it, and
   `checks/static.sh` asserts every generated name is used and every reference
-  resolves. Likewise waybar's `full-at` is *read from* the TLP threshold rather
-  than copied.
+  resolves. `icons.css` is the same shape one layer out: the icon *names* the
+  bar draws are declared once and checked against the built theme, because a
+  name that resolves to nothing draws nothing (ADR 0052).
 
 ### Tier 2 — store-based, `source = ../../dotfiles/X`
 

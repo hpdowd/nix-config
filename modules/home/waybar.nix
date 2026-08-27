@@ -1,9 +1,9 @@
 # Waybar layouts, generated from one shared set of module definitions.
 #
-# Each module is defined ONCE in `modules` below and a layout is a list of
+# Each module is defined once in `modules` below and a layout is a list of
 # names; `lib.genAttrs` emits definitions for exactly the names a layout uses.
-# An unused definition cannot linger, and A NAME WITH NO DEFINITION IS AN EVAL
-# ERROR instead of a module that renders as nothing. That is why these are
+# An unused definition cannot linger, and A name with no definition is an eval
+# error instead of a module that renders as nothing. That is why these are
 # generated: the four hand-maintained .jsonc files drifted, and `custom/window`
 # ended up with max-length 60 in two and 80 in a third. docs/adr/0009.
 #
@@ -25,39 +25,142 @@ let
   # refer to the names, so a colour is written once here and nowhere else.
   p = import ./palette.nix;
 
-  # The window title's per-app glyph, by mango appid. `default` is what makes an
-  # unmapped app draw a window rather than nothing — the difference between
-  # "no icon yet" and "the module is broken". Passed to window-title.sh; see the
-  # note on custom/window.
-  windowIcons = {
-    foot = "󰞷";
-    kitty = "󰞷";
-    zen-beta = "󰖟";
-    Equibop = "󰙯";
-    imv = "󰋩";
-    Spotify = "󰎇";
-    default = "󰘔";
+  # Icon-theme names by mango appid, drawn by `iconCss` below. docs/adr/0052.
+  #
+  # Keys are appids as mango reports them, case included — `Equibop` sat here
+  # until 2026-08-28 and never matched. equibop and imv are stand-ins in
+  # adr/0041's sense: neither name exists in the theme.
+  appIcons = {
+    foot = "foot";
+    kitty = "kitty";
+    zen-beta = "zen-browser";
+    equibop = "discord";
+    imv = "multimedia-photo-viewer";
+    Spotify = "spotify";
+    default = "application-default-icon";
   };
+
+  # Mirrored by `css_class()` in window-title.sh; checks/static.sh runs both.
+  cssClass = lib.replaceStrings [ "." " " ] [ "-" "-" ];
+
+  # Keyed on `.some`, not on the bare id: the shared module block's
+  # `background: transparent` shorthand out-ranks a bare rule here and the icon
+  # vanishes silently. Every rule this file emits carries a class for that
+  # reason. docs/gotchas.md -> Waybar.
+  moduleIcons = {
+    "custom-minimized.some" = "view-restore";
+  };
+
+  # Papirus's battery ladder — the icons wayle wore, which were Adwaita's.
+  # docs/adr/0052.
+  #
+  # `at` is a capacity ceiling: waybar picks the tightest class whose value is
+  # >= capacity (waybar-states(5)), so 44% wears `l50`. The bottom two are 5 and
+  # 20 rather than 0 and 10 because they carry the colour too, still matched to
+  # upower's PercentageCritical/Low in power.nix.
+  batteryRungs = [
+    {
+      level = 0;
+      at = 5;
+    }
+    {
+      level = 10;
+      at = 10;
+    }
+    {
+      level = 20;
+      at = 20;
+    }
+    {
+      level = 30;
+      at = 30;
+    }
+    {
+      level = 40;
+      at = 40;
+    }
+    {
+      level = 50;
+      at = 50;
+    }
+    {
+      level = 60;
+      at = 60;
+    }
+    {
+      level = 70;
+      at = 70;
+    }
+    {
+      level = 80;
+      at = 80;
+    }
+    {
+      level = 90;
+      at = 90;
+    }
+    {
+      level = 100;
+      at = 100;
+    }
+  ];
+
+  rungClass = r: "l${toString r.level}";
+
+  # Papirus has no `battery-level-100-charging-symbolic`; the full one is
+  # `-charged-`. checks/static.sh resolves every name this emits.
+  rungIcon = r: "battery-level-${toString r.level}-symbolic";
+  rungCharging =
+    r:
+    if r.level == 100 then
+      "battery-level-100-charged-symbolic"
+    else
+      "battery-level-${toString r.level}-charging-symbolic";
+
+  # One `-gtk-icontheme()` rule per appid and per battery rung. Generated so the
+  # name and its selector are one fact; the geometry around them, and the
+  # fallback icon, stay in style-solid.css. docs/adr/0052.
+  iconCss = ''
+    /* GENERATED from modules/home/waybar.nix — edit appIcons there, then
+       rebuild. Imported by every style-*.css. */
+  ''
+  + lib.concatStrings (
+    lib.mapAttrsToList (name: icon: ''
+      #${name} { background-image: -gtk-icontheme("${icon}"); }
+    '') moduleIcons
+  )
+  + lib.concatStrings (
+    lib.mapAttrsToList (
+      appid: icon:
+      lib.optionalString (appid != "default") ''
+        #custom-window.${cssClass appid} { background-image: -gtk-icontheme("${icon}"); }
+      ''
+    ) appIcons
+  )
+  + lib.concatStrings (
+    map (r: ''
+      #battery.${rungClass r} { background-image: -gtk-icontheme("${rungIcon r}"); }
+      #battery.${rungClass r}.charging,
+      #battery.${rungClass r}.plugged { background-image: -gtk-icontheme("${rungCharging r}"); }
+    '') batteryRungs
+  );
 
   # ── One glyph pack ────────────────────────────────────────────────────────
   #
-  # EVERY glyph below is nf-md (Material Design, U+F0000+). The bar carried 18
+  # Every glyph below is nf-md (Material Design, U+F0000+). The bar carried 18
   # Font Awesome, 16 Material, one Octicon, one Linux and three bare Unicode
   # arrows before 2026-08-27 — four vocabularies at four different stroke
   # weights, which is most of what made it read as assembled rather than
   # designed.
   #
-  # THESE ARE FONT GLYPHS. A module's LABEL is text, so an icon name cannot go
-  # in it — but the icon theme is still reachable from the STYLESHEET, where
-  # `background-image: -gtk-icontheme("name")` draws real Papirus art. See
-  # docs/gotchas.md -> Waybar. Nothing on this bar uses that yet; the glyphs
-  # below are the font's.
-  # wayle's modules took `icon-name`s the theme resolved, which is why ITS
-  # network and bluetooth art was Papirus and cannot be copied here. nf-md is
-  # the closest available: Material is the same design language Papirus's
-  # symbolic set follows.
+  # These are the glyphs a module's label carries, and a label is text. The
+  # window title, the minimized count and the battery wear real Papirus art
+  # instead, through `-gtk-icontheme()` in the stylesheet — see `appIcons` and
+  # `batteryRungs` above, and docs/adr/0052. nf-md is what the rest still use:
+  # Material is the design language Papirus's symbolic set follows, which is why
+  # the two sit together.
   #
-  # Every codepoint was checked by RENDERING it, not by trusting its name — two
+  # Every codepoint was checked by rendering it, not by trusting its name — two
   # were the other way round from what they are called (`md-memory` U+F035B is
   # the CPU chip, `md-chip` U+F061A is the RAM stick). checks/static.sh asserts
   # the pack holds.
@@ -94,16 +197,16 @@ let
     # Was `mmsg -g -l | awk '{print $3}'` — dwl-era flags mango no longer takes.
     mpris = {
       format = "{status_icon} {dynamic}";
-      # THREE KEYS, AND ONLY ONE OF THEM WAS SET. All three were found by
+      # Three keys, and only one of them was set. All three were found by
       # rendering this module beside wayle's; none of it is guesswork.
       #
-      # `dynamic-order` is WHICH fields render. Unwritten it defaults to title,
-      # artist, album AND POSITION, so the bar showed `The Yogscast
+      # `dynamic-order` is which fields render. Unwritten it defaults to title,
+      # artist, album and position, so the bar showed `The Yogscast
       # [06:03/13:48]` — a running clock nothing asked for, in the space the
       # title should have had. "Absence in this list means force exclusion"
       # (waybar-mpris(5)), so naming two excludes the rest.
       #
-      # `dynamic-len` is a DROP threshold, not a truncation one: waybar removes
+      # `dynamic-len` is a drop threshold, not a truncation one: waybar removes
       # a field that does not fit rather than shortening it. At 25 a 35-char
       # title vanished entirely and the 12-char artist was what remained —
       # which is why this is 100 and `max-length` does the cutting.
@@ -111,7 +214,7 @@ let
       # ways, same output.
       #
       # `max-length` is the one that behaves like wayle's `label-max-length`:
-      # it truncates the composed string with an ellipsis. 27 = the status icon,
+      # It truncates the composed string with an ellipsis. 27 = the status icon,
       # its space, and wayle's 25.
       dynamic-len = 100;
       max-length = 27;
@@ -127,12 +230,12 @@ let
         playing = "󰐊 ";
         paused = "󰏤 ";
       };
-      # EMPTY, and that is the whole reason this module was blank. `[ "firefox" ]`
+      # Empty, and that is the whole reason this module was blank. `[ "firefox" ]`
       # came through the generation refactor from the hand-written configs with
       # no reason attached — waybar's own docs suggest it, because firefox can
       # expose one MPRIS player per playing tab. On this machine it exposes one
       # (`playerctl -l` → a single `firefox.instance_*`), and firefox is the only
-      # player running, so the ignore meant the media module rendered NOTHING,
+      # player running, so the ignore meant the media module rendered nothing,
       # always. wayle's `media` has no such list, which is why that bar showed a
       # track where this one showed empty bar. docs/adr/0051.
       ignored-players = [ ];
@@ -142,52 +245,31 @@ let
       on-scroll-down = "playerctl previous";
     };
 
-    # min-width must stay <= icon-size. waybar packs the icon at the START of
+    # Min-width must stay <= icon-size. waybar packs the icon at the start of
     # the button box, so any width beyond the icon becomes empty space on the
-    # RIGHT only, and no symmetric padding can correct it. The two numbers are
+    # right only, and no symmetric padding can correct it. The two numbers are
     # coupled — change icon-size, change min-width in both stylesheets.
-    # THE WINDOWS YOU CANNOT SEE, not all of them. `wlr/taskbar` listed every
-    # open window — which the workspace tags already tell you — and the only
-    # windows the bar could not otherwise account for were the ones SUPER+I had
-    # put away. It went on 2026-08-27 with its themed app icons, the one thing
-    # on this bar that came from Papirus rather than a font. docs/adr/0051.
-    #
-    # `restore_minimized` is mango's only restore verb, takes no client, and
-    # pops the last minimized window ON THE CURRENT TAG. It answers
-    # `{"success":true}` when it restores nothing — see the script's header for
-    # what that means and how it was verified.
+    # The windows the workspace tags cannot account for. A count and one icon,
+    # because CSS gives a module one background image; the per-window art is the
+    # picker's. Click restores a specific window, which `restore_minimized`
+    # could not do and `focusid client,<id>` can. docs/adr/0052.
     "custom/minimized" = {
-      exec = "${s}/waybar/minimized.sh '${builtins.toJSON windowIcons}'";
+      exec = "${s}/waybar/minimized.sh";
       return-type = "json";
       format = "{}";
-      on-click = "mmsg dispatch restore_minimized";
+      on-click = "${s}/menus/minimized-menu.sh '${builtins.toJSON appIcons}'";
       escape = true;
     };
 
     # Not waybar's built-in dwl/window: mango 0.15.5 dropped the dwl IPC
     # protocol that module binds, and its absence makes waybar SIGSEGV on
     # startup. CSS selector is #custom-window, not #window.
-    # 45, WAYLE'S NUMBER, and it is coupled to the stylesheet. This was 60 while
-    # `#custom-window` drew at 11px against the bar's 14px; style-solid.css now
-    # draws it at the bar's own size, so the same 60 characters occupy a third
-    # more width and the centre reaches the modules either side of it. Raising
-    # the size without lowering the cap is the half-change. docs/adr/0051.
-    # THE APP GLYPH IS THE SCRIPT'S, and the table is still Nix's.
     #
-    # `format = "{icon} {}"` with a `format-icons` map keyed by the JSON `alt`
-    # is the obvious way and IT RENDERS THE WHOLE LABEL EMPTY — not just the
-    # icon, and waybar logs nothing either way (verified with stderr kept, both
-    # ways, on 0.15.0). A module that silently renders as nothing is the failure
-    # this repo is named for, so the lookup moved into the script and the map is
-    # passed to it as an argument: one owner, still declared here, and a glyph
-    # that actually draws. docs/adr/0051.
-    #
-    # A font glyph, because the label is text. It is NOT the only option: CSS
-    # can put a themed icon behind this module with
-    # `background-image: -gtk-icontheme(…)`, keyed on a class this script would
-    # emit — proven on 2026-08-27, not adopted. docs/gotchas.md -> Waybar.
+    # The icon is the stylesheet's: the script emits the appid as a `class` and
+    # `iconCss` gives it a themed background. docs/adr/0052. 45 is coupled to
+    # the stylesheet's font-size and to the padding that holds the icon.
     "custom/window" = {
-      exec = "${s}/waybar/window-title.sh '${builtins.toJSON windowIcons}'";
+      exec = "${s}/waybar/window-title.sh";
       return-type = "json";
       format = "{}";
       max-length = 45;
@@ -276,22 +358,22 @@ let
 
     pulseaudio = {
       # `{format_source}` is the microphone, and it repeats into `format-muted`
-      # because that REPLACES `format` rather than adding to it — a placeholder
+      # because that replaces `format` rather than adding to it — a placeholder
       # left out of a replacement disappears under that condition, so muting the
-      # SPEAKERS would take the microphone indicator off the bar with them.
+      # speakers would take the microphone indicator off the bar with them.
       # docs/adr/0033 for why there is no `custom/microphone`.
       #
-      # THE LIVE STATE IS EMPTY, and only the live one. docs/gotchas.md said
+      # The live state is empty, and only the live one. docs/gotchas.md said
       # "neither state may render as nothing" and that over-generalised from the
-      # muted case: what must never be invisible is MUTED, because "muted" and
+      # muted case: what must never be invisible is muted, because "muted" and
       # "the module is broken" becoming one picture is being recorded when you
-      # thought you were not. An empty LIVE state fails the other way — no glyph
+      # thought you were not. An empty live state fails the other way — no glyph
       # reads as "live", and a broken module also shows no glyph, so the wrong
       # reading is "I am being recorded", which is the safe one. A mic icon on
       # the bar at all times is a permanent indicator for a state that is
       # normal.
       #
-      # The SPACE lives in the muted glyph, not in `format`. A trailing
+      # The space lives in the muted glyph, not in `format`. A trailing
       # `{format_source}` that resolves to nothing still leaves the space before
       # it, which is a module that changes width for no visible reason.
       format = "{icon} {volume}%{format_source}";
@@ -310,7 +392,7 @@ let
       format-icons = {
         headphone = "󰋋";
         headset = "󰋋";
-        # ONE ICON, not a three-step ladder — `network` and `bluetooth` name a
+        # One icon, not a three-step ladder — `network` and `bluetooth` name a
         # state and let the text carry the number, and the volume percentage is
         # already right beside this. A one-element array is how waybar says "the
         # same at every level"; wayle's `level-icons` took a single-element list
@@ -321,7 +403,7 @@ let
 
     backlight = {
       format = "{icon} {percent}%";
-      # A MOON AND A SUN until 2026-08-27, so low brightness drew `md-weather-
+      # A moon and A sun until 2026-08-27, so low brightness drew `md-weather-
       # night` — a night-time glyph for a display setting, next to a night-mode
       # module that is a different thing entirely. One icon now, at every level,
       # for the reason the volume ladder lost its: the percentage is in the text
@@ -349,11 +431,11 @@ let
     #
     # Was waybar's built-in `idle_inhibitor`, which held the inhibitor on the
     # bar's own layer surface. That worked, but the state was a bool in the
-    # waybar PROCESS: it could only be toggled by clicking the widget — waybar
+    # waybar process: it could only be toggled by clicking the widget — waybar
     # offers no IPC and no signal for it — and it was released, silently, by
     # every `waybar-reload`, mode switch and layout switch. Now the inhibitor is
     # a user unit that outlives the bar, this module only reports it, and
-    # SUPER+SHIFT+A reaches the same script. docs/adr/0031.
+    # SUPER+shift+A reaches the same script. docs/adr/0031.
     #
     # `interval` as well as `signal`: the signal makes a toggle instant, and the
     # poll is the floor. If wlinhibit dies on its own the bar must stop claiming
@@ -372,7 +454,7 @@ let
     # built-in power-profiles-daemon module, which bound a D-Bus API nothing
     # here implements — ppd is disabled because it conflicts with TLP, so the
     # module rendered empty and read as missing from the bar. It then spent a
-    # year reporting the ACPI platform profile, which moves nothing the
+    # year reporting the acpi platform profile, which moves nothing the
     # scheduler sees; docs/adr/0017.
     "custom/power-profile" = {
       exec = "${s}/system/power-profile.sh";
@@ -384,7 +466,7 @@ let
     };
 
     # The control centre, as a bar button. It runs menus/shell.sh rather than
-    # control-center.sh directly, so the button and SUPER+C go through the ONE
+    # control-center.sh directly, so the button and SUPER+C go through the one
     # router that knows which surface a mode has — in noctalia mode this reaches
     # noctalia's own control centre instead (docs/adr/0023, docs/adr/0033). A
     # bind or an on-click naming the implementation is a dead key in the other
@@ -394,9 +476,9 @@ let
     # is a static button, which is why this one cannot render empty the way the
     # exec-backed ones can.
     #
-    # U+F1DE (nf-fa-sliders), checked against BOTH bar fonts before picking —
+    # U+F1DE (nf-fa-sliders), checked against both bar fonts before picking —
     # `fc-list ':charset=F1DE' family`. The bar is "3270 Nerd Font" and
-    # "Symbols Nerd Font Mono", NOT the Hack the menus use, and U+F6FF is the
+    # "Symbols Nerd Font Mono", not the Hack the menus use, and U+F6FF is the
     # standing proof that assuming coverage is how a glyph becomes a box.
     # Deliberately not the `bars` glyph: the control centre's own waybar row
     # already wears that, and two meanings for one glyph is worse than either.
@@ -409,9 +491,9 @@ let
     # Built as a module first, read by the control centre second — a row that
     # fetched would own a fact the bar cannot see. docs/adr/0038.
     #
-    # `interval` 300 against the script's 900 s TTL: the poll is a floor, not a
+    # `interval` 300 against the script's 900 s ttl: the poll is a floor, not a
     # fetch. `signal` 13 is what `weather.sh refresh` raises; checks/static.sh
-    # asserts the two numbers agree, because waybar drops an unhandled RT signal
+    # asserts the two numbers agree, because waybar drops an unhandled rt signal
     # in silence.
     "custom/weather" = {
       format = "{}";
@@ -419,7 +501,7 @@ let
       return-type = "json";
       interval = 300;
       signal = 13;
-      # LEFT OPENS THE PANEL. It ran `refresh` until 2026-08-26 — a fetch whose
+      # Left opens the panel. It ran `refresh` until 2026-08-26 — a fetch whose
       # only possible output is a two-digit label that rarely moves inside a
       # quarter of an hour, i.e. a click that appears to do nothing. `refresh`
       # moved to the middle button, where it has the signal below to show for
@@ -436,7 +518,7 @@ let
       exec = "${s}/kdeconnect/phone-status.sh";
       return-type = "json";
       interval = 30;
-      # A verb, not `kdeconnect-cli -d <id> --ring`: the device ID belongs in
+      # A verb, not `kdeconnect-cli -d <id> --ring`: the device id belongs in
       # the script that already holds it, or the bar, the script and the
       # control-centre row end up with three copies of one string.
       on-click = "${s}/kdeconnect/phone-status.sh ring";
@@ -444,7 +526,7 @@ let
     };
 
     # `bat`/`adapter` are named rather than left to waybar's auto-detection,
-    # which walks /sys/class/power_supply in readdir order and keeps the LAST
+    # which walks /sys/class/power_supply in readdir order and keeps the last
     # entry carrying `online` or `status` as the adapter. This machine exposes
     # four supplies — AC, BAT0 and two ucsi-source-psy-USBC000:00* — and the
     # ucsi pair carry both attributes, so the adapter is currently AC only
@@ -456,7 +538,7 @@ let
     # BAT0/uevent) and falls back to a once-a-minute poll, so an unplug could
     # sit unreflected for a minute even when nothing is wrong.
     #
-    # There is deliberately NO `full-at`. It rescaled the reading as
+    # There is deliberately no `full-at`. It rescaled the reading as
     # `shown = real / full-at * 100` to make TLP's 85% charge stop read as
     # 100%, at the cost of the bar permanently disagreeing with every other
     # reading on the machine — 27% real showed as 32% against fastfetch's 27%,
@@ -466,38 +548,16 @@ let
       bat = "BAT0";
       adapter = "AC";
       interval = 5;
-      # Matched to upower's PercentageLow/Critical in power.nix, so the colour
-      # change marks a point the system actually acts on. Was 30/15.
-      states = {
-        warning = 20;
-        critical = 5;
-      };
-      format = "{icon} {capacity}%";
-      format-charging = "󰂄 {capacity}%";
-      format-plugged = "󰁹 {capacity}%";
-      format-icons = [
-        "󰂎"
-        "󰁺"
-        "󰁻"
-        "󰁼"
-        "󰁽"
-        "󰁾"
-        "󰁿"
-        "󰂀"
-        "󰂁"
-        "󰂂"
-        "󰁹"
-      ];
-      # Left click swaps to draw/time; the tooltip carries health and cycles.
-      # Both were a `focus` tweak until 2026-08-09, so the same click gave a
-      # different answer depending on the layout.
-      #
-      # The toggle only bites while DISCHARGING. update() overrides whatever
-      # the click selected with `format-{status}` when one exists, so on AC
-      # `format-plugged` wins and clicking does nothing (battery.cpp:730). The
-      # focus tweak carried a `format-alt-charging` to patch that; waybar reads
-      # only `format-alt` and `format-alt-click`, never a per-status alt, so it
-      # was dead config and is not carried over.
+
+      # The ladder is the style's: each rung is a CSS class icons.css gives a
+      # themed background. See `batteryRungs` above. docs/adr/0052.
+      states = lib.listToAttrs (map (r: lib.nameValuePair (rungClass r) r.at) batteryRungs);
+
+      # No `format-charging`/`format-plugged`: they only swapped the glyph, and
+      # the charging icon is a CSS class now. That also frees `format-alt`,
+      # which `update()` overrode whenever a per-status format existed — the
+      # click did nothing on AC (battery.cpp:730), and now works in every state.
+      format = "{capacity}%";
       format-alt = "{power}W · {time}";
       format-time = "{H}:{m}";
       tooltip-format = "{time}\n{health} · {cycles}";
@@ -545,14 +605,14 @@ let
 
   # ── Separators are structure ──────────────────────────────────────────────
   #
-  # A side is a list of GROUPS, flattened here into the flat list waybar wants.
+  # A side is a list of groups, flattened here into the flat list waybar wants.
   # Every group after the first has `#sep` appended to its first member: waybar
   # splits a module name on `#` (factory.cpp:129), names the widget after the
-  # part before it and adds the part after as a STYLE CLASS (ALabel.cpp:34, and
+  # part before it and adds the part after as a style class (ALabel.cpp:34, and
   # the same three lines in wlr/taskbar, sni/tray and ext/workspace_manager), so
   # one `.sep` rule in style-solid.css draws every separator.
   #
-  # The point is that grouping now belongs to the LAYOUT. It used to be fifteen
+  # The point is that grouping now belongs to the layout. It used to be fifteen
   # `border-left` rules keyed by module, so which groups appeared depended on
   # which modules a layout happened to carry — `custom/weather` opened a group
   # containing `cpu memory` in one layout and `custom/control-center` in
@@ -591,7 +651,7 @@ let
       # waybar — which is how the old hand-written config-hud.jsonc ended up
       # defining a custom/power it never displayed.
       deadTweaks = lib.subtractLists used (lib.attrNames tweaks);
-      # Keyed by the EMITTED name: waybar looks a tagged module's config up under
+      # Keyed by the emitted name: waybar looks a tagged module's config up under
       # the suffixed key (factory.cpp passes `config_[name]`, not `config_[ref]`),
       # so `network#sep` with its settings under `network` renders with waybar's
       # defaults and nothing says so.
@@ -622,15 +682,15 @@ let
 
   # ── The three layouts ─────────────────────────────────────────────────────
   #
-  # Each side is a list of GROUPS, and the group order is the SAME in all three:
-  # a layout may drop a module but never reposition one, so SUPER+/ moves
+  # Each side is a list of groups, and the group order is the same in all three:
+  # A layout may drop a module but never reposition one, so SUPER+/ moves
   # nothing that both layouts carry. `checks/static.sh` asserts that, because it
   # is an invariant a plausible-looking edit can break in silence.
   #
-  # These are position-INDEPENDENT. The top/bottom variants are derived below
+  # These are position-independent. The top/bottom variants are derived below
   # rather than written out.
   baseLayouts = {
-    # full — everything.
+    # Full — everything.
     full = mkBar {
       left = [
         # Time and weather are one reading of "what is it like now", so they
@@ -653,7 +713,7 @@ let
           "cpu"
           "memory"
         ]
-        # custom/phone is KDE Connect, so it belongs with the radios rather than
+        # Custom/phone is KDE Connect, so it belongs with the radios rather than
         # beside the battery it happens to report.
         [
           "network"
@@ -679,13 +739,13 @@ let
       ];
     };
 
-    # focus — drops the taskbar and the cpu/memory/phone readouts.
+    # Focus — drops the taskbar and the cpu/memory/phone readouts.
     focus = mkBar {
       left = [
         # Weather is ambient, not diagnostic — it is not one of the cpu/memory
         # readouts this layout drops. `focus` is the daily layout, so leaving it
         # out left the cache with nothing keeping it warm and the control-centre
-        # row parked at `stale` as its DEFAULT rather than its edge case.
+        # row parked at `stale` as its default rather than its edge case.
         [
           "clock"
           "custom/weather"
@@ -720,7 +780,7 @@ let
       ];
     };
 
-    # minimal — battery, tray and power only, plus the one way in to everything
+    # Minimal — battery, tray and power only, plus the one way in to everything
     # else. This is where a single entry point is worth most: the toggles this
     # layout drops are exactly the ones the control centre still reaches.
     #
@@ -743,7 +803,7 @@ let
         ]
         [ "custom/power" ]
       ];
-      # NO `custom/window` TWEAK. It was 80 here — "more room on the right, so
+      # No `custom/window` tweak. It was 80 here — "more room on the right, so
       # the title gets more characters" — which was true at 11px and is not at
       # 14px. wayle carried one cap for all three layouts and this is that.
       # docs/adr/0051.
@@ -751,7 +811,7 @@ let
 
   };
 
-  # ── Position variants, enumerated at BUILD time ───────────────────────────
+  # ── Position variants, enumerated at build time ───────────────────────────
   #
   # `position` cannot be passed on the command line (`waybar --help` offers only
   # -c, -s and -b), so it has to be in the file: 3 layouts x 2 positions = 6
@@ -760,7 +820,7 @@ let
   #
   # Only `position` differs. Vertical margins were mirrored here too, for hud
   # alone, which cancelled its own exclusive zone with `margin-bottom = -28`.
-  # hud is gone (docs/adr/0035) and every remaining layout has all four margins
+  # Hud is gone (docs/adr/0035) and every remaining layout has all four margins
   # at 0 — restore the mirroring before adding a layout with a non-zero one.
   atBottom = bar: bar // { position = "bottom"; };
 
@@ -774,7 +834,7 @@ in
 {
   # Generated into ~/.config/mango/waybar/ alongside the hand-written CSS. The
   # `mango` entry in dotfiles.nix is `recursive = true`, so home-manager links
-  # files individually and these coexist with it — but ONLY because the four
+  # files individually and these coexist with it — but only because the four
   # .jsonc files were deleted from home/mango/waybar/. Two owners for one path
   # is an activation failure, not a merge.
   xdg.configFile =
@@ -785,7 +845,7 @@ in
       }
     ) layouts
     // {
-      # Derived from modules/home/palette.nix, so this file is NOT in
+      # Derived from modules/home/palette.nix, so this file is not in
       # dotfiles/mango/waybar/ — one path, one owner. The names are the bar's own
       # vocabulary and the style sheets are written against them, which is why
       # they are spelled out rather than emitted by iterating the palette: a
@@ -797,6 +857,10 @@ in
       # its only consumer, and a generated colour nothing imports is exactly
       # what the both-directions assertion in checks/static.sh exists to catch.
       # Re-add it the moment a stylesheet wants it; the check enforces both ways.
+      # Generated for the reason colors.css is — one owner for the name and the
+      # selector that uses it. docs/adr/0052.
+      "mango/waybar/icons.css".text = iconCss;
+
       "mango/waybar/colors.css".text = ''
         /* GENERATED from modules/home/palette.nix — edit that, then rebuild.
            Imported by every style-*.css. */

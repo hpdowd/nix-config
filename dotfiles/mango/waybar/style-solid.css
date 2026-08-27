@@ -4,6 +4,9 @@
    ===================================================================== */
 
 @import url("colors.css");
+/* One `-gtk-icontheme()` rule per appid, generated from `appIcons` in
+   modules/home/waybar.nix. docs/adr/0052. */
+@import url("icons.css");
 
 /* Symbols FIRST, 3270 second. 3270 patches the Nerd Font icons in at their
    natural width but keeps its own narrow 0.54em advance, so the ink overflows
@@ -183,21 +186,34 @@ window#waybar.bottom {
 
 /* ── Minimized windows ────────────────────────────────────────────── */
 
-/* One glyph per window SUPER+I has put away, from the same table the window
-   title uses. It replaced `#taskbar`, which listed every open window and drew
-   its icons from the icon THEME — the only module here that did, and the one
-   thing on this bar Papirus reached besides the tray. docs/adr/0051.
+/* A COUNT behind a themed icon. The icon is `-gtk-icontheme("view-restore")`
+   from icons.css, which is why `padding-left` is 22px: 16px of art plus the
+   4px it is inset by, plus the module's own gap. Change one, change the other —
+   the image is a background and does not push the text.
+
+   Papirus reaches this module and #custom-window through CSS, which is how the
+   themed app icons `#taskbar` used to draw came back without re-listing every
+   open window. docs/adr/0052.
 
    @subtext, not @text: these are windows that are not on screen, and the bar's
    live readings should not have to compete with them. */
 #custom-minimized {
     color: @subtext;
+    background-repeat: no-repeat;
+    background-position: 4px center;
+    background-size: 16px 16px;
+    padding-left: 22px;
 }
 
 /* An empty module still draws `.module`'s padding — 10px of dead bar in the
    resting state, which on the wayle bar was reported as the neighbouring
    module's spacing. minimized.sh emits the class so this can collapse it; the
-   same rule `#taskbar.empty` carried, for the same reason. */
+   same rule `#taskbar.empty` carried, for the same reason.
+
+   No `background-image: none` needed: icons.css attaches the icon to `.some`,
+   not to the bare id, so the empty state never had one to clear. That is not
+   tidiness — a bare rule there is overridden by `background: transparent` in
+   the shared block above and draws nothing at all. docs/gotchas.md -> Waybar. */
 #custom-minimized.empty {
     padding: 0;
     min-width: 0;
@@ -212,21 +228,48 @@ window#waybar.bottom {
 
 /* ── Window ───────────────────────────────────────────────────────── */
 
-/* NO RULE, deliberately. It carried `color: @subtext; font-size: 11px` until
-   2026-08-26 — dimmer AND three points smaller than every other module, on the
-   one label that is a sentence rather than a number. It now takes @text at 14px
-   from the shared rules above, which is what wayle's `window-title` wore
-   (`label-color = fg-default`, no size of its own) and the reason that bar read
-   better here.
+/* NO COLOUR OR SIZE, deliberately. It carried `color: @subtext; font-size:
+   11px` until 2026-08-26 — dimmer AND three points smaller than every other
+   module, on the one label that is a sentence rather than a number. It takes
+   @text at the bar's own size from the shared rules above, which is what
+   wayle's `window-title` wore and the reason that bar read better here.
 
    The cap moved with it: `custom/window`'s max-length is 45 rather than 60 in
    modules/home/waybar.nix, because the same characters are a third wider now.
-   docs/adr/0051. */
+   docs/adr/0051.
+
+   WHAT IS HERE IS GEOMETRY AND THE FALLBACK ICON. icons.css raises the
+   specificity with `#custom-window.<appid>` and swaps the image; anything
+   unmapped keeps this one, so a new app reads as an app rather than as a broken
+   module. The three background properties and `padding-left` are one setting
+   with the 16px size — see #custom-minimized above. docs/adr/0052. */
+#custom-window {
+    /* THE ONLY -gtk-icontheme() OUTSIDE icons.css, and it survives because
+       icons.css declares `#custom-window.<appid>` and never the bare selector.
+       Every other icon name is the generated file's: a second declaration of
+       one property for one selector is won by whichever file comes later, in
+       silence, and this sheet is imported after icons.css. checks/static.sh
+       asserts the two never claim the same selector. docs/adr/0052. */
+    background-image: -gtk-icontheme("application-default-icon");
+    background-repeat: no-repeat;
+    background-position: 4px center;
+    background-size: 16px 16px;
+    padding-left: 22px;
+}
+
+/* Nothing focused. Without this the bar draws a default app icon over
+   `padding-left` with no title beside it — an app icon for no app, which reads
+   as the module having lost its label rather than as an empty desktop. */
+#custom-window.empty {
+    background-image: none;
+    padding: 0;
+    min-width: 0;
+}
 
 /* ── Clock ────────────────────────────────────────────────────────── */
 
 #clock {
-    font-size: 18px;
+    font-size: 14px;
     color: @text;
     /* Left only: the 14px this used to carry on both sides was for the screen
        edge, and on the right it made time-to-weather the widest gap on the bar
@@ -388,12 +431,30 @@ window#waybar.bottom {
 
 /* ── Battery ──────────────────────────────────────────────────────── */
 
+/* The icon is Papirus's `battery-level-*-symbolic` ladder, one rule per rung in
+   the generated icons.css — wayle's battery, from the theme rather than from a
+   font. Geometry only here; the same 16px/22px pair as #custom-window, and it
+   moves with them. docs/adr/0052. */
+#battery {
+    background-repeat: no-repeat;
+    background-position: 4px center;
+    background-size: 16px 16px;
+    padding-left: 22px;
+}
+
 #battery.charging,
 #battery.plugged { color: @green; }
 
-#battery.warning:not(.charging) { color: @yellow; }
+/* KEYED ON THE LADDER, not on `warning`/`critical` — those state names are
+   gone, because a battery module gets exactly ONE state class and the ladder
+   needs all of them. The thresholds did not move: `l0` is capacity <= 5 and
+   `l20` is <= 20, still upower's PercentageCritical and PercentageLow from
+   power.nix. `l10` sits between them and is warning-coloured, which it was
+   before too — it was inside the old `warning` band. docs/adr/0052. */
+#battery.l10:not(.charging),
+#battery.l20:not(.charging) { color: @yellow; }
 
-#battery.critical:not(.charging) {
+#battery.l0:not(.charging) {
     color: @red;
     animation-name: blink;
     animation-duration: 1s;

@@ -25,32 +25,36 @@ cleanup() { pkill -P $$ 2>/dev/null; }
 trap cleanup EXIT
 trap 'exit 0' PIPE HUP INT TERM
 
-# THE APP GLYPH GOES IN THE TEXT, and the table comes from waybar.nix as $1.
+# THE ICON IS THE STYLESHEET'S. This emits the appid as a CSS `class`, and
+# modules/home/waybar.nix generates `#custom-window.<class>` rules that give it
+# a `-gtk-icontheme()` background — real Papirus art, where a label could only
+# ever hold a font glyph. docs/adr/0052.
 #
-# waybar's own way — `format = "{icon} {}"` with a `format-icons` map keyed by
-# the JSON `alt` — renders the WHOLE label empty on 0.15.0 and logs nothing.
-# So the table stays declared in Nix, where a name and its glyph sit together,
-# and the lookup happens here where it actually draws. `alt` is still emitted:
-# it costs nothing and it is what a `#custom-window.<app>` CSS rule would key
-# on. docs/adr/0051.
-#
-# Bar label only. The tooltip is the plain title — a glyph in a tooltip is
-# decoration on text nobody is glancing at.
-ICONS=${1:-}
+# waybar's own way of doing icons — `format = "{icon} {}"` with `format-icons`
+# keyed on `alt` — renders the WHOLE label empty on 0.15.0 and logs nothing, so
+# `alt` is emitted for readers and nothing reads it to draw.
 
-icon_for_app() {
-	local appid=$1 out=""
-	[ -n "$ICONS" ] || return 0
-	out=$(jq -r --arg a "$appid" '.[$a] // .default // ""' <<<"$ICONS" 2>/dev/null) || out=""
-	printf '%s' "$out"
+# Mirrors `cssClass` in modules/home/waybar.nix, which writes the matching
+# selector. The two must sanitise alike: a class that stops matching its rule
+# draws the default icon and says nothing. checks/static.sh compares them.
+css_class() {
+	printf '%s' "${1//[. ]/-}"
 }
 
+# `empty` collapses the module, icon included. Without it a bar with nothing
+# focused still draws the default icon over `padding-left` — an app icon for no
+# app. `unknown` is a window that set no appid: it keeps the default icon,
+# because something IS focused and the title is real.
 emit() {
-	local text=$1 appid=$2 icon
-	icon=$(icon_for_app "$appid")
-	[ -n "$text" ] && [ -n "$icon" ] && text="$icon $text"
-	jq -cn --arg t "$text" --arg p "$1" --arg a "$appid" \
-		'{text: $t, alt: $a, tooltip: $p, class: "window"}'
+	local text=$1 appid=$2 class
+	if [ -z "$text" ]; then
+		class=empty
+	else
+		class=$(css_class "$appid")
+		[ -n "$class" ] || class=unknown
+	fi
+	jq -cn --arg t "$text" --arg a "$appid" --arg c "$class" \
+		'{text: $t, alt: $a, tooltip: $t, class: $c}'
 }
 
 # Both fields in ONE jq, joined on U+001F: two invocations per focus change is

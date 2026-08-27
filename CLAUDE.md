@@ -110,8 +110,12 @@ used and every reference resolves.
 (`docs/adr/0041`). The GTK theme, the Kvantum theme and the cursor set are built
 in `pkgs/default.nix` from the theme file's own values; yazi's flavour and Zed's
 theme are written from them; only the **icon set** is still a name a program
-resolves internally, plus noctalia's and nvim's. A theme file that names nothing
-buildable is still adoptable, which `heartbox` is the first scheme to prove — it
+resolves internally, plus noctalia's and nvim's. The bar now draws *individual*
+names out of that set — the window title's app icon, the minimized indicator and
+the battery ladder, through `-gtk-icontheme()` in a generated `icons.css`
+(`docs/adr/0052`) — checked the same way and for the same reason. A theme file
+that names nothing buildable is still adoptable, which `heartbox` is the first
+scheme to prove — it
 exists as a colour scheme and nowhere else.
 
 Those names are the half that fails silently: each falls back to its own default

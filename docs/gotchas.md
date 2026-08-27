@@ -1077,6 +1077,43 @@ so this raises a ceiling for one menu rather than forcing a height.
 
 Any fixed-set menu here is exposed the same way as it grows past twelve.
 
+### An icon row cannot go through a shell variable, because of one NUL byte
+
+rofi's dmenu icon syntax is `<text>\0icon\x1f<name>` — the metadata is separated
+from the row by a **NUL**, and no bash string can hold one. Both of the obvious
+ways to build the menu drop it, silently:
+
+```bash
+menu+="${title}"$'\0'"icon"$'\x1f'"${icon}"$'\n'   # $'\0' expands to nothing
+entries=$(cat)                                     # command substitution strips NUL
+```
+
+The first version of `menus/minimized-menu.sh` did both and rendered rows
+reading `Spotify Premiumicon␟spotify` — every row's metadata as visible text,
+with nothing erroring anywhere. Found by screenshotting the menu.
+
+`lib.sh`'s `rofi_menu` is the second line, so **a menu with icons cannot use
+it** and must `printf` its rows straight down the pipe. It passes the same
+`-theme-str "listview { lines: N; }"` by hand; the sizing check in
+`checks/static.sh` accepts a direct call that does. `docs/adr/0052`.
+
+### `-show-icons` beats config.rasi, and `-l` does not
+
+Both are "the file wins" candidates and only one of them is. `config.rasi` sets
+`show-icons: false` for every menu here — the glyphs are already in the text —
+and the minimized picker turns them on for itself. Verified rather than assumed,
+which takes one command:
+
+```sh
+rofi -show-icons -dump-config | grep show-icons   # show-icons: true
+rofi -dump-config | grep show-icons               # show-icons: false
+```
+
+The difference is what kind of setting it is. `show-icons` is a **configuration**
+option, which the command line overrides; `lines` is a **theme** property, and
+on rofi 2.0 the theme beats the command line — which is why `-l` is inert here
+and `-theme-str` is not.
+
 ---
 
 ## Wayle
@@ -2056,6 +2093,59 @@ is `{}`, so it is free to carry a second reader's field.
 
 Same fix as `jfields`: give the reader a field rather than a substring index.
 Two owners for one string, one of them a `${...#*— }`, is drift with extra steps.
+
+### `background: transparent` resets the icon, and both stylesheets are valid
+
+The bar draws themed art with `background-image: -gtk-icontheme("name")`
+(`docs/adr/0052`). `style-solid.css` also gives every module:
+
+```css
+#workspaces, #custom-minimized, #custom-window, … #battery {
+    background: transparent;
+}
+```
+
+That is the **shorthand**, so it resets `background-image` to `none`. It sits at
+one-id specificity and is read *after* the `@import` of the generated
+`icons.css`, so a generated rule keyed on a bare id loses and the module draws no
+icon at all. Nothing is invalid and GTK logs nothing.
+
+`#custom-minimized` was written that way and rendered as a bare count. The
+battery rungs and the appid rules were unaffected — `#battery.l30` and
+`#custom-window.foot` carry a class, so they out-rank the shared block. **Every
+rule in `icons.css` carries a class for that reason**, and `checks/static.sh`
+asserts none is a bare id.
+
+The same file is why a *second* declaration of one property for one selector is
+dangerous here: `icons.css` is imported first, so `style-solid.css` wins in
+silence. The check asserts the two never claim the same selector.
+
+### An appid is case-sensitive, and `Equibop` is not one
+
+`windowIcons` was keyed on `Equibop` from the day the glyphs were written. mango
+reports **`equibop`**, so every Equibop window wore the default glyph and the
+entry matched nothing — for as long as the table existed. `Spotify` beside it
+*is* capitalised, which is most of why it read as plausible.
+
+```sh
+mmsg get all-clients | jq -r '.clients[]?.appid' | sort -u
+```
+
+is the whole check, and it is worth running before adding a key rather than
+after. The desktop-file name is not the appid either: `spotify.desktop` declares
+`Icon=spotify-client` while the appid is `Spotify`.
+
+### An icon name that resolves to nothing draws nothing
+
+The failure `docs/adr/0041` gave the GTK, Kvantum and cursor names a check for,
+one layer down: `-gtk-icontheme("battery-level-100-charging-symbolic")` is
+perfectly good CSS for an icon Papirus does not ship (the full one is
+`-charged-`). GTK draws nothing and says nothing, so the module reads as empty.
+
+`checks/static.sh` resolves every name the bar draws against the scheme's own
+icon theme **and the themes it inherits** — not against the whole of
+`share/icons`, where a name that exists only in some other installed theme would
+pass and still draw nothing in the session.
 
 ---
 

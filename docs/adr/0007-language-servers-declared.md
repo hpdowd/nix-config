@@ -36,7 +36,7 @@ made of. Deliberately not added: `pyright`, `ruff`, `texlab`, `tinymist`,
 ## Consequences
 
 - Servers are reproducible and version-pinned with everything else.
-- **`hx --health` is the audit tool**, even if you never use Helix — one line
+- **`hx --health` is the audit tool**, even with Helix unused — one line
   per language, `✘` against anything missing. Nothing else surfaces this.
 - `npm install -g` is not an alternative: it writes into a home directory the
   flake does not manage and will not reproduce.

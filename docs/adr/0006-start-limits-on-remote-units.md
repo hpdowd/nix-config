@@ -38,7 +38,7 @@ cause; nothing about it was Proton's fault.
 ## Consequences
 
 - **A `Restart=` without a `StartLimitBurst=` is a loaded gun.** When the target
-  is someone else's API, the blast radius includes your account, not just your
+  is someone else's API, the blast radius includes the account, not just the
   machine.
 - Do not restart a rate-limited unit "to test" — each attempt reinforces the
   flag.

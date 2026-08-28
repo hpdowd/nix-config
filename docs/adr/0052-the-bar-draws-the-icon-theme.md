@@ -18,7 +18,7 @@ impossible and only one of them was:
 - **`restore_minimized` cannot target a window.** True of that verb, and it is
   why 0033 refused a picker: a menu that accepts a choice it cannot honour is
   worse than no menu. But it is not true of mango's IPC. **`mmsg dispatch
-  focusid client,<id>` restores a specific minimized window**, onto the tag you
+  focusid client,<id>` restores a specific minimized window**, onto the tag
   are viewing, focused — verified on throwaway windows, targeting the right one
   while a more recently minimized window stayed hidden.
 

@@ -22,7 +22,7 @@ better program:
 2. **One place per action.** Half-true here. `scripts/menus/shell.sh` is already
    a single verb table both shells route through, and the check asserts both
    halves of every row exist — but the fifteen actions live on fifteen separate
-   keys, and **nothing showed the set, or the state each toggle was in**. You had
+   keys, and **nothing showed the set, or the state each toggle was in**. It took
    to remember the key, press it, and read the answer off the bar.
 3. **One live state model.** noctalia is one process holding one model, so its
    bar glyph, its OSD and its control-centre slider are three views of one
@@ -107,7 +107,7 @@ the second.
   lands on every press rather than once. Run concurrently — the shape
   `network-menu.sh`'s `build_menu` already uses — a render is **73 ms**, the
   slowest single row. A reader that is slower than the thing it reads stops
-  being the place you look.
+  being the place to look.
 - **The phone row cost the device ID a home.** `custom/phone`'s `on-click`
   spelled `kdeconnect-cli -d <32-hex-id> --ring` in `waybar.nix` while
   `phone-status.sh` held the same id in its own `DEVICE=`, and a row that rang
@@ -122,7 +122,7 @@ the second.
   the one outcome a row must not have.
 - **The menu sets its own `-l`, from `ROWS`.** rofi's shared `lines: 12` ceiling
   paged this menu in two the moment the microphone row took it to 13 rendered
-  lines, hiding the last two toggles behind a scroll — the "nothing showed you
+  lines, hiding the last two toggles behind a scroll — the "nothing showed the
   the set" gap above, rebuilt one layer down and looking like a complete menu.
   `-l "${#ROWS[@]}"` rather than a number, since `render()` emits one line per
   element: a row added later widens the window instead of re-paging.

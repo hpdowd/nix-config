@@ -41,8 +41,8 @@ Three habits follow, and they matter more than any single fact below.
 - **Assert a floor.** A scan that stops matching passes by finding nothing, so
   `checks/static.sh` fails when a count drops below its floor.
 
-**`docs/gotchas.md` is the catalogue.** Read the section for the area you are
-about to change: Arch carryover, nixpkgs, desktop, waybar, power, editors,
+**`docs/gotchas.md` is the catalogue.** Read the section for the area being
+changed: Arch carryover, nixpkgs, desktop, waybar, power, editors,
 theming, networking, secrets, scripts. It records what has already gone wrong,
 including several theories that looked right and were not.
 
@@ -261,7 +261,7 @@ everything below it. Do not remove the `unalias`.
 
 ## Where to look
 
-| When you're… | Read |
+| When… | Read |
 |---|---|
 | asking what is in the repo, or why the tree is arranged this way | `docs/ANATOMY.md` — the flake, the lock, the file map |
 | unsure how packages, profiles, wrappers or generated config work at all | `docs/NIX-PRIMER.md` — the mechanism under §6's tiers |

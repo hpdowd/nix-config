@@ -34,5 +34,5 @@ script cannot quietly recreate it.
 - A fresh clone has no wallpaper and no saved mode. `wallpaper-restore.sh`
   exits 0 when the file is absent, so this is not an error.
 - Anything new that persists across runs goes in `~/.local/state`, not next to
-  the config that reads it. If you find yourself adding a gitignore rule for a
-  file your own scripts write, that is this decision being violated.
+  the config that reads it. A gitignore rule for a file the repo's own scripts
+  write is this decision being violated.

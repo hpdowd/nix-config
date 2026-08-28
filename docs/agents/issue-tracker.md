@@ -19,9 +19,9 @@ public one. So reachability depends on which network the machine is on:
   Without it every `tea` command hangs and then fails, and so does `git push`.
 
 Corrected 2026-07-30 — this file previously said "reachable **only** over the
-tunnel", which would have you stop work while the tracker was in fact fine.
+tunnel", which would have stopped work while the tracker was in fact fine.
 
-Test the thing you actually care about rather than inferring it from the tunnel:
+Test the thing that actually matters rather than inferring it from the tunnel:
 
 ```bash
 timeout 10 git ls-remote origin   # the real question: can we reach Gitea?

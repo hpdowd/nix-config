@@ -48,7 +48,7 @@ row, which is therefore a picker now rather than a verb — the shape
 > ⚠️ **Amended 2026-08-24.** The picker is gone; the row's two verbs are two
 > **keys** on the panel itself — **Enter** opens the forecast, **Ctrl+Enter**
 > (`-kb-custom-1`) refetches. A picker was a second rofi surface drawn over the
-> reading you opened the panel to look at, to choose between two things, and it
+> reading the panel was opened for, to choose between two things, and it
 > cost a keystroke to reach either. The panel is a reader (0033); its one
 > fetching row now costs one key.
 >

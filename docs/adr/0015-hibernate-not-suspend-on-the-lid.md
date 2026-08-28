@@ -74,7 +74,7 @@ there is no `HibernateDelaySec` to tune. `HibernateMode` stays at the default
 `platform` (ACPI S4).
 
 Manual `systemctl suspend` is untouched, and remains available from wlogout for
-the case where you know you are coming straight back.
+the case where a return is imminent and known.
 
 ## Consequences
 

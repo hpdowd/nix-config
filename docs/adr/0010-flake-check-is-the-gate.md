@@ -52,7 +52,7 @@ whether `wlopm` still enumerates an output — none of which any build can see.
 ### Both linters are configured, not accepted as shipped
 
 This is the part most likely to be undone by someone who thinks the defaults
-were being dodged. **A check that always fails is one you learn to ignore**,
+were being dodged. **A check that always fails stops being read**,
 which is worse than no check, so each linter was tuned until every remaining
 finding was real:
 
@@ -99,7 +99,7 @@ than growing the wrapper** — that is the tool for the job.
   `git blame`. Keep doing that.
 - **A reformat can be *proved* a no-op, and on this repo it should be.**
   `waybar.nix` carries literal UTF-8 Nerd Font glyphs, and four network icons
-  have already been silently lost to transcription once — invisible until you
+  have already been silently lost to transcription once — invisible until
   look at the bar. Rather than trusting that "formatters are safe", evaluate
   both build products before and after and compare derivation paths:
 
@@ -112,7 +112,7 @@ than growing the wrapper** — that is the tool for the job.
   waybar JSON is unchanged codepoint for codepoint. **This technique generalises
   to any change that should not alter the built system** — a comment edit, a
   refactor, a `let`-binding extraction.
-- **Do not reintroduce an evaluate-only checker and believe it covers you.**
+- **Do not reintroduce an evaluate-only checker and treat it as coverage.**
   That is the specific mistake this record exists to prevent.
 - **The lint config is load-bearing.** Re-enabling `repeated_keys`, or dropping
   `--no-lambda-pattern-names`, makes `nix flake check` fail permanently on an

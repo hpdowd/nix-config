@@ -111,4 +111,4 @@ owner, or none.
 - **The audit is the valuable part, not the diff.** Three configs turned out to
   be empty and eleven files unreferenced. None of that was visible while they
   were being faithfully symlinked into place; it surfaced only because
-  conversion forces you to read what you are converting.
+  conversion forces a reading of what is being converted.

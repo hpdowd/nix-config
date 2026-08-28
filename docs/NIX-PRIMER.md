@@ -23,9 +23,9 @@ directory under `/nix/store`, named by a hash of every input that went into it:
 └── share/
 ```
 
-Change a dependency, a flag or a patch and you get a different hash, so both
-versions coexist. Nothing is mutated in place and nothing is overwritten. That is
-the whole model; the rest is plumbing that decides which store paths you can see.
+Change a dependency, a flag or a patch and the hash changes, so both versions
+coexist. Nothing is mutated in place and nothing is overwritten. That is
+the whole model; the rest is plumbing that decides which store paths are visible.
 
 This is why `nix flake check` catches errors that a switch would otherwise hit
 halfway through: building the closure is separate from installing it.
@@ -56,7 +56,7 @@ Three consequences:
 
 - **A package in both lists is only harmless while both resolve to the same
   store path.** Twenty names are in both here; override or pin one side and PATH
-  order silently decides which binary you get. `checks/static.sh` checks for
+  order silently decides which binary wins. `checks/static.sh` checks for
   divergence, not duplication.
 - **Two packages providing the same file collide at `buildEnv`**, not at
   runtime. That failure surfaces during `nix flake check` because the gate
@@ -66,7 +66,7 @@ Three consequences:
   `dbus-update-activation-environment` from a task shell: it would push that PATH
   into every user unit started afterwards.
 
-## 3. The binary you run is usually not the binary that runs
+## 3. The binary invoked is usually not the binary that runs
 
 nixpkgs wraps most programs so they can find their own libraries, plugins and
 data at runtime. The wrapper takes the real name; the payload is hidden beside
@@ -111,8 +111,8 @@ of that link**:
 | Tier | Far end | Written by |
 |---|---|---|
 | 1 — generated | a store file with no source in this repo | Nix, from typed options |
-| 2 — store-based | a store copy of `dotfiles/X` | you, then copied in at build |
-| 3 — out-of-store | a symlink to `~/src/nix-config/dotfiles/X` | you, live |
+| 2 — store-based | a store copy of `dotfiles/X` | hand-written, copied in at build |
+| 3 — out-of-store | a symlink to `~/src/nix-config/dotfiles/X` | hand-written, live |
 
 Tier 3 is a symlink to a symlink: `~/.config/corectrl` points into
 `home-manager-files`, which points at a link back into the checkout. That is why
@@ -215,7 +215,7 @@ anything that happens afterwards.
   ambient environment to fall back on. Omitting `pkgs.bash` is how the wlsunset
   runner's `env bash` shebang exited 127.
 - Nix strings have no `\uXXXX` escape, so a glyph must be literal UTF-8 in the
-  source. There is no build step that would tell you otherwise.
+  source. No build step reports the difference.
 
 ---
 

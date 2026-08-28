@@ -70,8 +70,8 @@ run *that one script* NOPASSWD — not `tlp`, which also carries `discharge`,
 
 Fanless is off the left-click path because of what the measurement turned it
 into. At 418 MHz it is not a mild power saving that costs a little
-responsiveness; it is a mode you choose when silence beats speed. A three-way
-cycle would drop you there by pressing one time too many, with no obvious cause.
+responsiveness; it is a mode for when silence beats speed. A three-way cycle
+would land there on one keypress too many, with no obvious cause.
 Right-click toggles it, returning to what the supply implies, because
 `TLP_AUTO_SWITCH=2` holds fanless across a charger change by design — nothing
 reverts it on its own, so set-only left no way back out.

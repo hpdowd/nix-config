@@ -149,7 +149,7 @@ normal red is 2.69:1 on its own background, by upstream's design since 2012, and
 a single floor would have forced the whole scheme to declare 2.6. `comment`, the
 role the check exists for, could then have rotted to the same place unnoticed.
 
-**Declare the number your dimmest role actually measures.** There is no global
+**Declare the number the dimmest role actually measures.** There is no global
 minimum under these — there was one, 3.0, and it was removed as an invention: it
 arrived with `mocha-high-contrast` out of a request for more readable text and
 then read like an external requirement. Nord ships `comment` at 1.69:1, which is
@@ -191,15 +191,15 @@ from it.
 
 > This check read `R = G = B` until 2026-08-18, because gruvbox's `#282828` is
 > neutral and the two are the same thing there. Mocha's `#1e1e2e` is not, so it
-> was generalised to what it always meant. If you find yourself wanting to
-> delete it rather than generalise it, that is the signal you are about to make
-> the lock screen the one surface wearing a colour the palette never named.
+> was generalised to what it always meant. Wanting to delete it rather than
+> generalise it is the signal that the change would make the lock screen the one
+> surface wearing a colour the palette never named.
 
 **The `muted` set may or may not have a formula.** It is ncspot's deliberately
 desaturated variant. Under gruvbox no function reproduced it (`ebdbb2` →
 `c9b890` is not a uniform scale) and the eight values were picked by eye; under
 Mocha they are each blended 18% toward `bg0`, which works because Mocha is
-even. **Check which case you are in** rather than assuming the formula carries
+even. **Check which case applies** rather than assuming the formula carries
 over — if the new scheme's colours vary in saturation the way gruvbox's do, go
 back to picking by eye. They live in `palette.nix` rather than next to ncspot
 precisely so that this step is visible rather than discovered later.
@@ -239,7 +239,7 @@ Plus the `apps` block, for settings whose value is a scheme's **name**:
 
 > **A name only the toolkit can resolve is a name no check can.** `Adwaita-dark`
 > renders fine — GTK3 has it compiled in — and no directory for it exists
-> anywhere, so nothing can verify it. If a name you want passes visually but the
+> anywhere, so nothing can verify it. If a wanted name passes visually but the
 > check cannot find it, that is the check working.
 
 > **`native = false` means a stand-in**, not a broken entry: an artefact that
@@ -320,8 +320,8 @@ the plugin matches the scheme they are *already correct*.
 
 > **lualine is the sharp edge.** A lualine theme that does not resolve **throws
 > at startup** rather than falling back. `"auto"` derives the bar from whatever
-> colourscheme actually loaded and cannot fail; name a built-in only when you
-> know lualine ships it.
+> colourscheme actually loaded and cannot fail; name a built-in only when
+> lualine is known to ship it.
 
 **After a plugin swap, run `:Lazy sync`.** lazy.nvim fetches at runtime, so the
 rebuild installs the *config* naming a plugin that is not on disk yet.
@@ -396,7 +396,7 @@ rebuild's copy, which is indistinguishable from the change having had no effect.
 
 Exit status proves nothing here — a missing theme and a broken theme look
 identical, and both look like a theme someone chose. Every command below was run
-against this repo and produces output you can read.
+against this repo and produces readable output.
 
 ```sh
 # The generated files, as the rebuild will install them.
@@ -421,7 +421,7 @@ grep -E 'theme-name|cursor' ~/.config/gtk-3.0/settings.ini
 
 ```sh
 # Qt / Kvantum
-head -3 ~/.config/Kvantum/kvantum.kvconfig      # expect theme=<your theme>
+head -3 ~/.config/Kvantum/kvantum.kvconfig      # expect theme=<the theme>
 
 # nvim actually loading the generated palette. ONLY schemes that deviate from
 # their own plugin generate one — three of the five do not, and its absence is
@@ -430,7 +430,7 @@ nvim --headless '+lua local p=require("config.palette") print("keys="..vim.tbl_c
 
 # …and that the plugin actually applied them, which the above does not show.
 # The colourscheme name comes from the theme file — read it out of scheme.lua
-# rather than typing one, or you are testing a scheme you are not running.
+# rather than typing one, or the test covers a scheme that is not running.
 nvim --headless '+lua vim.cmd("colorscheme " .. require("config.scheme").name)
   local h = vim.api.nvim_get_hl(0, { name = "Keyword", link = false })
   print(vim.g.colors_name .. " Keyword.fg=" .. string.format("#%06x", h.fg))' +qa
@@ -460,13 +460,13 @@ find.
 - **nvim is broken between the edit and the rebuild.** `colorscheme.lua` does
   `require("config.palette")`, and that file only exists in the generated tree.
   Open nvim after editing but before rebuilding and lazy.nvim reports a failed
-  plugin config and you get no colourscheme. Not damage — rebuild and it is
+  plugin config and there is no colourscheme. Not damage — rebuild and it is
   gone — but it looks alarming and it is expected.
 - **mango's `config.conf` keeps a stale copy until the next mode switch.** It is
   written at runtime by `scripts/lib.sh` from the mode config, is deliberately
   untracked (`docs/adr/0002`), and is skipped by the stray-hex check for that
   reason. Switch modes once after a palette change.
-- **Store files are read-only, so you cannot hand-patch one to preview a
+- **Store files are read-only, so one cannot be hand-patched to preview a
   colour.** Edit `palette.nix` and rebuild; there is no faster loop, and trying
   to make one is how `~/.config` acquires a second owner.
 - **A GTK `url()` that fails to resolve draws the missing-image box and logs
@@ -491,7 +491,7 @@ git restore modules/home/palette.nix # or the whole change
 rebuild
 ```
 
-If a rebuild has already landed and you want the previous generation back,
+If a rebuild has already landed and the previous generation is wanted back,
 `nixos-rebuild switch --rollback` works, but reverting the commit and rebuilding
 is cleaner and leaves the repo and the running system agreeing about why.
 

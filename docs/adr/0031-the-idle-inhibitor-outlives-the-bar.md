@@ -28,7 +28,7 @@ lived*:
   process and the inhibitor lives on a surface that goes away with it, so
   `waybar-reload`, a layout switch, a mode switch and `SUPER+/` all handed the
   machine back to the idle ladder. The glyph went back to `󰒲` at the same
-  moment, so the bar was never *wrong* — it just quietly stopped being what you
+  moment, so the bar was never *wrong* — it just quietly stopped being what
   set. Confirmed live during this change: the bar came in showing `󰒳`, one
   `waybar-restart.sh` released it, and nothing said so.
 
@@ -63,7 +63,7 @@ argument.
 of the two is ever holding. noctalia's IPC offers `toggle`, `enable`, `disable`
 and `enableFor` and **no getter** (read from `IPCService.qml`, 4.7.7), so the
 two cannot be kept in step by reading one and setting the other: whichever
-belongs to the mode you left would sit there holding the machine awake behind an
+belongs to the mode just left would sit there holding the machine awake behind an
 indicator reading off. The handover is one-way for the same reason — leaving
 noctalia cannot re-arm wlinhibit, because nothing can ask whether noctalia was
 holding one.

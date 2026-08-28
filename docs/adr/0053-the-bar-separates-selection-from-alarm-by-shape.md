@@ -62,7 +62,7 @@ waybar adds `#mpris.${status}` and `paused` drops to `@subtext`.
 | `@green` | connected, charging, saving power |
 | `@yellow` | warning threshold |
 | `@red` | critical, error, drawing hard |
-| `@blue` | a hold you have set |
+| `@blue` | a hold that has been set |
 | `@subtext` | resting |
 | `@accent` | not used here |
 

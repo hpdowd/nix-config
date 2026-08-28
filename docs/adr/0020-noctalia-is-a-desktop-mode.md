@@ -14,7 +14,7 @@ ways, per selector). Uses the mode machinery from
 
 `noctalia-shell` is a Wayland desktop shell — bar, notifications, launcher,
 dock, OSD, lock screen — built on quickshell. Trying it here meant answering one
-question first: **how do you install a thing that wants to own the whole desktop,
+question first: **how does a thing that wants to own the whole desktop get installed,
 next to a desktop that already has owners for every one of those jobs, and still
 be able to delete it cleanly?**
 
@@ -24,7 +24,7 @@ Two shapes were available and both are wrong:
   noctalia both claim `org.freedesktop.Notifications`. The second claimant of a
   DBus name does not error — it simply never receives a notification. That is
   [0005](0005-one-owner-per-daemon.md)'s failure verbatim, and it is invisible
-  until the day you miss something.
+  until the day something is missed.
 - **Fork the config into a parallel tree.** Every fix then has to be made twice,
   which is exactly what `apply_mode()` was extracted in `scripts/lib.sh` to stop.
 
@@ -36,7 +36,7 @@ both directions. Nothing about it was specific to having two modes.
 Two packages carry the name in nixpkgs. `noctalia-shell` 4.7.7 is the stable QML
 shell on `noctalia-qs`; `noctalia` 5.0.0-beta.8 is a native rewrite that **clones
 plugin repositories over git at runtime** (`Services/Noctalia/PluginService.qml`).
-The second is not something to point at a machine you rely on.
+The second is not something to point at a machine in daily use.
 
 It also has first-class mango support — `Services/Compositor/MangoService.qml`,
 selected when `XDG_CURRENT_DESKTOP` contains `mango`, driving the bar off the DWL

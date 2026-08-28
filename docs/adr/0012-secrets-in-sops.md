@@ -76,7 +76,7 @@ Two secrets rather than one two-line file, which also retires the `head -1` /
 ### `checks/static.sh` asserts the file is encrypted
 
 **An unencrypted `secrets.yaml` looks exactly like an encrypted one** unless
-you open it, and the mistake is unrecoverable once pushed. sops always writes a
+it is opened, and the mistake is unrecoverable once pushed. sops always writes a
 `sops:` metadata block, so its absence means plaintext. The check asserts a
 floor in the house style — zero files found is a failure, not a pass.
 

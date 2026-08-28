@@ -28,7 +28,7 @@ overrides it. But mango also runs `check_key_binding_conflicts()` and prints
 `[WARNING] Key binding conflict` naming both files and both line numbers for
 every duplicate, unless *both* carry the `c` flag. Verified against a nested
 instance: it fires. Thirteen overrides means thirteen warnings on every start
-and reload, on the same stderr where a real conflict would appear. A warning you are
+and reload, on the same stderr where a real conflict would appear. A warning that is
 trained to scroll past is worse than no warning.
 
 **`noctalia-shell ipc call` reports failure and exits 0.** `Target not found.`
@@ -103,7 +103,7 @@ owns.** Left alone, noctalia probes and takes `/etc/pam.d/login` because it
 exists. The unit now sets `NOCTALIA_PAM_SERVICE=swaylock`, which
 `desktop.nix` declares with `fprintAuth = false` for the reason a Wayland locker
 always needs it: it cannot render `pam_fprintd`'s prompt, so with the sensor
-ahead of `pam_unix` the first seconds of every unlock swallow your typing.
+ahead of `pam_unix` the first seconds of every unlock swallow the typing.
 One stack, one place, and testing swaylock now tests both.
 
 **The automatic lock does not move.** swayidle's `before-sleep`, `lock` and the

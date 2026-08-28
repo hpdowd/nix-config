@@ -1,7 +1,7 @@
 # Gotchas — the failure catalogue
 
 Everything here has broken this machine at least once. Read the section for the
-area you are about to change. `CLAUDE.md` carries the rules that apply to every
+area being changed. `CLAUDE.md` carries the rules that apply to every
 task; this file carries the ones that apply to one area.
 
 Almost all of them share a shape: **the failure is silent**. A missing component
@@ -246,7 +246,7 @@ whatever the boot left on that VT, and systemd keeps writing `[ OK ] Started …
 over it afterwards, because `/dev/console` is the *foreground* VT — the one the
 greeter is on.
 
-`Type=idle` is already set and does not save you. It delays the start until jobs
+`Type=idle` is already set and does not help. It delays the start until jobs
 are dispatched or 5 s pass, whichever comes first, and does nothing about output
 after that. Everything dispatched later still lands on the greeter:
 
@@ -288,7 +288,7 @@ $ ls -l /proc/$(pgrep -x mango)/fd/{0,1,2}
 … /proc/3110/fd/2 -> /dev/tty1
 ```
 
-You do not see it while mango holds the VT in graphics mode. You see it at the
+It is invisible while mango holds the VT in graphics mode. It shows at the
 edges of a session — as the compositor comes up over the greeter, and under the
 greeter afterwards, because `TTYVTDisallocate` clears tty1 once at
 **greetd.service start** and never again. Read `sudo cat /dev/vcs1` to get the
@@ -353,7 +353,7 @@ general rule; ADR 0020 is this instance.
 
 Verify by ownership, never by "it started": `busctl --user status
 org.freedesktop.Notifications` names the owning PID. `notify-send test` then
-tells you which one drew it.
+identifies which one drew it.
 
 ### The noctalia bar does not appear, and nothing says why
 
@@ -414,13 +414,13 @@ journalctl --user -u noctalia | grep 'DWL is not available'
 the integration as working because `MangoService.qml` exists and is selected —
 a file's existence stood in for a running system, in the one repo whose first
 rule is that those look identical. A compositor integration is only confirmed by
-watching the widget change when you switch tags.
+watching the widget change on a tag switch.
 
 ### `noctalia-shell ipc call` exits 0 when the name is wrong
 
 **`Target not found.` and `Function not found.` are printed, and the status is
 0.** A successful void call prints nothing. So **output is the signal** and the
-exit status tells you nothing — the same shape as the dwl-era `mmsg -s -d` that
+exit status carries no information — the same shape as the dwl-era `mmsg -s -d` that
 broke five scripts here. Test a call by capturing it, never by `&&`:
 
 ```sh
@@ -464,12 +464,12 @@ unpatched derivation gets `No running instances` while the shell is up. The
 lock back to swaylock, indistinguishably from noctalia simply being down.
 `checks/static.sh` pins the wrapper's copy to the system's.
 
-⚠️ **This also decides where your applications live.** `mmsg dispatch
+⚠️ **This also decides where applications live.** `mmsg dispatch
 spawn_shell` makes them children of **mango**, in the session scope. The
 alternative fix — noctalia's `appLauncher.customLaunchPrefix`, which routes
 through `Quickshell.execDetached` — makes them children of the *shell*, inside
 `noctalia.service`, whose `KillMode=control-group` means **a mode switch kills
-everything you launched from noctalia**. Same for anything started from the dock.
+everything launched from noctalia**. Same for anything started from the dock.
 
 ### Leaving noctalia mode leaves 1 MB of tmpfs behind, every time
 
@@ -493,7 +493,7 @@ du -sh "$XDG_RUNTIME_DIR/quickshell"   # what it has accumulated
 unconditionally** — on every start, whether or not `nightLight.enabled` is
 pinned off. It matches: this repo's wlsunset is unwrapped, so `comm` is plain
 `wlsunset` and `-x` hits (the usual `-x`-misses-the-wrapper trap does not save
-you here — see Scripts).
+this — see Scripts).
 
 The reason it stayed dead is systemd's, not noctalia's. **`Restart=on-failure`
 does not restart a process killed by SIGTERM**: systemd counts SIGTERM, SIGINT,
@@ -514,7 +514,7 @@ systemctl --user show wlsunset -p NRestarts -p ActiveState
 wlsunset's only controls are the `custom/night` bar module and the control
 centre's `night` row, and noctalia mode runs neither. Its own night light is
 pinned off, so its panel could not reach wlsunset either: the screen stayed
-warm, with nothing able to change it, until you switched back. Nothing logged.
+warm, with nothing able to change it, until the next switch back. Nothing logged.
 
 `noctalia-start.sh` stops the unit on **every** entry into the mode — not just a
 switch, because the unit is `WantedBy=graphical-session.target` and logging
@@ -560,7 +560,7 @@ two — and rofi with no config falls back to its built-in theme rather than
 erroring. `checks/static.sh` asserts the declaration exists.
 
 The tell is never the filesystem — the file is present and linked either way.
-Ask the program: `rofi -no-config -h` must list the modes you expect.
+Ask the program: `rofi -no-config -h` must list the expected modes.
 
 ### mango
 
@@ -575,7 +575,7 @@ four waybar layouts were silently broken this way. Translations: `mmsg -s -d <f>
 mmsg get all-monitors | jq -r '.monitors[] | select(.active) | .layout_symbol'
 ```
 
-Check the return value; it is the only signal you get. `checks/static.sh` fails
+Check the return value; it is the only signal available. `checks/static.sh` fails
 on a dash-flag `mmsg`.
 
 **`no_border_when_single=1` removes every tiled window's border, not just a lone
@@ -622,7 +622,7 @@ that reason.
 **`mango/walker/config.toml` was the same shape and once broke `rebuild`
 outright.** Each `autostart.conf` `ln -sf`'d it into place, but it was *also*
 tracked, so home-manager wanted to own it: activation died with `Existing file …
-would be clobbered`, and `backupFileExtension` does not rescue you. The timing was
+would be clobbered`, and `backupFileExtension` does not help. The timing was
 the nasty part — the symlink only exists once a mode script has run, so the
 failure surfaced after an unrelated mode switch. It is gone with walker (rofi
 has one config for every mode), but **when adding anything under
@@ -631,7 +631,7 @@ has one config for every mode), but **when adding anything under
 **Don't `sudo` the mango scripts.** Under sudo `~` is `/root`, so `reload.sh`
 fails with `No such file or directory` and `MANGO_INSTANCE_SIGNATURE is not set`
 — which looks like a broken install rather than a wrong user — and used to
-leave a **root-owned elephant** your own `pkill` cannot kill. `reload.sh`
+leave a **root-owned elephant** an ordinary `pkill` cannot kill. `reload.sh`
 refuses to run as root; it no longer restarts any daemon, because rofi has
 none.
 
@@ -647,7 +647,7 @@ See `docs/adr/0003`.
 **`bind=` matches on keycode; `bindsym=` matches on keysym.** So
 `SUPER+SHIFT,slash` is correct and not dead: shift turns `/` into `question`, but
 `bind=` entries resolve to keycodes at parse time and compare without consulting
-the shift level. Same for `SUPER+SHIFT,1..9`. **If you switch a shifted bind to
+the shift level. Same for `SUPER+SHIFT,1..9`. **Switching a shifted bind to
 `bindsym=`, spell out the shifted keysym** — otherwise it never fires, with
 nothing in any log.
 
@@ -665,7 +665,7 @@ So a key set *after* a `source=` overrides what that file set — which is how
 `noctalia/noctalia.conf` sources the shared settings and then disagrees with
 them (ADR 0022) — and the same key set *before* it is silently discarded.
 Measured on 2026-08-15, not assumed. The probe is cheap, because one option has
-a value you can read back:
+a value that can be read back:
 
 ```sh
 # in a scratch HOME: sub.conf sets `xkb_rules_layout=de`, config.conf sources it
@@ -703,7 +703,7 @@ mode conf sourced *ahead* of `universal/bind.conf` does override it — the exac
 opposite of the rule for scalar settings two paragraphs up. Do not use it
 without a reason: mango also prints `[WARNING] Key binding conflict` naming both
 files and both lines for every duplicate, unless both binds carry the `c` flag,
-and a handful of those trains you to ignore the one that matters. Mode-dependent
+and a handful of those trains the eye to ignore the one that matters. Mode-dependent
 keys go through `scripts/menus/shell.sh` instead (ADR 0023); only keys that
 exist in *one* mode are bound per-mode.
 
@@ -711,7 +711,7 @@ exist in *one* mode are bound per-mode.
 prints `[ERROR]: Unknown keyword: <key>` with the file and line number to
 stderr, at parse time. Nothing else validates a conf file, so a nested instance
 started against a candidate config is the only pre-flight there is; one that
-logs a single error you put there yourself has accepted every other line.
+logs a single deliberately-planted error has accepted every other line.
 
 ### swaylock
 
@@ -725,7 +725,7 @@ the journal — the lock screen just says the password is wrong.
 
 **Do not `pkill swaylock` to escape it.** `ext-session-lock-v1` requires the
 compositor to **stay locked** if the lock client dies without sending
-`unlock_and_destroy` — that is the protocol's guarantee, not a bug. You get a
+`unlock_and_destroy` — that is the protocol's guarantee, not a bug. The result is a
 permanently blank surface with the session still locked, and `mmsg` has no unlock
 command. The ways out are relaunching swaylock on the same `WAYLAND_DISPLAY` to
 take over the abandoned lock, or restarting the session.
@@ -740,7 +740,7 @@ the lock is up *before* the suspend rather than racing it.
 
 **Chain the idle lock with `;`, never `&&`.** Only one client may hold an
 `ext-session-lock-v1` lock, so the `swaylock -f` on the 5-minute timeout exits
-non-zero whenever you had already locked by hand — and with `&&` the
+non-zero whenever a manual lock was already up — and with `&&` the
 `wlopm --off` after it never runs, leaving the panel lit for the rest of the
 idle period. It costs battery and logs nothing. `;` blanks either way, which is
 correct in both cases: already locked, or newly locked.
@@ -768,7 +768,7 @@ configured this way — just stops appearing.
 `unrecognized option '--clock'` and a full usage dump, and the exit status is
 `0` for a good config and a bad one alike. Only the output tells them apart.
 
-> **Validating the config without locking yourself in**: swaylock parses its
+> **Validating the config without locking the session**: swaylock parses its
 > config *before* it connects to the compositor, so
 > ```
 > env -u WAYLAND_DISPLAY swaylock --config ~/.config/swaylock/config -f
@@ -784,9 +784,9 @@ the `--config` binds. All of them are gone.
 **Its colours come from `palette.nix`, and did not until 2026-08-16.** The ring
 and the keypress highlight were gruvbox *orange* (`d65d0e`, `fe8019`) while the
 machine's accent has always been yellow (`d79921`) — hex typed by hand into the
-one surface nothing compared against the palette, in the one place you cannot
-see it next to anything else. Add a colour here as `opaque gruvbox.<role>` or
-`wash gruvbox.<role>`, never as a literal.
+one surface nothing compared against the palette, and the one place where it
+cannot be seen next to anything else. Add a colour here as
+`opaque gruvbox.<role>` or `wash gruvbox.<role>`, never as a literal.
 
 ⚠️ **The `--effect-*` options do nothing without a background image, and
 pixelating a solid colour does nothing even then.** Two independent no-ops that
@@ -821,7 +821,7 @@ block from matching any of its eight neighbours; below about nine tones there
 are too few colours left for that constraint to be satisfiable.
 
 ⚠️ **`services.fprintd.enable` switches the sensor on for every pam service, not
-just the ones you name.** `security.pam.services.<x>.fprintAuth` defaults to
+just the ones named.** `security.pam.services.<x>.fprintAuth` defaults to
 `config.services.fprintd.enable`, so one `enable = true` put `pam_fprintd` into
 all 23 stacks — `swaylock` and `login` included. Setting it explicitly on `sudo`
 looks like scoping and is pure no-op; only an explicit `fprintAuth = false`
@@ -832,9 +832,9 @@ the opposite was live. **Verify with
 That matters because `pam_fprintd` is `sufficient` at order 11400, *ahead* of
 `pam_unix` at 11700, and a password-first UI cannot survive that ordering.
 swaylock has no way to render the sensor's prompt, so the first `timeout`
-seconds of every unlock swallow your typing with no indication why — 30 s at the
+seconds of every unlock swallow the typing with no indication why — 30 s at the
 default. Inverting the order is not a fix either: it only polls the sensor after
-you submit an *empty* password, making the gesture "press Enter, then touch"
+that submits an *empty* password, making the gesture "press Enter, then touch"
 ([swaylock#61](https://github.com/swaywm/swaylock/issues/61)). `greetd` inherits
 the problem by substacking `login`, so it needs `login.fprintAuth = false` rather
 than a rule of its own.
@@ -968,9 +968,9 @@ instead of acting — the key looks unbound. `menus/control-center.sh` captures
 **Check the key is free, and free it if it is not.** rofi ships `Control+Return`
 as `kb-accept-custom`; binding it on top is not ignored and not a warning —
 `source/keyb.c` collects `Binding \`Control+Return\` is already bound` into an
-**error dialog drawn where your menu should be**. `rofi -list-keybindings`
+**error dialog drawn where the menu should be**. `rofi -list-keybindings`
 prints the configured table (it lists a clash rather than rejecting it, so read
-it before you bind, not after), and **an empty string unsets**:
+it before binding, not after), and **an empty string unsets**:
 `-kb-accept-custom ""`, per `rofi-keys(5)` → *Unsetting a binding*. Both go on
 the command line, so the default survives in `menus/network-menu.sh`, where the
 typed string is the answer.
@@ -1004,21 +1004,21 @@ is a box whose child is the textbox, and `message { text-color: … }` does not
 reach it past a rule that names `textbox` directly. `rofi -dump-theme` prints
 the resolved tree and is the cheap way to check a selector parses at all.
 
-**Pinning `mainbox { children: [ ... ] }` silently deletes every widget you
+**Pinning `mainbox { children: [ ... ] }` silently deletes every widget
 left out.** rofi's default is `[ inputbar, message, listview, mode-switcher ]`.
 Writing `[ inputbar, listview ]` to "keep it simple" removed the message bar —
 and **rofi-calc renders its live result through the mode `_get_message` hook**,
 which `rofi_view_reload_message_bar` (view.c:208) returns from immediately when
-`mesg_box` is NULL. So `SUPER+=` stopped previewing as you typed while Enter
+`mesg_box` is NULL. So `SUPER+=` stopped previewing while typing, while Enter
 went on working, because `calc-command` fires off the entry, not the message.
-Nothing logged. Do not pin the list unless you are reordering something: the
+Nothing logged. Do not pin the list except to reorder something: the
 default order is already the wanted one, and an empty message bar is
 `widget_disable`d, so it costs the dmenu menus no space.
 
 **rofi's built-in defaults are Solarized light, and they show through.** A rasi
 that styles only the widgets it names leaves every other one resolving through
 rofi's default *role* variables — `urgent-background` is `#fdf6e3`, cream on a
-gruvbox window, and you find out the first time a menu marks a row urgent.
+gruvbox window, and it surfaces the first time a menu marks a row urgent.
 Override the roles (`normal-*`, `selected-*`, `active-*`, `urgent-*`,
 `alternate-*`) rather than the widgets. The check is
 `rofi -dump-theme | grep 'var(lightbg)\|var(blue)\|var(red)'` — anything left
@@ -1085,7 +1085,7 @@ answer to "there are more of these than fit".
 It is wrong for a menu that is a **set**. Adding the microphone row took
 `menus/control-center.sh` to eleven rows plus two separators, i.e. 13 rendered
 lines, and rofi quietly split it across two pages: the last two toggles were
-gone from a menu whose entire purpose is showing you the whole set at once. The
+gone from a menu whose entire purpose is showing the whole set at once. The
 symptom is not an error — it is a menu that looks complete and is not.
 
 The fix belongs at the **caller**, not in the shared theme: `control-center.sh`
@@ -1178,7 +1178,7 @@ reading no click can reach. Four did here — clock, memory, network and battery
 for any module carrying a `format-alt`, so the pair cannot come apart.
 `docs/adr/0057`.
 
-**And `on-click = "alt"` is not how you ask for it.** "alt" is not one of
+**And `on-click = "alt"` is not how to ask for it.** "alt" is not one of
 waybar's action names; `AModule::handleUserEvent` looks the event name up, finds
 `config_["on-click"]` is a string, and `forkExec`s it. So the setting spawned
 `alt` as a shell command on every left-click of the memory module and failed,
@@ -1275,7 +1275,7 @@ the whole assertion, via jq's `explode`.
 > is the CPU chip and `md-chip` (U+F061A) is the RAM stick — exactly the other
 > way round from what they are called. `magick -font SymbolsNerdFontMono label:`
 > over the candidate list catches that in one pass; `fc-list ':charset=…'` only
-> tells you the codepoint exists.
+> only confirms the codepoint exists.
 
 **`mmsg dispatch restore_minimized` answers `{"success":true}` when it restores
 nothing.** It is mango's only restore verb, takes no client, and pops the last
@@ -1291,12 +1291,12 @@ cases. `SUPER+SHIFT+I` has the same behaviour, because it is the same verb.
 > and does not offer to restore a chosen one: a menu that accepts a choice it
 > cannot honour is worse than no menu (`docs/adr/0033`).
 
-**`mmsg` tells you whether a COMMAND or a FUNCTION was wrong, and exits 0 for
+**`mmsg` reports whether a COMMAND or a FUNCTION was wrong, and exits 0 for
 both.** `mmsg dispatch <nonexistent>` → `{"error":"unknown function"}`;
 `mmsg <nonexistent>` and `mmsg dispatch` with no argument →
 `{"error":"unknown command"}`. That difference is the cheap way to confirm a
 subcommand exists at all — `mmsg`'s own usage text lists only `get` and `watch`,
-so `dispatch` looks absent until you probe it with a bogus function name.
+so `dispatch` looks absent until probed with a bogus function name.
 
 **Two bare `#id` rules for one module: the later one wins and the earlier does
 nothing.** `#custom-weather { font-size }` was written twice — once beside the
@@ -1305,7 +1305,7 @@ change and the sheet reported nothing, because both rules are perfectly valid
 CSS. A rebuild was spent on it. `checks/static.sh` now asserts one bare rule per
 id; state rules (`#custom-weather.ok`) are a different selector and are not
 counted, and neither is the last line of a multi-selector block, which opens one
-rule over many selectors and looks identical to a bare rule if you only grep.
+rule over many selectors and looks identical to a bare rule under grep.
 
 **`#custom-window` drew at `@subtext` and 11px** against a bar of `@text` at
 14px — dimmer and three points smaller than every other module, on the one label
@@ -1439,9 +1439,9 @@ selector is `#custom-window`.
 **The bar shows the RAW battery percentage — `full-at` was removed, do not put it
 back.** It rescaled the reading as `shown = real / full-at × 100` so TLP's 85%
 stop would read 100%, which made the bar disagree with fastfetch, `upower` and
-sysfs by a constant factor forever. That is not a bug you notice, it is one you
-*explain* — it absorbed two separate reports of the module freezing before anyone
-checked whether the number was stale rather than merely rescaled.
+sysfs by a constant factor forever. That is not a bug anyone notices, it is one
+that *explains* things — it absorbed two separate reports of the module freezing
+before anyone checked whether the number was stale rather than merely rescaled.
 `checks/static.sh` asserts no generated config carries it. Consequence: the bar
 parks at 85% on AC and never reads 100%, and `states.warning = 30` now fires at a
 real 30%.
@@ -1478,8 +1478,9 @@ it.** Fixed on 2026-08-18 (docs/adr/0031): it is `wlinhibit.service` now and the
 bar module only reports it, so `waybar-reload`, a layout switch, a mode switch
 and `SUPER+/` all leave it held. Before that the toggle was a static bool on a
 surface that died with the bar — and the glyph went back to `󰒲` at the same
-instant, so the bar was never visibly *wrong*, it just stopped being what you
-set. `minimal` still does not carry the module; it no longer needs to, because
+instant, so the bar was never visibly *wrong*, it just stopped being what had
+been set. `minimal` still does not carry the module; it no longer needs to,
+because
 `SUPER+SHIFT+A` reaches it in every mode and every layout.
 
 Two things that remain true about it:
@@ -1491,15 +1492,15 @@ Two things that remain true about it:
 - **Entering noctalia releases it, on purpose.** `SUPER+SHIFT+A` drives
   quickshell's `IdleInhibitor` in noctalia mode and `wlinhibit` in tiling
   (docs/adr/0023), and noctalia's IPC has no getter — so the two can never be
-  read into step, and `apply_mode` hands over instead: one owner per mode. You
-  get a notification when it actually released something, and re-arming in
+  read into step, and `apply_mode` hands over instead: one owner per mode. A
+  notification fires when it actually releases something, and re-arming in
   noctalia is the same key. **The handover is one-way**: coming back out to
   tiling does not restore it, because nothing can ask noctalia whether it
   was holding one.
 
 `checks/static.sh` asserts at least one layout still carries the module, that
 the unit exists, and that it has no `WantedBy=` — an inhibitor armed at login
-looks exactly like one you pressed for.
+looks exactly like a deliberate one.
 
 **When a `custom/*` module is missing from the bar, run its exec by hand and
 check the `text` field is non-empty** — not just that the script succeeds. An
@@ -1619,7 +1620,7 @@ The only indicator on this machine was the ThinkPad LED, driven by the
 
 That is the same silent failure, applied to the worst available fact: a dead
 `micmute-led` and a live microphone look **exactly** alike, and the cost of
-reading it wrong is being recorded when you thought you were not. It needed no
+reading it wrong is being recorded when nobody thinks it is. It needed no
 new script — waybar's built-in module already supports `format-source`,
 `format-source-muted` and `{format_source}` inside `format`; the fields were
 simply never filled in. Both the bar and the control centre read PipeWire
@@ -1666,7 +1667,7 @@ fallback — `ok`, `stale` (greyed, with its age in the tooltip *and* in `alt`)
 and `error` (`?`, never a number). docs/adr/0038.
 
 The general shape: **any module with a cache needs a way to say the cache is
-what you are looking at.** A module that can only be right or absent has no way
+what is on screen.** A module that can only be right or absent has no way
 to be honest about being out of date.
 
 ### `alt` is the field for a phrase the control centre also wants
@@ -1769,7 +1770,7 @@ Everything home-manager installs is a symlink into the store, and `grep -r` does
 not follow symlinks it meets while recursing. So a scan of
 `~/.config/mango/scripts/` matches nothing, whatever is in the files.
 
-That is indistinguishable from the thing you are looking for being absent, and it
+That is indistinguishable from the target being absent, and it
 is most convincing right after a rebuild, when "not there yet" is the expected
 answer. `grep -R` follows them. The same applies to any scan of the live config
 rather than the repo.
@@ -1797,7 +1798,7 @@ defines must be used, and every colour the sheet names must be defined.
 ## Power
 
 `docs/SYSTEM.md` §9 is the reference for battery thresholds, suspend, hibernation
-and the WiFi resume fix. The traps worth carrying in your head:
+and the WiFi resume fix. The traps worth remembering:
 
 - ⚠️ **`/sys/firmware/acpi/platform_profile` changes nothing the scheduler
   sees.** It is a `thinkpad_acpi` DYTC hint to the firmware's power budget.
@@ -1805,8 +1806,8 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `scaling_min_freq`, `scaling_max_freq` and `boost` are byte-identical. The
   waybar toggle cycled it for a year and moved a glyph and nothing else — and
   TLP rewrote it on every charger transition anyway. **Power modes are TLP
-  profiles** (`docs/adr/0017`). If you are about to reach for this attribute to
-  change CPU behaviour, you are about to ship a placebo.
+  profiles** (`docs/adr/0017`). Reaching for this attribute to
+  change CPU behaviour ships a placebo.
 - **`EPP=power` is not a cap.** It biases how eagerly the governor ramps; it
   sets no ceiling. With `boost=1` and no `scaling_max_freq`, a keystroke-sized
   task still hits 4.63 GHz and spikes the package to ~30 W. **The fan on this
@@ -1849,7 +1850,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
   on, so the sweep "ran" and measured the unmodified machine.
 
 - ⚠️ **A `services.logind` change is not live after `switch` — logind is never
-  reloaded, so the lid keeps the previous action until you reboot.** nixpkgs sets
+  reloaded, so the lid keeps the previous action until reboot.** nixpkgs sets
   `systemd.services.systemd-logind.reloadIfChanged` but leaves the matching
   `restartTriggers` line **commented out** (`nixos/modules/system/boot/systemd/
   logind.nix`), so a `logind.conf`-only change marks no unit as changed and
@@ -1892,8 +1893,8 @@ and the WiFi resume fix. The traps worth carrying in your head:
 - **A lid action of `ignore` also means "do not lock".** The lock hangs off
   swayidle's `before-sleep`, so it fires only when something actually *sleeps*.
   `HandleLidSwitchDocked = "ignore"` therefore leaves a docked closed lid awake
-  and unlocked — accepted here, since locking would lock you out of the external
-  display you are using. It is easy to miss precisely because it looks like the
+  and unlocked — accepted here, since locking would lock the session out of the
+  external display in use. It is easy to miss precisely because it looks like the
   lid doing nothing, which is what `ignore` is supposed to look like.
 - **`lock` as a lid action is edge-only, and would silently not re-fire.**
   `manager_handle_action` bails on `HANDLE_LOCK` when `!is_edge`
@@ -1960,7 +1961,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
 - **Hibernation's `resume_offset` fails silently**: the machine boots fresh and
   discards the session, presenting as "hibernate didn't work". It is valid only
   for the exact swapfile that exists now.
-- **The kernel log cannot tell you whether a hibernate succeeded** — the image is
+- **The kernel log does not say whether a hibernate succeeded** — the image is
   snapshotted *before* the write, so success and refusal leave byte-identical
   traces. The primary signal is the machine physically powering off. Do not set
   `HibernateMode=shutdown` on that misreading; it was tried and reverted.
@@ -2010,10 +2011,10 @@ and the WiFi resume fix. The traps worth carrying in your head:
   client — noctalia's control-centre button, GNOME's power page,
   `powerprofilesctl` — finding no service and rendering a greyed control, in
   silence, for months. `power-profiles-tlp` now owns that bus name and answers it
-  from TLP (`docs/adr/0026`). **When you disable a daemon because it conflicts,
+  from TLP (`docs/adr/0026`). **When a daemon is disabled because it conflicts,
   check what else was reading its interface.**
 - ⚠️ **A running unit is not an activatable bus name, and `systemctl status`
-  cannot tell you which you have.** `power-profiles-tlp` came up, owned the name,
+  cannot distinguish the two.** `power-profiles-tlp` came up, owned the name,
   and answered `busctl` correctly — and noctalia still did nothing, because
   quickshell probes the name at *its* startup, tries to **activate** it when
   unowned, and gives up for the life of the process. The tell was an hour-old
@@ -2041,7 +2042,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
   — which looks like "the names are unconstrained" rather than "the scan missed
   them".
 
-### `wantedBy` a target you are transitively ordered after deletes your start job
+### `wantedBy` a target the unit is transitively ordered after deletes its start job
 
 `power-profiles-tlp` (`docs/adr/0026`) declared `wantedBy = [ "multi-user.target" ]`
 and `after = [ "tlp.service" ]`, and **never started at all** — no failure, no
@@ -2305,8 +2306,8 @@ See `docs/adr/0004`.
 > there would have overridden the correct settings for every user service
 > started afterwards — the export is the more authoritative of the two.
 
-**A GTK theme can be deleted from nixpkgs under you, and the failure is an eval
-error naming a package you never touched.** GTK2 went, taking
+**A GTK theme can be deleted from nixpkgs underneath the config, and the failure
+is an eval error naming an untouched package.** GTK2 went, taking
 `gtk-engine-murrine` with it, and murrine's reverse dependencies were removed
 rather than fixed — `gruvbox-gtk-theme` and `gruvbox-material-gtk-theme` both, on
 2026-07-22. It aborts the whole config before any build starts, on the next
@@ -2320,7 +2321,7 @@ nothing to vendor.
 > `modules/system/desktop.nix` — which listed the theme among `systemPackages`
 > a long way from `theme.nix` — failed the eval. When retiring a vendored
 > package, grep for the *attribute name* across the whole repo, not just the
-> module you were editing.
+> module being edited.
 
 > Any theme still carrying a `gtk-2.0/` directory is a candidate to go the same
 > way. The tell is a removal notice in nixpkgs' `pkgs/top-level/aliases.nix`
@@ -2452,7 +2453,7 @@ build if any generated tone drifts off `bg0`'s channel offsets. It read
 and an outright blocker for Mocha's `#1e1e2e`, which is blue-tinted by 16. The
 check was generalised rather than deleted, because the failure it catches is
 real: the lock screen is the one surface that can end up wearing a colour the
-palette never named, and nothing about it looks wrong at a glance. If you change
+palette never named, and nothing about it looks wrong at a glance. If changing
 `bg0`, there is nothing to update here — the ramp is derived from it.
 
 ### Three colour includes, three different failures — and foot is the loud one
@@ -2468,7 +2469,7 @@ kitty, foot and rofi each read their palette through a runtime symlink since
 | foot | `failed to open`, **exit 230** | **foot does not start** |
 
 The design that produced these assumed all three were silent. Two are. foot
-refusing to start is not a worse bug — it is the only one you would notice — but
+refusing to start is not a worse bug — it is the only noticeable one — but
 it means the seed in `modules/home/mode-theme.nix` is load-bearing for *having a
 terminal*, not for having a styled one. Do not remove it on the grounds that
 `apply_theme` makes the links anyway: `apply_theme` runs on a mode SWITCH, and a
@@ -2636,7 +2637,7 @@ than remembered (`docs/adr/0013`).
 **Editing one of the nine from a GUI silently un-declares it.** All three
 keyfile directories are read — `/etc`, `/run`, `/usr/lib` — and `ensureProfiles`
 writes to `/run`. An `nmcli con modify` writes a *new* file into `/etc` with the
-same UUID, and one of the two is then ignored, so the profile you edit and the
+same UUID, and one of the two is then ignored, so the edited profile and the
 profile Nix generates stop being the same thing with no error either way. The
 tell is `nmcli -f NAME,FILENAME con show`: the nine must report a `/run/...`
 path. This is why the hand-restored `/etc` copies had to be moved aside when
@@ -2675,7 +2676,7 @@ own config, which is the `corectrl` fight.
 
 `checks/static.sh` asserts every `secrets/*.yaml` carries the `sops:` metadata
 block, because **an unencrypted secrets file looks exactly like an encrypted
-one** unless you open it, and the mistake is unrecoverable once pushed. It does
+one** unless opened, and the mistake is unrecoverable once pushed. It does
 **not** check the values are real — a file of placeholders encrypts and passes.
 
 Changing the PIA credentials is `sops` then `rebuild`; `vpn-menu.sh` has no "set
@@ -2695,7 +2696,7 @@ daemon rewrites itself, so it has no tier and no check.
 
 | File | What it is |
 |---|---|
-| `login.keyring` | the only keyring `pam_gnome_keyring.so` opens. The name is hardcoded on PAM's side: it unlocks *this* file with the password you typed, and re-encrypts it on password change via the `use_authtok` line |
+| `login.keyring` | the only keyring `pam_gnome_keyring.so` opens. The name is hardcoded on PAM's side: it unlocks *this* file with the password typed at login, and re-encrypts it on password change via the `use_authtok` line |
 | `Default.keyring` | an ordinary keyring. Nothing about the name is special to PAM |
 | `default` | **a pointer, not a keyring** — the target of the Secret Service `default` alias. Currently the 7 bytes `Default` |
 | `user.keystore` | not a Secret Service keyring at all: the PKCS#11 token store, for certificates and keys |

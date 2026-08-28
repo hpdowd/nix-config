@@ -246,7 +246,7 @@ overlay. `scheme.nix` is a bare file that both sides `import`
 ```
 ~/src/nix-config/
 ├── flake.nix                 inputs and the thinkpad configuration. At the root — 0001
-├── flake.lock                pinned inputs; only moves when you run `update`
+├── flake.lock                pinned inputs; only moves on `update`
 ├── CLAUDE.md                 agent instructions; wins over SYSTEM.md on conflict
 ├── README.md                 entry point
 ├── .envrc                    `use flake`
@@ -275,7 +275,7 @@ overlay. `scheme.nix` is a bare file that both sides `import`
 | `.envrc` | `use flake` |
 | `.gitignore` | A denylist. It was a 119-line allowlist when the repo root was `~/.config`; the history is kept in comments because the shape recurs |
 | `.sops.yaml` | age recipients — one key, `&thinkpad` — and `creation_rules` matching `secrets/*.yaml` |
-| `statix.toml` | Disables `repeated_keys` (W20). It produced 69 findings, all of them wrong for NixOS module style, and a check that always fails is one you stop reading |
+| `statix.toml` | Disables `repeated_keys` (W20). It produced 69 findings, all of them wrong for NixOS module style, and a check that always fails stops being read |
 | `verify-claims.sh` | The assertions that need a live Wayland session: `wlopm` enumerates an output, `mmsg` reports a monitor. Skips rather than fails when headless |
 
 ### `hosts/thinkpad/` — identity

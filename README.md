@@ -84,7 +84,7 @@ Three tiers, best first. `docs/SYSTEM.md` §6 has the full rule and the reasonin
 
 Generated is the default, because a typed option turns a config typo into a
 build failure. Most of what has broken this machine broke without reporting
-anything, so an error you cannot miss is worth the churn.
+anything, so an error that cannot be missed is worth the churn.
 
 **Almost nothing is live-editable.** `corectrl` is the exception. Everything else
 needs a `rebuild` before a reload, and the generated configs have no file to edit

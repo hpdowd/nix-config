@@ -10,10 +10,10 @@ held the automatic lock back. Extends [0018](0018-lock-background-is-a-pool.md)
 
 [0023](0023-noctalia-owns-its-own-actions.md) gave `SUPER+Delete` to noctalia's
 lock screen in noctalia mode and left `services.swayidle` on `lockscreen -f` —
-so the only lock you ever saw *by hand* was noctalia's, and the only lock you
+so the only lock reachable *by hand* was noctalia's, and the only lock
 ever saw *after a sleep* was swaylock's. Which is nearly every lock: the lid,
 the 5-minute timeout, the 30-minute suspend and `loginctl lock-session` all go
-through swayidle. The mode looked like noctalia until you walked away from it.
+through swayidle. The mode looked like noctalia until the machine was left idle.
 
 Two reasons were given for holding it back, and only one of them survives.
 
@@ -72,7 +72,7 @@ leave the machine open.
 
 **The manual key is unchanged**, and deliberately does not route through the
 wrapper: `shell.sh` calls the IPC directly and reports "the shell is not
-running" with `notify-send`. You are at the keyboard for that one, so a report
+running" with `notify-send`. That path is always hand-driven, so a report
 beats a silent substitution; nobody is at the keyboard for the other.
 
 **The swaylock palette comes from `palette.nix`.** `opaque` and `wash` spell the

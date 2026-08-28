@@ -56,7 +56,7 @@ which routes the launcher through `Quickshell.execDetached` and bypasses
 five call sites — the dock, the taskbar and the workspace context menus keep the
 dead path. And it launches applications as children of *the shell*, inside
 `noctalia.service`, where `KillMode=control-group` means **a mode switch kills
-everything you launched**. `mmsg dispatch spawn_shell` makes them children of
+everything it launched**. `mmsg dispatch spawn_shell` makes them children of
 **mango**, in the session scope — verified: the spawned process appears with
 mango's PID as its parent, in `session-10.scope`, not in the unit's cgroup. The
 patch is the smaller change *and* the one that fixes the lifetime.

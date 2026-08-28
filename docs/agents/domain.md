@@ -10,7 +10,7 @@ This repo is **single-context**: one `docs/adr/` at the root, no `CONTEXT.md`.
   table to everything else. Read it first. The skills' generic advice to start at
   `CONTEXT.md` assumes a codebase; here that knowledge lives in `CLAUDE.md`.
 - **`docs/gotchas.md`** — the failure catalogue. Read the section for the area
-  you are about to touch.
+  being touched.
 - **`docs/adr/`** — read the ADRs covering that area before changing it.
 - **`docs/ANATOMY.md`** — what every file in the repo is for, and how the flake
   and the lock fit together.
@@ -42,7 +42,7 @@ mode-script theming architecture in `CLAUDE.md`, the tier rules in
 `/domain-modeling` converts one into a numbered ADR, link back to the prose
 rather than duplicating it.
 
-If your output contradicts an ADR, surface it rather than silently overriding:
+Output that contradicts an ADR is surfaced rather than silently overriding it:
 
 > _Contradicts ADR-0009 (generate config from Nix) — but worth reopening
 > because…_

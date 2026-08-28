@@ -29,7 +29,7 @@ grouped at all. `custom/control-center` had no border rule, so in `minimal` it
 butted straight against the centre window title.
 
 This is the repo's usual shape: it renders, it renders *plausibly*, and nothing
-can tell you it is wrong.
+can report that it is wrong.
 
 ## Decision
 

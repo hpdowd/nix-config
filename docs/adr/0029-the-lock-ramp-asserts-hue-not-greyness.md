@@ -73,7 +73,7 @@ was — 96 blocks sampled from 9 tones vary by ±1 through sampling alone.
   at build time with a message that named the problem. A looser check written in
   2026-08 would have bought nothing and asserted less for two years. The habit
   worth keeping is the one that worked: assert the strongest true property, and
-  let the build tell you when it stops being true.
+  let the build report it when it stops being true.
 - Cost: the derivation is harder to read. `mid` is a three-element list and the
   `checkPhase` is generated with `zipListsWith` over the channel names, where it
   used to be one `magick` call and a string comparison.

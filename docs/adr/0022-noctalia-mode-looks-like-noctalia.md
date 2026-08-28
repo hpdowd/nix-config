@@ -120,7 +120,7 @@ silent — there is nothing left to report with.
 
 - **noctalia's Settings UI will visibly revert a pinned key on the next mode
   switch.** That is the trade, and it is why the split exists rather than
-  pinning the whole file: everything outside the pin is genuinely yours to
+  pinning the whole file: everything outside the pin is genuinely free to
   change from the UI and survives. Change a pinned key in
   `settings-pinned.json`, then re-enter the mode.
 - **The pin does not apply while noctalia is running.** The live shell holds

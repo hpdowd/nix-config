@@ -213,6 +213,24 @@ look like it had changed nothing. Resolve the name first:
 jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev' flake.lock
 ```
 
+**A package at upstream's newest release can still be missing a symbol.**
+Minecraft Bedrock 1.26.x dies on launch with `Signal 11`. The signal is the
+fallout; the cause is the line above it — `dlopen failed: cannot locate symbol
+"pthread_sigmask" referenced by libminecraftpe.so`. The load fails and the client
+then dereferences the null handle, so every version crashes identically and the
+backtrace names only the client. The launcher's Android libc shim exports 54
+`pthread_*` symbols and not that one, on 1.7.6 *and* on `libc-shim` master, so
+bumping nixpkgs cannot fix it (mcpelauncher-manifest#1970). The fix is the
+`mcpelauncher-updates` mod in `~/.local/share/mcpelauncher/mods/`, which patches
+the game's pairip libraries in place at load. That tree is runtime-owned, so it
+cannot become an `xdg.configFile`; it survives a rebuild, not a fresh install.
+
+Two more once it loads: only the **UI** wrapper adds the client's bin to PATH, so
+running the client's store path directly fails Xbox login with
+`mcpelauncher-webview not found`; and the profile's `arch` must be `x86_64`,
+because the client is 64-bit only and `x86` loads nothing. The
+`Failed to load host libfmod` warning is noise — the launcher never loads it.
+
 ---
 
 ## Desktop

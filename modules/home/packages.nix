@@ -210,6 +210,9 @@
       winetricks
       sidequest
       winboat
+      # Bedrock also needs the mcpelauncher-updates mod dropped in
+      # ~/.local/share/mcpelauncher/mods/ — the packaged libc shim has no
+      # pthread_sigmask. docs/gotchas.md -> nixpkgs and NixOS
       mcpelauncher-ui-qt
 
       # --- System / disk ------------------------------------------------------

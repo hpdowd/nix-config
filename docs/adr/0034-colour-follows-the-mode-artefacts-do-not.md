@@ -32,7 +32,7 @@ a rebuild, and build-time modes would add nothing to it. What they would cost is
 everything else: the runtime switch (`SUPER+CTRL+/` becomes a rebuild), `hud`
 forced to pick a side, and `dotfiles.nix`, `programs.nix`, `theme.nix` and
 `waybar.nix` all made mode-conditional. Four files gain a branch each, in a repo
-whose signature bug is a branch nobody notices is dead.
+whose recurring failure is a branch nobody notices is dead.
 
 Stated plainly, and this is the part that has to be said out loud rather than
 discovered later: **"entirely differently per mode" is not reachable at all.**
@@ -132,7 +132,7 @@ impossible to add.
 - **`modes.nix` and `MODES` are cross-checked both ways.** A missing key is
   already an eval error, since `dotfiles.nix` interpolates it into an `import`.
   The direction eval **cannot** see is the other one: a key naming no mode is a
-  colour scheme nothing can ever select, and it reads like a mode that exists.
+  colour scheme nothing can ever select, and it looks like a mode that exists.
   `checks/static.sh` asserts both, with a floor on each side.
 - **The per-mode colour check reads `focuscolor`, not `bordercolor`.** The
   border role differs by mode *by design* — `surface` in tiling and hud,
@@ -148,7 +148,7 @@ impossible to add.
   this palette has no role for — sat in `programs.nix` through
   gruvbox → Catppuccin → gruvbox. The drift ceiling greps for the hexes the
   *current* themes declare, so an orphan from a retired scheme matches nothing
-  and reads as a pass. It is `subtext` now, and a new check asserts no
+  and counts as a pass. It is `subtext` now, and a new check asserts no
   six-digit hex literal appears in any `.nix` outside `modules/home/themes/`,
   floored on the number of files scanned since the pass state is zero matches.
 - **`checks/static.sh`'s fourth argument changed shape**, from one palette to
@@ -197,7 +197,7 @@ what the bootstrap is for. It is not a cosmetic safety net: without the link,
 
 **foot cannot be told to reload, either.** 1.27's `SIGUSR1`/`SIGUSR2` switch
 between the sections *already loaded*; there is no config re-read, so a swap
-reaches **new windows only**. Undocumented, that reads as the swap being broken,
+reaches **new windows only**. Undocumented, that looks like the swap being broken,
 so `apply_theme` says it in the notification every time rather than relying on
 this paragraph. kitty's `SIGUSR1` does work and is sent. rofi re-reads on every
 launch and needs nothing.

@@ -1,4 +1,4 @@
-# 0051 — waybar is the tiling bar again, and wayle is installed but unstarted
+# 0051 — Waybar is the tiling bar again, and wayle is installed but unstarted
 
 **Status:** Accepted (2026-08-27).
 

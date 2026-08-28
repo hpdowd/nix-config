@@ -1,4 +1,4 @@
-# 0023 — in noctalia mode, noctalia's keys do noctalia's actions
+# 0023 — In noctalia mode, noctalia's keys do noctalia's actions
 
 **Status:** Accepted (2026-08-16)
 

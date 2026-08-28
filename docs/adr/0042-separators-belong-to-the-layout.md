@@ -76,11 +76,11 @@ subsumes that constraint.
   fails the other way: a hidden first child leaves the first *visible* module
   drawing a border against the screen edge.
 - **`.sep` carries the group's spacing as well as its line**, because grouping
-  only reads as grouping if the gap between groups beats the gap inside one.
+  only looks like grouping if the gap between groups beats the gap inside one.
   It takes **both** a `margin-left` and a `padding-left`: a border is drawn
   between the two, so margin is the only way to put space before the line and
   padding the only way to put space after it. Setting just the margin — as this
-  first shipped — puts the whole gap on one side and reads as every group
+  first shipped — puts the whole gap on one side and looks like every group
   shifted left against its own separator.
 - The base padding is therefore on **`.module`** — waybar's own class
   (`AModule.hpp:15`), added to the same widget as the `#id` and the `#sep` tag —

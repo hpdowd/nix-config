@@ -1,4 +1,4 @@
-# 0039 — the gate asserts its own size
+# 0039 — The gate asserts its own size
 
 **Status:** Accepted (2026-08-20)
 

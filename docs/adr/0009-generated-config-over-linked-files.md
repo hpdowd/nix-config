@@ -31,7 +31,7 @@ It was a waypoint.
 
 What that cost, concretely:
 
-- **Silent-failure surface.** This repo's signature bug is config that is wrong
+- **Silent-failure surface.** The recurring failure here is config that is wrong
   in a way nothing reports: the dead `mmsg -s -d` flags (which exit 0), waybar
   `custom/*` modules rendering empty on exit 127, `appid:zen` window rules that
   never matched, six language servers missing from `lsp.lua` with no diagnostic.
@@ -47,7 +47,7 @@ What that cost, concretely:
 - **Duplicated values.** The Gruvbox palette existed twice, as
   `kitty/gruvbox-orange.conf` and `foot/gruvbox-colors.ini` — the same sixteen
   hex codes in two spellings, with nothing to keep them in step.
-- **Dead weight that reads as live.** Because a linked file is never evaluated,
+- **Dead weight that looks live.** Because a linked file is never evaluated,
   an *empty* one is indistinguishable from a correct one.
   `dotfiles/lazygit/config.yml` was zero bytes; `dotfiles/ghostty/config.ghostty` was
   zero bytes; `dotfiles/bottom/bottom.toml` was the upstream sample with every line

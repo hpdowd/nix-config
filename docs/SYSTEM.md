@@ -52,8 +52,8 @@ One btrfs filesystem, five subvolumes, plus the EFI partition:
 
 All btrfs mounts use `compress=zstd:3`, `noatime`, `discard=async` — **except
 `@swap`**, which must not be compressed. btrfs refuses a compressed swapfile
-and `swapon` reports `Invalid argument`, which reads like file corruption
-rather than a wrong mount option. See §9.
+and `swapon` reports `Invalid argument`, which looks like file corruption rather
+than a wrong mount option. See §9.
 
 **`@home` is the important one.** It survived the migration in place, which is
 why your browser profile, credentials and pairings are all still there — and
@@ -94,77 +94,42 @@ Two rules follow from this and explain most of the surprises:
    `/etc/systemd/...` either fails or is silently reverted on the next rebuild.
    Change the flake instead.
 2. **State must never live in the config tree.** A program writing into its own
-   config directory is precisely what stops that directory from becoming a
-   read-only store path. This is why `~/.local/state/mango/` exists — see
-   `docs/adr/0003`.
+   config directory is what stops that directory from becoming a read-only store
+   path. This is why `~/.local/state/mango/` exists; see `docs/adr/0003`.
 
 ---
 
 ## 3. Repository map
 
+`docs/ANATOMY.md` §5 is the canonical map: every directory, every file, what it
+holds and why. It also covers `flake.nix` output by output and `flake.lock`'s
+input graph.
+
+The short orientation:
+
 ```
 ~/src/nix-config/
-├── flake.nix                  inputs + the thinkpad configuration. AT THE ROOT — see ADR 0001
-├── flake.lock                 pinned inputs. Only moves when you run `update`
-├── hosts/thinkpad/
-│   ├── default.nix            host identity: hostname, user, groups, stateVersion
-│   └── hardware-configuration.nix   real UUIDs, subvolume mounts, swap
-├── modules/system/            one file per concern, all imported by the host
-│   ├── boot.nix               bootloader, kernel, firmware, snapper
-│   ├── locale.nix             timezone, keymap, keyd
-│   ├── networking.nix         NetworkManager, firewall, avahi, wifi-resume hook
-│   ├── audio.nix              pipewire, micmute-led daemon, udev rules
-│   ├── desktop.nix            mango, greetd, portals, bluetooth, thunar, polkit, PAM
-│   ├── fonts.nix              nerd fonts + fontconfig defaults
-│   ├── power.nix              TLP, thresholds, zram, suspend hooks, corectrl
-│   ├── printing.nix           CUPS + sane
-│   ├── virtualisation.nix     podman, libvirt, steam, gamescope
-│   └── nix-settings.nix       flakes, GC, substituters
-├── modules/home/              home-manager (user-level)
-│   ├── default.nix            imports, idle ladder, user units (wlsunset,
-│   │                          poweralertd, swaync mask), xdg.mimeApps
-│   ├── options.nix            `local.checkout` — the path this repo lives at
-│   ├── packages.nix           user packages that no program module installs
-│   ├── shell.nix              zsh, aliases, PATH, env, git
-│   ├── programs.nix           GENERATED configs: kitty, foot, zed, htop,
-│   │                          yazi, ncspot, imv, wlogout. No files in dotfiles/ for these
-│   ├── waybar.nix             GENERATED: the three waybar layouts. Still built,
-│   │                          started by nothing since ADR 0045
-│   ├── wayle.nix              GENERATED: six layouts and _colors.scss; the only
-│   │                          owner of services.wayle. Built, and started by
-│   │                          nothing since ADR 0051 — waybar.nix is the bar
-│   ├── theme.nix              GTK + dconf + Qt theming (owned by Nix, not scripts)
-│   └── dotfiles.nix           what is still a hand-written FILE, and how it is linked
-├── dotfiles/                  the hand-written dotfiles that remain
-│   ├── mango/                 compositor: modes, waybar CSS, scripts
-│   ├── nvim/                  the one large hand-rolled config (~22 files, lazy.nvim)
-│   ├── swaync/ glow/          apps with no module, or whose module is not adopted
-│   ├── rofi/                  config.rasi — config AND theme (ADR 0021)
-│   ├── wayle/                 index.scss — the bar's spacing rules (ADR 0045)
-│   │                          and its state colour (ADR 0048)
-│   ├── zsh/conf.d/            shell options, aliases, PATH, prompt
-│   ├── scripts/               → ~/.scripts (extensionless bash)
-│   ├── Kvantum/ nwg-look/ gtk-3.0/ gtk-4.0/   file-level entries + theme assets
-│   ├── yazi/ wlogout/         ASSETS ONLY — flavor and icons referenced
-│   │                          by programs.nix. No config files here
-│   └── corectrl/              the single out-of-store entry
-├── pkgs/default.nix           the overlay — package overrides and local packages
-│   ├── lock-backgrounds/      blocks.py — the swaylock pool generator (ADR 0018)
-│   └── power-profiles-tlp/    the PPD bus name, answered from TLP (ADR 0026)
-├── statix.toml                lint config — `repeated_keys` is off, see the file
-├── .envrc                     `use flake`; needs direnv, otherwise `nix develop`
-├── verify-claims.sh           re-checks the assertions CLAUDE.md makes about the system
-└── docs/                      this file, ADRs, work log, migration archive
+├── flake.nix              inputs and the thinkpad configuration. At the root — ADR 0001
+├── flake.lock             pinned inputs; only moves when you run `update`
+├── hosts/thinkpad/        host identity and hardware-configuration.nix
+├── modules/system/        11 files, one concern each, all imported by the host
+├── modules/home/          home-manager: packages, shell, programs, bars, theme
+├── pkgs/                  the overlay: local packages, overrides, theme artefacts
+├── checks/static.sh       the static assertion suite
+├── dotfiles/              the hand-written dotfiles that remain
+├── secrets/               sops-encrypted, tracked
+└── docs/                  this file, ANATOMY, NIX-PRIMER, gotchas, ADRs
 ```
 
-**`dotfiles/` is shrinking by design.** Most configs are now generated by
-`modules/home/programs.nix` and have no file here at all — `dotfiles/kitty/`,
-`dotfiles/foot/`, `dotfiles/zed/`, `home/htop/`, `dotfiles/ncspot/`, `dotfiles/imv/` and
-`dotfiles/ghostty/` were all deleted on 2026-08-01. If you go looking for a config
-file and it is not in `dotfiles/`, it is generated: grep `modules/home/`. See §6.
+**`dotfiles/` is shrinking by design.** Most configs are generated by
+`modules/home/programs.nix` and have no file here at all: `dotfiles/kitty/`,
+`dotfiles/foot/`, `dotfiles/zed/`, `dotfiles/htop/`, `dotfiles/ncspot/`,
+`dotfiles/imv/` and `dotfiles/ghostty/` were deleted on 2026-08-01. If you go
+looking for a config file and it is not in `dotfiles/`, it is generated; grep
+`modules/home/`. See §6.
 
 **Do not move `flake.nix` down a level.** With it at the root, `dotfiles/` is
-inside the flake and reachable by relative path — which is the only reason
+inside the flake and reachable by relative path, which is the only reason
 dotfiles can be store-based at all. See `docs/adr/0001`.
 
 ---
@@ -195,14 +160,14 @@ command completion. The two that get typed by hand are aliased instead.
 
 ⚠️ Neither reload alias picks up repo edits on its own. `~/.config/mango` is a
 store path, so **`rebuild` first, reload second** — running only the reload
-restarts the bar against the config it already had, which looks exactly like the
+restarts the bar against the config it already had, which looks the same as the
 change having no effect.
 
 **Always quote the flake ref if you type it by hand.** zsh runs with
 `EXTENDED_GLOB`, which makes `#` a pattern operator, so an unquoted
 `~/src/nix-config#thinkpad` is parsed as a glob, matches nothing, and dies with
-`zsh: no matches found:` before `nixos-rebuild` ever runs. It reads like a
-broken path. The aliases already quote it.
+`zsh: no matches found:` before `nixos-rebuild` runs, which looks like a broken
+path. The aliases already quote it.
 
 ### Rolling back
 
@@ -239,13 +204,13 @@ Rebuilding is not always enough — most desktop pieces need a nudge:
 | Desktop mode | `~/.config/mango/scripts/modes/<mode>.sh` |
 | `autostart.conf` | **Log out and back in** — `exec-once` only fires at compositor startup |
 
-⚠️ **Almost nothing is live-editable any more, and this catches everyone once.**
+⚠️ **Almost nothing is live-editable any more.**
 `dotfiles/mango/` became a store path on 2026-07-30, and on 2026-08-01 the nine
 programs above stopped having a file in this repo at all — they are generated
 from Nix. So "edit the dotfile and reload" no longer works in either case:
 there is nothing to edit for the generated ones, and the store copy of the
 others does not change until you rebuild. **Reloading without rebuilding first
-looks exactly like the change having had no effect.**
+looks the same as the change having had no effect.**
 
 `corectrl` is the only entry where an edit is still live without a rebuild.
 
@@ -341,7 +306,7 @@ file from typed options; **there is no config file in this repo at all.**
 This is where a config should end up unless there is a reason it cannot. The
 argument is not tidiness:
 
-- **Typos become build failures.** This repo's signature bug is config that is
+- **Typos become build failures.** The recurring failure here is config that is
   wrong in a way *nothing reports* — the dead `mmsg -s -d` flags, empty
   `custom/*` modules, `appid:zen` matching nothing, six silently missing
   language servers. Typed options are the only mechanism here that turns that
@@ -368,16 +333,16 @@ rebuild.
 
 Currently: `mango` (with `recursive = true`), `nvim`, `swaync` (body only), `glow`,
 `zsh/conf.d`, and `~/.scripts` — plus the file-level entries `Kvantum`,
-`nwg-look`, `rofi/config.rasi`, `wayle/styles/index.scss` and the
-`gtk-3.0`/`gtk-4.0` assets.
+`nwg-look`, `rofi/config.rasi`, `wayle/index.scss` and the `gtk-3.0`/`gtk-4.0`
+assets.
 
-> **`wayle/styles/index.scss` is the same shape as waybar's `style-*.css`**:
+> **`wayle/index.scss` is the same shape as waybar's `style-*.css`**:
 > rules, not settings, beside a generated `_colors.scss`. It is not optional —
 > wayle's `button-gap` and `button-label-padding` clamp at 0.25, so the config
 > layer cannot make a dense bar and the sheet is where the spacing actually
 > lives. It also carries the **state colour** for the three custom modules
 > wayle gives no `thresholds` key, keyed on the class each script already
-> prints. ADR 0045, 0048; `docs/gotchas.md` → Wayle.
+> prints. `docs/adr/0048`; `docs/gotchas.md` → Wayle.
 
 > **`rofi/config.rasi` is declared as a FILE, not a directory.** rofi writes a
 > cache and `rofi.png` next to it, so linking the parent would give one path two
@@ -461,7 +426,7 @@ from `dotfiles/` in the same change. `waybar.nix` writes into `~/.config/mango/`
 which the recursive `mango` link also owns, and that only works because the
 four `.jsonc` files were deleted from `dotfiles/mango/waybar/`. `walker/config.toml`
 broke `rebuild` outright this way: tracked in git *and* written as a symlink by
-every autostart file. It is gone with walker (ADR 0021); the shape is not.
+every autostart file. It is gone with walker, and its record was retired with it; the shape is not.
 
 ⚠️ **"Declarative" and "writable" are not actually in tension.** That was an
 artefact of only having symlinks. `programs.zed-editor` runs an activation
@@ -915,7 +880,7 @@ is missing from the bar, **run its script by hand first**:
 
 | Piece | Role |
 |---|---|
-| **rofi** | The launcher (`SUPER+Space`, `-show drun` — `docs/adr/0043`) and every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi` (ADR 0021). Grepping for `rofi` also substring-matches `power-profile` |
+| **rofi** | The launcher (`SUPER+Space`, `-show drun` — `docs/adr/0043`) and every structured menu — bluetooth, clipboard, volume, network, VPN, mode and layout pickers — plus `calc` and `emoji` as plugin modes. No daemon. Config *and* theme in `dotfiles/rofi/config.rasi`, one file for both modes. Grepping for `rofi` also substring-matches `power-profile` |
 | **rofi-rbw** | Bitwarden (`SUPER+P`). Not a rofi plugin — a front-end over `rbw` |
 | **swaync** | **The notification daemon in `tiling` again** (`docs/adr/0051`), started by `tiling/autostart.conf` after wayle is stopped; noctalia's shell is the daemon in `noctalia`. Its unit stays masked so that autostart owns the lifecycle — which also means `swaync-client` only works while swaync itself holds `org.erikreider.swaync.cc`. See `docs/gotchas.md` → Waybar |
 | **awww** | Wallpaper daemon (the swww fork; the binary is `awww`) |
@@ -1381,7 +1346,7 @@ sudo btrfs inspect-internal map-swapfile -r /swap/swapfile
 line parameter, so `rebuild` writes the new logind and sleep config while the
 *running* kernel has neither. `systemctl hibernate` then snapshots memory,
 prepares S4 and returns **without writing an image or powering off** — and
-because the screen blanks and comes back, it reads as a fast, successful
+because the screen blanks and comes back, it looks like a fast, successful
 hibernate. It is not. This is dangerous while half-applied, because the lid
 handler goes live at rebuild time: closing the lid then attempts the failed
 hibernate, thaws, and leaves the machine awake with the lid shut, draining
@@ -1562,8 +1527,8 @@ invisible in logs and reported as "X is missing".
 
 Things that are true today and worth knowing. *(Reviewed 2026-08-20.)*
 
-- **noctalia mode wears `nord`; tiling wears `gruvbox`** — set in
-  `modules/home/modes.nix` (`docs/adr/0034`). Following the mode: mango's window
+- **Each desktop mode names its own scheme** in `modules/home/modes.nix`
+  (`docs/adr/0034`). Following the mode: mango's window
   chrome, noctalia's own palette, Equibop's theme filename, and kitty, foot,
   rofi and ncspot through a runtime symlink. **Not** following it, permanently:
   GTK and Qt widget art, the icon set and nvim, which are built artefacts and
@@ -1691,8 +1656,7 @@ The ADRs are short and each records the failure that motivated the decision:
 | 0008 | Arch was removed outright |
 | 0009 | Generate config from Nix where a module exists; link files only where one does not |
 | 0010 | `nix flake check` is the gate; lints tuned to fire only on real findings |
-| 0045 | wayle is the tiling mode's shell, and each mode owns its wallpaper |
-| 0046 | The weather panel is wayle's; the reading is not |
+| 0045 | Each mode owns its wallpaper |
 | 0047 | A retired daemon is a call that exits 0 |
 | 0048 | State colour rides the class the script prints |
 | 0049 | A shell is four surfaces, and the bar was the only declared one |

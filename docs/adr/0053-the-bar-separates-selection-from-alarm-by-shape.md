@@ -1,4 +1,4 @@
-# 0053 — the bar separates selection from alarm by shape, not by hue
+# 0053 — The bar separates selection from alarm by shape, not by hue
 
 **Status:** Accepted (2026-08-27).
 

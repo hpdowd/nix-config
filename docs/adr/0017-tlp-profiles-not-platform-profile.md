@@ -84,7 +84,7 @@ deleted. Nothing writes it by hand any more.
 **The iGPU pin cannot live in TLP.** Its amdgpu branch handles `PP_BAL` and
 `PP_SAV` in one arm and reads only `RADEON_DPM_PERF_LEVEL_ON_BAT`; there is no
 `_ON_SAV`. Setting one is accepted into `tlp.conf` and never read — configured,
-inert, silent, this repo's signature bug. `power-mode` writes
+inert and silent, which is the failure mode this repo keeps hitting. `power-mode` writes
 `power_dpm_force_performance_level` itself, which is the whole reason it exists
 rather than the toggle shelling out to `tlp` directly.
 

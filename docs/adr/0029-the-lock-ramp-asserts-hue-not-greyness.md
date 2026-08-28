@@ -27,7 +27,7 @@ this and said the check must be changed in the same commit, with a reason.
 The reason matters more than the mechanism, because the obvious response is to
 delete the check. What it catches is genuinely hard to see: the lock screen is
 the one surface a user meets with nothing else on screen to compare against, so
-a background carrying a hue the palette never named reads as *deliberate*. It is
+a background carrying a hue the palette never named looks deliberate. It is
 the same class as the drifted palette 0028 exists to prevent, on the one surface
 where drift is least visible.
 

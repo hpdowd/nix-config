@@ -82,7 +82,7 @@ the section it currently has. It does not gate which schemes may be adopted.
 
 ## Consequences
 
-- **A new silent-failure class, and it is this repo's exact signature.** A `sed`
+- **A new silent-failure class, of exactly the usual kind.** A `sed`
   that stops matching produces a valid, complete, unrecoloured artefact. The
   build succeeds, the theme resolves, the check that asserts the directory
   exists passes, and the cursor is still Catppuccin mauve. Every generator

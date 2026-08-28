@@ -1,4 +1,4 @@
-# 0056 — a declared refresh signal needs a sender
+# 0056 — A declared refresh signal needs a sender
 
 **Status:** Accepted (2026-08-27).
 
@@ -53,7 +53,7 @@ exactly such a comment.
 
 - The failure is invisible without the check. A module with a dead signal still
   updates on its poll interval, so it is correct most of the time and wrong for
-  the seconds after a key press. That reads as an unreliable keybind rather than
+  the seconds after a key press. That looks like an unreliable keybind rather than
   a missing line.
 - The check depends on the pkill spelling. A sender written some other way, or
   one that signals by PID, would pass the eye and fail here.

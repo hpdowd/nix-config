@@ -1,4 +1,4 @@
-# 0020 — noctalia is a desktop mode, not a second desktop
+# 0020 — Noctalia is a desktop mode, not a second desktop
 
 **Status:** Accepted (2026-08-14), **corrected 2026-08-16 — the mango
 integration does not work**; extended by

@@ -1,8 +1,9 @@
 # 0057 — One glyph pack was never enforced
 
-**Date** 2026-08-28
-**Status** Accepted
-**Supersedes** part of 0051 (the one-pack pass), part of 0053 (the neutral tiers)
+**Status:** Accepted (2026-08-28). Supersedes part of
+[0051](0051-waybar-is-the-tiling-bar-again.md) — the one-pack pass — and part of
+[0053](0053-the-bar-separates-selection-from-alarm-by-shape.md), the neutral
+tiers.
 
 ## Context
 
@@ -36,7 +37,7 @@ Three consequences were visible on the bar and went unreported:
 
 - **Two lightning bolts, 30px apart.** `custom/power-profile` drew nf-fa-bolt
   in red for `performance`, immediately left of a battery whose Papirus art is
-  a bolt inside a battery. A red bolt beside a battery reads as charge state.
+  a bolt inside a battery. A red bolt beside a battery looks like charge state.
 - **The panel disagreed with the bar it opens from.** control-center.sh gave
   bluetooth, volume, night mode and the power profile different glyphs from the
   modules they mirror, and mixed four nf-md with twelve nf-fa in one list.

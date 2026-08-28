@@ -72,7 +72,7 @@ It is a **translator, not a tuner**, and the split is the whole point:
 - **Watches** `last_pwr` with a `Gio.FileMonitor` and emits `PropertiesChanged`,
   so TLP's own charger-transition switches reach the client. Without this the
   widget would track only its own clicks and go stale on the first unplug —
-  which reads as a broken widget, not a stale one.
+  which looks like a broken widget rather than a stale one.
 
 Four choices inside it are deliberate:
 
@@ -86,7 +86,7 @@ TLP stopped the name *leaves the bus*, and clients see an absent service — tru
 **It declines profile holds, loudly.** PPD lets an application pin a profile
 while it runs. Honouring that here would let any app override a profile whose
 every value was measured for this chassis, and recording a hold that changed
-nothing would be this repo's signature bug written on purpose. `HoldProfile`
+nothing would be that same silent failure, chosen deliberately. `HoldProfile`
 raises `NotSupported` with a sentence saying why, and `ActiveProfileHolds` is
 empty by construction rather than merely empty so far.
 

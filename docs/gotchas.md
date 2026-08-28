@@ -1,11 +1,11 @@
 # Gotchas — the failure catalogue
 
-Everything here has actually broken this machine. Read the section for the area
-you are about to change. `CLAUDE.md` carries the rules that apply to every task;
-this file carries the ones that apply to one area.
+Everything here has broken this machine at least once. Read the section for the
+area you are about to change. `CLAUDE.md` carries the rules that apply to every
+task; this file carries the ones that apply to one area.
 
-Almost all of these share a shape: **the failure is silent**. A missing thing and
-a broken thing look identical, so "it ran and exited 0" is not evidence.
+Almost all of them share a shape: **the failure is silent**. A missing component
+and a broken one look identical, so "it ran and exited 0" is not evidence.
 
 - [Arch carryover](#arch-carryover) — state that survived via `@home`
 - [nixpkgs and NixOS](#nixpkgs-and-nixos) — packaging traps
@@ -95,7 +95,7 @@ snapper timeline, so 26 GB of Arch-era `~/.cache/paru` stayed referenced and
 
 **There is no `/bin/bash`.** `/bin` holds one entry, `sh`. A `#!/bin/bash`
 shebang fails with exit 127 and *silence* — a waybar `custom/*` module whose exec
-exits 127 renders as an empty module, which reads as the module being absent.
+exits 127 renders as an empty module, which looks like the module being absent.
 This bit 13 scripts after the migration. `checks/static.sh` now fails the build
 on it.
 
@@ -152,7 +152,7 @@ other, drop it; if they merely contend, use `lib.hiPrio` on the **winner** —
 **The nixpkgs attribute is not the binary name.** `clangd` ships in
 `clang-tools`; the Nix LSP is `nil`; there is **no bare `pinentry`** attribute
 (removed in favour of the variants, so `pkgs.pinentry` is an eval error).
-Searching for the binary's name finds nothing and reads as "not packaged".
+Searching for the binary's name finds nothing and looks like "not packaged".
 
 **`share/<pkgname>` is not in `environment.pathsToLink`**, so a package's data
 files exist *only* at its versioned store path —
@@ -273,7 +273,7 @@ Lowering it would have changed nothing while looking exactly like a fix that
 worked, because the next boot's timing varies anyway. Check which stream is
 actually printing before quietening either one.
 
-### …and the *session's* output prints there too, which is a different bug
+### The session's output prints there too, which is a different bug
 
 `useTextGreeter` is also what causes this one, and it looks identical from the
 chair. It puts `StandardInput/Output=tty` and `TTYPath=/dev/tty1` on
@@ -293,7 +293,7 @@ edges of a session — as the compositor comes up over the greeter, and under th
 greeter afterwards, because `TTYVTDisallocate` clears tty1 once at
 **greetd.service start** and never again. Read `sudo cat /dev/vcs1` to get the
 buffer verbatim; it is full of xkbcomp warnings, swaync's startup banner,
-`libva info:` lines and GTK warnings — a page of session noise that reads like a
+`libva info:` lines and GTK warnings — a page of session noise that looks like a
 boot-time fault because it is sitting on the login screen.
 
 **The tell that separates the two:** PID 1's overdraw is `[ OK ] Started …`
@@ -336,7 +336,7 @@ peer 'org.erikreider.swaync.cc': activation request failed: unit is masked
 
 on **stderr** and **exits 0**. Three keys (`CTRL+ALT+\`, `CTRL+ALT+BackSpace`,
 `SUPER+SHIFT+N`) and two control-centre rows were dead that way for a month: the
-rows rendered `?`, which reads as "I could not ask" and is correct, and the keys
+rows rendered `?`, which means "I could not ask" and is correct, and the keys
 reported success.
 
 The daemon is `wayle notify` in tiling and noctalia's own IPC in noctalia.
@@ -399,7 +399,7 @@ once is otherwise completely silent.
 **mango advertises no dwl IPC, so noctalia's Workspace and ActiveWindow widgets
 render nothing** — and the Workspace widget is the centre of its bar. The shell
 picks the right backend and reports it (`MangoService Initializing MangoWC/DWL
-compositor integration (DWL protocol)`), which reads like success; every path in
+compositor integration (DWL protocol)`), which looks like success; every path in
 that backend is then guarded on `DwlIpc.available`, which is false forever.
 quickshell probes for the Wayland global `zdwl_ipc_manager_v2`; mango 0.16.0
 creates only `wlr_*` globals, and `mmsg`'s JSON socket is a different interface
@@ -533,7 +533,7 @@ UI may keep in the seed.
 
 **noctalia ignores a settings key it does not know, in silence** — no log, no
 fallback, and the UI shows its own default. So a key renamed upstream stops
-applying and reads as never having been set. `checks/static.sh` asserts every
+applying and looks as though it was never set. `checks/static.sh` asserts every
 key path in both files still exists in the package's
 `Assets/settings-default.json`.
 
@@ -630,7 +630,7 @@ has one config for every mode), but **when adding anything under
 
 **Don't `sudo` the mango scripts.** Under sudo `~` is `/root`, so `reload.sh`
 fails with `No such file or directory` and `MANGO_INSTANCE_SIGNATURE is not set`
-— which reads like a broken install rather than a wrong user — and used to
+— which looks like a broken install rather than a wrong user — and used to
 leave a **root-owned elephant** your own `pkill` cannot kill. `reload.sh`
 refuses to run as root; it no longer restarts any daemon, because rofi has
 none.
@@ -867,8 +867,9 @@ result with `grep ^auth /etc/pam.d/sudo`; the tokens are `timeout=` and
 
 ### rofi
 
-`rofi` replaced walker and elephant on 2026-08-14 (ADR 0021). The walker
-findings are kept below the rule, because the *shape* of each recurs.
+`rofi` replaced walker and elephant on 2026-08-14; that record was retired with
+them. The walker findings are kept below the rule, because the shape of each
+recurs.
 
 **rofi 2.0 is a layer surface, so `windowrule` cannot reach it.** It passes the
 literal `rofi` as its `zwlr_layer_surface` namespace, which is why
@@ -941,7 +942,7 @@ over `rbw`, so it is an ordinary package.
 modes/,/^$/p'` lists what actually `dlopen`ed, which is what `checks/static.sh`
 now reads. Under the build sandbox it needs `HOME` set to something writable —
 with `/homeless-shelter` rofi fails to create its runtime dir, warns, and
-prints **no help at all**, which reads as "the scan is broken" rather than
+prints **no help at all**, which looks like "the scan is broken" rather than
 "rofi is broken".
 
 **`-no-custom` cannot be un-set.** Setting it in `config.rasi` applies to every
@@ -1036,7 +1037,7 @@ fit. Porting a walker call by dropping `--maxheight` is correct, not lossy.
 
 **walker 2.x could not draw a window without elephant, and exited 0 about it.**
 This is why the migration happened, and it is the sharpest example in this file
-of the repo's signature bug. With the walker daemon up and only elephant
+of the same silent failure. With the walker daemon up and only elephant
 killed, `walker -d` **exits 0, prints nothing, opens no window** — from the
 keyboard indistinguishable from pressing Escape, and from a script
 indistinguishable from a cancel, because every caller reads a cancel as
@@ -1056,8 +1057,8 @@ for it, and the failure looks identical (an empty list, exit 0).
 plugins each statically linking their own runtime, `symbols.so` alone 144 MB,
 all `dlopen`ed by the daemon. Trimming 25 providers to 15 cut the store path
 807 → 546 MB and moved RSS **not at all**: 295 MB before, 305 MB after. Recorded
-because the prediction that it would fall was written down as though measured;
-see ADR 0019's status line.
+because the prediction that it would fall was written down as though it had been
+measured.
 
 **A menu glyph the menu font lacks is a box, not an error, and `fc-list` is the
 only thing that says so.** `rofi/config.rasi` pins `Hack Nerd Font 11` because
@@ -1412,7 +1413,7 @@ patched icons (they are simple glyphs, not composites). A `BoundsPen` over
 
 `nix shell nixpkgs#python3Packages.fonttools -c python` does **not** work — that
 puts the `ttx` CLI on `PATH` without putting the module on `PYTHONPATH`, and the
-import fails in a way that reads like the package being wrong.
+import fails in a way that looks like the package being wrong.
 
 Measured on 3270 (upem 2000) vs Symbols Nerd Font Mono (upem 2048):
 
@@ -1515,7 +1516,7 @@ bar is `padding: 0 5px` with `margin-left: 10px` on `.sep` now: 20–24px betwee
 groups against ≤12px inside one, measured off a screenshot rather than judged.
 
 > Compensation for the 0.54em advance was scattered through this too, and it all
-> reads as spacing: `padding: 0 8px` on three icon modules, `min-width: 28px` on
+> looks like spacing: `padding: 0 8px` on three icon modules, `min-width: 28px` on
 > two more, and a **double space** in ten `format` strings where `battery`,
 > `mpris` and `bluetooth` used one. A glyph overflowing its cell looks jammed
 > against its own number, and the fix people reach for is more space. Fix the
@@ -1541,7 +1542,7 @@ of groups now and the sheet has one `.sep` rule; `docs/adr/0042`.
 > **The group gap needs a margin and a padding, and both must live in the `*`
 > rule.** A border is drawn between margin and padding, so `margin-left` puts
 > space *before* the line and `padding-left` puts it *after* — a `.sep` carrying
-> only the margin gives the group its whole gap on one side, which reads as
+> only the margin gives the group its whole gap on one side, which looks like
 > every group shifted left against its own separator. That is how this first
 > shipped and how it was reported.
 >
@@ -1616,7 +1617,7 @@ The only indicator on this machine was the ThinkPad LED, driven by the
 `micmute-led` user unit — one `pactl subscribe` loop writing
 `/sys/class/leds/platform::micmute/brightness`.
 
-That is the repo's signature bug pointed at the worst available fact: a dead
+That is the same silent failure, applied to the worst available fact: a dead
 `micmute-led` and a live microphone look **exactly** alike, and the cost of
 reading it wrong is being recorded when you thought you were not. It needed no
 new script — waybar's built-in module already supports `format-source`,
@@ -1633,7 +1634,7 @@ Two traps in filling them in, and both produce a bar that looks fine:
   Any placeholder worth putting in `format` has to be repeated into every
   `format-*` variant that can replace it.
 - **The MUTED state may never render as nothing.** `format-source-muted`
-  defaults to the empty string, which reads as a tidy bar and is the one
+  defaults to the empty string, which looks like a tidy bar and is the one
   arrangement that cannot be debugged: "muted" and "the module is broken"
   become the same picture.
 
@@ -1654,12 +1655,12 @@ An absent phone module means *there is no phone*, which nobody can be misled by;
 an absent microphone indicator means one of two things, and only one of them is
 safe.
 
-### A cached reading served as a current one is invisible by construction
+### A cached reading served as a current one cannot be spotted
 
 `custom/weather` serves its cache when the fetch fails, because losing the
 reading is worse than showing an old one. Served **without a class**, that is
 yesterday's temperature in today's font: nothing errors, nothing logs, and the
-bar looks exactly right. It is this repo's signature bug in a nicer glyph, and
+bar looks exactly right. It is the same silent failure in a tidier form, and
 it is the reason `weather.sh` has three classes rather than a temperature and a
 fallback — `ok`, `stale` (greyed, with its age in the tooltip *and* in `alt`)
 and `error` (`?`, never a number). docs/adr/0038.
@@ -1677,7 +1678,7 @@ tooltip has five more. `alt` is one of waybar's own custom-module keys
 is `{}`, so it is free to carry a second reader's field.
 
 Same fix as `jfields`: give the reader a field rather than a substring index.
-Two owners for one string, one of them a `${...#*— }`, is drift with extra steps.
+Two owners for one string, one of them a `${...#*— }`, is drift by another route.
 
 ### `background: transparent` resets the icon, and both stylesheets are valid
 
@@ -1725,7 +1726,7 @@ after. The desktop-file name is not the appid either: `spotify.desktop` declares
 The failure `docs/adr/0041` gave the GTK, Kvantum and cursor names a check for,
 one layer down: `-gtk-icontheme("battery-level-100-charging-symbolic")` is
 perfectly good CSS for an icon Papirus does not ship (the full one is
-`-charged-`). GTK draws nothing and says nothing, so the module reads as empty.
+`-charged-`). GTK draws nothing and says nothing, so the module looks empty.
 
 `checks/static.sh` resolves every name the bar draws against the scheme's own
 icon theme **and the themes it inherits** — not against the whole of
@@ -1833,7 +1834,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `$system-path/bin/power-mode` — not to the `power-mode` package that
   `/run/current-system/sw/bin/power-mode` links to. The rule silently does not
   apply and the only symptom is `sudo: interactive authentication is required`,
-  which reads like a missing rule rather than a mismatched one. `power.nix`
+  which looks like a missing rule rather than a mismatched one. `power.nix`
   lists **both** `${powerMode}/bin/power-mode` and
   `"${config.system.path}/bin/power-mode"`.
   **`sudo -l <cmd>` cannot detect this** — it exits 0 for anything wheel may run
@@ -1871,7 +1872,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
   `zwp_idle_inhibit` surface, which stops the ladder before any rung runs.
 - **`poweralertd` alerts on every UPower device, headphones included.** `-S`
   restricts it to power supplies and `-s` drops the burst of current-state
-  notifications at login. Without both, it reads as broken rather than noisy.
+  notifications at login. Without both, it looks broken rather than noisy.
 - **A lit panel during suspend is a battery bug, not a cosmetic one** — the
   DISPLAY block tracks the CRTC, so it holds s0i3 off and the machine idles at
   ~4 W through what looks like sleep. **The backlight cannot fix it**;
@@ -2019,7 +2020,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
   journal line, `Could not launch service …: The name is not activatable`,
   followed by `The PowerProfiles service will not work`. Meanwhile
   `noctalia-shell ipc call powerProfile set balanced` printed nothing, which by
-  `docs/adr/0023`'s rule reads as success. **Any daemon here that owns a bus name
+  `docs/adr/0023`'s rule looks like success. **Any daemon here that owns a bus name
   a desktop client consumes needs `share/dbus-1/system-services/<name>.service`
   with `SystemdService=`**, not just a `wantedBy` unit. `checks/static.sh`
   asserts it.
@@ -2037,7 +2038,7 @@ and the WiFi resume fix. The traps worth carrying in your head:
 - **Reading a Qt/QML client's D-Bus contract needs `strings -e l`.** The profile
   names quickshell parses (`power-saver`, `balanced`, `performance`) are UTF-16
   literals in the binary and do **not** appear in a default ASCII `strings` dump
-  — which reads as "the names are unconstrained" rather than "the scan missed
+  — which looks like "the names are unconstrained" rather than "the scan missed
   them".
 
 ### `wantedBy` a target you are transitively ordered after deletes your start job
@@ -2158,7 +2159,7 @@ Gtk-WARNING: Theme parser error: gtk.css:5:1-132: Failed to import:
 
 `gruvbox-dark-gtk` ships `gtk-2.0`, `gtk-3.0`, `gtk-3.20` and nothing else. GTK3
 apps are themed, GTK4/libadwaita apps drop to Adwaita, and the only symptom is
-two toolkits looking different — which reads as libadwaita being libadwaita.
+two toolkits looking different — which looks like libadwaita being libadwaita.
 `catppuccin-gtk` and `nordic` both ship `gtk-4.0`, so this was a gruvbox-only
 hole, and it arrived with the scheme rather than with any change to the GTK
 config. Found 2026-08-19, in session output that had been printing to the
@@ -2222,7 +2223,7 @@ name for two migrations.** `dotfiles/mango/universal/settings.conf` set
 `cursor_theme=catppuccin-mocha-mauve-cursors` by hand. Under gruvbox and nord
 that package is not installed at all, and mango does not complain: it passes the
 name to `wlr_xcursor_manager_create`, which falls back to its own default. The
-pointer simply stops matching the scheme, which reads as a cursor someone chose.
+pointer simply stops matching the scheme, which looks like a cursor someone chose.
 
 The second half is worse. mango `setenv`s `XCURSOR_THEME` from that value
 (`src/config/parse_config.h`), and every client it spawns inherits it — so one
@@ -2326,7 +2327,7 @@ nothing to vendor.
 > quoting a *transitive* GTK2 dependency, not a problem with the package itself.
 
 **Papirus folder icons are recoloured at build time.** Stock folders are blue,
-which reads as badly broken against a non-blue scheme — the symptom is Thunar
+which looks badly broken against a non-blue scheme — the symptom is Thunar
 looking correctly themed *except* every folder. The usual fix, the
 `papirus-folders` CLI, recolours the theme **in place** and so cannot work: the
 icon theme is a read-only store path, and the tool silently achieves nothing.
@@ -2484,7 +2485,7 @@ foot --check-config; echo $?      # 230, and it says which line
 `[colors-dark]`/`[colors-light]` sections *already loaded* — there is no config
 re-read at all, so a swap reaches **new windows only**. `apply_theme` says so in
 its notification every time, because a terminal that did not change colour with
-everything else reads as the swap being broken. kitty's `SIGUSR1` does work.
+everything else looks like the swap being broken. kitty's `SIGUSR1` does work.
 
 ### A hex no theme declares is invisible to the drift ceiling
 
@@ -2604,7 +2605,7 @@ necessary" — `nmcli(1)`. So a status reader that reaches for it pays for a ful
 scan whenever it has been more than 30 seconds since the last one: **6.4 s
 measured** on the first open of `menus/control-center.sh`, during which the menu
 had not appeared at all, because Network is its first row. Nothing errors and
-nothing logs; it reads as the key not working.
+nothing logs; it looks like the key not working.
 
 `menus/network-menu.sh` carries its `/tmp` cache and its `--warm` verb for
 exactly this, and it is the reason to reach for it. For *status* — "am I on, and
@@ -2852,7 +2853,7 @@ mapfile -t rows <<<"$rows_tsv"
 TAB is **IFS whitespace**, like space and newline, so bash strips it at the start
 of the input and collapses runs of it. `IFS=$'\t' read -r a b` on `"\toffline"`
 yields `a=offline`, `b=` — not `a=`, `b=offline`. There is no warning, and the
-shape reads as obviously correct.
+shape looks obviously correct.
 
 `menus/control-center.sh`'s `jfields()` pulled several fields out of a waybar
 module's JSON with `jq … | @tsv` and read them exactly that way. Every consumer
@@ -2929,7 +2930,7 @@ were therefore always broken.
 | Script | Note |
 |---|---|
 | `micmute-led` | syncs the ThinkPad mic-mute LED with PipeWire. Runs as the user service in `audio.nix`, which is the **only** place `pactl` exists (from `pkgs.pulseaudio`, deliberately not in `systemPackages`) — so running it from a shell fails with `pactl: command not found` |
-| `toggle_lid_action` | **inert on NixOS**, and fails in a way that reads like permissions: it edits `/etc/systemd/logind.conf` in place, which is a symlink into a read-only store path, so it exits 1 with `Permission denied` and `sudo` does not help. Reading still works. The setting is declarative in `power.nix`. Kept only to answer "what is it set to" |
+| `toggle_lid_action` | **inert on NixOS**, and fails in a way that looks like a permissions problem: it edits `/etc/systemd/logind.conf` in place, which is a symlink into a read-only store path, so it exits 1 with `Permission denied` and `sudo` does not help. Reading still works. The setting is declarative in `power.nix`. Kept only to answer "what is it set to" |
 | `clean_tmp` | `cleantmp` alias |
 | `keyd-application-mapper` | per-application keyd layers |
 | `pdf_to_a4` | Ghostscript A4 conversion, aspect preserved |

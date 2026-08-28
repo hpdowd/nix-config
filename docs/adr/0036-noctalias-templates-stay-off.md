@@ -1,4 +1,4 @@
-# 0036 — noctalia's auto-theming templates stay off
+# 0036 — Noctalia's auto-theming templates stay off
 
 **Status:** Accepted (2026-08-20)
 
@@ -42,10 +42,9 @@ zed, qt, helix and discord. Three were already excluded on their hooks alone:
 | mango | `cp --remove-destination` over read-only symlinks; strips colour vars from every top-level `*.conf` | fights `colors-<mode>.conf` |
 | yazi | `sed -i` on `theme.toml`, which **is** a home-manager symlink | conflicts with `flavors.scheme` |
 
-Those three are the interesting failure, and it is this repo's signature bug
-wearing upstream's clothes: nothing crashes. The config is replaced by a
-writable local copy, the app still starts, and the repo has quietly stopped
-owning the file. The next `nixos-rebuild switch` does not restore it and does
+Those three are the interesting failure, and it takes the usual silent form:
+nothing crashes. The config is replaced by a writable local copy, the app still
+starts, and the repo has quietly stopped owning the file. The next `nixos-rebuild switch` does not restore it and does
 not complain.
 
 ## What the measurement found

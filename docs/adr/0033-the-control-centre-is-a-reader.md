@@ -64,7 +64,7 @@ Three properties make it a reader rather than a second owner:
 
 **`?` is a state, and it is not "off".** Every `state_*` has a branch for "the
 owner did not answer", and it renders `?`. A row that quietly reads "off"
-because `nmcli` was missing is this repo's signature bug wearing a nicer font.
+because `nmcli` was missing is the same silent failure in a tidier form.
 
 **The microphone row came with a bar indicator, and had to.** It was added on
 2026-08-19, the first item off this menu's own queue, and it is the only row

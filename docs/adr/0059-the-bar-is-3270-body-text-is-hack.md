@@ -1,9 +1,8 @@
 # 0059 — The bar is 3270; body text is Hack
 
-**Date** 2026-08-28
-**Status** Accepted
-**Reverses the font clause of**
-[0058](0058-one-text-face-and-the-window-that-is-playing.md)
+**Status:** Accepted (2026-08-28). Reverses the font clause of
+[0058](0058-one-text-face-and-the-window-that-is-playing.md); its glyph
+unification stands.
 
 ## Context
 

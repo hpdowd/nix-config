@@ -80,7 +80,7 @@ every evaluation.
 recording because neither failure names its cause. nixfmt takes *files*:
 
 - no arguments → it reads **stdin**, gets EOF, and dies with a bare
-  `unexpected end of input` pointing at "line 1, empty line". It reads like a
+  `unexpected end of input` pointing at "line 1, empty line". It looks like a
   corrupt source file.
 - a directory → an unhandled Haskell exception with a GHC backtrace.
 

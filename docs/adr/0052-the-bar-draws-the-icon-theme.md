@@ -1,4 +1,4 @@
-# 0052 — the bar draws the icon theme, and a minimized window can be picked
+# 0052 — The bar draws the icon theme, and a minimized window can be picked
 
 **Status:** Accepted (2026-08-28).
 

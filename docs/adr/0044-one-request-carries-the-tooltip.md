@@ -18,7 +18,7 @@ Three things were true and only the first is obvious:
 - **open-meteo returns exactly the fields named and says nothing about the
   rest.** A name dropped from the query is `null` in the cache and an absent
   line in the tooltip, with the six lines around it still right. That is this
-  repo's signature bug with a nicer glyph.
+  same silent failure in a tidier form.
 - **A single response cannot carry a trend.** Pressure now is a number;
   pressure falling is a fact, and it needs a second sample from an hour that has
   already gone.
@@ -38,7 +38,7 @@ per block, so `hourly.is_day` cannot stand in for `current.is_day`.
 hours of `{t, p}` pressure samples, pruned on write. `render()` compares against
 one aged 2–4 h, preferring the closest to three, and **claims no trend when
 there is none to claim** — a trend measured over the fifteen minutes since the
-last poll is noise wearing an arrow.
+last poll is noise with an arrow drawn on it.
 
 **A fourth verb, `open`, and it is the only one that reads nothing and renders
 nothing.** Right-click on the bar module; ~~second entry on the control-centre
@@ -77,7 +77,7 @@ row, which is therefore a picker now rather than a verb — the shape
 > check grepped for `kb-accept-custom` across the whole file and was satisfied
 > by the *comment explaining the unset*, so deleting the unset passed. Comments
 > are stripped before the scan now. A check answered by prose about the thing is
-> this repo's signature bug wearing the uniform of the fix for it.
+> the same silent failure, in the shape of its own fix.
 
 **The page is `local.location.forecastUrl`, beside the coordinates, and it
 defaults to weather.com** — `/weather/today/l/<lat>,<lon>`, which resolves to

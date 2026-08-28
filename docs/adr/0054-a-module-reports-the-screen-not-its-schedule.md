@@ -1,4 +1,4 @@
-# 0054 — a module reports the screen, not its own schedule
+# 0054 — A module reports the screen, not its own schedule
 
 **Status:** Accepted (2026-08-27).
 

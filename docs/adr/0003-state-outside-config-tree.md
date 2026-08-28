@@ -8,7 +8,7 @@
 `last-vpn` and `pia-auth` (PIA credentials, mode 600). `~/.config/mango/wallpaper/`
 held a 4.6 MB PNG.
 
-This reads as untidiness. It is not — it is load-bearing in the wrong direction.
+This looks like untidiness. It is not: the state is what keeps the directory writable.
 **State written into a config directory is precisely what forces that directory
 to stay writable**, and therefore out of the Nix store. Two files nobody thinks
 about were the reason an entire directory could not be made reproducible.

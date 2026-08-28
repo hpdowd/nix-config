@@ -72,7 +72,7 @@ These are not hex this repo owns:
 | noctalia | `predefinedScheme = "Gruvbox"`, a name its shell resolves internally |
 | yazi flavor | 783 hex of third-party syntax theme — 0009's "a colour scheme is data" argument, at scale |
 
-The icon override is the one of these that reads as palette data and is not:
+The icon override is the one of these that looks like palette data and is not:
 `color = "yellow"` selects a pre-rendered folder set, not a hex value.
 
 For these, "change the scheme" means picking a different upstream artefact.

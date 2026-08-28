@@ -1,4 +1,4 @@
-# 0055 — night light has a manual hold, not only a schedule
+# 0055 — Night light has a manual hold, not only a schedule
 
 **Status:** Accepted (2026-08-27).
 

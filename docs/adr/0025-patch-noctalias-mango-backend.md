@@ -1,4 +1,4 @@
-# 0025 — patch noctalia's mango backend, rather than route around it
+# 0025 — Patch noctalia's mango backend, rather than route around it
 
 **Status:** Accepted (2026-08-16)
 

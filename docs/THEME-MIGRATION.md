@@ -1,8 +1,9 @@
 # Migrating the theme
 
-How to change what this machine looks like, given the arrangement `docs/adr/0028`
-put in place. Written as a runbook because the work splits into two halves that
-fail in completely different ways, and the second half is the one people forget.
+How to change what this machine looks like, given the arrangement
+`docs/adr/0028` put in place. It is a runbook because the work splits into two
+halves that fail in different ways, and the second half is the one that gets
+forgotten.
 
 Companion reading: `docs/SYSTEM.md` §6 (where config lives),
 `docs/gotchas.md` → Theming (what has already bitten us), `docs/adr/0028` (why
@@ -12,8 +13,8 @@ it is arranged this way).
 
 ## 0. Decide which kind of change this is
 
-The two cases need different amounts of work, and conflating them is how a
-migration ends up half-done and looking deliberate.
+The two cases need different amounts of work. Conflating them leaves a
+migration half-done, which looks deliberate.
 
 > Worked example: this repo went gruvbox → Catppuccin Mocha on 2026-08-18, which
 > is a **new scheme** — every row in the right-hand column below actually
@@ -30,15 +31,15 @@ migration ends up half-done and looking deliberate.
 |---|---|---|
 | Example | mocha → macchiato; a different accent | gruvbox → nord, everforest |
 | The theme file | edit values | a new file in `modules/home/themes/` |
-| The five theme packages | usually unchanged | **all five must be renamed in that file** (§2) |
+| The theme file's `packages` block | usually unchanged | **all four entries renamed** (§2) |
 | nvim | keep the plugin, overrides carry the change | **swap the plugin** — see §3 |
 | ncspot's `muted` set | re-derive — check whether a formula fits (§1) | re-derive — check whether a formula fits (§1) |
-| Realistic effort | one file, one rebuild | one file, plus finding five upstreams |
+| Realistic effort | one file, one rebuild | one file, plus an icon set |
 
-Since `docs/adr/0032` the packages are **declared in the theme file** rather than
-migrated across six others, and `nix flake check` asserts every name resolves —
-so a new scheme is one file plus whatever nixpkgs does or does not have. It is
-no longer the day-long, ungated job the row above used to describe.
+Since `docs/adr/0032` the packages are declared in the theme file rather than
+migrated across six others, and `nix flake check` asserts that every name
+resolves. A new scheme is therefore one file, plus whatever nixpkgs does or does
+not have. It is no longer the day-long, ungated job it once was.
 
 ---
 
@@ -55,8 +56,8 @@ nvim, swaync, ncspot, Equibop and the lock-screen background ramp**.
 
 Why a file and not a `local.theme` option: `pkgs/default.nix` builds the lock
 ramp and is an **overlay**, so it cannot read `config.*`. An option reaches
-eleven consumers and misses the twelfth — the one surface nobody looks at
-closely. `docs/adr/0030`.
+eleven consumers and misses the twelfth, which is the one surface nobody looks
+at closely. `docs/adr/0030`.
 
 ### `scheme.nix` is the artefact scheme; `modes.nix` is the colour one
 
@@ -207,12 +208,11 @@ precisely so that this step is visible rather than discovered later.
 
 ## 2. The artefacts — three built, two written, one named
 
-**This section used to be the hard half of a migration, and it is now the
-short one.** Until `docs/adr/0041` a theme file *named* six upstream
-artefacts — compiled SCSS, rendered SVG widget art, cursor bitmaps, a yazi
-flavour, a Zed theme — and a scheme with no upstream for one of them could not
-be adopted. Most of that was a property of the implementation rather than the
-problem.
+**This used to be the hard half of a migration and is now the short one.**
+Until `docs/adr/0041` a theme file named six upstream artefacts — compiled SCSS,
+rendered SVG widget art, cursor bitmaps, a yazi flavour, a Zed theme — and a
+scheme with no upstream for one of them could not be adopted. Most of that was a
+property of the implementation rather than of the problem.
 
 | What | How | Where |
 |---|---|---|
@@ -228,10 +228,9 @@ The three built ones are named in `packages` as `paletteGtk`, `paletteKvantum`
 and `paletteCursors`, with a `name` of `<scheme>-gtk` / `-kvantum` /
 `-cursors` — so unlike the names below, those three follow a rule.
 
-**Only the icon set is still a genuine name**, and that is a decision rather
-than a gap: upstreams parameterise the folder and accent hue and nothing else,
-and the rest of an icon set is app *brand* colours that must not follow a
-scheme.
+**Only the icon set is still a name**, and that is a decision rather than a
+gap: upstreams parameterise the folder and accent hue and nothing else, and the
+rest of an icon set is app brand colours that must not follow a scheme.
 
 Plus the `apps` block, for settings whose value is a scheme's **name**:
 `noctalia` and `nvim` (§3).
@@ -249,15 +248,15 @@ Plus the `apps` block, for settings whose value is a scheme's **name**:
 > only way to notice is to look at the screen and already know.
 > `heartbox`'s icons are the only one.
 
-> ~~**The names are not guessable from the arguments that build them.**~~ Still
-> true of the icon set, and no longer the recurring hazard it was — the three
-> built artefacts are named by rule, so there is one name left to read off a
-> package instead of five.
+> **A name is not guessable from the arguments that build it.** This is still
+> true of the icon set, but it is no longer the recurring hazard it was: the
+> three built artefacts are named by rule, so there is one name left to read off
+> a package instead of five.
 
 ### Which schemes are actually available
 
-**Any of them.** That sentence replaces a survey, and the survey is worth
-keeping in mind for what it says about how constraints get inherited.
+**Any of them.** The survey that used to stand here is still worth reading for
+what it shows about inherited constraints.
 
 Until 2026-08-20 two things fixed the candidate set. noctalia resolved its
 palette from its own shipped `Assets/ColorScheme/`, which capped the choice at

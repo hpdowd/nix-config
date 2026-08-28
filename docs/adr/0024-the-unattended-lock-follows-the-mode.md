@@ -1,4 +1,4 @@
-# 0024 — the unattended lock follows the mode, and swaylock is its proof
+# 0024 — The unattended lock follows the mode, and swaylock is its proof
 
 **Status:** Accepted (2026-08-16)
 

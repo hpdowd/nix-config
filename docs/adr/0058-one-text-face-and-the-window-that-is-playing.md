@@ -1,11 +1,9 @@
 # 0058 — One text face, one calendar surface, and the window that is playing
 
-**Date** 2026-08-28
-**Status** Accepted
-**Follows** [0057](0057-one-glyph-pack-was-never-enforced.md), which did the
-same for the icons
-**Font clause reversed** by
-[0059](0059-the-bar-is-3270-body-text-is-hack.md) — the bar is 3270 again. The
+**Status:** Accepted (2026-08-28). Follows
+[0057](0057-one-glyph-pack-was-never-enforced.md), which did the same for the
+icons. The font clause is reversed by
+[0059](0059-the-bar-is-3270-body-text-is-hack.md): the bar is 3270 again. The
 calendar, the media click and the ADR-pointer check below all stand.
 
 ## Context

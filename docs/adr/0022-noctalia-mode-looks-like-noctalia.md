@@ -1,4 +1,4 @@
-# 0022 — noctalia mode looks like noctalia
+# 0022 — Noctalia mode looks like noctalia
 
 **Status:** Accepted (2026-08-15)
 
